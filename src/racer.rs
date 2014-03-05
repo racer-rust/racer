@@ -67,7 +67,7 @@ fn find_end(s : &str, pos : uint) -> uint {
 }
 
 
-fn find_in_module(path : &Path, s : &str, matchfn : &|&str,int,&Path,&str|) {
+fn find_in_module(path : &Path, s : &str, matchfn : &|&str,uint,&Path,&str|) {
     let mut file = BufferedReader::new(File::open(path));
     //let modsearchstr = "pub mod "+s;
     let modsearchstr = "mod ";
@@ -138,7 +138,7 @@ fn find_in_module(path : &Path, s : &str, matchfn : &|&str,int,&Path,&str|) {
     }
 }
 
-fn search_f(path: &Path, p: &[&str], matchfn: &|&str,int,&Path,&str|) {
+fn search_f(path: &Path, p: &[&str], matchfn: &|&str,uint,&Path,&str|) {
     debug!("search_f: {} {} ",path.as_str(),p);
     
     if p.len() == 0 {
@@ -176,7 +176,7 @@ fn search_f(path: &Path, p: &[&str], matchfn: &|&str,int,&Path,&str|) {
     }
 }
 
-fn search_in_module(path : &Path, p : &[&str], f : &|&str,int,&Path,&str|) {
+fn search_in_module(path : &Path, p : &[&str], f : &|&str,uint,&Path,&str|) {
     let mut file = BufferedReader::new(File::open(path));
     for line in file.lines() {
         match line.find_str("use ") {
@@ -203,7 +203,7 @@ fn search_in_module(path : &Path, p : &[&str], f : &|&str,int,&Path,&str|) {
     }
 }
 
-fn search_crates(path : &Path, p : &[&str], matchfn : &|&str,int,&Path,&str|) {
+fn search_crates(path : &Path, p : &[&str], matchfn : &|&str,uint,&Path,&str|) {
     if p[0] == "std" {
         search_crate(p, matchfn);
         return;
@@ -225,7 +225,7 @@ fn search_crates(path : &Path, p : &[&str], matchfn : &|&str,int,&Path,&str|) {
     }
 }
 
-fn search_crate(p : &[&str], matchfn : &|&str,int,&Path,&str|) {
+fn search_crate(p : &[&str], matchfn : &|&str,uint,&Path,&str|) {
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
     let cratename = p[0];
 
@@ -258,7 +258,7 @@ fn search_crate(p : &[&str], matchfn : &|&str,int,&Path,&str|) {
 }
 
 pub fn complete_from_file(fname : &str, linenum: uint, charnum: uint, 
-                          matchfn : &|&str,int,&Path,&str|) {
+                          matchfn : &|&str,uint,&Path,&str|) {
     let line = getline(fname, linenum);
     let s = expand_searchstr(line, charnum);
 
@@ -282,7 +282,7 @@ fn print_usage() {
     println!("or:    {} prefix linenum charnum fname",program);
 }
 
-fn match_fn(l: &str, lineno: int, file:&Path,  linetxt: &str) {
+fn match_fn(l: &str, lineno: uint, file:&Path,  linetxt: &str) {
     std::io::println("COMPLETE "+l + 
                      "," + lineno.to_str() + 
                      "," + file.as_str().unwrap() + 
@@ -303,7 +303,13 @@ fn complete() {
             println!("PREFIX {},{},{}", start, pos, line.slice(start, pos));
 
             complete_from_file(fname, linenum, charnum, 
-                  &|l, linenum, file, line| match_fn(l, linenum, file, line));
+                  &|l, match_linenum, file, line| {
+                     // ignore matches from the same line in the same file
+                     if file.as_str().unwrap() == fname && match_linenum == linenum {
+                         return;
+                     }
+                     match_fn(l, match_linenum, file, line);
+                  });
         }
         None => {
             // input: a command line string passed in
