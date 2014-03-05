@@ -67,22 +67,21 @@ fn find_end(s : &str, pos : uint) -> uint {
 }
 
 
-fn find_in_module(path : &Path, s : &str, f : &|&str,&str|) {
+fn find_in_module(path : &Path, s : &str, matchfn : &|&str,int,&Path,&str|) {
     let mut file = BufferedReader::new(File::open(path));
     //let modsearchstr = "pub mod "+s;
     let modsearchstr = "mod ";
     let fnsearchstr = "fn ";
     let structsearchstr = "struct ";
     let cratesearchstr = "extern crate ";
-    debug!("PHIL modsearchstr {}",modsearchstr + s);
-    debug!("PHIL fnsearchstr {}",fnsearchstr + s);
-    debug!("PHIL structsearchstr {}",structsearchstr + s);
+    let mut i = 0;
     for line in file.lines() {
+        i += 1;
         match line.find_str(modsearchstr+s) {
             Some(n) => {
                 let end = find_end(line, n+modsearchstr.len());
                 let l = line.slice(n + modsearchstr.len(), end);
-                (*f)(l, line);
+                (*matchfn)(l, i, path, line);
             }
             None => {}
         }
@@ -90,7 +89,7 @@ fn find_in_module(path : &Path, s : &str, f : &|&str,&str|) {
             Some(n) => {
                 let end = find_end(line, n+3);
                 let l = line.slice(n + 3, end);
-                (*f)(l + "(", line);
+                (*matchfn)(l + "(", i, path, line);
             }
             None => {}
         }
@@ -98,7 +97,7 @@ fn find_in_module(path : &Path, s : &str, f : &|&str,&str|) {
             Some(n) => {
                 let end = find_end(line, n+7);
                 let l = line.slice(n+7, end);
-                (*f)(l, line);
+                (*matchfn)(l, i, path, line);
             }
             None => {}
         }
@@ -107,7 +106,7 @@ fn find_in_module(path : &Path, s : &str, f : &|&str,&str|) {
             Some(n) => {
                 let end = find_end(line, n+ cratesearchstr.len());
                 let cratename = line.slice(n + cratesearchstr.len(), end);
-                (*f)(cratename+"::", line)
+                (*matchfn)(cratename+"::", i, path, line)
             }
             None => {}
         }
@@ -118,18 +117,16 @@ fn find_in_module(path : &Path, s : &str, f : &|&str,&str|) {
                     Some(n) => {
                         let end = find_end(line, n+8);
                         let modname = line.slice(n+8, end);
-                        debug!("PHIL modname is {}",modname);
 
                         if modname.starts_with("self::") {
                             let mut l = modname.split_str("::");
                             let c : ~[&str] = l.collect();
-                            debug!("PHIL c {}",c);
                             if c.ends_with([""]) {
                                 let mut c2 = c.slice_to(c.len()-1).to_owned();
                                 c2.push(s);
-                                search_f(path, c2.slice_from(1), f);
+                                search_f(path, c2.slice_from(1), matchfn);
                             } else if c[c.len()-1].starts_with(s) {
-                                search_f(path, c.slice_from(1), f);
+                                search_f(path, c.slice_from(1), matchfn);
                             }
                         }
                     }
@@ -141,30 +138,37 @@ fn find_in_module(path : &Path, s : &str, f : &|&str,&str|) {
     }
 }
 
-fn search_f(path : &Path, p : &[&str], f : &|&str,&str|) {
+fn search_f(path: &Path, p: &[&str], matchfn: &|&str,int,&Path,&str|) {
     debug!("search_f: {} {} ",path.as_str(),p);
     
+    if p.len() == 0 {
+        return find_in_module(path, "", matchfn);
+    }
+
+
     if p.len() == 1 {
-        return find_in_module(path, p[0], f);
+        return find_in_module(path, p[0], matchfn);
     }
 
     let mut file = BufferedReader::new(File::open(path));
     let modsearchstr = "mod ";
+    let mut i = 0;
     for line in file.lines() {
+        i+=1;
         match line.find_str(modsearchstr + p[0]) {
             Some(n) => {
                 let end = find_end(line, n+modsearchstr.len());
                 let l = line.slice(n + modsearchstr.len(), end);
                 if p.len() == 1 {
-                    (*f)(l, line);
+                    (*matchfn)(l, i, path,line);
                 } else {
                     debug!("PHIL NOT Found {} {} ",l,line);
                     let dir = path.dir_path();
                     debug!("PHIL DIR {}", dir.as_str().unwrap());
                     // try searching file.rs
-                    search_f(&dir.join(l+".rs"), p.tail(), f);
+                    search_f(&dir.join(l+".rs"), p.tail(), matchfn);
                     // try searching dir/mod.rs
-                    search_f(&dir.join_many([l, "mod.rs"]), p.tail(), f)
+                    search_f(&dir.join_many([l, "mod.rs"]), p.tail(), matchfn)
                 }
             }
             None => {}
@@ -172,7 +176,7 @@ fn search_f(path : &Path, p : &[&str], f : &|&str,&str|) {
     }
 }
 
-fn search_in_module(path : &Path, p : &[&str], f : &|&str,&str|) {
+fn search_in_module(path : &Path, p : &[&str], f : &|&str,int,&Path,&str|) {
     let mut file = BufferedReader::new(File::open(path));
     for line in file.lines() {
         match line.find_str("use ") {
@@ -199,9 +203,9 @@ fn search_in_module(path : &Path, p : &[&str], f : &|&str,&str|) {
     }
 }
 
-fn search_crates(path : &Path, p : &[&str], f : &|&str,&str|) {
+fn search_crates(path : &Path, p : &[&str], matchfn : &|&str,int,&Path,&str|) {
     if p[0] == "std" {
-        search_crate(p, f);
+        search_crate(p, matchfn);
         return;
     }
 
@@ -213,7 +217,7 @@ fn search_crates(path : &Path, p : &[&str], f : &|&str,&str|) {
                 let end = find_end(line, n+ searchstr.len());
                 let cratename = line.slice(n + searchstr.len(), end);
                 if p[0] == cratename {
-                    search_crate(p, f);
+                    search_crate(p, matchfn);
                 }
             }
             None => {}
@@ -221,7 +225,7 @@ fn search_crates(path : &Path, p : &[&str], f : &|&str,&str|) {
     }
 }
 
-fn search_crate(p : &[&str], f : &|&str,&str|) {
+fn search_crate(p : &[&str], matchfn : &|&str,int,&Path,&str|) {
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
     let cratename = p[0];
 
@@ -231,42 +235,44 @@ fn search_crate(p : &[&str], f : &|&str,&str|) {
             let cratelibname = "lib" + cratename;
             let path = Path::new(srcpath).join_many([Path::new(cratelibname), 
                                                         Path::new("lib.rs")]);
-            let ss = path.dirname_str().unwrap();
-            debug!("PHIL path2 {}", ss);
-            debug!("PHIL p {:?}",p.slice_from(1));
-            search_f(&path, p.slice_from(1), f);
+            search_f(&path, p.slice_from(1), matchfn);
         }
         {            
             // try <cratename>/<cratename>.rs, like in the servo codebase
             let path = Path::new(srcpath).join_many([Path::new(cratename), 
                                                      Path::new("cratename.rs")]);
-            search_f(&path, p.slice_from(1), f);
+            search_f(&path, p.slice_from(1), matchfn);
         }
         {            
             // try <cratename>/lib.rs
             let path = Path::new(srcpath).join_many([Path::new("cratename"),
                                                      Path::new("lib.rs")]);
-            search_f(&path, p.slice_from(1), f);
+            search_f(&path, p.slice_from(1), matchfn);
         }
         {            
             // try just <cratename>.rs
             let path = Path::new(srcpath).join_many([Path::new("cratename.rs")]);
-            search_f(&path, p.slice_from(1), f);
+            search_f(&path, p.slice_from(1), matchfn);
         }
     }    
 }
 
 pub fn complete_from_file(fname : &str, linenum: uint, charnum: uint, 
-                          f : &|&str,&str|) {
+                          matchfn : &|&str,int,&Path,&str|) {
     let line = getline(fname, linenum);
     let s = expand_searchstr(line, charnum);
 
     let mut l = s.split_str("::");
     let c : ~[&str] = l.collect();
 
-    search_crates(&Path::new(fname), c, f);
-    search_in_module(&Path::new(fname), c, f);
-    search_f(&Path::new(fname), c, f);
+    search_crates(&Path::new(fname), c, matchfn);
+    search_in_module(&Path::new(fname), c, matchfn);
+    search_f(&Path::new(fname), c, matchfn);
+    
+    if c.len() == 1 && "std".starts_with(c[0]) {
+        (*matchfn)("std::",1,&Path::new(fname),"std::");
+    }
+
 }
 
 fn print_usage() {
@@ -274,6 +280,13 @@ fn print_usage() {
     println!("usage: {} complete linenum charnum fname", program);
     println!("or:    {} complete fullyqualifiedname   (e.g. std::io::)",program);
     println!("or:    {} prefix linenum charnum fname",program);
+}
+
+fn match_fn(l: &str, lineno: int, file:&Path,  linetxt: &str) {
+    std::io::println("COMPLETE "+l + 
+                     "," + lineno.to_str() + 
+                     "," + file.as_str().unwrap() + 
+                     "," +  linetxt);
 }
 
 fn complete() {
@@ -290,17 +303,31 @@ fn complete() {
             println!("PREFIX {},{},{}", start, pos, line.slice(start, pos));
 
             complete_from_file(fname, linenum, charnum, 
-                 &|l, line| std::io::print("COMPLETE "+l + ","+line));
+                  &|l, linenum, file, line| match_fn(l, linenum, file, line));
         }
         None => {
             // input: a command line string passed in
             let arg = std::os::args()[2];
             let mut it = arg.split_str("::");
             let p : ~[&str] = it.collect();
-            search_crate(p, &|l, line| std::io::print("COMPLETE "+l + ","+line));
+            search_crate(p, 
+                  &|l, linenum, file, line|  match_fn(l, linenum, file, line));
         }
     }
 }
+
+fn prefix() {
+    let args = std::os::args().to_owned();
+    let linenum = std::uint::parse_bytes(args[2].as_bytes(), 10).unwrap();
+    let charnum = std::uint::parse_bytes(args[3].as_bytes(), 10).unwrap();
+    let fname = args[4];
+
+    // print the start, end, and the identifier prefix being matched
+    let line = getline(fname, linenum);
+    let (start, pos) = expand_ident(line, charnum);
+    println!("PREFIX {},{},{}", start, pos, line.slice(start, pos));
+}
+
 
 fn main() {
     match std::os::getenv("RUST_SRC_PATH") {
@@ -320,17 +347,7 @@ fn main() {
 
     let command = args[1];
     match  command {
-        ~"prefix" => {
-            let args = std::os::args().to_owned();
-            let linenum = std::uint::parse_bytes(args[2].as_bytes(), 10).unwrap();
-            let charnum = std::uint::parse_bytes(args[3].as_bytes(), 10).unwrap();
-            let fname = args[4];
-
-            // print the start, end, and the identifier prefix being matched
-            let line = getline(fname, linenum);
-            let (start, pos) = expand_ident(line, charnum);
-            println!("PREFIX {},{},{}", start, pos, line.slice(start, pos));
-        }
+        ~"prefix" => prefix(),
         ~"complete" => complete(),
         ~"help" => print_usage(),
         _ => { 
