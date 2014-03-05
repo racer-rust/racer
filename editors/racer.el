@@ -12,7 +12,7 @@
 (defun racer--candidates () 
   (setq tmpfilename (concat (buffer-file-name) ".racertmp"))
   (racer--write-tmp-file tmpfilename)
-    (setenv "RUST_SRC_PATH" rust-srcpath)
+  (setenv "RUST_SRC_PATH" rust-srcpath)
     (let ((lines (process-lines racer-cmd 
 				"complete"
 				(number-to-string linenum)
@@ -30,13 +30,13 @@
   (racer--write-tmp-file tmpfilename)
   (setenv "RUST_SRC_PATH" rust-srcpath)
   (let ((lines (process-lines racer-cmd 
-			      "complete"
+			      "prefix"
 			      (number-to-string linenum)
 			      (number-to-string col) 
 			      tmpfilename)))
     (delete-file tmpfilename)
     (when (string-match "^PREFIX \\(.+\\),\\(.+\\),\\(.*\\)$" (nth 0 lines))
-      (match-string 3))))
+      (match-string 3 (nth 0 lines)))))
 
 
 (defun racer--complete-at-point-fn ()
