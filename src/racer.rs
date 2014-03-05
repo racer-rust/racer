@@ -89,7 +89,7 @@ fn find_in_module(path : &Path, s : &str, matchfn : &|&str,uint,&Path,&str|) {
             Some(n) => {
                 let end = find_end(line, n+3);
                 let l = line.slice(n + 3, end);
-                (*matchfn)(l + "(", i, path, line);
+                (*matchfn)(l, i, path, line);
             }
             None => {}
         }
