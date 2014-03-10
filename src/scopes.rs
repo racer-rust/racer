@@ -1,4 +1,4 @@
-fn scope_start(src:&str, point:uint) -> uint {
+pub fn scope_start(src:&str, point:uint) -> uint {
     let s = src.slice(0,point);
     let mut pt = point;
     let mut levels = 0;
@@ -27,7 +27,7 @@ fn gen_mask(mut len: uint) -> ~str {
     return s;
 }
 
-fn mask_comments(src:&str) -> ~str {
+pub fn mask_comments(src:&str) -> ~str {
     let mut result = ~"";
     let mut s:&str = src;
     let mut in_comment = false;
@@ -53,12 +53,11 @@ fn mask_comments(src:&str) -> ~str {
     return result;
 }
 
-fn mask_sub_scopes(src:&str) -> ~str {
+pub fn mask_sub_scopes(src:&str) -> ~str {
     let mut result = ~"";
     let mut levels = 0;
     
     for c in src.chars() {
-        println!("c:{}",c);
         if c == '}' {
             levels -= 1;
         }
@@ -78,14 +77,14 @@ fn mask_sub_scopes(src:&str) -> ~str {
     return result;
 }    
 
-fn visible_scope(src:&str, point:uint) ->~str {
+pub fn visible_scope(src:&str, point:uint) ->~str {
     let s = mask_comments(src);
     let n = scope_start(s, point);
     return mask_sub_scopes(s.slice(n,point));
 }
 
 
-fn coords_to_point(src:&str, mut linenum:uint, col:uint) -> uint {
+pub fn coords_to_point(src:&str, mut linenum:uint, col:uint) -> uint {
     let mut point=0;
     for line in src.lines() {
         linenum -= 1;
