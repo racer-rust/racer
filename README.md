@@ -2,7 +2,7 @@
 
 ![alt text](https://github.com/phildawes/racer/raw/master/images/racer1.png "Racer emacs session")
 
-*RACER* = The *R*ust *A*uto-*C*omplete-*er*. A utility intended to provide rust code completion for editors and IDEs. Maybe one day the 'er' bit will be exploring + refactoring or something.
+*RACER* = *R*ust *A*uto-*C*omplete-*er*. A utility intended to provide rust code completion for editors and IDEs. Maybe one day the 'er' bit will be exploring + refactoring or something.
 
 ## Status
 
