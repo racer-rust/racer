@@ -80,63 +80,45 @@ fn find_in_module(path : &Path, s : &str, outputfn : &|&str,uint,&Path,&str|) {
     let mut i = 0;
     for line in file.lines() {
         i += 1;
-        match line.find_str(modsearchstr+s) {
-            Some(n) => {
-                let end = find_end(line, n+modsearchstr.len());
-                let l = line.slice(n + modsearchstr.len(), end);
-                (*outputfn)(l, i, path, line);
-            }
-            None => {}
+        for n in line.find_str(modsearchstr+s).iter() {
+           let end = find_end(line, n+modsearchstr.len());
+           let l = line.slice(n + modsearchstr.len(), end);
+           (*outputfn)(l, i, path, line);
         }
-        match line.find_str(fnsearchstr+s) {
-            Some(n) => {
-                let end = find_end(line, n+3);
-                let l = line.slice(n + 3, end);
-                (*outputfn)(l, i, path, line);
-            }
-            None => {}
+        for n in line.find_str(fnsearchstr+s).iter() {
+            let end = find_end(line, n+3);
+            let l = line.slice(n + 3, end);
+            (*outputfn)(l, i, path, line);
         }
-        match line.find_str(structsearchstr+s) {
-            Some(n) => {
-                let end = find_end(line, n+7);
-                let l = line.slice(n+7, end);
-                (*outputfn)(l, i, path, line);
-            }
-            None => {}
+        for n in line.find_str(structsearchstr+s).iter() {
+            let end = find_end(line, n+7);
+            let l = line.slice(n+7, end);
+            (*outputfn)(l, i, path, line);
         }
 
-        match line.find_str(cratesearchstr+s) {
-            Some(n) => {
-                let end = find_end(line, n+ cratesearchstr.len());
-                let cratename = line.slice(n + cratesearchstr.len(), end);
-                (*outputfn)(cratename+"::", i, path, line)
-            }
-            None => {}
+        for n in line.find_str(cratesearchstr+s).iter() {
+            let end = find_end(line, n+ cratesearchstr.len());
+            let cratename = line.slice(n + cratesearchstr.len(), end);
+            (*outputfn)(cratename+"::", i, path, line)
         }
 
-        match line.find_str(s) {
-            Some(_) => {
-                match line.find_str("pub use ") { 
-                    Some(n) => {
-                        let end = find_end(line, n+8);
-                        let modname = line.slice(n+8, end);
+        if line.find_str(s).is_some() {
+            for n in line.find_str("pub use ").iter() { 
+                let end = find_end(line, n+8);
+                let modname = line.slice(n+8, end);
 
-                        if modname.starts_with("self::") {
-                            let mut l = modname.split_str("::");
-                            let c : ~[&str] = l.collect();
-                            if c.ends_with([""]) {
-                                let mut c2 = c.slice_to(c.len()-1).to_owned();
-                                c2.push(s);
-                                search_f(path, c2.slice_from(1), outputfn);
-                            } else if c[c.len()-1].starts_with(s) {
-                                search_f(path, c.slice_from(1), outputfn);
-                            }
+                if modname.starts_with("self::") {
+                    let mut l = modname.split_str("::");
+                    let c : ~[&str] = l.collect();
+                    if c.ends_with([""]) {
+                        let mut c2 = c.slice_to(c.len()-1).to_owned();
+                        c2.push(s);
+                        search_f(path, c2.slice_from(1), outputfn);
+                        } else if c[c.len()-1].starts_with(s) {
+                            search_f(path, c.slice_from(1), outputfn);
                         }
-                    }
-                    None => {}
                 }
             }
-            None => {}
         }
     }
 }
@@ -158,23 +140,20 @@ fn search_f(path: &Path, p: &[&str], outputfn: &|&str,uint,&Path,&str|) {
     let mut i = 0;
     for line in file.lines() {
         i+=1;
-        match line.find_str(modsearchstr + p[0]) {
-            Some(n) => {
-                let end = find_end(line, n+modsearchstr.len());
-                let l = line.slice(n + modsearchstr.len(), end);
-                if p.len() == 1 {
-                    (*outputfn)(l, i, path,line);
-                } else {
-                    debug!("PHIL NOT Found {} {} ",l,line);
-                    let dir = path.dir_path();
-                    debug!("PHIL DIR {}", dir.as_str().unwrap());
-                    // try searching file.rs
-                    search_f(&dir.join(l+".rs"), p.tail(), outputfn);
-                    // try searching dir/mod.rs
-                    search_f(&dir.join_many([l, "mod.rs"]), p.tail(), outputfn)
-                }
+        for n in line.find_str(modsearchstr + p[0]).iter() {
+            let end = find_end(line, n+modsearchstr.len());
+            let l = line.slice(n + modsearchstr.len(), end);
+            if p.len() == 1 {
+                (*outputfn)(l, i, path,line);
+            } else {
+                debug!("PHIL NOT Found {} {} ",l,line);
+                let dir = path.dir_path();
+                debug!("PHIL DIR {}", dir.as_str().unwrap());
+                // try searching file.rs
+                search_f(&dir.join(l+".rs"), p.tail(), outputfn);
+                // try searching dir/mod.rs
+                search_f(&dir.join_many([l, "mod.rs"]), p.tail(), outputfn)
             }
-            None => {}
         }
     }
 }
@@ -183,26 +162,20 @@ fn search_f(path: &Path, p: &[&str], outputfn: &|&str,uint,&Path,&str|) {
 fn search_use_imports(path : &Path, p : &[&str], f : &|&str,uint,&Path,&str|) {
     let mut file = BufferedReader::new(File::open(path));
     for line in file.lines() {
-        match line.find_str("use ") {
-            Some(_) => {
-                let mut s = line.slice_from(4).trim();
+        if line.find_str("use ").is_some() {
+            let mut s = line.slice_from(4).trim();
 
-                match s.find_str(p[0]) {
-                    Some(_) => {
-                        let end = find_end(s, 0);
-                        s = s.slice(0, end);
-                        let pieces : ~[&str] = s.split_str("::").collect();
-                        if p.len() == 1 && pieces[pieces.len()-1].starts_with(p[0]) {
-                            search_crate(pieces, f);
-                        } else if p.len() > 1 && pieces[pieces.len()-1] == p[0] {
-                            let p2 = pieces + p.slice_from(1);
-                            search_crate(p2, f);
-                        }
-                    }
-                    None => {}
+            if s.find_str(p[0]).is_some() {
+                let end = find_end(s, 0);
+                s = s.slice(0, end);
+                let pieces : ~[&str] = s.split_str("::").collect();
+                if p.len() == 1 && pieces[pieces.len()-1].starts_with(p[0]) {
+                    search_crate(pieces, f);
+                } else if p.len() > 1 && pieces[pieces.len()-1] == p[0] {
+                    let p2 = pieces + p.slice_from(1);
+                    search_crate(p2, f);
                 }
             }
-            None => {}
         }
     }
 }
@@ -216,15 +189,12 @@ fn search_crates(path : &Path, p : &[&str], outputfn : &|&str,uint,&Path,&str|) 
     let mut file = BufferedReader::new(File::open(path));
     for line in file.lines() {
         let searchstr = "extern crate ";
-        match line.find_str(searchstr+p[0]) {
-            Some(n) => {
-                let end = find_end(line, n+ searchstr.len());
-                let cratename = line.slice(n + searchstr.len(), end);
-                if p[0] == cratename {
-                    search_crate(p, outputfn);
-                }
+        for n in line.find_str(searchstr+p[0]).iter() {
+            let end = find_end(line, n+ searchstr.len());
+            let cratename = line.slice(n + searchstr.len(), end);
+            if p[0] == cratename {
+                search_crate(p, outputfn);
             }
-            None => {}
         }
     }
 }
@@ -266,16 +236,13 @@ fn search_for_let(src:&str, searchstr:&str, path:&Path,
     for line in src.lines() {
         println!("PHIL l {}",line);
         // search for let statements
-        match line.find_str("let "+searchstr) {
-            Some(n) => {
-                let end = find_end(line, n+"let ".len());
-                let l = line.slice(n+"let ".len(), end);
-                // TODO - make linenum something correct
-                let lineno = 1;
-                println!("PHIL MATCH! {} :-> {}",l, line);
-                (*outputfn)(l, lineno, path, line);
-            }
-            None => {}
+        for n in line.find_str("let "+searchstr).iter() {
+            let end = find_end(line, n+"let ".len());
+            let l = line.slice(n+"let ".len(), end);
+            // TODO - make linenum something correct
+            let lineno = 1;
+            println!("PHIL MATCH! {} :-> {}",l, line);
+            (*outputfn)(l, lineno, path, line);
         }
     }
     println!("PHIL HERE155");

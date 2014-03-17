@@ -62,12 +62,9 @@ fn print_usage() {
 
 
 fn main() {
-    match std::os::getenv("RUST_SRC_PATH") {
-        Some(_) => {}
-        None() => {
-            println!("RUST_SRC_PATH environment variable must be set");
-            return;
-        }
+    if std::os::getenv("RUST_SRC_PATH").is_none() {
+        println!("RUST_SRC_PATH environment variable must be set");
+        return;
     }
 
     let args = std::os::args().to_owned();
