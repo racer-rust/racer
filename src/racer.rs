@@ -13,10 +13,9 @@ pub struct Match {
     linetxt: ~str    
 }
 
-pub fn getline(fname : &str, linenum : uint) -> ~str {
-    let path = Path::new(fname);
+pub fn getline(path : &Path, linenum : uint) -> ~str {
     let mut i = 0;
-    let mut file = BufferedReader::new(File::open(&path));
+    let mut file = BufferedReader::new(File::open(path));
     for line in file.lines() {
         //print!("{}", line);
         i += 1;
@@ -49,7 +48,22 @@ pub fn expand_ident(s : &str, pos : uint) -> (uint,uint) {
     return (start, pos);
 }
 
-fn expand_searchstr(s : &str, pos : uint) -> ~str {
+pub fn expand_fqn(s : &str, pos : uint) -> (uint,uint) {
+    let sb = s.slice_to(pos);
+    let mut start = pos;
+
+    // backtrack to find start of word
+    for (i, c) in sb.char_indices_rev() {
+        if !is_path_char(c) {
+            break;
+        }
+        start = i;
+    }
+    return (start, find_end(s, pos));
+}
+
+
+pub fn expand_searchstr(s : &str, pos : uint) -> ~str {
     let sb = s.slice_to(pos);
     let mut start = pos;
 
@@ -63,7 +77,7 @@ fn expand_searchstr(s : &str, pos : uint) -> ~str {
     return s.slice(start,pos).to_owned();
 }
 
-fn find_end(s : &str, pos : uint) -> uint {
+pub fn find_end(s : &str, pos : uint) -> uint {
     // find end of word
     let sa = s.slice_from(pos);
     let mut end = pos;
@@ -78,8 +92,6 @@ fn find_end(s : &str, pos : uint) -> uint {
 
 
 fn find_in_module(path : &Path, s : &str, outputfn : &|Match|) {
-    println!("PHIL find_in_module {} |{}|",path.display(), s);
-
     let file = File::open(path);
     if file.is_err() { return; }
     //let modsearchstr = "pub mod "+s;
@@ -284,11 +296,10 @@ fn search_for_let(src:&str, searchstr:&str, path:&Path,
             let l = line.slice(n+"let ".len(), end);
             // TODO - make linenum something correct
             let lineno = 1;
-            println!("PHIL MATCH! {} :-> {}",l, line);
-                (*outputfn)(Match { matchstr: l.to_owned(),
-                                    path: path.clone(),
-                                    point: 1,
-                                    linetxt: line.to_owned()});
+            (*outputfn)(Match { matchstr: l.to_owned(),
+                                path: path.clone(),
+                                point: 1,
+                                linetxt: line.to_owned()});
         }
     }
 }
@@ -331,27 +342,50 @@ fn convert_output(m: &Match, outputfn: &|&str,uint,&Path,&str|) {
     (*outputfn)(m.matchstr, line, &m.path, m.linetxt);
 }
 
-pub fn complete_from_file(fname : &str, linenum: uint, charnum: uint, 
+pub fn complete_from_file(path: &Path, linenum: uint, charnum: uint, 
                           outputfn : &|Match|) {
-    let line = getline(fname, linenum);
+    let line = getline(path, linenum);
     let s = expand_searchstr(line, charnum);
 
     let mut l = s.split_str("::");
     let bits : ~[&str] = l.collect(); 
 
     if bits.len() == 1 {
-       search_file_text(bits[0], &Path::new(fname), linenum, charnum, outputfn); 
+       search_file_text(bits[0], path, linenum, charnum, outputfn); 
     }
-    search_crates(&Path::new(fname), bits, outputfn);
-    search_use_imports(&Path::new(fname), bits, outputfn);
-    search_f(&Path::new(fname), bits, outputfn);
+    search_crates(path, bits, outputfn);
+    search_use_imports(path, bits, outputfn);
+    search_f(path, bits, outputfn);
     
     if bits.len() == 1 && "std".starts_with(bits[0]) {
         let m = Match {matchstr: ~"std::",
-                       path: Path::new(fname),
+                       path: path.clone(),
                        point: 1,
                        linetxt: ~"std::"};
         (*outputfn)(m);
     }
 }
 
+pub fn find_definition(path :Path, linenum: uint, charnum: uint, outputfn: &|Match|) {
+    let line = getline(&path, linenum);
+    let (start, end) = expand_fqn(line, charnum);
+    let s = line.slice(start, end);
+
+    let mut l = s.split_str("::");
+    let bits : ~[&str] = l.collect(); 
+
+    if bits.len() == 1 {
+       search_file_text(bits[0], &path, linenum, charnum, outputfn); 
+    }
+    search_crates(&path, bits, outputfn);
+    search_use_imports(&path, bits, outputfn);
+    search_f(&path, bits, outputfn);
+    
+    if bits.len() == 1 && "std".starts_with(bits[0]) {
+        let m = Match {matchstr: ~"std::",
+                       path: path.clone(),
+                       point: 1,
+                       linetxt: ~"std::"};
+        (*outputfn)(m);
+    }
+}

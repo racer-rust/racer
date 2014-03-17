@@ -20,7 +20,7 @@
 				tmpfilename)))
       (delete-file tmpfilename)
       (dolist (line lines)
-	(when (string-match "^COMPLETE \\([^,]+\\),\\(.+\\)$" line)
+	(when (string-match "^MATCH \\([^,]+\\),\\(.+\\)$" line)
 	  (let ((completion (match-string 1 line)))
 	    (push completion completion-results))))
       completion-results))
@@ -51,7 +51,7 @@
 				tmpfilename)))
       (delete-file tmpfilename)
       (dolist (line lines)
-	(when (string-match "^COMPLETE \\([^,]+\\),\\(.+\\)$" line)
+	(when (string-match "^MATCH \\([^,]+\\),\\(.+\\)$" line)
 	  (let ((completion (match-string 1 line)))
 	    (push completion completion-results)))
 	
@@ -82,10 +82,44 @@
       (company-complete-common)
     (indent-according-to-mode)))
 
+(defun string/ends-with (s ending)
+      "return non-nil if string S ends with ENDING."
+      (cond ((>= (length s) (length ending))
+             (let ((elength (length ending)))
+               (string= (substring s (- 0 elength)) ending)))
+            (t nil)))
+
+(defun racer-find-definition ()
+  (interactive)
+  (setq tmpfilename (concat (buffer-file-name) ".racertmp"))
+  (racer--write-tmp-file tmpfilename)
+  (setenv "RUST_SRC_PATH" rust-srcpath)
+    (let ((lines (process-lines racer-cmd 
+				"find-definition"
+				(number-to-string linenum)
+				(number-to-string col) 
+				tmpfilename)))
+      (delete-file tmpfilename)
+      (dolist (line lines)
+	(when (string-match "^MATCH \\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\(.+\\)$" line)
+	  (let ((linenum (match-string 2 line))
+		(charnum (match-string 3 line))
+		(fname (match-string 4 line)))
+	    (if (string/ends-with fname ".racertmp")
+		(find-file-other-window (substring fname 0 -9))
+	      (find-file fname))
+	    (goto-line (string-to-number linenum))
+	    (forward-char (string-to-number charnum))
+	    )))))
+
 (add-hook 'rust-mode-hook
 	  '(lambda ()
 	     (company-mode)
 	     (set (make-local-variable 'company-backends) '(racer-company-complete))
 	     (local-set-key "\t" 'racer--complete-or-indent)
+	     (local-set-key [(f1)] 'racer-find-definition)
 	     (setq company-idle-delay nil)) 
 	  nil)
+
+
+
