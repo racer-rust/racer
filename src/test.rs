@@ -3,8 +3,15 @@
 
 use racer::complete_from_file;
 use std::io::File;
+use std::task;
 
 mod racer;
+
+fn tmpname() -> ~str {
+    let mut s = ~"";
+    task::with_task_name(|name| s = name.unwrap().to_owned());
+    return "tmpfile."+s;
+}
 
 fn write_file(fname : &str, s : &str) {
     let tmppath = Path::new(fname);
@@ -25,10 +32,10 @@ mod apple
 fn main() {
     let b = ap
 }";
-    let fname = "test.file2";
+    let fname = tmpname();
     write_file(fname, src);
     let mut got : ~str = ~"NOTHING";
-    complete_from_file(fname, 4, 14, &|s,_,_,_| got=s.to_owned());
+    complete_from_file(fname, 4, 14, &|m| got=m.matchstr.to_owned());
     remove_file(fname);
     assert_eq!(got,~"apple");    
 }
@@ -40,10 +47,10 @@ fn main() {
     let apple = 35;
     let b = ap
 }";
-    let fname = "test.file1";
+    let fname = tmpname();
     write_file(fname, src);
     let mut got : ~str = ~"NOTHING";
-    complete_from_file(fname, 4, 14, &|s,_,_,_| got=s.to_owned());
+    complete_from_file(fname, 4, 14, &|m| got=m.matchstr.to_owned());
     remove_file(fname);
     assert_eq!(got,~"apple");
 }
@@ -57,12 +64,29 @@ fn main() {
         let b = ap
     }
 }";
-    let fname = "test.file3";
+    let fname = tmpname();
     write_file(fname, src);
     let mut got : ~str = ~"NOTHING";
-    complete_from_file(fname, 5, 18, &|s,_,_,_| {
-         got=s.to_owned()
-    });
+    complete_from_file(fname, 5, 18, &|m| got=m.matchstr.to_owned());
     remove_file(fname);
     assert_eq!(got,~"apple");
+}
+
+#[test]
+fn matches_fields() {
+    let src="
+    struct Point {
+        first: f64,
+        second: f64
+    } 
+
+    let var = Point {35, 22};
+    var.f
+";
+    let fname = tmpname();
+    write_file(fname, src);
+    let mut got : ~str = ~"NOTHING";
+    complete_from_file(fname, 8, 9, &|m| got=m.matchstr.to_owned());
+    remove_file(fname);
+    assert_eq!(got,~"first");
 }

@@ -1,11 +1,19 @@
-use racer::{getline,expand_ident,complete_from_file,search_crate};
+use racer::{getline,expand_ident,complete_from_file,search_crate,Match};
+use scopes::point_to_coords;
+use std::io::File;
+use std::io::BufferedReader;
+use std::str;
 mod racer;
+mod scopes;
 
-fn match_fn(l: &str, lineno: uint, file:&Path,  linetxt: &str) {
-    std::io::println("COMPLETE "+l + 
+//std::str::is
+
+fn match_fn(m:Match) {
+    let (lineno, _) = scopes::point_to_coords2(&m.path, m.point).unwrap();
+    std::io::println("COMPLETE "+m.matchstr + 
                      "," + lineno.to_str() + 
-                     "," + file.as_str().unwrap() + 
-                     "," +  linetxt);
+                     "," + m.path.as_str().unwrap() + 
+                     "," +  m.linetxt);    
 }
 
 fn complete() {
@@ -21,22 +29,21 @@ fn complete() {
             let (start, pos) = expand_ident(line, charnum);
             println!("PREFIX {},{},{}", start, pos, line.slice(start, pos));
 
-            complete_from_file(fname, linenum, charnum, 
-                  &|l, match_linenum, file, line| {
-                     // ignore matches from the same line in the same file
-                     if file.as_str().unwrap() == fname && match_linenum == linenum {
-                         return;
-                     }
-                     match_fn(l, match_linenum, file, line);
-                  });
+            complete_from_file(fname, linenum, charnum, &|m| match_fn(m));
+                  // &|l, match_linenum, file, line| {
+                  //    // ignore matches from the same line in the same file
+                  //    if file.as_str().unwrap() == fname && match_linenum == linenum {
+                  //        return;
+                  //    }
+                  //    match_fn(l, match_linenum, file, line);
+                  // });
         }
         None => {
             // input: a command line string passed in
             let arg = std::os::args()[2];
             let mut it = arg.split_str("::");
             let p : ~[&str] = it.collect();
-            search_crate(p, 
-                  &|l, linenum, file, line|  match_fn(l, linenum, file, line));
+            search_crate(p, &|m|  match_fn(m));
         }
     }
 }
@@ -75,15 +82,14 @@ fn main() {
     }
 
     let command = args[1];
-    match  command {
-        ~"prefix" => prefix(),
-        ~"complete" => complete(),
-        ~"help" => print_usage(),
+    match  command.as_slice() {
+        &"prefix" => prefix(),
+        &"complete" => complete(),
+        &"help" => print_usage(),
         _ => { 
             println!("Sorry, I didn't understand command {}", command ); 
             print_usage(); 
             return;
         }
     }
- }
-
+}

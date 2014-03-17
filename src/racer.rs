@@ -6,6 +6,13 @@ use std::str;
 
 mod scopes;
 
+pub struct Match {
+    matchstr: ~str,
+    path: Path,
+    point: uint,
+    linetxt: ~str    
+}
+
 pub fn getline(fname : &str, linenum : uint) -> ~str {
     let path = Path::new(fname);
     let mut i = 0;
@@ -14,14 +21,14 @@ pub fn getline(fname : &str, linenum : uint) -> ~str {
         //print!("{}", line);
         i += 1;
         if i == linenum {
-            return line.to_owned();
+            return line.unwrap().to_owned();
         }
     }
     return ~"not found";
 }
 
 fn is_path_char(c : char) -> bool {
-    c.is_alphanumeric() || (c == '_') || (c == '!') || (c == ':')
+    c.is_alphanumeric() || (c == '_') || (c == '!') || (c == ':') || (c == '.')
 }
 
 fn is_ident_char(c : char) -> bool {
@@ -70,36 +77,57 @@ fn find_end(s : &str, pos : uint) -> uint {
 }
 
 
-fn find_in_module(path : &Path, s : &str, outputfn : &|&str,uint,&Path,&str|) {
-    let mut file = BufferedReader::new(File::open(path));
+fn find_in_module(path : &Path, s : &str, outputfn : &|Match|) {
+    println!("PHIL find_in_module {} |{}|",path.display(), s);
+
+    let file = File::open(path);
+    if file.is_err() { return; }
     //let modsearchstr = "pub mod "+s;
     let modsearchstr = "mod ";
     let fnsearchstr = "fn ";
     let structsearchstr = "struct ";
     let cratesearchstr = "extern crate ";
     let mut i = 0;
-    for line in file.lines() {
+    let mut pt = 0;
+    for line_r in BufferedReader::new(file).lines() {
+        let line = line_r.unwrap();
         i += 1;
-        for n in line.find_str(modsearchstr+s).iter() {
+        for n in line.find_str(modsearchstr+s).move_iter() {
            let end = find_end(line, n+modsearchstr.len());
            let l = line.slice(n + modsearchstr.len(), end);
-           (*outputfn)(l, i, path, line);
+                let m = Match {matchstr: l.to_owned(), 
+                               path: path.clone(), 
+                               point: pt + n + modsearchstr.len(), 
+                               linetxt: line.to_owned()};
+                (*outputfn)(m);
         }
-        for n in line.find_str(fnsearchstr+s).iter() {
+        for n in line.find_str(fnsearchstr+s).move_iter() {
             let end = find_end(line, n+3);
             let l = line.slice(n + 3, end);
-            (*outputfn)(l, i, path, line);
+                let m = Match {matchstr: l.to_owned(), 
+                               path: path.clone(), 
+                               point: pt + n + fnsearchstr.len(), 
+                               linetxt: line.to_owned()};
+                (*outputfn)(m);
         }
-        for n in line.find_str(structsearchstr+s).iter() {
+        for n in line.find_str(structsearchstr+s).move_iter() {
             let end = find_end(line, n+7);
             let l = line.slice(n+7, end);
-            (*outputfn)(l, i, path, line);
+                let m = Match {matchstr: l.to_owned(), 
+                               path: path.clone(), 
+                               point: pt + n + structsearchstr.len(),
+                               linetxt: line.to_owned()};
+                (*outputfn)(m);
         }
 
-        for n in line.find_str(cratesearchstr+s).iter() {
+        for n in line.find_str(cratesearchstr+s).move_iter() {
             let end = find_end(line, n+ cratesearchstr.len());
             let cratename = line.slice(n + cratesearchstr.len(), end);
-            (*outputfn)(cratename+"::", i, path, line)
+                let m = Match {matchstr: cratename+"::",
+                               path: path.clone(), 
+                               point: pt + n + cratesearchstr.len(), 
+                               linetxt: line.to_owned()};
+                (*outputfn)(m);
         }
 
         if line.find_str(s).is_some() {
@@ -120,10 +148,11 @@ fn find_in_module(path : &Path, s : &str, outputfn : &|&str,uint,&Path,&str|) {
                 }
             }
         }
+        pt += line.len();  // no need to add 1 for \n when iterating lines
     }
 }
 
-fn search_f(path: &Path, p: &[&str], outputfn: &|&str,uint,&Path,&str|) {
+fn search_f(path: &Path, p: &[&str], outputfn: &|Match|) {
     debug!("search_f: {} {} ",path.as_str(),p);
     
     if p.len() == 0 {
@@ -135,16 +164,24 @@ fn search_f(path: &Path, p: &[&str], outputfn: &|&str,uint,&Path,&str|) {
         return find_in_module(path, p[0], outputfn);
     }
 
-    let mut file = BufferedReader::new(File::open(path));
+    let mut file = File::open(path);
+    if file.is_err() { return }
+
     let modsearchstr = "mod ";
     let mut i = 0;
-    for line in file.lines() {
+    let mut pt = 0;
+    for line_r in BufferedReader::new(file).lines() {
+        let line = line_r.unwrap();
         i+=1;
-        for n in line.find_str(modsearchstr + p[0]).iter() {
+        for n in line.find_str(modsearchstr + p[0]).move_iter() {
             let end = find_end(line, n+modsearchstr.len());
             let l = line.slice(n + modsearchstr.len(), end);
             if p.len() == 1 {
-                (*outputfn)(l, i, path,line);
+                    (*outputfn)(Match {matchstr:l.to_owned(), 
+                                       path:path.clone(), 
+                                       point:pt+n+modsearchstr.len(),
+                                       linetxt:line.to_owned()
+                    });
             } else {
                 debug!("PHIL NOT Found {} {} ",l,line);
                 let dir = path.dir_path();
@@ -155,13 +192,17 @@ fn search_f(path: &Path, p: &[&str], outputfn: &|&str,uint,&Path,&str|) {
                 search_f(&dir.join_many([l, "mod.rs"]), p.tail(), outputfn)
             }
         }
+        pt += line.len();  // +1 for /n
     }
 }
 
 
-fn search_use_imports(path : &Path, p : &[&str], f : &|&str,uint,&Path,&str|) {
-    let mut file = BufferedReader::new(File::open(path));
-    for line in file.lines() {
+fn search_use_imports(path : &Path, p : &[&str], outputfn : &|Match|) {
+    let mut file = File::open(path);
+    if file.is_err() { return }
+
+    for line_r in BufferedReader::new(file).lines() {
+        let line = line_r.unwrap();
         if line.find_str("use ").is_some() {
             let mut s = line.slice_from(4).trim();
 
@@ -170,25 +211,28 @@ fn search_use_imports(path : &Path, p : &[&str], f : &|&str,uint,&Path,&str|) {
                 s = s.slice(0, end);
                 let pieces : ~[&str] = s.split_str("::").collect();
                 if p.len() == 1 && pieces[pieces.len()-1].starts_with(p[0]) {
-                    search_crate(pieces, f);
+                    search_crate(pieces, outputfn);
                 } else if p.len() > 1 && pieces[pieces.len()-1] == p[0] {
                     let p2 = pieces + p.slice_from(1);
-                    search_crate(p2, f);
+                    search_crate(p2, outputfn);
                 }
             }
         }
     }
 }
 
-fn search_crates(path : &Path, p : &[&str], outputfn : &|&str,uint,&Path,&str|) {
+fn search_crates(path : &Path, p : &[&str], outputfn : &|Match|) {
     if p[0] == "std" {
         search_crate(p, outputfn);
         return;
     }
 
-    let mut file = BufferedReader::new(File::open(path));
-    for line in file.lines() {
+    let file = File::open(path);
+    if file.is_err() {return}
+
+    for line_r in BufferedReader::new(file).lines() {
         let searchstr = "extern crate ";
+        let line = line_r.unwrap();
         for n in line.find_str(searchstr+p[0]).iter() {
             let end = find_end(line, n+ searchstr.len());
             let cratename = line.slice(n + searchstr.len(), end);
@@ -199,7 +243,7 @@ fn search_crates(path : &Path, p : &[&str], outputfn : &|&str,uint,&Path,&str|) 
     }
 }
 
-pub fn search_crate(p : &[&str], outputfn : &|&str,uint,&Path,&str|) {
+pub fn search_crate(p : &[&str], outputfn : &|Match|) {
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
     let cratename = p[0];
 
@@ -232,9 +276,8 @@ pub fn search_crate(p : &[&str], outputfn : &|&str,uint,&Path,&str|) {
 }
 
 fn search_for_let(src:&str, searchstr:&str, path:&Path, 
-                  outputfn : &|&str,uint,&Path,&str|) {
+                  outputfn : &|Match|) {
     for line in src.lines() {
-        println!("PHIL l {}",line);
         // search for let statements
         for n in line.find_str("let "+searchstr).iter() {
             let end = find_end(line, n+"let ".len());
@@ -242,19 +285,16 @@ fn search_for_let(src:&str, searchstr:&str, path:&Path,
             // TODO - make linenum something correct
             let lineno = 1;
             println!("PHIL MATCH! {} :-> {}",l, line);
-            (*outputfn)(l, lineno, path, line);
+                (*outputfn)(Match { matchstr: l.to_owned(),
+                                    path: path.clone(),
+                                    point: 1,
+                                    linetxt: line.to_owned()});
         }
     }
-    println!("PHIL HERE155");
 }
 
-fn search_scope(searchstr:&str, path: &Path, linenum: uint, charnum: uint, 
-                          outputfn : &|&str,uint,&Path,&str|) {
-    let filetxt = BufferedReader::new(File::open(path)).read_to_end().unwrap();
-    let src = str::from_utf8(filetxt).unwrap();
-    let msrc = scopes::mask_comments(src);
-    let mut point = scopes::coords_to_point(src, linenum, charnum);
-
+fn search_scope(searchstr:&str, path: &Path, msrc: &str, mut point:uint,
+                          outputfn : &|Match|) {
     while point > 0 {
         let n = scopes::scope_start(msrc, point);
         let s = scopes::mask_sub_scopes(msrc.slice(n,point));
@@ -266,24 +306,52 @@ fn search_scope(searchstr:&str, path: &Path, linenum: uint, charnum: uint,
     }
 }
 
+fn search_file_text(searchstr:&str, path: &Path, linenum: uint, charnum: uint, 
+                          outputfn : &|Match|) {
+    let filetxt = BufferedReader::new(File::open(path)).read_to_end().unwrap();
+    let src = str::from_utf8(filetxt).unwrap();
+    let msrc = scopes::mask_comments(src);
+    let point = scopes::coords_to_point(src, linenum, charnum);
+
+    let mut l = searchstr.split_str(".");
+    let bits : ~[&str] = l.collect();
+    
+    if bits.len() == 1 {
+        search_scope(searchstr, path, msrc, point, outputfn); 
+    } else {
+        // field reference. 
+        //get_type_of(bits);
+    }
+}
+
+fn convert_output(m: &Match, outputfn: &|&str,uint,&Path,&str|) {
+    let filetxt = BufferedReader::new(File::open(&m.path)).read_to_end().unwrap();
+    let src = str::from_utf8(filetxt).unwrap();
+    let (line, _) = scopes::point_to_coords(src, m.point);
+    (*outputfn)(m.matchstr, line, &m.path, m.linetxt);
+}
+
 pub fn complete_from_file(fname : &str, linenum: uint, charnum: uint, 
-                          outputfn : &|&str,uint,&Path,&str|) {
+                          outputfn : &|Match|) {
     let line = getline(fname, linenum);
     let s = expand_searchstr(line, charnum);
 
     let mut l = s.split_str("::");
-    let c : ~[&str] = l.collect();
+    let bits : ~[&str] = l.collect(); 
 
-    if c.len() == 1 {
-        search_scope(c[0], &Path::new(fname), linenum, charnum, outputfn);
+    if bits.len() == 1 {
+       search_file_text(bits[0], &Path::new(fname), linenum, charnum, outputfn); 
     }
-    search_crates(&Path::new(fname), c, outputfn);
-    search_use_imports(&Path::new(fname), c, outputfn);
-    search_f(&Path::new(fname), c, outputfn);
+    search_crates(&Path::new(fname), bits, outputfn);
+    search_use_imports(&Path::new(fname), bits, outputfn);
+    search_f(&Path::new(fname), bits, outputfn);
     
-    if c.len() == 1 && "std".starts_with(c[0]) {
-        (*outputfn)("std::",1,&Path::new(fname),"std::");
+    if bits.len() == 1 && "std".starts_with(bits[0]) {
+        let m = Match {matchstr: ~"std::",
+                       path: Path::new(fname),
+                       point: 1,
+                       linetxt: ~"std::"};
+        (*outputfn)(m);
     }
-
 }
 

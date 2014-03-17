@@ -1,3 +1,6 @@
+use std::io::File;
+use std::io::BufferedReader;
+
 pub fn scope_start(src:&str, point:uint) -> uint {
     let s = src.slice(0,point);
     let mut pt = point;
@@ -94,7 +97,7 @@ pub fn coords_to_point(src:&str, mut linenum:uint, col:uint) -> uint {
     return point + col;
 }
 
-fn point_to_coords(src:&str, point:uint) -> (uint, uint) {
+pub fn point_to_coords(src:&str, point:uint) -> (uint, uint) {
     let mut i = 0;
     let mut linestart = 0;
     let mut nlines = 1;  // lines start at 1
@@ -107,6 +110,22 @@ fn point_to_coords(src:&str, point:uint) -> (uint, uint) {
     }
     return (nlines, point - linestart);
 }
+
+pub fn point_to_coords2(path: &Path, point:uint) -> Option<(uint, uint)> {
+    let mut lineno = 0;
+    let mut file = BufferedReader::new(File::open(path));
+    let mut p = 0;
+    for line_r in file.lines() {
+        let line = line_r.unwrap();
+        lineno += 1;
+        if point < (p + line.len()) {
+            return Some((lineno, point - p));
+        }
+        p += line.len();
+    }
+    return None;
+}
+
 
 #[test]
 fn coords_to_point_works() {
@@ -144,7 +163,6 @@ fn myfn() {
 ";
     let point = coords_to_point(src, 7, 10);
     let start = scope_start(src,point);
-    println!("PHIL {}",start);
     assert!(start == 12);
 }
 
@@ -195,9 +213,6 @@ this is some code
 some more code
 ";
     let res = mask_sub_scopes(src);
-    println!("PHIL{}",expected);
-    println!("PHIL{}",res);
-    println!("PHIL");
     assert!(expected == res);
 }
 
@@ -218,8 +233,7 @@ fn myfn(b:uint) {
 
 fn round_trip_point_and_coords(src:&str, lineno:uint, charno:uint) {
     let (a,b) = point_to_coords(src, coords_to_point(src, lineno, charno));
-    println!("PHIL{}",(a,b));
-    assert!((a,b) == (lineno,charno));
+     assert_eq!((a,b),(lineno,charno));
 }
 
 #[test]
@@ -245,3 +259,4 @@ fn myfn(b:uint) {
     let res = visible_scope(src, coords_to_point(src,8,21));
     assert!(expected == res);
 }
+
