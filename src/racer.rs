@@ -1,10 +1,12 @@
 extern crate std;
+extern crate log;
 extern crate collections;
 use std::io::File;
 use std::io::BufferedReader;
 use std::str;
 
 mod scopes;
+mod ast;
 
 pub struct Match {
     matchstr: ~str,
@@ -91,7 +93,7 @@ pub fn find_end(s : &str, pos : uint) -> uint {
 }
 
 fn find_in_module(path : &Path, s : &str, outputfn : &|Match|) {
-    debug!("PHIL find_in_module {} {}",path.display(), s);
+    debug!("find_in_module {} {}",path.display(), s);
     let file = File::open(path);
     if file.is_err() { return; }
     //let modsearchstr = "pub mod "+s;
@@ -99,12 +101,10 @@ fn find_in_module(path : &Path, s : &str, outputfn : &|Match|) {
     let fnsearchstr = "fn ";
     let structsearchstr = "struct ";
     let cratesearchstr = "extern crate ";
-    let mut i = 0;
     let mut pt = 0;
 
     for line_r in BufferedReader::new(file).lines() {
         let line = line_r.unwrap();
-        i += 1;
 
         for n in line.find_str(modsearchstr+s).move_iter() {
            let end = find_end(line, n+modsearchstr.len());
@@ -210,13 +210,33 @@ fn search_f(path: &Path, p: &[&str], outputfn: &|Match|) {
     }
 }
 
+// pub struct MyIter {
+//     iter: ~Iterator<std::io::IoResult<~str>>
+// }
 
-fn search_use_imports(path : &Path, p : &[&str], outputfn : &|Match|) {
+// impl Iterator<~str> for MyIter {
+//     fn next(&mut self) -> Option<~str> {
+//         let l = self.iter.next();
+//         match l {
+//             Some(x) => x.unwrap(),
+//             None => None
+//         }
+//     }
+// }
+
+
+// silently returns if path doesn't exist
+fn search_lines(path: &Path, f:|~str| ) {
     let mut file = File::open(path);
     if file.is_err() { return }
+    for line in BufferedReader::new(file).lines() {
+        f(line.unwrap());
+    }
+}
 
-    for line_r in BufferedReader::new(file).lines() {
-        let line = line_r.unwrap();
+
+fn search_use_imports(path : &Path, p : &[&str], outputfn : &|Match|) {
+    search_lines(path, |line|{
         if line.find_str("use ").is_some() {
             let mut s = line.slice_from(4).trim();
 
@@ -232,7 +252,29 @@ fn search_use_imports(path : &Path, p : &[&str], outputfn : &|Match|) {
                 }
             }
         }
-    }
+    });
+
+
+    // let mut file = File::open(path);
+    // if file.is_err() { return }
+    // for line_r in BufferedReader::new(file).lines() {
+    //     let line = line_r.unwrap();
+    //     if line.find_str("use ").is_some() {
+    //         let mut s = line.slice_from(4).trim();
+
+    //         if s.find_str(p[0]).is_some() {
+    //             let end = find_end(s, 0);
+    //             s = s.slice(0, end);
+    //             let pieces : ~[&str] = s.split_str("::").collect();
+    //             if p.len() == 1 && pieces[pieces.len()-1].starts_with(p[0]) {
+    //                 search_crate(pieces, outputfn);
+    //             } else if p.len() > 1 && pieces[pieces.len()-1] == p[0] {
+    //                 let p2 = pieces + p.slice_from(1);
+    //                 search_crate(p2, outputfn);
+    //             }
+    //         }
+    //     }
+    // }
 }
 
 fn search_crates(path : &Path, p : &[&str], outputfn : &|Match|) {
@@ -347,7 +389,7 @@ fn convert_output(m: &Match, outputfn: &|&str,uint,&Path,&str|) {
 pub fn complete_from_file(path: &Path, linenum: uint, charnum: uint, 
                           outputfn : &|Match|) {
     let line = getline(path, linenum);
-    let s = expand_searchstr(line, charnum) + "*";
+    let s = expand_searchstr(line, charnum);
 
     let mut l = s.split_str("::");
     let bits : ~[&str] = l.collect(); 

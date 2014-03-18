@@ -1,8 +1,9 @@
-use racer::{getline,search_crate,find_end,Match};
-use scopes::point_to_coords;
-use std::io::File;
-use std::io::BufferedReader;
-use std::str;
+#[feature(managed_boxes)];   // need this to use libsyntax
+#[feature(phase)];
+#[phase(syntax, link)] extern crate log;
+extern crate syntax;
+
+use racer::{getline,search_crate,Match};
 mod racer;
 mod scopes;
 
