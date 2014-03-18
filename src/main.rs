@@ -71,6 +71,7 @@ fn find_definition() {
 fn print_usage() {
     let program = std::os::args()[0].clone();
     println!("usage: {} complete linenum charnum fname", program);
+    println!("or:    {} find-definition linenum charnum fname", program);
     println!("or:    {} complete fullyqualifiedname   (e.g. std::io::)",program);
     println!("or:    {} prefix linenum charnum fname",program);
 }

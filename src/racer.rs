@@ -90,8 +90,8 @@ pub fn find_end(s : &str, pos : uint) -> uint {
     return end;
 }
 
-
 fn find_in_module(path : &Path, s : &str, outputfn : &|Match|) {
+    debug!("PHIL find_in_module {} {}",path.display(), s);
     let file = File::open(path);
     if file.is_err() { return; }
     //let modsearchstr = "pub mod "+s;
@@ -101,35 +101,38 @@ fn find_in_module(path : &Path, s : &str, outputfn : &|Match|) {
     let cratesearchstr = "extern crate ";
     let mut i = 0;
     let mut pt = 0;
+
     for line_r in BufferedReader::new(file).lines() {
         let line = line_r.unwrap();
         i += 1;
+
         for n in line.find_str(modsearchstr+s).move_iter() {
            let end = find_end(line, n+modsearchstr.len());
            let l = line.slice(n + modsearchstr.len(), end);
-                let m = Match {matchstr: l.to_owned(), 
-                               path: path.clone(), 
-                               point: pt + n + modsearchstr.len(), 
-                               linetxt: line.to_owned()};
-                (*outputfn)(m);
+            let m = Match {matchstr: l.to_owned(), 
+                           path: path.clone(), 
+                           point: pt + n + modsearchstr.len(), 
+                           linetxt: line.to_owned()};
+            (*outputfn)(m);
         }
         for n in line.find_str(fnsearchstr+s).move_iter() {
+            debug!("Found {}",fnsearchstr+s);
             let end = find_end(line, n+3);
             let l = line.slice(n + 3, end);
-                let m = Match {matchstr: l.to_owned(), 
-                               path: path.clone(), 
-                               point: pt + n + fnsearchstr.len(), 
-                               linetxt: line.to_owned()};
-                (*outputfn)(m);
+            let m = Match {matchstr: l.to_owned(), 
+                           path: path.clone(), 
+                           point: pt + n + fnsearchstr.len(), 
+                           linetxt: line.to_owned()};
+            (*outputfn)(m);
         }
         for n in line.find_str(structsearchstr+s).move_iter() {
             let end = find_end(line, n+7);
             let l = line.slice(n+7, end);
-                let m = Match {matchstr: l.to_owned(), 
-                               path: path.clone(), 
-                               point: pt + n + structsearchstr.len(),
-                               linetxt: line.to_owned()};
-                (*outputfn)(m);
+            let m = Match {matchstr: l.to_owned(), 
+                           path: path.clone(), 
+                           point: pt + n + structsearchstr.len(),
+                           linetxt: line.to_owned()};
+            (*outputfn)(m);
         }
 
         for n in line.find_str(cratesearchstr+s).move_iter() {
@@ -171,7 +174,6 @@ fn search_f(path: &Path, p: &[&str], outputfn: &|Match|) {
         return find_in_module(path, "", outputfn);
     }
 
-
     if p.len() == 1 {
         return find_in_module(path, p[0], outputfn);
     }
@@ -195,7 +197,7 @@ fn search_f(path: &Path, p: &[&str], outputfn: &|Match|) {
                                        linetxt:line.to_owned()
                     });
             } else {
-                debug!("PHIL NOT Found {} {} ",l,line);
+                debug!("PHIL following: {}: {} ",l,line);
                 let dir = path.dir_path();
                 debug!("PHIL DIR {}", dir.as_str().unwrap());
                 // try searching file.rs
@@ -345,7 +347,7 @@ fn convert_output(m: &Match, outputfn: &|&str,uint,&Path,&str|) {
 pub fn complete_from_file(path: &Path, linenum: uint, charnum: uint, 
                           outputfn : &|Match|) {
     let line = getline(path, linenum);
-    let s = expand_searchstr(line, charnum);
+    let s = expand_searchstr(line, charnum) + "*";
 
     let mut l = s.split_str("::");
     let bits : ~[&str] = l.collect(); 
@@ -374,18 +376,17 @@ pub fn find_definition(path :Path, linenum: uint, charnum: uint, outputfn: &|Mat
     let mut l = s.split_str("::");
     let bits : ~[&str] = l.collect(); 
 
+    let find_definition_output_fn = &|m: Match| {
+        debug!("PHIL outputfn match {:?}. comparing to {:?}",m.matchstr, bits[bits.len()-1].to_owned());
+        if m.matchstr == bits[bits.len()-1].to_owned() {  // only if is an exact match
+            (*outputfn)(m);
+        }
+    };
+
     if bits.len() == 1 {
-       search_file_text(bits[0], &path, linenum, charnum, outputfn); 
+       search_file_text(bits[0], &path, linenum, charnum, find_definition_output_fn); 
     }
-    search_crates(&path, bits, outputfn);
-    search_use_imports(&path, bits, outputfn);
-    search_f(&path, bits, outputfn);
-    
-    if bits.len() == 1 && "std".starts_with(bits[0]) {
-        let m = Match {matchstr: ~"std::",
-                       path: path.clone(),
-                       point: 1,
-                       linetxt: ~"std::"};
-        (*outputfn)(m);
-    }
+    search_crates(&path, bits, find_definition_output_fn);
+    search_use_imports(&path, bits, find_definition_output_fn);
+    search_f(&path, bits, find_definition_output_fn);    
 }
