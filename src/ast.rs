@@ -6,10 +6,8 @@ use syntax::parse::{ParseSess};
 use syntax::parse::{new_parser_from_source_str};
 use syntax::parse::parser::Parser;
 use syntax::parse::token;
-use std::vec_ng::Vec;
 use syntax::visit;
 use syntax::codemap::Span;
-
 
 // This code ripped from libsyntax::parser_testing
 pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: ~str) -> Parser<'a> {
@@ -53,7 +51,6 @@ pub fn string_to_crate (source_str : ~str) -> ast::Crate {
 }
 
 struct MyVisitor;
-
 impl visit::Visitor<()> for MyVisitor {
 
     fn visit_mod(&mut self, m: &ast::Mod, _s: Span, _n:ast::NodeId, e: ()) { 
@@ -132,12 +129,81 @@ impl visit::Visitor<()> for MyVisitor {
 // }
 
 
-#[test]
-fn blah() {
-    let cr = string_to_crate(~"use racer::{getline,search_crate,Match};");
-    let mut v = MyVisitor;
-    visit::walk_crate(&mut v, &cr, ());
-    //println!("PHIL {:?}",cr);
-    fail!("hello");
+struct MyViewItemVisitor {
+    results : Vec<Vec<~str>>
 }
 
+impl visit::Visitor<()> for MyViewItemVisitor {
+    fn visit_view_item(&mut self, i: &ast::ViewItem, e: ()) { 
+        println!("PHIL - visited view item! {:?}",i);
+        match i.node {
+            ast::ViewItemUse(ref paths) => {
+                println!("PHIL use paths {:?}",paths);
+                // (from rustdoc: rustc no longer supports "use foo, bar;")
+                assert_eq!(paths.len(), 1);
+                match paths.get(0).node {
+                    ast::ViewPathSimple(_, ref path, _) => {
+                        //println!("view path simple {:?}",id);
+                        let mut v = Vec::new();
+                        for seg in path.segments.iter() {
+                            v.push(token::get_ident(seg.identifier).get().to_owned())
+                        }
+                        self.results.push(v);
+                    },
+                    ast::ViewPathList(ref pth, ref paths, ref b) => {
+                        let mut v = Vec::new();
+
+                        for seg in pth.segments.iter() {
+                            println!("PHIL - path segment {:?}", token::get_ident(seg.identifier).get());
+                            v.push(token::get_ident(seg.identifier).get().to_owned())
+                        }
+
+                        
+
+                        //println!("view path item {}",token::get_ident(pth.name));
+                        for path in paths.iter() {
+                            let mut vv = v.clone();
+                            println!("view path list item {}",token::get_ident(path.node.name));
+                            vv.push(token::get_ident(path.node.name).get().to_owned());
+                            self.results.push(vv);
+                        }
+                    }
+                    ast::ViewPathGlob(_, id) => {
+                        println!("PHIL got glob {:?}",id);
+                    }
+                }
+            },
+            ast::ViewItemExternCrate(..) => {
+            }
+        }
+
+        visit::walk_view_item(self, i, e) 
+    }
+}
+
+// fn parse_view_item(s:&str) {
+//     let cr = string_to_crate(s);
+//     let mut v
+// }
+
+pub fn parse_view_item(s: ~str) -> Vec<Vec<~str>> {
+    let cr = string_to_crate(s);
+    let mut v = MyViewItemVisitor{results: Vec::new()};
+    visit::walk_crate(&mut v, &cr, ());
+    return v.results;
+}
+
+
+#[test]
+fn blah() {
+    let s = ~"use racer::{getline,search_crate,Match};";
+    let r = parse_view_item(s);
+    println!("result = {}", r)
+    //let cr = string_to_crate(~"use racer::{getline,search_crate,Match};");
+    
+    // let mut v = MyViewItemVisitor{results: Vec::new()};
+    // visit::walk_crate(&mut v, &cr, ());
+    // println!("PHIL {}",v.results);
+
+    //fail!("hello");
+}

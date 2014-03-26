@@ -6,6 +6,7 @@
 extern crate syntax;
 
 use racer::complete_from_file;
+use racer::find_definition;
 use std::io::File;
 use std::task;
 
@@ -72,6 +73,28 @@ fn main() {
     complete_from_file(&path, 5, 18, &|m| got=m.matchstr.to_owned());
     remove_file(&path);
     assert_eq!(got,~"apple");
+}
+
+#[test]
+fn follows_use() {
+    let src2="
+fn myfn() {
+}
+";
+    let src="
+use src2::myfn;
+mod src2;
+
+fn main() {
+    myfn();
+}
+";
+    write_file(&Path::new("src2.rs"), src2);
+    let path = tmpname();
+    write_file(&path, src);
+    let mut got : ~str = ~"NOTHING";
+    find_definition(path, 6, 6, &|m| got=m.matchstr.to_owned());
+    assert_eq!(got,~"myfn");
 }
 
 #[test]

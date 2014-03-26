@@ -2,19 +2,16 @@
 #[feature(phase)];
 #[phase(syntax, link)] extern crate log;
 extern crate syntax;
-
-use racer::{getline,search_crate,Match};
+use racer::{getline,locate_abs_path,Match};
 mod racer;
 mod scopes;
 
-//std::str::is
-
 fn match_fn(m:Match) {
-    let (linenum, charnum) = scopes::point_to_coords2(&m.path, m.point).unwrap();
+    let (linenum, charnum) = scopes::point_to_coords2(&m.filepath, m.point).unwrap();
     std::io::println("MATCH "+m.matchstr + 
                      "," + linenum.to_str() + 
                      "," + charnum.to_str() + 
-                     "," + m.path.as_str().unwrap() + 
+                     "," + m.filepath.as_str().unwrap() + 
                      "," +  m.linetxt);    
 }
 
@@ -39,7 +36,7 @@ fn complete() {
             let arg = std::os::args()[2];
             let mut it = arg.split_str("::");
             let p : ~[&str] = it.collect();
-            search_crate(p, &|m|  match_fn(m));
+            locate_abs_path(p, &|m|  match_fn(m));
         }
     }
 }

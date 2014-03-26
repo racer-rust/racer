@@ -78,14 +78,7 @@ pub fn mask_sub_scopes(src:&str) -> ~str {
         } 
     }    
     return result;
-}    
-
-pub fn visible_scope(src:&str, point:uint) ->~str {
-    let s = mask_comments(src);
-    let n = scope_start(s, point);
-    return mask_sub_scopes(s.slice(n,point));
 }
-
 
 pub fn coords_to_point(src:&str, mut linenum:uint, col:uint) -> uint {
     let mut point=0;
@@ -255,8 +248,10 @@ fn myfn(b:uint) {
                             
    }
    do_something_with(";
-
-    let res = visible_scope(src, coords_to_point(src,8,21));
+    let point = coords_to_point(src,8,21);
+    let s = mask_comments(src);
+    let n = scope_start(s, point);
+    let res = mask_sub_scopes(s.slice(n,point));
     assert!(expected == res);
 }
 
