@@ -8,6 +8,7 @@ use syntax::parse::parser::Parser;
 use syntax::parse::token;
 use syntax::visit;
 use syntax::codemap::Span;
+use std::task;
 
 // This code ripped from libsyntax::parser_testing
 pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: ~str) -> Parser<'a> {
@@ -181,18 +182,25 @@ impl visit::Visitor<()> for MyViewItemVisitor {
     }
 }
 
-// fn parse_view_item(s:&str) {
-//     let cr = string_to_crate(s);
-//     let mut v
-// }
-
 pub fn parse_view_item(s: ~str) -> Vec<Vec<~str>> {
+    // parser can fail!() so isolate it in another task
+    let result = task::try(proc() { 
+        return _parse_view_items(s);
+    });
+    match result {
+        Ok(s) => {return s;},
+        Err(_) => {
+            return Vec::new();
+        }
+    }
+}
+
+fn _parse_view_items(s: ~str)-> Vec<Vec<~str>> {
     let cr = string_to_crate(s);
     let mut v = MyViewItemVisitor{results: Vec::new()};
     visit::walk_crate(&mut v, &cr, ());
     return v.results;
 }
-
 
 #[test]
 fn blah() {

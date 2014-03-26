@@ -280,9 +280,9 @@ fn to_refs<'a>(v: &'a Vec<~str>) -> Vec<&'a str> {
     return out;
 }
 
-fn search_use_imports(filepath : &Path, p : &[&str], outputfn : &|Match|) {
+fn search_use_imports(filepath : &Path, path : &[&str], outputfn : &|Match|) {
     search_lines(filepath, |line|{
-        if line.find_str("use ").and(line.find_str(p[0])).is_some() {
+        if line.find_str("use ").and(line.find_str(path[0])).is_some() {
             println!("PHIL found {}", line);
             for fqn_ in ast::parse_view_item(line).iter() {
                 // HACK, convert from &[~str] to &[&str]
@@ -292,16 +292,19 @@ fn search_use_imports(filepath : &Path, p : &[&str], outputfn : &|Match|) {
                 // if searching for a symbol and the last bit matches the symbol
                 // then find the fqn
                 println!("PHIL ****************  - search {}",fqn);
-                if p.len() == 1 && fqn[fqn.len()-1].starts_with(p[0]) {
-                    locate_abs_path(fqn, outputfn);
+                if path.len() == 1 && fqn[fqn.len()-1].starts_with(path[0]) {
+                    // is it a local mod in the current crate?
+                    locate_path_via_module(filepath, fqn, outputfn);
+                    // is it an absolute path?
+                    search_crate_decls(filepath, fqn, outputfn);
 
                 // if searching for a path and the last bit matches the first bit of 
                 // the path then expand the path and find it
-                } else if p.len() > 1 && fqn[fqn.len()-1] == p[0].to_owned() {
-                    let p2 = fqn + p.slice_from(1);
-                    locate_abs_path(p2, outputfn);
+                //  (e.g. use foo;   searching for foo::bar)
+                } else if path.len() > 1 && fqn[fqn.len()-1] == path[0].to_owned() {
+                    let p2 = fqn + path.slice_from(1);
+                    search_crate_decls(filepath, p2, outputfn);
                 }
-
             }
         }
     });
@@ -338,8 +341,7 @@ fn search_for_let(src:&str, searchstr:&str, filepath:&Path,
         for n in line.find_str("let "+searchstr).iter() {
             let end = find_path_end(line, n+"let ".len());
             let l = line.slice(n+"let ".len(), end);
-            // TODO - make linenum something correct
-            let lineno = 1;
+            // TODO - make point something correct
             (*outputfn)(Match { matchstr: l.to_owned(),
                                 filepath: filepath.clone(),
                                 point: 1,

@@ -80,9 +80,10 @@ fn follows_use() {
     let src2="
 fn myfn() {
 }
+fn foo() {}
 ";
     let src="
-use src2::myfn;
+use src2::{foo,myfn};
 mod src2;
 
 fn main() {
@@ -92,9 +93,11 @@ fn main() {
     write_file(&Path::new("src2.rs"), src2);
     let path = tmpname();
     write_file(&path, src);
-    let mut got : ~str = ~"NOTHING";
-    find_definition(path, 6, 6, &|m| got=m.matchstr.to_owned());
-    assert_eq!(got,~"myfn");
+
+    let mut got = racer::Match{matchstr:~"NOTHING", filepath: path.clone(), point: 0, linetxt: ~""};
+    find_definition(path, 6, 6, &|m| got=m);
+
+    assert_eq!(got.matchstr,~"myfn");
 }
 
 #[test]
