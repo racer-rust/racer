@@ -11,6 +11,7 @@ use std::io::File;
 use std::task;
 
 mod racer;
+mod scopes;
 
 fn tmpname() -> Path {
     let mut s = ~"";
@@ -29,7 +30,7 @@ fn remove_file(tmppath:&Path) {
 }
 
 #[test]
-fn matches_mod() {
+fn completes_mod() {
     let src="
 mod apple
 fn main() {
@@ -44,7 +45,7 @@ fn main() {
 }
 
 #[test]
-fn matches_local_scope_let(){
+fn completes_local_scope_let(){
     let src="
 fn main() {
     let apple = 35;
@@ -59,10 +60,10 @@ fn main() {
 }
 
 #[test]
-fn matches_parent_scope_let(){
+fn completes_via_parent_scope_let(){
     let src="
 fn main() {
-    let apple = 35;
+    let mut apple = 35;
     if foo {
         let b = ap
     }
@@ -101,20 +102,35 @@ fn main() {
 }
 
 #[test]
-fn matches_fields() {
+fn gets_type_of_variable_via_assignment() {
     let src="
-    struct Point {
-        first: f64,
-        second: f64
-    } 
-
-    let var = Point {35, 22};
-    var.f
+    struct Point {a: uint};
+    let var = Point {35};
 ";
     let path = tmpname();
     write_file(&path, src);
     let mut got : ~str = ~"NOTHING";
-    complete_from_file(&path, 8, 9, &|m| got=m.matchstr.to_owned());
-    remove_file(&path);
-    assert_eq!(got,~"first");
+    // scopes::coords_to_point(src, );
+    // getTypeOf(&path, 8, 9, &|m| got=m.matchstr.to_owned());
+    // remove_file(&path);
+    // assert_eq!(got,~"first");
 }
+
+// #[test]
+// fn completes_struct_field_via_assignment() {
+//     let src="
+//     struct Point {
+//         first: f64,
+//         second: f64
+//     } 
+
+//     let var = Point {35, 22};
+//     var.f
+// ";
+//     let path = tmpname();
+//     write_file(&path, src);
+//     let mut got : ~str = ~"NOTHING";
+//     complete_from_file(&path, 8, 9, &|m| got=m.matchstr.to_owned());
+//     remove_file(&path);
+//     assert_eq!(got,~"first");
+// }

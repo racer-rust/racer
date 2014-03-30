@@ -7,7 +7,7 @@ use syntax::parse::{new_parser_from_source_str};
 use syntax::parse::parser::Parser;
 use syntax::parse::token;
 use syntax::visit;
-use syntax::codemap::Span;
+use syntax::codemap;
 use std::task;
 
 // This code ripped from libsyntax::parser_testing
@@ -51,84 +51,6 @@ pub fn string_to_crate (source_str : ~str) -> ast::Crate {
     })
 }
 
-struct MyVisitor;
-impl visit::Visitor<()> for MyVisitor {
-
-    fn visit_mod(&mut self, m: &ast::Mod, _s: Span, _n:ast::NodeId, e: ()) { 
-        println!("PHIL - visited mod! {:?} {:?} {:?}",m,_s,_n);
-        visit::walk_mod(self, m, e) 
-    }
-
-    fn visit_view_item(&mut self, i: &ast::ViewItem, e: ()) { 
-        println!("PHIL - visited view item! {:?}",i);
-        match i.node {
-            ast::ViewItemUse(ref paths) => {
-                println!("PHIL use paths {:?}",paths);
-                // (from rustdoc: rustc no longer supports "use foo, bar;")
-                assert_eq!(paths.len(), 1);
-                match paths.get(0).node {
-                    ast::ViewPathSimple(_, _, id) => {
-                        println!("view path simple {:?}",id);
-                    },
-                    ast::ViewPathList(ref p, ref paths, ref b) => {
-                        for path in paths.iter() {
-                            println!("view path list item {}",token::get_ident(path.node.name));
-                        }
-                    }
-                    ast::ViewPathGlob(_, id) => {
-                        println!("PHIL got glob {:?}",id);
-                    }
-
-                }
-            },
-            ast::ViewItemExternCrate(..) => {
-            }
-        }
-
-        visit::walk_view_item(self, i, e) 
-    }
-
-    fn visit_expr(&mut self, a:&ast::Expr, e: ()) {
-        println!("PHIL - visited expr! {:?}",a);
-        visit::walk_expr(self, a, e)
-    }
-
-    fn visit_decl(&mut self, d: &ast::Decl, e: ()) { 
-        //walk_decl(self, d, e) 
-        println!("PHIL - visited decl! {:?}",d);
-        visit::walk_decl(self, d, e)
-    }
-
-    fn visit_path(&mut self, path: &ast::Path, _id: ast::NodeId, e: ()) {
-        println!("PHIL - visited path! {:?}", path);
-        println!("PHIL - path segments! {:?}", path.segments);
-        for seg in path.segments.iter() {
-            println!("PHIL - path segment {}", token::get_ident(seg.identifier));
-        }
-
-        visit::walk_path(self, path, e)
-    }
-
-}
-
-// fn main() {
-//     // let expr = string_to_expr(~"a = 3");
-//     // println!("PHIL 1: {:?}", expr);
-//     // println!("PHIL 2: {:?}", string_to_expr(~"(a, b) = (3, 4)"));
-//     // //string_to_item(~"fn a (b : int) { b; }")
-
-//     // println!("PHIL 3: {:?}", item);
-
-//     //let stmt = string_to_stmt(~"let foo = 3;aoueaoeu baoeb some other stuff");
-//     let stmt = string_to_stmt(~"let foo = blah(); baoeib");
-//     //println!("PHIL 4: {:?}", stmt);
-
-//     let mut v = MyVisitor;
-//     //visit::walk_expr(&mut v,expr,());
-//     visit::walk_stmt(&mut v, stmt, ())
-    
-// }
-
 
 struct MyViewItemVisitor {
     results : Vec<Vec<~str>>
@@ -139,29 +61,22 @@ impl visit::Visitor<()> for MyViewItemVisitor {
         println!("PHIL - visited view item! {:?}",i);
         match i.node {
             ast::ViewItemUse(ref paths) => {
-                println!("PHIL use paths {:?}",paths);
-                // (from rustdoc: rustc no longer supports "use foo, bar;")
                 assert_eq!(paths.len(), 1);
                 match paths.get(0).node {
                     ast::ViewPathSimple(_, ref path, _) => {
-                        //println!("view path simple {:?}",id);
                         let mut v = Vec::new();
                         for seg in path.segments.iter() {
                             v.push(token::get_ident(seg.identifier).get().to_owned())
                         }
                         self.results.push(v);
                     },
-                    ast::ViewPathList(ref pth, ref paths, ref b) => {
+                    ast::ViewPathList(ref pth, ref paths, _) => {
                         let mut v = Vec::new();
 
                         for seg in pth.segments.iter() {
-                            println!("PHIL - path segment {:?}", token::get_ident(seg.identifier).get());
                             v.push(token::get_ident(seg.identifier).get().to_owned())
                         }
 
-                        
-
-                        //println!("view path item {}",token::get_ident(pth.name));
                         for path in paths.iter() {
                             let mut vv = v.clone();
                             println!("view path list item {}",token::get_ident(path.node.name));
@@ -181,6 +96,9 @@ impl visit::Visitor<()> for MyViewItemVisitor {
         visit::walk_view_item(self, i, e) 
     }
 }
+
+
+
 
 pub fn parse_view_item(s: ~str) -> Vec<Vec<~str>> {
     // parser can fail!() so isolate it in another task
@@ -202,16 +120,86 @@ fn _parse_view_items(s: ~str)-> Vec<Vec<~str>> {
     return v.results;
 }
 
+struct MyLetVisitor { 
+    result: Option<LetResult>
+}
+
+pub struct LetResult { 
+    name: ~str,
+    point: uint
+}
+
+impl visit::Visitor<()> for MyLetVisitor {
+    fn visit_decl(&mut self, decl: &ast::Decl, e: ()) { 
+
+        
+        match decl.node {
+            ast::DeclLocal(local) => {
+                match local.pat.node {
+                    ast::PatWild => {},
+                    ast::PatWildMulti => {},
+                    ast::PatIdent(_ , ref path, _) => {
+                        let mut v = Vec::new();
+                        let codemap::BytePos(point) = path.span.lo;
+
+                        for seg in path.segments.iter() {
+                             v.push(token::get_ident(seg.identifier).get().to_owned())
+                        }
+                        self.result = Some(LetResult{name: v.get(0).to_owned(), 
+                                                point: point.to_uint().unwrap()});
+                    },
+                    ast::PatEnum(_,_) => {}, 
+                    ast::PatStruct(_,_,_) => {},
+                    ast::PatTup(_) => {},
+                    ast::PatUniq(_) => {},
+                    ast::PatRegion(_) => {},
+                    ast::PatLit(_) => {},
+                    ast::PatRange(_,_) => {},
+                    ast::PatVec(_,_,_ ) => {}
+                    
+                }
+                
+            }
+            ast::DeclItem(_) => {}
+        }
+
+        visit::walk_decl(self, decl, e);
+    }
+}
+
+pub fn parse_let(s: ~str) -> Option<LetResult> {
+    // parser can fail!() so isolate it in another task
+    let result = task::try(proc() { 
+        return _parse_let(s);
+    });
+    match result {
+        Ok(s) => {return s;},
+        Err(_) => {
+            return None;
+        }
+    }
+}
+
+fn _parse_let(s: ~str)-> Option<LetResult> {
+    let cr = string_to_stmt(s);
+    let mut v = MyLetVisitor{ result: None};
+    visit::walk_stmt(&mut v, cr, ());
+    return v.result;
+}
+
+
 #[test]
 fn blah() {
-    let s = ~"use racer::{getline,search_crate,Match};";
-    let r = parse_view_item(s);
-    println!("result = {}", r)
+    let cr = string_to_stmt(~"let mut myvar = 3;");
+    let mut v = MyLetVisitor{ result: None};
+    visit::walk_stmt(&mut v, cr, ());
+    //let r = parse_view_item(s);
+    println!("result = {:?}", v.result);
     //let cr = string_to_crate(~"use racer::{getline,search_crate,Match};");
     
     // let mut v = MyViewItemVisitor{results: Vec::new()};
     // visit::walk_crate(&mut v, &cr, ());
     // println!("PHIL {}",v.results);
 
-    //fail!("hello");
+    fail!("hello");
 }

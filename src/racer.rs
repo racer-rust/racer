@@ -196,15 +196,13 @@ fn locate_path_via_module(filepath: &Path, p: &[&str], outputfn: &|Match|) {
         return locate_defn_in_module(filepath, p[0], outputfn);
     }
 
-    let mut file = File::open(filepath);
+    let file = File::open(filepath);
     if file.is_err() { return }
 
     let modsearchstr = "mod ";
-    let mut i = 0;
     let mut pt = 0;
     for line_r in BufferedReader::new(file).lines() {
         let line = line_r.unwrap();
-        i+=1;
         for n in line.find_str(modsearchstr + p[0]).move_iter() {
             let end = find_path_end(line, n+modsearchstr.len());
             let l = line.slice(n + modsearchstr.len(), end);
@@ -230,7 +228,7 @@ fn locate_path_via_module(filepath: &Path, p: &[&str], outputfn: &|Match|) {
 
 // silently returns if path doesn't exist
 fn search_lines(filepath: &Path, f:|~str| ) {
-    let mut file = File::open(filepath);
+    let file = File::open(filepath);
     if file.is_err() { return }
     for line in BufferedReader::new(file).lines() {
         f(line.unwrap());
@@ -338,14 +336,20 @@ fn search_for_let(src:&str, searchstr:&str, filepath:&Path,
                   outputfn : &|Match|) {
     for line in src.lines() {
         // search for let statements
-        for n in line.find_str("let "+searchstr).iter() {
-            let end = find_path_end(line, n+"let ".len());
-            let l = line.slice(n+"let ".len(), end);
-            // TODO - make point something correct
-            (*outputfn)(Match { matchstr: l.to_owned(),
-                                filepath: filepath.clone(),
-                                point: 1,
-                                linetxt: line.to_owned()});
+        if line.find_str("let ").and(line.find_str(searchstr)).is_some() {
+            
+            let res = ast::parse_let(line.to_owned());
+
+            if res.is_some() {
+
+                // let end = find_path_end(line, n+"let ".len());
+                // let l = line.slice(n+"let ".len(), end);
+                // TODO - make point something correct
+                (*outputfn)(Match { matchstr: res.unwrap().name.to_owned(),
+                                    filepath: filepath.clone(),
+                                    point: 1,
+                                    linetxt: line.to_owned()});
+            }
         }
     }
 }
@@ -371,13 +375,13 @@ fn search_file_text(searchstr:&str, filepath: &Path, linenum: uint, charnum: uin
     let point = scopes::coords_to_point(src, linenum, charnum);
 
     let mut l = searchstr.split_str(".");
-    let bits : ~[&str] = l.collect();
+    let path : ~[&str] = l.collect();
     
-    if bits.len() == 1 {
+    if path.len() == 1 {
         search_scope(searchstr, filepath, msrc, point, outputfn); 
     } else {
         // field reference. 
-        //get_type_of(bits);
+        //get_type_of(path, filepath, msrc, point, outputfn);
     }
 }
 

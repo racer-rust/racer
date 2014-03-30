@@ -12,7 +12,7 @@ fn match_fn(m:Match) {
                      "," + linenum.to_str() + 
                      "," + charnum.to_str() + 
                      "," + m.filepath.as_str().unwrap() + 
-                     "," +  m.linetxt);    
+                     "," +  m.linetxt);
 }
 
 fn complete() {
