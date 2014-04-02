@@ -58,7 +58,6 @@ struct MyViewItemVisitor {
 
 impl visit::Visitor<()> for MyViewItemVisitor {
     fn visit_view_item(&mut self, i: &ast::ViewItem, e: ()) { 
-        println!("PHIL - visited view item! {:?}",i);
         match i.node {
             ast::ViewItemUse(ref paths) => {
                 assert_eq!(paths.len(), 1);
@@ -126,27 +125,49 @@ struct MyLetVisitor {
 
 pub struct LetResult { 
     name: ~str,
-    point: uint
+    point: uint,
+    init: Vec<~str>
+}
+
+
+fn path_to_vec(pth: &ast::Path) -> Vec<~str> {
+    let mut v = Vec::new();
+    for seg in pth.segments.iter() {
+        v.push(token::get_ident(seg.identifier).get().to_owned())
+    }
+    return v;
+}
+
+impl MyLetVisitor {
+    fn visit_let_initializer(&mut self, name: ~str, point: uint, init: Option<@ast::Expr> ) {
+        init.map(|init| {
+            match init.node {
+                ast::ExprStruct(ref path, _, _) => {
+                    self.result = Some(LetResult{name: name.clone(),
+                                                 point: point,
+                                                 init: path_to_vec(path)
+                                                 });
+                }
+                _ => ()
+            }
+        });
+    }
 }
 
 impl visit::Visitor<()> for MyLetVisitor {
-    fn visit_decl(&mut self, decl: &ast::Decl, e: ()) { 
 
-        
+    fn visit_decl(&mut self, decl: &ast::Decl, e: ()) { 
         match decl.node {
             ast::DeclLocal(local) => {
                 match local.pat.node {
                     ast::PatWild => {},
                     ast::PatWildMulti => {},
                     ast::PatIdent(_ , ref path, _) => {
-                        let mut v = Vec::new();
                         let codemap::BytePos(point) = path.span.lo;
-
-                        for seg in path.segments.iter() {
-                             v.push(token::get_ident(seg.identifier).get().to_owned())
-                        }
-                        self.result = Some(LetResult{name: v.get(0).to_owned(), 
-                                                point: point.to_uint().unwrap()});
+                        let pathv = path_to_vec(path);
+                        self.visit_let_initializer(pathv.get(0).to_owned(),
+                                                   point.to_uint().unwrap(),
+                                                   local.init);
                     },
                     ast::PatEnum(_,_) => {}, 
                     ast::PatStruct(_,_,_) => {},
@@ -158,6 +179,7 @@ impl visit::Visitor<()> for MyLetVisitor {
                     ast::PatVec(_,_,_ ) => {}
                     
                 }
+
                 
             }
             ast::DeclItem(_) => {}
@@ -165,6 +187,7 @@ impl visit::Visitor<()> for MyLetVisitor {
 
         visit::walk_decl(self, decl, e);
     }
+
 }
 
 pub fn parse_let(s: ~str) -> Option<LetResult> {
@@ -190,7 +213,7 @@ fn _parse_let(s: ~str)-> Option<LetResult> {
 
 #[test]
 fn blah() {
-    let cr = string_to_stmt(~"let mut myvar = 3;");
+    let cr = string_to_stmt(~"let mut myvar = Point {a: 35};");
     let mut v = MyLetVisitor{ result: None};
     visit::walk_stmt(&mut v, cr, ());
     //let r = parse_view_item(s);

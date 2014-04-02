@@ -105,14 +105,14 @@ fn main() {
 fn gets_type_of_variable_via_assignment() {
     let src="
     struct Point {a: uint};
-    let var = Point {35};
+    let var = Point {a: 35};
 ";
     let path = tmpname();
     write_file(&path, src);
-    let mut got : ~str = ~"NOTHING";
+    //let mut got : ~str = ~"NOTHING";
     // scopes::coords_to_point(src, );
     // getTypeOf(&path, 8, 9, &|m| got=m.matchstr.to_owned());
-    // remove_file(&path);
+    remove_file(&path);
     // assert_eq!(got,~"first");
 }
 
