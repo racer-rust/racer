@@ -1,7 +1,5 @@
-#[feature(managed_boxes)];   // need this to use libsyntax
-#[feature(phase)];
-#[allow(dead_code)];
-#[allow(unused_imports)];
+#![feature(managed_boxes,phase)]   // need this to use libsyntax
+#![allow(dead_code,unused_imports,dead_code,attribute_usage,unused_variable)]
 #[phase(syntax, link)] extern crate log;
 extern crate syntax;
 
@@ -12,6 +10,7 @@ use std::task;
 
 mod racer;
 mod scopes;
+mod resolve; 
 
 fn tmpname() -> Path {
     let mut s = ~"";
@@ -39,7 +38,8 @@ fn main() {
     let path = tmpname();
     write_file(&path, src);
     let mut got : ~str = ~"NOTHING";
-    complete_from_file(&path, 4, 14, &|m| got=m.matchstr.to_owned());
+    let pos = scopes::coords_to_point(src, 4, 14);
+    complete_from_file(src, &path, pos, &|m| got=m.matchstr.to_owned());
     remove_file(&path);
     assert_eq!(got,~"apple");    
 }
@@ -53,10 +53,11 @@ fn main() {
 }";
     let path = tmpname();
     write_file(&path, src);
-    let mut got : ~str = ~"NOTHING";
-    complete_from_file(&path, 4, 14, &|m| got=m.matchstr.to_owned());
+    let pos = scopes::coords_to_point(src, 4, 14);
+    let got = racer::first_match(|m| complete_from_file(src, &path, pos, m)).unwrap();
     remove_file(&path);
-    assert_eq!(got,~"apple");
+    assert_eq!(got.matchstr,~"apple");
+    assert_eq!(got.point, 21);
 }
 
 #[test]
@@ -70,10 +71,11 @@ fn main() {
 }";
     let path = tmpname();
     write_file(&path, src);
-    let mut got : ~str = ~"NOTHING";
-    complete_from_file(&path, 5, 18, &|m| got=m.matchstr.to_owned());
+    let pos = scopes::coords_to_point(src, 5, 18);
+    let got = racer::first_match(|m| complete_from_file(src, &path, pos,m)).unwrap();
     remove_file(&path);
-    assert_eq!(got,~"apple");
+    assert_eq!(got.matchstr,~"apple");
+    assert_eq!(got.point,25);
 }
 
 #[test]
@@ -85,7 +87,6 @@ fn foo() {}
 ";
     let src="
 use src2::{foo,myfn};
-mod src2;
 
 fn main() {
     myfn();
@@ -94,43 +95,27 @@ fn main() {
     write_file(&Path::new("src2.rs"), src2);
     let path = tmpname();
     write_file(&path, src);
-
-    let mut got = racer::Match{matchstr:~"NOTHING", filepath: path.clone(), point: 0, linetxt: ~""};
-    find_definition(path, 6, 6, &|m| got=m);
-
+    let pos = scopes::coords_to_point(src, 5, 6);
+    let got = find_definition(src, &path, pos).unwrap();
     assert_eq!(got.matchstr,~"myfn");
 }
 
 #[test]
-fn gets_type_of_variable_via_assignment() {
+fn completes_struct_field_via_assignment() {
     let src="
-    struct Point {a: uint};
-    let var = Point {a: 35};
+    struct Point {
+        first: f64,
+        second: f64
+    } 
+
+    let var = Point {first: 35, second: 22};
+    var.f
 ";
     let path = tmpname();
     write_file(&path, src);
-    //let mut got : ~str = ~"NOTHING";
-    // scopes::coords_to_point(src, );
-    // getTypeOf(&path, 8, 9, &|m| got=m.matchstr.to_owned());
+    let mut got : ~str = ~"NOTHING";
+    let pos = scopes::coords_to_point(src, 8, 9);
+    complete_from_file(src, &path, pos, &|m| got=m.matchstr.to_owned());
     remove_file(&path);
-    // assert_eq!(got,~"first");
+    assert_eq!(got,~"first");
 }
-
-// #[test]
-// fn completes_struct_field_via_assignment() {
-//     let src="
-//     struct Point {
-//         first: f64,
-//         second: f64
-//     } 
-
-//     let var = Point {35, 22};
-//     var.f
-// ";
-//     let path = tmpname();
-//     write_file(&path, src);
-//     let mut got : ~str = ~"NOTHING";
-//     complete_from_file(&path, 8, 9, &|m| got=m.matchstr.to_owned());
-//     remove_file(&path);
-//     assert_eq!(got,~"first");
-// }

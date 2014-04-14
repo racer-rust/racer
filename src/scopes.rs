@@ -80,7 +80,7 @@ pub fn mask_sub_scopes(src:&str) -> ~str {
     return result;
 }
 
-pub fn coords_to_point(src:&str, mut linenum:uint, col:uint) -> uint {
+pub fn coords_to_point(src: &str, mut linenum: uint, col: uint) -> uint {
     let mut point=0;
     for line in src.lines() {
         linenum -= 1;

@@ -1,10 +1,17 @@
-#[feature(managed_boxes)];   // need this to use libsyntax
-#[feature(phase)];
+#![feature(managed_boxes,phase)]
+
+// need this to use libsyntax
+//#![feature(phase)];
 #[phase(syntax, link)] extern crate log;
 extern crate syntax;
 use racer::{getline,locate_abs_path,Match};
-mod racer;
-mod scopes;
+
+use std::io::File;
+use std::io::BufferedReader;
+use std::str;
+use racer::scopes;
+
+pub mod racer;
 
 fn match_fn(m:Match) {
     let (linenum, charnum) = scopes::point_to_coords2(&m.filepath, m.point).unwrap();
@@ -17,19 +24,21 @@ fn match_fn(m:Match) {
 
 fn complete() {
    match std::uint::parse_bytes(std::os::args()[2].as_bytes(), 10) {
-        Some(n) => { 
+        Some(linenum) => { 
             // input: linenum, colnum, fname
-            let linenum = n;
             let charnum = std::uint::parse_bytes(std::os::args()[3].as_bytes(), 10).unwrap();
             let fname = std::os::args()[4];
 
+            let fpath = Path::new(fname);
+            let filetxt = BufferedReader::new(File::open(&fpath)).read_to_end().unwrap();
             // print the start-end of the identifier being matched
-            let path = Path::new(fname);
-            let line = getline(&path, linenum);
+            let src = str::from_utf8(filetxt.as_slice()).unwrap();
+            let line = getline(&fpath, linenum);
             let (start, pos) = racer::expand_ident(line, charnum);
             println!("PREFIX {},{},{}", start, pos, line.slice(start, pos));
 
-            racer::complete_from_file(&path, linenum, charnum, &|m| match_fn(m));
+            let point = scopes::coords_to_point(src, linenum, charnum);
+            racer::complete_from_file(src, &fpath, point, &|m| match_fn(m));
         }
         None => {
             // input: a command line string passed in
@@ -59,11 +68,12 @@ fn find_definition() {
     let linenum = std::uint::parse_bytes(args[2].as_bytes(), 10).unwrap();
     let charnum = std::uint::parse_bytes(args[3].as_bytes(), 10).unwrap();
     let fname = args[4];
+    let fpath = Path::new(fname);
+    let filetxt = BufferedReader::new(File::open(&fpath)).read_to_end().unwrap();
+    let src = str::from_utf8(filetxt.as_slice()).unwrap();
+    let pos = scopes::coords_to_point(src, linenum, charnum);
 
-
-    // print the start, end, and the identifier prefix being matched
-    let path = Path::new(fname);
-    racer::find_definition(path, linenum, charnum, &|m| match_fn(m));
+    racer::find_definition(src, &fpath, pos).map(match_fn);
 }
 
 fn print_usage() {
