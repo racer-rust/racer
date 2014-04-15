@@ -1,5 +1,6 @@
 use std::io::File;
 use std::io::BufferedReader;
+use std::strbuf::StrBuf;
 
 pub fn scope_start(src:&str, point:uint) -> uint {
     let s = src.slice(0,point);
@@ -22,16 +23,16 @@ pub fn scope_start(src:&str, point:uint) -> uint {
 }
 
 fn gen_mask(mut len: uint) -> ~str {
-    let mut s = ~"";
+    let mut s = StrBuf::new();
     while len != 0 {
         len -=1;
-        s.push_str(" ");
+        s.push_char(' ');
     }
-    return s;
+    return s.into_owned();
 }
 
 pub fn mask_comments(src:&str) -> ~str {
-    let mut result = ~"";
+    let mut result = StrBuf::new();
     let mut s:&str = src;
     let mut in_comment = false;
     let mut res = s.find_str("//");
@@ -53,11 +54,11 @@ pub fn mask_comments(src:&str) -> ~str {
         pos += end;
     }
     result.push_str(src.slice_from(pos));
-    return result;
+    return result.into_owned();
 }
 
 pub fn mask_sub_scopes(src:&str) -> ~str {
-    let mut result = ~"";
+    let mut result = StrBuf::new();
     let mut levels = 0;
     
     for c in src.chars() {
@@ -68,7 +69,7 @@ pub fn mask_sub_scopes(src:&str) -> ~str {
         if c == '\n' {
             result.push_char(c);
         } else if levels > 0 {
-            result.push_str(" ");
+            result.push_char(' ');
         } else {
             result.push_char(c);
         }
@@ -77,7 +78,7 @@ pub fn mask_sub_scopes(src:&str) -> ~str {
             levels += 1;
         } 
     }    
-    return result;
+    return result.into_owned();
 }
 
 pub fn coords_to_point(src: &str, mut linenum: uint, col: uint) -> uint {
