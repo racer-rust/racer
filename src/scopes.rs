@@ -81,6 +81,23 @@ pub fn mask_sub_scopes(src:&str) -> ~str {
     return result.into_owned();
 }
 
+pub fn end_of_next_scope<'a>(src: &'a str) -> &'a str {
+    let mut level = 0;
+    let mut end = 0;
+    for (i,c) in src.char_indices() {
+        if c == '}' {
+            level -= 1;
+            if level == 0 { 
+                end = i + 1;
+                break;
+            }
+        } else if c == '{' {
+            level += 1;
+        }
+    }
+    return src.slice_to(end);
+}
+
 pub fn coords_to_point(src: &str, mut linenum: uint, col: uint) -> uint {
     let mut point=0;
     for line in src.lines() {
@@ -225,7 +242,7 @@ fn myfn(b:uint) {
     round_trip_point_and_coords(src, 4, 5);
 }
 
-fn round_trip_point_and_coords(src:&str, lineno:uint, charno:uint) {
+pub fn round_trip_point_and_coords(src:&str, lineno:uint, charno:uint) {
     let (a,b) = point_to_coords(src, coords_to_point(src, lineno, charno));
      assert_eq!((a,b),(lineno,charno));
 }
@@ -254,5 +271,24 @@ fn myfn(b:uint) {
     let n = scope_start(s, point);
     let res = mask_sub_scopes(s.slice(n,point));
     assert!(expected == res);
+}
+
+
+#[test]
+fn finds_end_of_struct_scope() {
+    let src="
+struct foo {
+   a: uint,
+   blah: ~str
+}
+Some other junk";
+
+    let expected="
+struct foo {
+   a: uint,
+   blah: ~str
+}";
+    let s = end_of_next_scope(src);
+    assert_eq!(expected, s);
 }
 

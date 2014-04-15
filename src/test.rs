@@ -7,10 +7,9 @@ use racer::complete_from_file;
 use racer::find_definition;
 use std::io::File;
 use std::task;
+use racer::scopes;
 
 mod racer;
-mod scopes;
-mod resolve; 
 
 fn tmpname() -> Path {
     let mut s = ~"";
@@ -119,3 +118,23 @@ fn completes_struct_field_via_assignment() {
     remove_file(&path);
     assert_eq!(got,~"first");
 }
+
+#[test]
+fn finds_impl_fn() {
+    let src="
+    struct Foo;
+    impl Foo {
+        pub fn new() -> Foo {
+            Foo
+        }
+    }
+
+    let foo = Foo::new();
+";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 9, 21);
+    let got = find_definition(src, &path, pos).unwrap();
+    assert_eq!(got.matchstr,~"new");
+}
+

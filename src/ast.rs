@@ -1,4 +1,3 @@
-#![feature(managed_boxes)]   // need this to use libsyntax
 extern crate syntax;
 use syntax::ast;
 use syntax::parse::{new_parse_sess};
@@ -180,7 +179,7 @@ impl visit::Visitor<()> for StructVisitor {
     fn visit_struct_def(&mut self, s: &ast::StructDef, i: ast::Ident, g: &ast::Generics, n: ast::NodeId, e: ()) {
         visit::walk_struct_def(self, s, i, g, n, e)
     }
-    fn visit_struct_field(&mut self, field: &ast::StructField, e: ()) { 
+    fn visit_struct_field(&mut self, field: &ast::StructField, _: ()) { 
         match field.node.kind {
             ast::NamedField(name, _) => {
                 //visitor.visit_ident(struct_field.span, name, env.clone())

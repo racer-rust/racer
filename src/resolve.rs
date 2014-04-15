@@ -42,6 +42,7 @@ pub fn get_fields_of_struct(m: &Match) -> Vec<~str> {
     let src = str::from_utf8(filetxt.as_slice()).unwrap();
 
     let point = find_stmt_start(src, m.point);
+    let structsrc = racer::scopes::end_of_next_scope(src.slice_from(point));
 
-    return ast::parse_struct_fields(src.slice_from(point).to_owned());
+    return ast::parse_struct_fields(structsrc.to_owned());
 }
