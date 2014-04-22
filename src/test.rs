@@ -8,8 +8,11 @@ use racer::find_definition;
 use std::io::File;
 use std::task;
 use racer::scopes;
+use testutils::rejustify;
 
 mod racer;
+mod testutils;
+mod codecleaner;
 
 fn tmpname() -> Path {
     let mut s = ~"";
@@ -138,3 +141,66 @@ fn finds_impl_fn() {
     assert_eq!(got.matchstr,~"new");
 }
 
+#[test]
+fn follows_self_use() {
+    let modsrc = "
+    pub use self::src2::{Foo,myfn};
+    ";
+    let src2 = "
+    struct Foo;
+    fn myfn() {}
+    ";
+    let src = "
+    use mymod::{Foo,myfn};
+
+    fn main() {
+        myfn();
+    }
+    ";
+    let basedir = tmpname();
+    let moddir = basedir.join("mymod");
+    std::io::fs::mkdir_recursive(&moddir, std::io::UserRWX).unwrap();
+
+    write_file(&moddir.join("mod.rs"), modsrc);
+    write_file(&moddir.join("src2.rs"), src2);
+    let srcpath = basedir.join("src.rs");
+    write_file(&srcpath, src);
+    let pos = scopes::coords_to_point(src, 5, 10);
+    let got = find_definition(src, &srcpath, pos).unwrap();
+    assert_eq!(got.matchstr,~"myfn");
+}
+
+
+// #[test]
+// fn follows_self_use_to_impl() {
+//     let modsrc ="
+//     pub use self::srca2::{Foo}
+// ";
+
+//     let src2="
+//     struct Foo;
+//     impl Foo {
+//         pub fn new() -> Foo {
+//             Foo
+//         }
+//     }
+// ";
+//     let src="
+//     use mymod::{Foo,myfn};
+
+// fn main() {
+//     Foo::new();
+// }
+// ";
+//     let basedir = tmpname();
+//     let moddir = basedir.join("mymod");
+//     std::io::fs::mkdir_recursive(&moddir, std::io::UserRWX);
+
+//     write_file(&moddir.join("mod.rs"), modsrc);
+//     write_file(&moddir.join("src2.rs"), src2);
+//     let srcpath = basedir.join("src.rs");
+//     write_file(&srcpath, src);
+//     let pos = scopes::coords_to_point(src, 5, 10);
+//     let got = find_definition(src, &srcpath, pos).unwrap();
+//     assert_eq!(got.matchstr,~"myfn");
+// }

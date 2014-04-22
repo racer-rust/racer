@@ -249,7 +249,8 @@ pub fn parse_struct_fields(s: ~str) -> Vec<~str> {
 
 #[test]
 fn blah() {
-    let src = ~"struct Point {
+    let src = ~"// some comments first
+    struct Point {
         first: f64,
         second: f64
     }";

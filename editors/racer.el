@@ -1,6 +1,9 @@
 (defvar racer-cmd "/home/pld/src/rust/racer/bin/racer")
 (defvar rust-srcpath "/usr/local/src/rust/src")
 
+; rust-mode no longer requires cl, so am putting it here for now (this file uses 'case')
+(require 'cl)
+
 (defun racer--write-tmp-file (tmpfilename) 
     (push-mark)
     (setq filename (buffer-file-name))

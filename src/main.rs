@@ -45,7 +45,7 @@ fn complete() {
             let arg = std::os::args()[2];
             let mut it = arg.split_str("::");
             let p : ~[&str] = it.collect();
-            locate_abs_path(p, &|m|  match_fn(m));
+            locate_abs_path(p, &Path::new("."), &|m|  match_fn(m));
         }
     }
 }
