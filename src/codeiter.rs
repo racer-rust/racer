@@ -1,5 +1,9 @@
-use racer::codecleaner::{code_chunks, CodeIndicesIter};
-use racer::testutils::{rejustify, slice};
+use racer::codecleaner::CodeIndicesIter;
+use racer::codecleaner::code_chunks;
+#[cfg(test)] use racer::testutils::{rejustify, slice};
+
+mod codecleaner;
+mod testutils;
 
 pub struct StmtIndicesIter<'a> {
     src: &'a str,
@@ -7,7 +11,7 @@ pub struct StmtIndicesIter<'a> {
     pos: uint,
     start: uint,
     end: uint,
-    level: uint,
+    level: int,
     enddelim: u8
 }
 
@@ -38,8 +42,6 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
                         return None
                     }
                 }
-
-
             }
 
             // if this is a new stmt block, skip the whitespace
@@ -69,6 +71,11 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
                     self.level += 1;
                 } else if self.src[self.pos] == closebrace {
                     self.level -= 1;
+                    // have we reached the end of the scope?
+                    if self.level < 0 {
+                        self.fuse();
+                        return None;
+                    }
                 }
 
                 // attribute   #[foo = bar]
@@ -130,6 +137,28 @@ fn iterates_while_stmt() {
 }
 
 #[test]
+fn iterates_inner_scope() {
+    let src = rejustify("
+    while self.pos < 3 { 
+       let a = 35;
+       return a + 35;  // should iterate this
+    }
+    {
+       b = foo;       // but not this
+    }
+    ");
+
+    let scope = src.as_slice().slice_from(25);
+    println!("blah{}",scope);
+    let mut it = iter_stmts(scope);
+    
+    assert_eq!("let a = 35;", slice(scope, it.next().unwrap()));
+    assert_eq!("return a + 35;", slice(scope, it.next().unwrap()));
+    assert_eq!(None, it.next());
+}
+
+
+#[test]
 fn iterates_module_attribute() {
     let src = rejustify("
     #![license = \"BSD\"]
@@ -140,3 +169,16 @@ fn iterates_module_attribute() {
     assert_eq!("#[test]", slice(src.as_slice(), it.next().unwrap()));
 }
 
+// fn main() {
+//     use std::io::BufferedReader;
+//     use std::io::File;
+//     use std::str;
+
+//     let filetxt = BufferedReader::new(File::open(&Path::new("./racer.rs"))).read_to_end().unwrap();
+//     let src = str::from_utf8(filetxt.as_slice()).unwrap();
+
+//     for (start,end) in iter_stmts(src) {
+//         println!("BLOB |{}|",src.slice(start,end));
+//     }
+    
+// }

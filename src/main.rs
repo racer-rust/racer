@@ -4,7 +4,7 @@
 //#![feature(phase)];
 #[phase(syntax, link)] extern crate log;
 extern crate syntax;
-use racer::{getline,locate_abs_path,Match};
+use racer::{getline,Match,do_file_search, do_external_search};
 
 use std::io::File;
 use std::io::BufferedReader;
@@ -45,7 +45,15 @@ fn complete() {
             let arg = std::os::args()[2];
             let mut it = arg.split_str("::");
             let p : ~[&str] = it.collect();
-            locate_abs_path(p, &Path::new("."), &|m|  match_fn(m));
+
+            do_file_search(p[0], &Path::new("."), &|m| {
+                if p.len() == 1 {
+                    match_fn(m);
+                } else {
+                    do_external_search(p.slice_from(1), &m.filepath, m.point, &|m| match_fn(m));
+                }
+            });
+
         }
     }
 }

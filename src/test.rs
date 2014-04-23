@@ -31,35 +31,55 @@ fn remove_file(tmppath:&Path) {
 }
 
 #[test]
-fn completes_mod() {
+fn completes_fn() {
     let src="
-mod apple
-fn main() {
-    let b = ap
-}";
+    fn apple() {
+    }
+
+    fn main() {
+        let b = ap
+    }";
     let path = tmpname();
     write_file(&path, src);
     let mut got : ~str = ~"NOTHING";
-    let pos = scopes::coords_to_point(src, 4, 14);
+    let pos = scopes::coords_to_point(src, 6, 18);
     complete_from_file(src, &path, pos, &|m| got=m.matchstr.to_owned());
     remove_file(&path);
-    assert_eq!(got,~"apple");    
+    assert_eq!(~"apple", got);
+}
+
+#[test]
+fn completes_pub_fn_locally() {
+    let src="
+    pub fn apple() {
+    }
+
+    fn main() {
+        let b = ap
+    }";
+    let path = tmpname();
+    write_file(&path, src);
+    let mut got : ~str = ~"NOTHING";
+    let pos = scopes::coords_to_point(src, 6, 18);
+    complete_from_file(src, &path, pos, &|m| got=m.matchstr.to_owned());
+    remove_file(&path);
+    assert_eq!(~"apple", got);
 }
 
 #[test]
 fn completes_local_scope_let(){
     let src="
-fn main() {
-    let apple = 35;
-    let b = ap
-}";
+    fn main() {
+        let apple = 35;
+        let b = ap
+    }";
     let path = tmpname();
     write_file(&path, src);
-    let pos = scopes::coords_to_point(src, 4, 14);
+    let pos = scopes::coords_to_point(src, 4, 18);
     let got = racer::first_match(|m| complete_from_file(src, &path, pos, m)).unwrap();
     remove_file(&path);
-    assert_eq!(got.matchstr,~"apple");
-    assert_eq!(got.point, 21);
+    assert_eq!(~"apple", got.matchstr);
+    assert_eq!(29, got.point);
 }
 
 #[test]
@@ -83,9 +103,8 @@ fn main() {
 #[test]
 fn follows_use() {
     let src2="
-fn myfn() {
-}
-fn foo() {}
+pub fn myfn() {}
+pub fn foo() {}
 ";
     let src="
 use src2::{foo,myfn};
@@ -127,19 +146,38 @@ fn finds_impl_fn() {
     let src="
     struct Foo;
     impl Foo {
-        pub fn new() -> Foo {
-            Foo
-        }
+        fn new();
     }
 
-    let foo = Foo::new();
+    Foo::new();
 ";
     let path = tmpname();
     write_file(&path, src);
-    let pos = scopes::coords_to_point(src, 9, 21);
+    let pos = scopes::coords_to_point(src, 7, 10);
     let got = find_definition(src, &path, pos).unwrap();
     assert_eq!(got.matchstr,~"new");
 }
+
+#[test]
+fn follows_use_to_inline_mod() {
+    let src="
+    use foo::myfn;
+    mod foo {
+        pub fn myfn() {}
+    }
+
+    fn main() {
+        myfn();
+    }
+    ";
+    write_file(&Path::new("src.rs"), src);
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 8, 9);
+    let got = find_definition(src, &path, pos).unwrap();
+    assert_eq!(got.matchstr,~"myfn");
+}
+
 
 #[test]
 fn follows_self_use() {
@@ -148,7 +186,7 @@ fn follows_self_use() {
     ";
     let src2 = "
     struct Foo;
-    fn myfn() {}
+    pub fn myfn() {}
     ";
     let src = "
     use mymod::{Foo,myfn};
@@ -168,6 +206,42 @@ fn follows_self_use() {
     let pos = scopes::coords_to_point(src, 5, 10);
     let got = find_definition(src, &srcpath, pos).unwrap();
     assert_eq!(got.matchstr,~"myfn");
+    assert_eq!(moddir.join("src2.rs").display().to_str(), 
+               got.filepath.display().to_str());
+    assert_eq!(28, got.point);
+}
+
+
+#[test]
+fn follows_use_to_impl() {
+    let modsrc = "
+    pub struct Foo;
+    impl Foo {       // impl doesn't need to be 'pub'
+        pub fn new() -> Foo {
+            Foo
+        }
+    }
+    ";
+    let src = "
+    use mymod::{Foo};
+
+    fn main() {
+        Foo::new();
+    }
+    ";
+    let basedir = tmpname();
+    std::io::fs::mkdir_recursive(&basedir, std::io::UserRWX).unwrap();
+
+    let modpath = basedir.join("mymod.rs");
+    write_file(&modpath, modsrc);
+    let srcpath = basedir.join("src.rs");
+    write_file(&srcpath, src);
+    let pos = scopes::coords_to_point(src, 5, 14);
+    let got = find_definition(src, &srcpath, pos).unwrap();
+    assert_eq!(got.matchstr,~"new");
+    assert_eq!(90, got.point);
+    assert_eq!(modpath.display().to_str(), 
+               got.filepath.display().to_str());
 }
 
 

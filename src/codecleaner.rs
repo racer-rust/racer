@@ -1,4 +1,6 @@
-use racer::testutils::{rejustify, slice};
+#[cfg(test)] use racer::testutils::{rejustify, slice};
+
+
 
 enum State {
     Code,
