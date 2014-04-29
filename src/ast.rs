@@ -58,9 +58,8 @@ struct MyViewItemVisitor {
 impl visit::Visitor<()> for MyViewItemVisitor {
     fn visit_view_item(&mut self, i: &ast::ViewItem, e: ()) { 
         match i.node {
-            ast::ViewItemUse(ref paths) => {
-                assert_eq!(paths.len(), 1);
-                match paths.get(0).node {
+            ast::ViewItemUse(ref path) => {
+                match path.node {
                     ast::ViewPathSimple(_, ref path, _) => {
                         let mut v = Vec::new();
                         for seg in path.segments.iter() {
@@ -185,13 +184,36 @@ impl visit::Visitor<()> for StructVisitor {
                 //visitor.visit_ident(struct_field.span, name, env.clone())
                 let n = token::get_ident(name).get().to_owned();
                 self.fields.push(n);
-                //println!("PHIL field name {}",n);
                     
             }
             _ => {}
         }
 
         //visit::walk_struct_field(self, s, e)
+    }
+}
+
+
+struct ImplVisitor {
+    name_path: Vec<~str>
+}
+
+impl visit::Visitor<()> for ImplVisitor {
+    fn visit_item(&mut self, item: &ast::Item, _: ()) { 
+        match item.node {
+            ast::ItemImpl(ref type_parameters,
+                     ref trait_reference,
+                     typ,
+                     ref methods) => { 
+                match typ.node {
+                    ast::TyPath(ref path, _, _) => {
+                        self.name_path = path_to_vec(path);
+                    }
+                    _ => {}
+                }
+            },
+            _ => {}
+        }
     }
 }
 
@@ -246,20 +268,35 @@ pub fn parse_struct_fields(s: ~str) -> Vec<~str> {
     }).ok().unwrap_or(Vec::new());
 }
 
+pub fn parse_impl_name(s: ~str) -> Option<~str> {
+    return task::try(proc() {
+        let stmt = string_to_stmt(s);
+        let mut v = ImplVisitor{ name_path: Vec::new() };
+        visit::walk_stmt(&mut v, stmt, ());
+        if v.name_path.len() == 1 {
+            return Some(v.name_path.pop().unwrap());
+        } else {
+            return None;
+        }
+    }).ok().unwrap_or(None);
+}
+
 
 #[test]
 fn blah() {
-    let src = ~"// some comments first
-    struct Point {
-        first: f64,
-        second: f64
-    }";
+    // let src = ~"// some comments first
+    // impl<T> Point<T> {
+    // }";
+
+    let src = ~"impl<T> Foo<T> {
+	        fn new() {}
+	    }";
 
     let cr = string_to_stmt(src);
-    let mut v = StructVisitor { fields: Vec::new()};
+    let mut v = ImplVisitor { name_path: Vec::new()};
     visit::walk_stmt(&mut v, cr, ());
     // //let r = parse_view_item(s);
-    println!("result = {}", v.fields);
+    //println!("result = {}", v.fields);
     // //let cr = string_to_crate(~"use racer::{getline,search_crate,Match};");
     
     // // let mut v = MyViewItemVisitor{results: Vec::new()};

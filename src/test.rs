@@ -146,7 +146,7 @@ fn finds_impl_fn() {
     let src="
     struct Foo;
     impl Foo {
-        fn new();
+        fn new() {}
     }
 
     Foo::new();
@@ -244,37 +244,19 @@ fn follows_use_to_impl() {
                got.filepath.display().to_str());
 }
 
+#[test]
+fn finds_templated_impl_fn() {
+    let src="
+    struct Foo<T>;
+    impl<T> Foo<T> {
+        fn new() {}
+    }
 
-// #[test]
-// fn follows_self_use_to_impl() {
-//     let modsrc ="
-//     pub use self::srca2::{Foo}
-// ";
-
-//     let src2="
-//     struct Foo;
-//     impl Foo {
-//         pub fn new() -> Foo {
-//             Foo
-//         }
-//     }
-// ";
-//     let src="
-//     use mymod::{Foo,myfn};
-
-// fn main() {
-//     Foo::new();
-// }
-// ";
-//     let basedir = tmpname();
-//     let moddir = basedir.join("mymod");
-//     std::io::fs::mkdir_recursive(&moddir, std::io::UserRWX);
-
-//     write_file(&moddir.join("mod.rs"), modsrc);
-//     write_file(&moddir.join("src2.rs"), src2);
-//     let srcpath = basedir.join("src.rs");
-//     write_file(&srcpath, src);
-//     let pos = scopes::coords_to_point(src, 5, 10);
-//     let got = find_definition(src, &srcpath, pos).unwrap();
-//     assert_eq!(got.matchstr,~"myfn");
-// }
+    Foo::new();
+";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 7, 10);
+    let got = find_definition(src, &path, pos).unwrap();
+    assert_eq!(got.matchstr,~"new");
+}
