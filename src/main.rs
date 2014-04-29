@@ -38,7 +38,7 @@ fn complete() {
             println!("PREFIX {},{},{}", start, pos, line.slice(start, pos));
 
             let point = scopes::coords_to_point(src, linenum, charnum);
-            racer::complete_from_file(src, &fpath, point, &|m| match_fn(m));
+            racer::complete_from_file(src, &fpath, point, &mut |m| match_fn(m));
         }
         None => {
             // input: a command line string passed in
@@ -46,11 +46,11 @@ fn complete() {
             let mut it = arg.split_str("::");
             let p : ~[&str] = it.collect();
 
-            do_file_search(p[0], &Path::new("."), &|m| {
+            do_file_search(p[0], &Path::new("."), &mut |m| {
                 if p.len() == 1 {
                     match_fn(m);
                 } else {
-                    do_external_search(p.slice_from(1), &m.filepath, m.point, &|m| match_fn(m));
+                    do_external_search(p.slice_from(1), &m.filepath, m.point, &mut |m| match_fn(m));
                 }
             });
 

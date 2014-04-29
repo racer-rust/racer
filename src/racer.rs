@@ -121,7 +121,7 @@ pub fn find_ident_end(s : &str, pos : uint) -> uint {
     return end;
 }
 
-pub fn do_file_search(searchstr: &str, currentdir: &Path, outputfn: &|Match|) {
+pub fn do_file_search(searchstr: &str, currentdir: &Path, outputfn: &mut |Match|) {
     println!("PHIL do_file_search {}",searchstr);
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
     let v: Vec<&str> = srcpaths.split_str(":").collect();
@@ -272,7 +272,7 @@ pub fn to_refs<'a>(v: &'a Vec<~str>) -> Vec<&'a str> {
 
 
 fn search_next_scope(mut startpoint: uint, searchstr:&str, filepath:&Path, 
-                     local: bool, outputfn : &|Match|) {
+                     local: bool, outputfn: &mut |Match|) {
 
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
     let filesrc = str::from_utf8(filetxt.as_slice()).unwrap();
@@ -292,7 +292,7 @@ fn search_next_scope(mut startpoint: uint, searchstr:&str, filepath:&Path,
 
 fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path, 
                       local: bool,
-                      outputfn : &|Match|) {
+                      outputfn: &mut |Match|) {
     println!("PHIL searching local scope {} {} {}",point, searchstr, filepath.as_str());
     
     let scopesrc = src.slice_from(point);
@@ -485,7 +485,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
 }
 
 fn search_local_scopes(searchstr: &str, filepath: &Path, msrc: &str, mut point:uint,
-                          outputfn : &|Match|) {
+                          outputfn: &mut |Match|) {
     println!("PHIL searching local scopes for {}",searchstr);
 
     if point == 0 {
@@ -506,7 +506,7 @@ fn search_local_scopes(searchstr: &str, filepath: &Path, msrc: &str, mut point:u
 }
 
 fn search_local_text(searchstr: &str, filepath: &Path, point: uint,
-                          outputfn: &|Match|) {
+                          outputfn: &mut |Match|) {
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
     let src = str::from_utf8(filetxt.as_slice()).unwrap();
     let msrc = scopes::mask_comments(src);
@@ -518,7 +518,7 @@ fn search_local_text(searchstr: &str, filepath: &Path, point: uint,
 }
 
 fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: uint, 
-                          outputfn : &|Match|) {
+                          outputfn: &mut |Match|) {
     println!("PHIL search_local_text_ {} {} {}",field_expr,filepath.as_str(),point);
 
     if field_expr.len() == 1 {
@@ -550,10 +550,10 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
     }
 }
 
-pub fn first_match(myfn: |outputfn : &|Match||) -> Option<Match> {
+pub fn first_match(myfn: |outputfn : &mut |Match||) -> Option<Match> {
     let mut result: Option<Match> = None;
     {
-        let output_fn = &|m: Match| {
+        let output_fn = &mut |m: Match| {
             if result.is_none() {
                 result = Some(m);
             }
@@ -564,7 +564,7 @@ pub fn first_match(myfn: |outputfn : &|Match||) -> Option<Match> {
     return result;
 }
 
-pub fn complete_from_file(src: &str, filepath: &Path, pos: uint, outputfn: &|Match|) {
+pub fn complete_from_file(src: &str, filepath: &Path, pos: uint, outputfn: &mut |Match|) {
     let expr = expand_searchstr(src, pos);
 
     let mut l = expr.split_str("::");
@@ -577,7 +577,7 @@ pub fn find_definition(src: &str, filepath: &Path, pos: uint) -> Option<Match> {
     return first_match(|m| find_definition_(src, filepath, pos, m));
 }
 
-pub fn find_definition_(src: &str, filepath: &Path, pos: uint, outputfn: &|Match|) {
+pub fn find_definition_(src: &str, filepath: &Path, pos: uint, outputfn: &mut |Match|) {
     let (start, end) = expand_fqn(src, pos);
     let expr = src.slice(start, end);    
 
@@ -589,7 +589,7 @@ pub fn find_definition_(src: &str, filepath: &Path, pos: uint, outputfn: &|Match
     let mut field_expr = lastbit.split_str(".");
     let field_expr : ~[&str] = field_expr.collect(); 
 
-    let find_definition_output_fn = &|m: Match| {
+    let find_definition_output_fn = &mut |m: Match| {
         if m.matchstr == field_expr[field_expr.len()-1].to_owned() {  // only if is an exact match
             (*outputfn)(m);
         }
@@ -603,7 +603,7 @@ pub fn find_definition_(src: &str, filepath: &Path, pos: uint, outputfn: &|Match
 
 pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint, 
                        wildcard: bool,
-                       outputfn: &|Match|) {
+                       outputfn: &mut |Match|) {
 
     println!("PHIL do_local_search path {}",path);
 
@@ -639,7 +639,7 @@ pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint,
                 }
                 Struct => {
                     println!("PHIL found a struct. Now need to look for impl");
-                    search_for_impls(m.point, m.matchstr, &m.filepath, m.local, &|m|{
+                    search_for_impls(m.point, m.matchstr, &m.filepath, m.local, &mut |m|{
                         println!("PHIL found impl!! {}",m.matchstr);
                         let searchstr = path[path.len()-1];
 
@@ -666,7 +666,7 @@ fn first_two(blob: &str) {
 
 
 fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool,
-                    outputfn: &|Match|) {
+                    outputfn: &mut |Match|) {
     println!("PHIL search_for_impls {}, {}, {}", pos, searchstr, filepath.as_str());
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
     let mut src = str::from_utf8(filetxt.as_slice()).unwrap();
@@ -717,7 +717,7 @@ fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool,
 
 
 
-pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, outputfn: &|Match|) {
+pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, outputfn: &mut |Match|) {
     if path.len() == 1 {
         let searchstr = path[0];
         search_next_scope(pos, searchstr, filepath, false, outputfn);
@@ -747,7 +747,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, outputfn: &
 
                 Struct => {
                     println!("PHIL found a pub struct. Now need to look for impl");
-                    search_for_impls(m.point, m.matchstr, &m.filepath, m.local, &|m|{
+                    search_for_impls(m.point, m.matchstr, &m.filepath, m.local, &mut |m|{
                         println!("PHIL found  impl2!! {}",m.matchstr);
                         let searchstr = path[path.len()-1];
                         println!("PHIL about to search impl scope...");

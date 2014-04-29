@@ -43,7 +43,7 @@ fn completes_fn() {
     write_file(&path, src);
     let mut got : ~str = ~"NOTHING";
     let pos = scopes::coords_to_point(src, 6, 18);
-    complete_from_file(src, &path, pos, &|m| got=m.matchstr.to_owned());
+    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_owned());
     remove_file(&path);
     assert_eq!(~"apple", got);
 }
@@ -61,7 +61,7 @@ fn completes_pub_fn_locally() {
     write_file(&path, src);
     let mut got : ~str = ~"NOTHING";
     let pos = scopes::coords_to_point(src, 6, 18);
-    complete_from_file(src, &path, pos, &|m| got=m.matchstr.to_owned());
+    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_owned());
     remove_file(&path);
     assert_eq!(~"apple", got);
 }
@@ -136,7 +136,7 @@ fn completes_struct_field_via_assignment() {
     write_file(&path, src);
     let mut got : ~str = ~"NOTHING";
     let pos = scopes::coords_to_point(src, 8, 9);
-    complete_from_file(src, &path, pos, &|m| got=m.matchstr.to_owned());
+    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_owned());
     remove_file(&path);
     assert_eq!(got,~"first");
 }
