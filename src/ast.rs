@@ -201,10 +201,7 @@ struct ImplVisitor {
 impl visit::Visitor<()> for ImplVisitor {
     fn visit_item(&mut self, item: &ast::Item, _: ()) { 
         match item.node {
-            ast::ItemImpl(ref type_parameters,
-                     ref trait_reference,
-                     typ,
-                     ref methods) => { 
+            ast::ItemImpl(_, _,typ,_) => { 
                 match typ.node {
                     ast::TyPath(ref path, _, _) => {
                         self.name_path = path_to_vec(path);

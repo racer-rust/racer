@@ -660,11 +660,6 @@ pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint,
     }
 }
 
-fn first_two(blob: &str) {
-    
-}
-
-
 fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool,
                     outputfn: &mut |Match|) {
     println!("PHIL search_for_impls {}, {}, {}", pos, searchstr, filepath.as_str());
@@ -674,48 +669,29 @@ fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool,
     for (start,end) in codeiter::iter_stmts(src) { 
         let blob = src.slice(start,end);
 
-        let mut words = blob.words();
-        let str1 = words.next();
-        let str2 = words.next();
-        
-        println!("PHIL str1 {} str2 {}",str1, str2);
-
-        if str1.is_some() && str2.is_some() && str1.unwrap().starts_with("impl") && str2.unwrap().starts_with(searchstr) {
-
-            println!("PHIL found!! an impl {} {} |{}|", str1, str2, blob);
-            ast::parse_impl_name(blob.to_owned()).map(|name|{
-                println!("PHIL parsed an impl {}",name);
-                
-                let end = find_path_end(str2.unwrap(), 0);
-                let m = Match {matchstr: name.to_owned(), 
-                               filepath: filepath.clone(), 
-                               point: pos + start + 5,
-                               linetxt: blob.to_owned(),
-                               local: local,
-                               mtype: Impl
-                };
-            (*outputfn)(m);
+        if blob.starts_with("impl") {
+            blob.find_str("{").map(|n|{
+                let mut decl = std::strbuf::StrBuf::from_str(blob.slice_to(n+1));
+                decl = decl.append("}");
+                if decl.as_slice().find_str(searchstr).is_some() {
+                    println!("PHIL decl {}",decl);
+                    ast::parse_impl_name(decl.into_owned()).map(|name|{
+                        println!("PHIL parsed an impl {}",name);
+                        
+                        let m = Match {matchstr: name.to_owned(), 
+                                       filepath: filepath.clone(), 
+                                       point: pos + start + 5,
+                                       linetxt: blob.to_owned(),
+                                       local: local,
+                                       mtype: Impl
+                        };
+                        (*outputfn)(m);
+                    });
+                }
             });
         }
-            
-        // if blob.starts_with("impl "+searchstr) {
-        //     // TODO: parse this properly
-        //     let end = find_path_end(blob, 5);
-        //     let l = blob.slice(5, end);
-        //     println!("PHIL found!! an impl {}", l);
-        //     let m = Match {matchstr: l.to_owned(), 
-        //                    filepath: filepath.clone(), 
-        //                    point: pos + start + 5,
-        //                    linetxt: blob.to_owned(),
-        //                    local: local,
-        //                    mtype: Impl
-        //     };
-        //     (*outputfn)(m);
-        // }
-    }    
+    }
 }
-
-
 
 pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, outputfn: &mut |Match|) {
     if path.len() == 1 {
