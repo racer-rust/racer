@@ -293,7 +293,7 @@ fn search_next_scope(mut startpoint: uint, searchstr:&str, filepath:&Path,
 fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path, 
                       local: bool,
                       outputfn: &mut |Match|) {
-    println!("PHIL searching local scope {} {} {}",point, searchstr, filepath.as_str());
+    println!("PHIL searching scope {} {} {}",point, searchstr, filepath.as_str());
     
     let scopesrc = src.slice_from(point);
     for (start,end) in codeiter::iter_stmts(scopesrc) { 
@@ -395,6 +395,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         }
 
         if blob.starts_with("pub fn "+searchstr) {
+            println!("PHIL found a pub fn {}",searchstr);
             // TODO: parse this properly
             let end = find_path_end(blob, 7);
             let l = blob.slice(7, end);

@@ -76,7 +76,7 @@ impl visit::Visitor<()> for MyViewItemVisitor {
 
                         for path in paths.iter() {
                             let mut vv = v.clone();
-                            println!("view path list item {}",token::get_ident(path.node.name));
+                            //println!("PHIL view path list item {}",token::get_ident(path.node.name));
                             vv.push(token::get_ident(path.node.name).get().to_owned());
                             self.results.push(vv);
                         }
