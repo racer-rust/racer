@@ -122,7 +122,7 @@ pub fn find_ident_end(s : &str, pos : uint) -> uint {
 }
 
 pub fn do_file_search(searchstr: &str, currentdir: &Path, outputfn: &mut |Match|) {
-    println!("PHIL do_file_search {}",searchstr);
+    debug!("PHIL do_file_search {}",searchstr);
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
     let v: Vec<&str> = srcpaths.split_str(":").collect();
     let v = v.append_one(currentdir.as_str().unwrap());
@@ -130,10 +130,10 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path, outputfn: &mut |Match|
         match std::io::fs::readdir(&Path::new(srcpath)) {
             Ok(v) => {
                 for fpath in v.iter() {
-                    //println!("PHIL fpath {}",fpath.as_str());
+                    //debug!("PHIL fpath {}",fpath.as_str());
                     let fname = fpath.rev_str_components().next().unwrap().unwrap();
                     if fname.starts_with("lib"+ searchstr) {
-                        //println!("PHIL Yeah found {}",fpath.as_str());
+                        //debug!("PHIL Yeah found {}",fpath.as_str());
                         let filepath = Path::new(fpath).join_many([Path::new("lib.rs")]);
                         if File::open(&filepath).is_ok() {
                             let m = Match {matchstr: fname.slice_from(3).to_owned(), 
@@ -215,7 +215,7 @@ pub fn get_module_file(name: &str, currentdir: &Path) -> Option<Path> {
     let v: Vec<&str> = srcpaths.split_str(":").collect();
     let v = v.append_one(currentdir.as_str().unwrap());
     for srcpath in v.move_iter() {
-        println!("PHIL searching srcpath: {} for {}",srcpath, name);
+        debug!("PHIL searching srcpath: {} for {}",srcpath, name);
         {
             // maybe path is from crate. 
             // try lib<name>/lib.rs, like in the rust source dir
@@ -280,7 +280,7 @@ fn search_next_scope(mut startpoint: uint, searchstr:&str, filepath:&Path,
         // is a scope inside the file. Point should point to the definition 
         // (e.g. mod blah {...}), so the actual scope is past the first open brace.
         let src = filesrc.slice_from(startpoint);
-        println!("PHIL search_next_scope src1 |{}|",src);
+        debug!("PHIL search_next_scope src1 |{}|",src);
         // find the opening brace and skip to it. 
         src.find_str("{").map(|n|{
             startpoint = startpoint + n + 1;
@@ -293,12 +293,12 @@ fn search_next_scope(mut startpoint: uint, searchstr:&str, filepath:&Path,
 fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path, 
                       local: bool,
                       outputfn: &mut |Match|) {
-    println!("PHIL searching scope {} {} {}",point, searchstr, filepath.as_str());
+    debug!("PHIL searching scope {} {} {}",point, searchstr, filepath.as_str());
     
     let scopesrc = src.slice_from(point);
     for (start,end) in codeiter::iter_stmts(scopesrc) { 
         let blob = scopesrc.slice(start,end);
-        //println!("PHIL search_scope BLOB |{}|",blob);
+        //debug!("PHIL search_scope BLOB |{}|",blob);
         if blob.starts_with("let ") && blob.find_str(searchstr).is_some() {
             let res = ast::parse_let(blob.to_owned());
             res.map(|letresult| {
@@ -314,13 +314,13 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         }
 
         if local && blob.starts_with("mod "+searchstr) {
-            println!("found a module: |{}|",blob);
+            debug!("found a module: |{}|",blob);
             // TODO: parse this properly
             let end = find_path_end(blob, 4);
             let l = blob.slice(4, end);
 
             if blob.find_str("{").is_some() {
-                println!("PHIL found an inline module!");
+                debug!("PHIL found an inline module!");
 
                 let m = Match {matchstr: l.to_owned(), 
                                filepath: filepath.clone(), 
@@ -347,13 +347,13 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         }
 
         if blob.starts_with("pub mod "+searchstr) {
-            println!("found a pub module: |{}|",blob);
+            debug!("found a pub module: |{}|",blob);
             // TODO: parse this properly
             let end = find_path_end(blob, 8);
             let l = blob.slice(8, end);
 
             if blob.find_str("{").is_some() {
-                println!("PHIL found an inline module!");
+                debug!("PHIL found an inline module!");
 
                 let m = Match {matchstr: l.to_owned(), 
                                filepath: filepath.clone(), 
@@ -395,7 +395,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         }
 
         if blob.starts_with("pub fn "+searchstr) {
-            println!("PHIL found a pub fn {}",searchstr);
+            debug!("PHIL found a pub fn {}",searchstr);
             // TODO: parse this properly
             let end = find_path_end(blob, 7);
             let l = blob.slice(7, end);
@@ -414,7 +414,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             // TODO: parse this properly
             let end = find_path_end(blob, 7);
             let l = blob.slice(7, end);
-            println!("PHIL found!! a local struct {}", l);
+            debug!("PHIL found!! a local struct {}", l);
             let m = Match {matchstr: l.to_owned(), 
                            filepath: filepath.clone(), 
                            point: point + start + 7,
@@ -429,7 +429,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             // TODO: parse this properly
             let end = find_path_end(blob, 11);
             let l = blob.slice(11, end);
-            println!("PHIL found!! a pub struct {}", l);
+            debug!("PHIL found!! a pub struct {}", l);
             let m = Match {matchstr: l.to_owned(), 
                            filepath: filepath.clone(), 
                            point: point + start + 11,
@@ -442,7 +442,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
 
 
         if local && blob.starts_with("use ") && blob.find_str(searchstr).is_some() {
-            println!("PHIL found use: |{}|", blob);
+            debug!("PHIL found use: |{}|", blob);
             for fqn_ in ast::parse_view_item(blob.to_owned()).iter() {
                 // HACK, convert from &[~str] to &[&str]
                 let v = to_refs(fqn_);  
@@ -461,7 +461,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         }
 
         if blob.starts_with("pub use ") && blob.find_str(searchstr).is_some() {
-            println!("PHIL found pub use: |{}|", blob);
+            debug!("PHIL found pub use: |{}|", blob);
             for fqn_ in ast::parse_view_item(blob.to_owned()).iter() {
                 // HACK, convert from &[~str] to &[&str]
                 let mut fqn = to_refs(fqn_);  
@@ -487,7 +487,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
 
 fn search_local_scopes(searchstr: &str, filepath: &Path, msrc: &str, mut point:uint,
                           outputfn: &mut |Match|) {
-    println!("PHIL searching local scopes for {}",searchstr);
+    debug!("PHIL searching local scopes for {}",searchstr);
 
     if point == 0 {
         // search the whole file
@@ -520,7 +520,7 @@ fn search_local_text(searchstr: &str, filepath: &Path, point: uint,
 
 fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: uint, 
                           outputfn: &mut |Match|) {
-    println!("PHIL search_local_text_ {} {} {}",field_expr,filepath.as_str(),point);
+    debug!("PHIL search_local_text_ {} {} {}",field_expr,filepath.as_str(),point);
 
     if field_expr.len() == 1 {
         search_local_scopes(field_expr[0], filepath, msrc, point, outputfn);
@@ -606,7 +606,7 @@ pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint,
                        wildcard: bool,
                        outputfn: &mut |Match|) {
 
-    println!("PHIL do_local_search path {}",path);
+    debug!("PHIL do_local_search path {}",path);
 
     if path.len() == 1 {
         let searchstr = path[0];
@@ -634,14 +634,14 @@ pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint,
         context.map(|m| {
             match m.mtype {
                 Module => {
-                    println!("PHIL searching a module {} (whole path: {})",m.matchstr, path);
+                    debug!("PHIL searching a module {} (whole path: {})",m.matchstr, path);
                     let searchstr = path[path.len()-1];
                     search_next_scope(m.point, searchstr, &m.filepath, false, outputfn);
                 }
                 Struct => {
-                    println!("PHIL found a struct. Now need to look for impl");
+                    debug!("PHIL found a struct. Now need to look for impl");
                     search_for_impls(m.point, m.matchstr, &m.filepath, m.local, &mut |m|{
-                        println!("PHIL found impl!! {}",m.matchstr);
+                        debug!("PHIL found impl!! {}",m.matchstr);
                         let searchstr = path[path.len()-1];
 
                         let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
@@ -663,7 +663,7 @@ pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint,
 
 fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool,
                     outputfn: &mut |Match|) {
-    println!("PHIL search_for_impls {}, {}, {}", pos, searchstr, filepath.as_str());
+    debug!("PHIL search_for_impls {}, {}, {}", pos, searchstr, filepath.as_str());
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
     let mut src = str::from_utf8(filetxt.as_slice()).unwrap();
     src = src.slice_from(pos);
@@ -675,9 +675,9 @@ fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool,
                 let mut decl = std::strbuf::StrBuf::from_str(blob.slice_to(n+1));
                 decl = decl.append("}");
                 if decl.as_slice().find_str(searchstr).is_some() {
-                    println!("PHIL decl {}",decl);
+                    debug!("PHIL decl {}",decl);
                     ast::parse_impl_name(decl.into_owned()).map(|name|{
-                        println!("PHIL parsed an impl {}",name);
+                        debug!("PHIL parsed an impl {}",name);
                         
                         let m = Match {matchstr: name.to_owned(), 
                                        filepath: filepath.clone(), 
@@ -716,18 +716,18 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, outputfn: &
         context.map(|m| {
             match m.mtype {
                 Module => {
-                    println!("PHIL found an external module {}",m.matchstr);
+                    debug!("PHIL found an external module {}",m.matchstr);
                     let searchstr = path[path.len()-1];
                     search_next_scope(m.point, searchstr, &m.filepath, false, outputfn);
                 }
 
 
                 Struct => {
-                    println!("PHIL found a pub struct. Now need to look for impl");
+                    debug!("PHIL found a pub struct. Now need to look for impl");
                     search_for_impls(m.point, m.matchstr, &m.filepath, m.local, &mut |m|{
-                        println!("PHIL found  impl2!! {}",m.matchstr);
+                        debug!("PHIL found  impl2!! {}",m.matchstr);
                         let searchstr = path[path.len()-1];
-                        println!("PHIL about to search impl scope...");
+                        debug!("PHIL about to search impl scope...");
                         search_next_scope(m.point, searchstr, &m.filepath, false, outputfn);
                         
                     });

@@ -147,7 +147,7 @@ fn iterates_inner_scope() {
     ");
 
     let scope = src.as_slice().slice_from(25);
-    println!("blah{}",scope);
+    debug!("blah{}",scope);
     let mut it = iter_stmts(scope);
     
     assert_eq!("let a = 35;", slice(scope, it.next().unwrap()));
