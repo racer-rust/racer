@@ -260,3 +260,26 @@ fn finds_templated_impl_fn() {
     let got = find_definition(src, &path, pos).unwrap();
     assert_eq!(got.matchstr,~"new");
 }
+
+#[test]
+fn follows_blah() {
+    let src="
+    struct Foo<T>;
+    impl<T> Foo<T> {
+        fn new() {}
+        fn mymethod(&self) {}
+    }
+
+    fn main() {
+        let v = Foo::new();
+        v.my
+    }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let mut got : ~str = ~"NOTHING";
+    let pos = scopes::coords_to_point(src, 10, 12);
+    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_owned());
+    remove_file(&path);
+    assert_eq!(got,~"mymethod");
+}

@@ -395,10 +395,11 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         }
 
         if blob.starts_with("pub fn "+searchstr) {
-            debug!("PHIL found a pub fn {}",searchstr);
+            debug!("PHIL found a pub fn starting {}",searchstr);
             // TODO: parse this properly
             let end = find_path_end(blob, 7);
             let l = blob.slice(7, end);
+            debug!("PHIL found a pub fn {}",l);
             let m = Match {matchstr: l.to_owned(), 
                            filepath: filepath.clone(), 
                            point: point + start + 7,
@@ -442,7 +443,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
 
 
         if local && blob.starts_with("use ") && blob.find_str(searchstr).is_some() {
-            debug!("PHIL found use: |{}|", blob);
+            debug!("PHIL in {} found use: |{}|", filepath.as_str(), blob);
             for fqn_ in ast::parse_view_item(blob.to_owned()).iter() {
                 // HACK, convert from &[~str] to &[&str]
                 let v = to_refs(fqn_);  
@@ -455,7 +456,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
                     // Do nothing because this will be picked up by the module
                     // search in a bit.
                 } else if fqn[fqn.len()-1].starts_with(searchstr) {
-                    do_local_search(fqn, filepath, 0, false, outputfn);
+                    do_local_search(fqn, filepath, 0, true, outputfn);
                 }
             }
         }
@@ -478,7 +479,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
                     if fqn.as_slice()[0] == "self" {
                         fqn.remove(0);
                     }
-                    do_local_search(fqn.as_slice(), filepath, 0, false, outputfn);
+                    do_local_search(fqn.as_slice(), filepath, 0, true, outputfn);
                 }
             }
         }
@@ -571,7 +572,7 @@ pub fn complete_from_file(src: &str, filepath: &Path, pos: uint, outputfn: &mut 
     let mut l = expr.split_str("::");
     let path : ~[&str] = l.collect(); 
 
-    do_local_search(path, filepath, pos, true, outputfn);
+    do_local_search(path, filepath, pos, false, outputfn);
 }
 
 pub fn find_definition(src: &str, filepath: &Path, pos: uint) -> Option<Match> {
@@ -599,18 +600,27 @@ pub fn find_definition_(src: &str, filepath: &Path, pos: uint, outputfn: &mut |M
     let mut l = expr.split_str("::");
     let path : ~[&str] = l.collect(); 
 
-    do_local_search(path, filepath, pos, false, find_definition_output_fn);
+    do_local_search(path, filepath, pos, true, find_definition_output_fn);
 }
 
 pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint, 
-                       wildcard: bool,
+                       exact_match: bool,
                        outputfn: &mut |Match|) {
 
     debug!("PHIL do_local_search path {}",path);
 
     if path.len() == 1 {
         let searchstr = path[0];
-        search_local_text(searchstr, filepath, pos, outputfn);
+
+        if exact_match {
+            search_local_text(searchstr, filepath, pos, &mut |m: Match| {
+                if m.matchstr == searchstr.to_owned() {  // only if is an exact match
+                    (*outputfn)(m);
+                }
+            });
+        } else {
+            search_local_text(searchstr, filepath, pos, outputfn);
+        }
 
         // don't need to match substrings here because substring matches are done
         // on the use stmts.
@@ -625,16 +635,18 @@ pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint,
             (*outputfn)(m);
         });
 
-        if wildcard {
+        if !exact_match {
             do_file_search(searchstr, &filepath.dir_path(), outputfn);
         }
     } else {
         let parent_path = path.slice_to(path.len()-1);
-        let context = first_match(|m| do_local_search(parent_path, filepath, pos, false, m));
+        debug!("PHIL doing nested search: {} -> {}", path, parent_path);
+        let context = first_match(|m| do_local_search(parent_path, filepath, pos, true, m));
+        debug!("PHIL context match is : {:?} ", context);
         context.map(|m| {
             match m.mtype {
                 Module => {
-                    debug!("PHIL searching a module {} (whole path: {})",m.matchstr, path);
+                    debug!("PHIL searching a module '{}' (whole path: {})",m.matchstr, path);
                     let searchstr = path[path.len()-1];
                     search_next_scope(m.point, searchstr, &m.filepath, false, outputfn);
                 }

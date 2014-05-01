@@ -29,7 +29,7 @@ pub fn get_type_of(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
             // HACK, convert from &[~str] to &[&str]
             let v = to_refs(&letres.init);
             let fqn = v.as_slice();
-            result = first_match(|m| do_local_search(fqn, fpath, point, false, m));
+            result = first_match(|m| do_local_search(fqn, fpath, point, true, m));
         });
         break;
     }

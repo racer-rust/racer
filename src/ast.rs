@@ -214,6 +214,37 @@ impl visit::Visitor<()> for ImplVisitor {
     }
 }
 
+// struct FnVisitor {
+//     name: ~str,
+//     output: Vec<~str>,
+//     is_method: bool
+// }
+
+    
+// impl visit::Visitor<()> for FnVisitor {
+//     fn visit_fn(&mut self, fk: &visit::FnKind, fd: &ast::FnDecl, b: &ast::Block, s: codemap::Span, n: ast::NodeId, e: ()) {
+
+//         self.name = token::get_ident(visit::name_of_fn(fk)).get().to_owned();
+
+//         match fd.output.node {
+//             ast::TyPath(ref path, _, _) => {
+//                 self.output = path_to_vec(path);
+//             }
+//             _ => {}
+//         }
+
+//         self.is_method = match *fk {
+//             visit::FkMethod(name, _, _) => true,
+//             _ => false
+//         }
+
+//         //visit::walk_fn(self, fk, fd, b, s, n , e)
+//     }
+
+// }
+
+
+
 
 pub fn parse_view_item(s: ~str) -> Vec<Vec<~str>> {
     // parser can fail!() so isolate it in another task
@@ -234,7 +265,6 @@ fn _parse_view_items(s: ~str)-> Vec<Vec<~str>> {
     visit::walk_crate(&mut v, &cr, ());
     return v.results;
 }
-
 
 pub fn parse_let(s: ~str) -> Option<LetResult> {
     // parser can fail!() so isolate it in another task
@@ -285,13 +315,14 @@ fn blah() {
     // impl<T> Point<T> {
     // }";
 
-    let src = ~"impl<T> Foo<T> {
-	        fn new() {}
-	    }";
+    let src = ~"fn myfn(a: uint) -> Foo {}";
+    let src = ~"impl blah{    fn visit_item(&mut self, item: &ast::Item, _: ()) {} }";
 
     let cr = string_to_stmt(src);
-    let mut v = ImplVisitor { name_path: Vec::new()};
+    let mut v = FnVisitor { name: ~"", output: Vec::new(), is_method: false};
     visit::walk_stmt(&mut v, cr, ());
+    println!("PHIL {} {} {}", v.name, v.output, v.is_method);
+
     // //let r = parse_view_item(s);
     //println!("result = {}", v.fields);
     // //let cr = string_to_crate(~"use racer::{getline,search_crate,Match};");
