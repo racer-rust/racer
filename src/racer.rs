@@ -508,15 +508,27 @@ fn search_local_scopes(searchstr: &str, filepath: &Path, msrc: &str, mut point:u
 }
 
 fn search_local_text(searchstr: &str, filepath: &Path, point: uint,
-                          outputfn: &mut |Match|) {
+                     exact_match: bool, outputfn: &mut |Match|) {
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
     let src = str::from_utf8(filetxt.as_slice()).unwrap();
     let msrc = scopes::mask_comments(src);
 
     let mut l = searchstr.split_str(".");
     let field_expr: Vec<&str> = l.collect();
+    let field_expr = field_expr.as_slice();
 
-    search_local_text_(field_expr.as_slice(), filepath, msrc, point, outputfn);
+    if exact_match {
+        search_local_text_(field_expr, filepath, msrc, point, &mut |m: Match| {
+            if m.matchstr == field_expr[field_expr.len()-1].to_owned() {  // only if is an exact match
+                (*outputfn)(m);
+            } else {
+                debug!("PHIL got match '{}', but doesnt exact match '{}'",
+                      m.matchstr, field_expr[field_expr.len()-1]);
+            }
+        });
+    } else {
+        search_local_text_(field_expr, filepath, msrc, point, outputfn);
+    }
 }
 
 fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: uint, 
@@ -526,7 +538,7 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
     if field_expr.len() == 1 {
         search_local_scopes(field_expr[0], filepath, msrc, point, outputfn);
     } else {
-        // field reference. 
+         // field reference. 
         let parentexpr = field_expr.slice_to(field_expr.len()-1);
         let def = first_match(|m| search_local_text_(parentexpr, filepath, msrc, point, m));        
         def.map(|m| {
@@ -611,16 +623,7 @@ pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint,
 
     if path.len() == 1 {
         let searchstr = path[0];
-
-        if exact_match {
-            search_local_text(searchstr, filepath, pos, &mut |m: Match| {
-                if m.matchstr == searchstr.to_owned() {  // only if is an exact match
-                    (*outputfn)(m);
-                }
-            });
-        } else {
-            search_local_text(searchstr, filepath, pos, outputfn);
-        }
+        search_local_text(searchstr, filepath, pos, exact_match, outputfn);
 
         // don't need to match substrings here because substring matches are done
         // on the use stmts.

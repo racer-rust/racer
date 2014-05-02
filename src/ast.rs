@@ -311,25 +311,14 @@ pub fn parse_impl_name(s: ~str) -> Option<~str> {
 
 #[test]
 fn blah() {
-    // let src = ~"// some comments first
-    // impl<T> Point<T> {
-    // }";
+    // let src = ~"fn myfn(a: uint) -> Foo {}";
+    // let src = ~"impl blah{    fn visit_item(&mut self, item: &ast::Item, _: ()) {} }";
 
-    let src = ~"fn myfn(a: uint) -> Foo {}";
-    let src = ~"impl blah{    fn visit_item(&mut self, item: &ast::Item, _: ()) {} }";
+    // let cr = string_to_stmt(src);
+    // let mut v = FnVisitor { name: ~"", output: Vec::new(), is_method: false};
+    // visit::walk_stmt(&mut v, cr, ());
+    // println!("PHIL {} {} {}", v.name, v.output, v.is_method);
 
-    let cr = string_to_stmt(src);
-    let mut v = FnVisitor { name: ~"", output: Vec::new(), is_method: false};
-    visit::walk_stmt(&mut v, cr, ());
-    println!("PHIL {} {} {}", v.name, v.output, v.is_method);
-
-    // //let r = parse_view_item(s);
-    //println!("result = {}", v.fields);
-    // //let cr = string_to_crate(~"use racer::{getline,search_crate,Match};");
-    
-    // // let mut v = MyViewItemVisitor{results: Vec::new()};
-    // // visit::walk_crate(&mut v, &cr, ());
-    // // println!("PHIL {}",v.results);
 
     fail!("hello");
 }

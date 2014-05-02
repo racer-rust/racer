@@ -142,6 +142,25 @@ fn completes_struct_field_via_assignment() {
 }
 
 #[test]
+fn finds_defn_of_struct_field() {
+    let src="
+    struct Point {
+        first: f64,
+        second: f64
+    } 
+
+    let var = Point {first: 35, second: 22};
+    var.first
+";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 8, 9);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!(got.matchstr,~"first");
+}
+
+#[test]
 fn finds_impl_fn() {
     let src="
     struct Foo;
@@ -262,7 +281,7 @@ fn finds_templated_impl_fn() {
 }
 
 #[test]
-fn follows_blah() {
+fn follows_fn_to_method() {
     let src="
     struct Foo<T>;
     impl<T> Foo<T> {
