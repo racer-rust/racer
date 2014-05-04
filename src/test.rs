@@ -285,7 +285,7 @@ fn follows_fn_to_method() {
     let src="
     struct Foo<T>;
     impl<T> Foo<T> {
-        fn new() {}
+        fn new() -> Foo<T> {}
         fn mymethod(&self) {}
     }
 

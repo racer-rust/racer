@@ -497,8 +497,7 @@ fn search_local_scopes(searchstr: &str, filepath: &Path, msrc: &str, mut point:u
         // search each parent scope in turn
         while point > 0 {
             let n = scopes::scope_start(msrc, point);
-            //let s = msrc.slice_to(point);
-            search_scope(n, msrc, searchstr, filepath, true, outputfn);
+               search_scope(n, msrc, searchstr, filepath, true, outputfn);
             if n == 0 { 
                 break; 
             }
@@ -544,10 +543,16 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
         def.map(|m| {
             let t = resolve::get_type_of(&m, filepath, msrc);
             t.map(|m| {
+                println!("PHIL got type match {:?}",m);
+                    
                 match m.mtype {
                     Struct => {
+                        println!("PHIL got a struct, looking for fields and impls!! {}",m.matchstr);
+
+                        let fieldsearchstr = field_expr[field_expr.len()-1];
+
                         for field in resolve::get_fields_of_struct(&m).iter() {
-                            if field.starts_with(field_expr[field_expr.len()-1]) {
+                            if field.starts_with(fieldsearchstr) {
                                 (*outputfn)(Match { matchstr: field.to_owned(),
                                                     filepath: m.filepath.clone(),
                                                     point: 0,
@@ -556,6 +561,19 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
                                                     mtype: StructField});
                             }
                         }
+
+                        search_for_impls(m.point, m.matchstr, &m.filepath, m.local, &mut |m|{
+                            println!("PHIL found impl!! {}. looking for methods",m.matchstr);
+                            let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
+                            let src = str::from_utf8(filetxt.as_slice()).unwrap();
+                        
+                            // find the opening brace and skip to it. 
+                            src.slice_from(m.point).find_str("{").map(|n|{
+                                let point = m.point + n + 1;
+                                search_scope(point, src, fieldsearchstr, &m.filepath, m.local, outputfn);
+                            });
+                        
+                        });
                     }
                     _ => ()
                 }

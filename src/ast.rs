@@ -76,13 +76,13 @@ impl visit::Visitor<()> for MyViewItemVisitor {
 
                         for path in paths.iter() {
                             let mut vv = v.clone();
-                            //println!("PHIL view path list item {}",token::get_ident(path.node.name));
+                            //debug!("PHIL view path list item {}",token::get_ident(path.node.name));
                             vv.push(token::get_ident(path.node.name).get().to_owned());
                             self.results.push(vv);
                         }
                     }
                     ast::ViewPathGlob(_, id) => {
-                        println!("PHIL got glob {:?}",id);
+                        debug!("PHIL got glob {:?}",id);
                     }
                 }
             },
@@ -115,22 +115,46 @@ fn path_to_vec(pth: &ast::Path) -> Vec<~str> {
 
 impl MyLetVisitor {
     fn visit_let_initializer(&mut self, name: ~str, point: uint, init: Option<@ast::Expr> ) {
+
+        // chances are we can't parse the init yet, so the default is to leave blank
+        self.result = Some(LetResult{name: name.clone(),
+                                point: point,
+                                init: vec!()});
+
+        debug!("PHIL result before is {:?}",self.result);
+        // attempt to parse the init
         init.map(|init| {
+            debug!("PHIL init node is {:?}",init.node);
             match init.node {
+                ast::ExprCall(callee_expression, _ /*ref arguments*/) => {
+                    debug!("PHIL init is an exprCall {:?}",callee_expression);
+                    // for argument in arguments.iter() {
+                    //     visitor.visit_expr(*argument, env.clone())
+                    // }
+                    // visitor.visit_expr(callee_expression, env.clone())
+
+                    match callee_expression.node {
+                        ast::ExprPath(ref path) => {
+                            debug!("PHIL init callee is a path {}",path_to_vec(path));
+                            self.result = Some(LetResult{name: name.clone(),
+                                                         point: point,
+                                                         init: path_to_vec(path)
+                            });
+                        }
+                        _ => {}
+                    }
+                }
                 ast::ExprStruct(ref path, _, _) => {
                     self.result = Some(LetResult{name: name.clone(),
                                                  point: point,
                                                  init: path_to_vec(path)
                                                  });
                 }
-                _ => {
-                    self.result = Some(LetResult{name: name.clone(),
-                                                 point: point,
-                                                 init: vec!()
-                                                 });                    
-                }
+                _ => {}
             }
         });
+
+        debug!("PHIL result is {:?}",self.result);
     }
 }
 
@@ -214,37 +238,34 @@ impl visit::Visitor<()> for ImplVisitor {
     }
 }
 
-// struct FnVisitor {
-//     name: ~str,
-//     output: Vec<~str>,
-//     is_method: bool
-// }
+struct FnVisitor {
+    name: ~str,
+    output: Vec<~str>,
+    is_method: bool
+}
 
     
-// impl visit::Visitor<()> for FnVisitor {
-//     fn visit_fn(&mut self, fk: &visit::FnKind, fd: &ast::FnDecl, b: &ast::Block, s: codemap::Span, n: ast::NodeId, e: ()) {
+impl visit::Visitor<()> for FnVisitor {
+    fn visit_fn(&mut self, fk: &visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId, _: ()) {
 
-//         self.name = token::get_ident(visit::name_of_fn(fk)).get().to_owned();
+        self.name = token::get_ident(visit::name_of_fn(fk)).get().to_owned();
 
-//         match fd.output.node {
-//             ast::TyPath(ref path, _, _) => {
-//                 self.output = path_to_vec(path);
-//             }
-//             _ => {}
-//         }
+        match fd.output.node {
+            ast::TyPath(ref path, _, _) => {
+                self.output = path_to_vec(path);
+            }
+            _ => {}
+        }
 
-//         self.is_method = match *fk {
-//             visit::FkMethod(name, _, _) => true,
-//             _ => false
-//         }
+        self.is_method = match *fk {
+            visit::FkMethod(_, _, _) => true,
+            _ => false
+        }
 
-//         //visit::walk_fn(self, fk, fd, b, s, n , e)
-//     }
+        //visit::walk_fn(self, fk, fd, b, s, n , e)
+    }
 
-// }
-
-
-
+}
 
 pub fn parse_view_item(s: ~str) -> Vec<Vec<~str>> {
     // parser can fail!() so isolate it in another task
@@ -308,6 +329,21 @@ pub fn parse_impl_name(s: ~str) -> Option<~str> {
     }).ok().unwrap_or(None);
 }
 
+pub fn parse_fn_output(s: ~str) -> Vec<~str> {
+    return task::try(proc() {
+        let stmt = string_to_stmt(s);
+        let mut v = FnVisitor { name: ~"", output: Vec::new(), is_method: false };
+        visit::walk_stmt(&mut v, stmt, ());
+        return v.output;
+
+        // if v.name_path.len() == 1 {
+        //     return Some(v.name_path.pop().unwrap());
+        // } else {
+        //     return None;
+        // }
+    }).ok().unwrap();
+}
+
 
 #[test]
 fn blah() {
@@ -317,8 +353,12 @@ fn blah() {
     // let cr = string_to_stmt(src);
     // let mut v = FnVisitor { name: ~"", output: Vec::new(), is_method: false};
     // visit::walk_stmt(&mut v, cr, ());
-    // println!("PHIL {} {} {}", v.name, v.output, v.is_method);
+    // debug!("PHIL {} {} {}", v.name, v.output, v.is_method);
 
+    let src = ~"let v = Foo::new();";
+
+    let res = parse_let(src);
+    debug!("PHIL res {}",res.unwrap().init);
 
     fail!("hello");
 }
