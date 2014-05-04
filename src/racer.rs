@@ -542,11 +542,11 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
         def.map(|m| {
             let t = resolve::get_type_of(&m, filepath, msrc);
             t.map(|m| {
-                println!("PHIL got type match {:?}",m);
+                debug!("PHIL got type match {:?}",m);
                     
                 match m.mtype {
                     Struct => {
-                        println!("PHIL got a struct, looking for fields and impls!! {}",m.matchstr);
+                        debug!("PHIL got a struct, looking for fields and impls!! {}",m.matchstr);
 
                         let fieldsearchstr = field_expr[field_expr.len()-1];
 
@@ -562,7 +562,7 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
                         }
 
                         search_for_impls(m.point, m.matchstr, &m.filepath, m.local, &mut |m|{
-                            println!("PHIL found impl!! {}. looking for methods",m.matchstr);
+                            debug!("PHIL found impl!! {}. looking for methods",m.matchstr);
                             let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
                             let src = str::from_utf8(filetxt.as_slice()).unwrap();
                         

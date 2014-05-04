@@ -22,8 +22,8 @@ pub fn find_stmt_start(msrc: &str, point: uint) -> uint{
 }
 
 pub fn get_type_of(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
-    println!("PHIL get_type_of {:?}",m);
-    println!("PHIL get_type_of {}",m.matchstr);
+    debug!("PHIL get_type_of {:?}",m);
+    debug!("PHIL get_type_of {}",m.matchstr);
     // ASSUMPTION: this is being called on a let decl
     let mut result = None;
 
@@ -34,7 +34,7 @@ pub fn get_type_of(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
         let blob = src.slice(start,end);
 
         ast::parse_let(blob.to_owned()).map(|letres|{
-            println!("PHIL parse let result {}", &letres.init);
+            debug!("PHIL parse let result {}", &letres.init);
             // HACK, convert from &[~str] to &[&str]
             let v = to_refs(&letres.init);
             let fqn = v.as_slice();
@@ -43,7 +43,7 @@ pub fn get_type_of(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
         break;
     }
 
-    println!("PHIL let search result is {:?}",result);
+    debug!("PHIL let search result is {:?}",result);
 
     // if it's a struct then cool
     // if it's a function then we need to resolve the return type
@@ -63,10 +63,9 @@ pub fn get_type_of(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
                 return None;
             }
 
-            println!("PHIL return type is {}", path);
+            debug!("PHIL return type is {}", path);
             let v = to_refs(&path);
             let fqn = v.as_slice();
-            println!("PHIL fqn {}",fqn);
             return first_match(|m| do_local_search(fqn, &res.filepath, res.point, true, m));
         }
         _ => { return None }
@@ -90,7 +89,7 @@ pub fn get_return_type_of_function(fnmatch: &Match) -> Vec<~str> {
 
     let point = find_stmt_start(src, fnmatch.point);
 
-    println!("get_return_type_of_function |{}|",src.slice_from(point));
+    debug!("get_return_type_of_function |{}|",src.slice_from(point));
         
     let outputpath = src.slice_from(point).find_str("{").map(|n|{
 
@@ -98,7 +97,7 @@ pub fn get_return_type_of_function(fnmatch: &Match) -> Vec<~str> {
         let ss = src.slice(point, point+n+1);
         let mut decl = StrBuf::from_str(ss);
         decl = decl.append("}");
-        println!("PHIL: passing in {}",decl);
+        debug!("PHIL: passing in {}",decl);
         return ast::parse_fn_output(decl.into_owned());
     }).unwrap_or(Vec::new());
     return outputpath;
