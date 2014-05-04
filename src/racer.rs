@@ -209,7 +209,6 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path, outputfn: &mut |Match|
     }
 }
 
-
 pub fn get_module_file(name: &str, currentdir: &Path) -> Option<Path> {
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
     let v: Vec<&str> = srcpaths.split_str(":").collect();
@@ -633,6 +632,19 @@ pub fn find_definition_(src: &str, filepath: &Path, pos: uint, outputfn: &mut |M
     do_local_search(path, filepath, pos, true, find_definition_output_fn);
 }
 
+pub fn search_prelude_file(searchstr: &str, exact_match: bool, outputfn: &mut |Match|) {
+    // find the prelude file from teh search path and scan it
+
+    let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
+    let v: Vec<&str> = srcpaths.split_str(":").collect();
+    for srcpath in v.move_iter() {
+        let filepath = Path::new(srcpath).join_many([Path::new("libstd/prelude.rs")]);
+        if File::open(&filepath).is_ok() {
+            search_local_text(searchstr, &filepath, 0, exact_match, outputfn);
+        }
+    }
+}
+
 pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint, 
                        exact_match: bool,
                        outputfn: &mut |Match|) {
@@ -642,6 +654,7 @@ pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint,
     if path.len() == 1 {
         let searchstr = path[0];
         search_local_text(searchstr, filepath, pos, exact_match, outputfn);
+        search_prelude_file(searchstr, exact_match, outputfn);
 
         // don't need to match substrings here because substring matches are done
         // on the use stmts.
