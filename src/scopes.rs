@@ -6,7 +6,7 @@ pub fn scope_start(src:&str, point:uint) -> uint {
     let s = src.slice(0,point);
     let mut pt = point;
     let mut levels = 0;
-    for c in s.chars_rev() {
+    for c in s.chars().rev() {
         if c == '{' { 
             if levels == 0 {
                 break;

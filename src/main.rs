@@ -108,10 +108,10 @@ fn main() {
 
     let command = args[1];
     match command.as_slice() {
-        &"prefix" => prefix(),
-        &"complete" => complete(),
-        &"find-definition" => find_definition(),
-        &"help" => print_usage(),
+        "prefix" => prefix(),
+        "complete" => complete(),
+        "find-definition" => find_definition(),
+        "help" => print_usage(),
         _ => { 
             println!("Sorry, I didn't understand command {}", command ); 
             print_usage(); 

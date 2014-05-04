@@ -42,7 +42,7 @@ pub fn getline(filepath : &Path, linenum : uint) -> ~str {
             return line.unwrap().to_owned();
         }
     }
-    return ~"not found";
+    return "not found".to_owned();
 }
 
 fn is_path_char(c : char) -> bool {
@@ -58,7 +58,7 @@ pub fn expand_ident(s : &str, pos : uint) -> (uint,uint) {
     let mut start = pos;
 
     // backtrack to find start of word
-    for (i, c) in sb.char_indices_rev() {
+    for (i, c) in sb.char_indices().rev() {
         if !is_ident_char(c) {
             break;
         }
@@ -72,7 +72,7 @@ pub fn expand_fqn(s: &str, pos: uint) -> (uint,uint) {
     let mut start = pos;
 
     // backtrack to find start of word
-    for (i, c) in sb.char_indices_rev() {
+    for (i, c) in sb.char_indices().rev() {
         if !is_path_char(c) {
             break;
         }
@@ -86,7 +86,7 @@ pub fn expand_searchstr(s : &str, pos : uint) -> ~str {
     let mut start = pos;
 
     // backtrack to find start of word
-    for (i, c) in sb.char_indices_rev() {
+    for (i, c) in sb.char_indices().rev() {
         if !is_path_char(c) {
             break;
         }
@@ -131,7 +131,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path, outputfn: &mut |Match|
             Ok(v) => {
                 for fpath in v.iter() {
                     //debug!("PHIL fpath {}",fpath.as_str());
-                    let fname = fpath.rev_str_components().next().unwrap().unwrap();
+                    let fname = fpath.str_components().rev().next().unwrap().unwrap();
                     if fname.starts_with("lib"+ searchstr) {
                         //debug!("PHIL Yeah found {}",fpath.as_str());
                         let filepath = Path::new(fpath).join_many([Path::new("lib.rs")]);
@@ -555,7 +555,7 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
                                 (*outputfn)(Match { matchstr: field.to_owned(),
                                                     filepath: m.filepath.clone(),
                                                     point: 0,
-                                                    linetxt: ~"",
+                                                    linetxt: "".to_owned(),
                                                     local: m.local,
                                                     mtype: StructField});
                             }

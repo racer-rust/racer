@@ -11,7 +11,7 @@ use std::task;
 
 // This code ripped from libsyntax::parser_testing
 pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: ~str) -> Parser<'a> {
-    new_parser_from_source_str(ps, Vec::new(), ~"bogofile", source_str)
+    new_parser_from_source_str(ps, Vec::new(), "bogofile".to_owned(), source_str)
 }
 
 fn with_error_checking_parse<T>(s: ~str, f: |&mut Parser| -> T) -> T {
@@ -332,7 +332,7 @@ pub fn parse_impl_name(s: ~str) -> Option<~str> {
 pub fn parse_fn_output(s: ~str) -> Vec<~str> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
-        let mut v = FnVisitor { name: ~"", output: Vec::new(), is_method: false };
+        let mut v = FnVisitor { name: "".to_owned(), output: Vec::new(), is_method: false };
         visit::walk_stmt(&mut v, stmt, ());
         return v.output;
 
@@ -355,7 +355,7 @@ fn blah() {
     // visit::walk_stmt(&mut v, cr, ());
     // debug!("PHIL {} {} {}", v.name, v.output, v.is_method);
 
-    let src = ~"let v = Foo::new();";
+    let src = "let v = Foo::new();".to_owned();
 
     let res = parse_let(src);
     debug!("PHIL res {}",res.unwrap().init);

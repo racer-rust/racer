@@ -15,7 +15,7 @@ mod testutils;
 mod codecleaner;
 
 fn tmpname() -> Path {
-    let mut s = ~"";
+    let mut s = "".to_owned();
     task::with_task_name(|name| s = name.unwrap().to_owned());
     return Path::new("tmpfile."+s);
 }
@@ -41,11 +41,11 @@ fn completes_fn() {
     }";
     let path = tmpname();
     write_file(&path, src);
-    let mut got : ~str = ~"NOTHING";
+    let mut got : ~str = "NOTHING".to_owned();
     let pos = scopes::coords_to_point(src, 6, 18);
     complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_owned());
     remove_file(&path);
-    assert_eq!(~"apple", got);
+    assert_eq!("apple".to_owned(), got);
 }
 
 #[test]
@@ -59,11 +59,11 @@ fn completes_pub_fn_locally() {
     }";
     let path = tmpname();
     write_file(&path, src);
-    let mut got : ~str = ~"NOTHING";
+    let mut got : ~str = "NOTHING".to_owned();
     let pos = scopes::coords_to_point(src, 6, 18);
     complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_owned());
     remove_file(&path);
-    assert_eq!(~"apple", got);
+    assert_eq!("apple".to_owned(), got);
 }
 
 #[test]
@@ -78,7 +78,7 @@ fn completes_local_scope_let(){
     let pos = scopes::coords_to_point(src, 4, 18);
     let got = racer::first_match(|m| complete_from_file(src, &path, pos, m)).unwrap();
     remove_file(&path);
-    assert_eq!(~"apple", got.matchstr);
+    assert_eq!("apple".to_owned(), got.matchstr);
     assert_eq!(29, got.point);
 }
 
@@ -96,7 +96,7 @@ fn main() {
     let pos = scopes::coords_to_point(src, 5, 18);
     let got = racer::first_match(|m| complete_from_file(src, &path, pos,m)).unwrap();
     remove_file(&path);
-    assert_eq!(got.matchstr,~"apple");
+    assert_eq!(got.matchstr,"apple".to_owned());
     assert_eq!(got.point,25);
 }
 
@@ -118,7 +118,7 @@ fn main() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 5, 6);
     let got = find_definition(src, &path, pos).unwrap();
-    assert_eq!(got.matchstr,~"myfn");
+    assert_eq!(got.matchstr,"myfn".to_owned());
 }
 
 #[test]
@@ -134,11 +134,11 @@ fn completes_struct_field_via_assignment() {
 ";
     let path = tmpname();
     write_file(&path, src);
-    let mut got : ~str = ~"NOTHING";
+    let mut got : ~str = "NOTHING".to_owned();
     let pos = scopes::coords_to_point(src, 8, 9);
     complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_owned());
     remove_file(&path);
-    assert_eq!(got,~"first");
+    assert_eq!(got,"first".to_owned());
 }
 
 #[test]
@@ -157,7 +157,7 @@ fn finds_defn_of_struct_field() {
     let pos = scopes::coords_to_point(src, 8, 9);
     let got = find_definition(src, &path, pos).unwrap();
     remove_file(&path);
-    assert_eq!(got.matchstr,~"first");
+    assert_eq!(got.matchstr,"first".to_owned());
 }
 
 #[test]
@@ -174,7 +174,7 @@ fn finds_impl_fn() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 7, 10);
     let got = find_definition(src, &path, pos).unwrap();
-    assert_eq!(got.matchstr,~"new");
+    assert_eq!(got.matchstr,"new".to_owned());
 }
 
 #[test]
@@ -194,7 +194,7 @@ fn follows_use_to_inline_mod() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 8, 9);
     let got = find_definition(src, &path, pos).unwrap();
-    assert_eq!(got.matchstr,~"myfn");
+    assert_eq!(got.matchstr,"myfn".to_owned());
 }
 
 
@@ -224,7 +224,7 @@ fn follows_self_use() {
     write_file(&srcpath, src);
     let pos = scopes::coords_to_point(src, 5, 10);
     let got = find_definition(src, &srcpath, pos).unwrap();
-    assert_eq!(got.matchstr,~"myfn");
+    assert_eq!(got.matchstr,"myfn".to_owned());
     assert_eq!(moddir.join("src2.rs").display().to_str(), 
                got.filepath.display().to_str());
     assert_eq!(28, got.point);
@@ -257,7 +257,7 @@ fn follows_use_to_impl() {
     write_file(&srcpath, src);
     let pos = scopes::coords_to_point(src, 5, 14);
     let got = find_definition(src, &srcpath, pos).unwrap();
-    assert_eq!(got.matchstr,~"new");
+    assert_eq!(got.matchstr,"new".to_owned());
     assert_eq!(90, got.point);
     assert_eq!(modpath.display().to_str(), 
                got.filepath.display().to_str());
@@ -277,7 +277,7 @@ fn finds_templated_impl_fn() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 7, 10);
     let got = find_definition(src, &path, pos).unwrap();
-    assert_eq!(got.matchstr,~"new");
+    assert_eq!(got.matchstr,"new".to_owned());
 }
 
 #[test]
@@ -296,9 +296,9 @@ fn follows_fn_to_method() {
     ";
     let path = tmpname();
     write_file(&path, src);
-    let mut got : ~str = ~"NOTHING";
+    let mut got : ~str = "NOTHING".to_owned();
     let pos = scopes::coords_to_point(src, 10, 12);
     complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_owned());
     remove_file(&path);
-    assert_eq!(got,~"mymethod");
+    assert_eq!(got,"mymethod".to_owned());
 }
