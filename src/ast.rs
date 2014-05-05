@@ -267,6 +267,34 @@ impl visit::Visitor<()> for FnVisitor {
 
 }
 
+pub struct EnumVisitor {
+    pub name: StrBuf,
+    pub values: Vec<(StrBuf, uint)>,
+}
+
+impl visit::Visitor<()> for EnumVisitor {
+    fn visit_item(&mut self, i: &ast::Item, _: ()) { 
+        match i.node {
+            ast::ItemEnum(ref enum_definition, _) => {
+                self.name = StrBuf::from_str(token::get_ident(i.ident).get());
+                //visitor.visit_generics(type_parameters, env.clone());
+                //visit::walk_enum_def(self, enum_definition, type_parameters, e)
+
+                let codemap::BytePos(point) = i.span.lo;
+                let codemap::BytePos(point2) = i.span.hi;
+                debug!("PHIL name point is {} {}",point,point2);
+
+                for &variant in enum_definition.variants.iter() {
+                    let codemap::BytePos(point) = variant.span.lo;
+                    self.values.push((StrBuf::from_str(token::get_ident(variant.node.name).get()), point as uint));
+                }
+            },
+            _ => {}
+        }
+    }
+}
+
+
 pub fn parse_view_item(s: ~str) -> Vec<Vec<~str>> {
     // parser can fail!() so isolate it in another task
     let result = task::try(proc() { 
@@ -335,12 +363,15 @@ pub fn parse_fn_output(s: ~str) -> Vec<~str> {
         let mut v = FnVisitor { name: "".to_owned(), output: Vec::new(), is_method: false };
         visit::walk_stmt(&mut v, stmt, ());
         return v.output;
+    }).ok().unwrap();
+}
 
-        // if v.name_path.len() == 1 {
-        //     return Some(v.name_path.pop().unwrap());
-        // } else {
-        //     return None;
-        // }
+pub fn parse_enum(s: StrBuf) -> EnumVisitor {
+    return task::try(proc() {
+        let stmt = string_to_stmt(s.into_owned());
+        let mut v = EnumVisitor { name: StrBuf::new(), values: Vec::new()};
+        visit::walk_stmt(&mut v, stmt, ());
+        return v;
     }).ok().unwrap();
 }
 
@@ -350,15 +381,17 @@ fn blah() {
     // let src = ~"fn myfn(a: uint) -> Foo {}";
     // let src = ~"impl blah{    fn visit_item(&mut self, item: &ast::Item, _: ()) {} }";
 
-    // let cr = string_to_stmt(src);
-    // let mut v = FnVisitor { name: ~"", output: Vec::new(), is_method: false};
-    // visit::walk_stmt(&mut v, cr, ());
-    // debug!("PHIL {} {} {}", v.name, v.output, v.is_method);
+    let src = "pub enum MyEnum{ One, Two};";
 
-    let src = "let v = Foo::new();".to_owned();
+    let cr = string_to_stmt(src.to_owned());
+    let mut v = EnumVisitor { name: StrBuf::new(), values: Vec::new()};
+    visit::walk_stmt(&mut v, cr, ());
+    println!("PHIL {} {}", v.name, v.values);
 
-    let res = parse_let(src);
-    debug!("PHIL res {}",res.unwrap().init);
+    // let src = "let v = Foo::new();".to_owned();
+
+    // let res = parse_let(src);
+    // debug!("PHIL res {}",res.unwrap().init);
 
     fail!("hello");
 }

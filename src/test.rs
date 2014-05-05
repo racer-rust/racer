@@ -197,6 +197,39 @@ fn follows_use_to_inline_mod() {
     assert_eq!(got.matchstr,"myfn".to_owned());
 }
 
+#[test]
+fn finds_enum() {
+    let src="
+    enum MyEnum {
+        One, Two
+    }
+    
+    fn myfn(e: MyEnum) {}
+    ";
+    write_file(&Path::new("src.rs"), src);
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 6, 16);
+    let got = find_definition(src, &path, pos).unwrap();
+    assert_eq!(got.matchstr,"MyEnum".to_owned());    
+}
+
+#[test]
+fn finds_enum_value() {
+    let src="
+    enum MyEnum {
+        One, Two
+    }
+
+    Two;
+    ";
+    write_file(&Path::new("src.rs"), src);
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 6, 6);
+    let got = find_definition(src, &path, pos).unwrap();
+    assert_eq!(got.matchstr,"Two".to_owned());    
+}
 
 #[test]
 fn follows_self_use() {

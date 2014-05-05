@@ -20,7 +20,8 @@ pub enum MatchType {
     Crate,
     Let,
     StructField,
-    Impl
+    Impl,
+    Enum
 }
 
 pub struct Match {
@@ -440,6 +441,82 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             (*outputfn)(m);
         }
 
+        if local && blob.starts_with("enum") {
+
+            if blob.starts_with("enum "+searchstr) {
+                // TODO: parse this properly
+                let end = find_path_end(blob, 5);
+                let l = blob.slice(5, end);
+                debug!("PHIL found!! a local enum {}", l);
+                let m = Match {matchstr: l.to_owned(), 
+                               filepath: filepath.clone(), 
+                               point: point + start + 5,
+                               linetxt: blob.to_owned(),
+                               local: local,
+                               mtype: Enum
+                };
+                (*outputfn)(m);
+            }
+
+            if blob.find_str(searchstr).is_some() {
+                // parse the enum
+                let parsedEnum = ast::parse_enum(StrBuf::from_str(blob));
+                if parsedEnum.name.as_slice().starts_with(searchstr) {
+                }
+
+                for (name, offset) in parsedEnum.values.move_iter() {
+                    if name.as_slice().starts_with(searchstr) {
+                        let m = Match {matchstr: name.into_owned(), 
+                                       filepath: filepath.clone(), 
+                                       point: point + start + offset,
+                                       linetxt: blob.to_owned(),
+                                       local: local,
+                                       mtype: Enum
+                        };
+                        (*outputfn)(m);
+                    }
+                }                
+            }
+        } 
+
+        if blob.starts_with("pub enum") {
+
+            if blob.starts_with("pub enum "+searchstr) {
+                // TODO: parse this properly
+                let end = find_path_end(blob, 9);
+                let l = blob.slice(9, end);
+                debug!("PHIL found!! a pub enum {}", l);
+                let m = Match {matchstr: l.to_owned(), 
+                               filepath: filepath.clone(), 
+                               point: point + start + 9,
+                               linetxt: blob.to_owned(),
+                               local: local,
+                               mtype: Enum
+                };
+                (*outputfn)(m);
+            }
+
+            if blob.find_str(searchstr).is_some() {
+                // parse the enum
+                let parsedEnum = ast::parse_enum(StrBuf::from_str(blob));
+                if parsedEnum.name.as_slice().starts_with(searchstr) {
+                }
+
+                for (name, offset) in parsedEnum.values.move_iter() {
+                    if name.as_slice().starts_with(searchstr) {
+                        let m = Match {matchstr: name.into_owned(), 
+                                       filepath: filepath.clone(), 
+                                       point: point + start + offset,
+                                       linetxt: blob.to_owned(),
+                                       local: local,
+                                       mtype: Enum
+                        };
+                        (*outputfn)(m);
+                    }
+                }                
+            }
+            
+        }
 
         if local && blob.starts_with("use ") && blob.find_str(searchstr).is_some() {
             debug!("PHIL in {} found use: |{}|", filepath.as_str(), blob);
