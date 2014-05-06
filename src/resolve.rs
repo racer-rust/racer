@@ -38,7 +38,7 @@ pub fn get_type_of(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
             // HACK, convert from &[~str] to &[&str]
             let v = to_refs(&letres.init);
             let fqn = v.as_slice();
-            result = first_match(|m| do_local_search(fqn, fpath, point+start, true, m));
+            result = first_match(|m| do_local_search(fqn, fpath, point+start, racer::ExactMatch, m));
         });
         break;
     }
@@ -66,7 +66,7 @@ pub fn get_type_of(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
             debug!("PHIL return type is {}", path);
             let v = to_refs(&path);
             let fqn = v.as_slice();
-            return first_match(|m| do_local_search(fqn, &res.filepath, res.point, true, m));
+            return first_match(|m| do_local_search(fqn, &res.filepath, res.point, racer::ExactMatch, m));
         }
         _ => { return None }
     };
