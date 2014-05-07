@@ -59,6 +59,35 @@ fn is_ident_char(c : char) -> bool {
     c.is_alphanumeric() || (c == '_') || (c == '!')
 }
 
+fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool { 
+    return match stype {
+        ExactMatch => {
+            let nlen = needle.len();
+            let hlen = haystack.len();
+
+            return haystack.find_str(needle).map_or(false, |n|{
+                (n == 0  || !is_ident_char(haystack.char_at(n-1))) && 
+                    (n+nlen == hlen || !is_ident_char(haystack.char_at(n+nlen)))
+            });
+        },
+        StartsWith => {
+            return haystack.find_str(needle).map_or(false, |n|{
+                (n == 0  || !is_ident_char(haystack.char_at(n-1)))
+            });
+        }
+    }
+}
+
+#[test]
+fn matches_matches_stuff() {
+    assert_eq!(true, txt_matches(ExactMatch, "Vec","Vec"));
+    assert_eq!(true, txt_matches(StartsWith, "Vec","Vector"));
+    assert_eq!(false, txt_matches(ExactMatch, "Vec","use Vector"));
+    assert_eq!(true, txt_matches(StartsWith, "Vec","use Vector"));
+    assert_eq!(false, txt_matches(StartsWith, "Vec","use aVector"));
+    assert_eq!(true, txt_matches(ExactMatch, "Vec","use Vec"));
+}
+
 pub fn expand_ident(s : &str, pos : uint) -> (uint,uint) {
     let sb = s.slice_to(pos);
     let mut start = pos;
@@ -277,7 +306,7 @@ pub fn to_refs<'a>(v: &'a Vec<~str>) -> Vec<&'a str> {
 
 
 fn search_next_scope(mut startpoint: uint, searchstr:&str, filepath:&Path, 
-                     exact_match: bool, local: bool, outputfn: &mut |Match|) {
+                     search_type: SearchType, local: bool, outputfn: &mut |Match|) {
 
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
     let filesrc = str::from_utf8(filetxt.as_slice()).unwrap();
@@ -292,14 +321,19 @@ fn search_next_scope(mut startpoint: uint, searchstr:&str, filepath:&Path,
         });
     }
 
-    search_scope(startpoint, filesrc, searchstr, filepath, exact_match, local, outputfn);
+    search_scope(startpoint, filesrc, searchstr, filepath, search_type, local, outputfn);
 }
 
 fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path, 
-                      exact_match: bool, local: bool,
+                      search_type: SearchType, local: bool,
                       outputfn: &mut |Match|) {
     debug!("PHIL searching scope {} {} {}",point, searchstr, filepath.as_str());
     
+    let exact_match = match search_type {
+        ExactMatch => true,
+        StartsWith => false
+    };
+
     let scopesrc = src.slice_from(point);
     for (start,end) in codeiter::iter_stmts(scopesrc) { 
         let blob = scopesrc.slice(start,end);
@@ -453,7 +487,8 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             (*outputfn)(m);
         }
 
-        if local && blob.starts_with("enum") {
+
+        if blob.starts_with("pub enum") || (local && blob.starts_with("enum")) {
 
             if blob.starts_with("enum "+searchstr) {
                 // TODO: parse this properly
@@ -470,7 +505,24 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
                 (*outputfn)(m);
             }
 
-            if blob.find_str(searchstr).is_some() {
+            if blob.starts_with("pub enum "+searchstr) {
+                // TODO: parse this properly
+                let end = find_path_end(blob, 9);
+                let l = blob.slice(9, end);
+                if !exact_match || l == searchstr {
+                    debug!("PHIL found!! a pub enum {}", l);
+                    let m = Match {matchstr: l.to_owned(), 
+                                   filepath: filepath.clone(), 
+                                   point: point + start + 9,
+                                   linetxt: blob.to_owned(),
+                                   local: local,
+                                   mtype: Enum
+                    };
+                    (*outputfn)(m);
+                }
+            }
+
+            if txt_matches(search_type, searchstr, blob) {
                 // parse the enum
                 let parsedEnum = ast::parse_enum(StrBuf::from_str(blob));
                 if parsedEnum.name.as_slice().starts_with(searchstr) {
@@ -491,66 +543,8 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             }
         } 
 
-        if blob.starts_with("pub enum") {
-
-            if blob.starts_with("pub enum "+searchstr) {
-                // TODO: parse this properly
-                let end = find_path_end(blob, 9);
-                let l = blob.slice(9, end);
-                debug!("PHIL found!! a pub enum {}", l);
-                let m = Match {matchstr: l.to_owned(), 
-                               filepath: filepath.clone(), 
-                               point: point + start + 9,
-                               linetxt: blob.to_owned(),
-                               local: local,
-                               mtype: Enum
-                };
-                (*outputfn)(m);
-            }
-
-            if blob.find_str(searchstr).is_some() {
-                // parse the enum
-                let parsedEnum = ast::parse_enum(StrBuf::from_str(blob));
-                if parsedEnum.name.as_slice().starts_with(searchstr) {
-                }
-
-                for (name, offset) in parsedEnum.values.move_iter() {
-                    if name.as_slice().starts_with(searchstr) {
-                        let m = Match {matchstr: name.into_owned(), 
-                                       filepath: filepath.clone(), 
-                                       point: point + start + offset,
-                                       linetxt: blob.to_owned(),
-                                       local: local,
-                                       mtype: Enum
-                        };
-                        (*outputfn)(m);
-                    }
-                }                
-            }
-            
-        }
-
-        if local && blob.starts_with("use ") && blob.find_str(searchstr).is_some() {
-            debug!("PHIL in {} found use: |{}|", filepath.as_str(), blob);
-            for fqn_ in ast::parse_view_item(blob.to_owned()).iter() {
-                // HACK, convert from &[~str] to &[&str]
-                let v = to_refs(fqn_);  
-                let fqn = v.as_slice();
-            
-                // if searching for a symbol and the last bit matches the symbol
-                // then find the fqn
-                if fqn.len() == 1 && fqn[0] == searchstr {
-                    // is an exact match of a single use stmt. 
-                    // Do nothing because this will be picked up by the module
-                    // search in a bit.
-                } else if fqn[fqn.len()-1].starts_with(searchstr) {
-                    do_local_search(fqn, filepath, 0, ExactMatch, outputfn);
-                }
-            }
-        }
-
-        if blob.starts_with("pub use ") && blob.find_str(searchstr).is_some() {
-            debug!("PHIL found pub use: |{}|", blob);
+        if (local && blob.starts_with("use ")) || blob.starts_with("pub use ") && txt_matches(search_type, searchstr, blob) {
+            debug!("PHIL found use: |{}|", blob);
             for fqn_ in ast::parse_view_item(blob.to_owned()).iter() {
                 // HACK, convert from &[~str] to &[&str]
                 let mut fqn = to_refs(fqn_);  
@@ -575,18 +569,18 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
 }
 
 fn search_local_scopes(searchstr: &str, filepath: &Path, msrc: &str, mut point:uint,
-                       exact_match: bool, outputfn: &mut |Match|) {
+                       search_type: SearchType, outputfn: &mut |Match|) {
     debug!("PHIL searching local scopes for {}",searchstr);
 
     let is_local = true;
     if point == 0 {
         // search the whole file
-        search_scope(0, msrc, searchstr, filepath, exact_match, is_local, outputfn);
+        search_scope(0, msrc, searchstr, filepath, search_type, is_local, outputfn);
     } else {
         // search each parent scope in turn
         while point > 0 {
             let n = scopes::scope_start(msrc, point);
-               search_scope(n, msrc, searchstr, filepath, exact_match, is_local, outputfn);
+               search_scope(n, msrc, searchstr, filepath, search_type, is_local, outputfn);
             if n == 0 { 
                 break; 
             }
@@ -596,7 +590,7 @@ fn search_local_scopes(searchstr: &str, filepath: &Path, msrc: &str, mut point:u
 }
 
 fn search_local_text(searchstr: &str, filepath: &Path, point: uint,
-                     exact_match: bool, outputfn: &mut |Match|) {
+                     search_type: SearchType, outputfn: &mut |Match|) {
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
     let src = str::from_utf8(filetxt.as_slice()).unwrap();
     let msrc = scopes::mask_comments(src);
@@ -605,8 +599,9 @@ fn search_local_text(searchstr: &str, filepath: &Path, point: uint,
     let field_expr: Vec<&str> = l.collect();
     let field_expr = field_expr.as_slice();
 
-    if exact_match {
-        search_local_text_(field_expr, filepath, msrc, point, exact_match, &mut |m: Match| {
+    match search_type {
+        ExactMatch => {
+        search_local_text_(field_expr, filepath, msrc, point, search_type, &mut |m: Match| {
             if m.matchstr == field_expr[field_expr.len()-1].to_owned() {  // only if is an exact match
                 (*outputfn)(m);
             } else {
@@ -614,21 +609,23 @@ fn search_local_text(searchstr: &str, filepath: &Path, point: uint,
                       m.matchstr, field_expr[field_expr.len()-1]);
             }
         });
-    } else {
-        search_local_text_(field_expr, filepath, msrc, point, exact_match, outputfn);
+
+        },
+        StartsWith => search_local_text_(field_expr, filepath, msrc, point, search_type, outputfn)
     }
 }
 
-fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: uint, exact_match: bool,
+fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: uint, 
+                      search_type: SearchType,
                           outputfn: &mut |Match|) {
     debug!("PHIL search_local_text_ {} {} {}",field_expr,filepath.as_str(),point);
 
     if field_expr.len() == 1 {
-        search_local_scopes(field_expr[0], filepath, msrc, point, exact_match, outputfn);
+        search_local_scopes(field_expr[0], filepath, msrc, point, search_type, outputfn);
     } else {
          // field reference. 
         let parentexpr = field_expr.slice_to(field_expr.len()-1);
-        let def = first_match(|m| search_local_text_(parentexpr, filepath, msrc, point, true, m));        
+        let def = first_match(|m| search_local_text_(parentexpr, filepath, msrc, point, ExactMatch, m));        
         def.map(|m| {
             let t = resolve::get_type_of(&m, filepath, msrc);
             t.map(|m| {
@@ -659,7 +656,7 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
                             // find the opening brace and skip to it. 
                             src.slice_from(m.point).find_str("{").map(|n|{
                                 let point = m.point + n + 1;
-                                search_scope(point, src, fieldsearchstr, &m.filepath, exact_match, m.local, outputfn);
+                                search_scope(point, src, fieldsearchstr, &m.filepath, search_type, m.local, outputfn);
                             });
                         
                         });
@@ -722,15 +719,14 @@ pub fn find_definition_(src: &str, filepath: &Path, pos: uint, outputfn: &mut |M
     do_local_search(path, filepath, pos, ExactMatch, find_definition_output_fn);
 }
 
-pub fn search_prelude_file(searchstr: &str, exact_match: bool, outputfn: &mut |Match|) {
+pub fn search_prelude_file(searchstr: &str, search_type: SearchType, outputfn: &mut |Match|) {
     // find the prelude file from teh search path and scan it
-
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
     let v: Vec<&str> = srcpaths.split_str(":").collect();
     for srcpath in v.move_iter() {
         let filepath = Path::new(srcpath).join_many([Path::new("libstd/prelude.rs")]);
         if File::open(&filepath).is_ok() {
-            search_local_text(searchstr, &filepath, 0, exact_match, outputfn);
+            search_local_text(searchstr, &filepath, 0, search_type, outputfn);
         }
     }
 }
@@ -743,8 +739,8 @@ pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint,
 
     if path.len() == 1 {
         let searchstr = path[0];
-        search_local_text(searchstr, filepath, pos, exact_match, outputfn);
-        search_prelude_file(searchstr, exact_match, outputfn);
+        search_local_text(searchstr, filepath, pos, search_type, outputfn);
+        search_prelude_file(searchstr, search_type, outputfn);
 
         // don't need to match substrings here because substring matches are done
         // on the use stmts.
@@ -773,7 +769,7 @@ pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint,
                 Module => {
                     debug!("PHIL searching a module '{}' (whole path: {})",m.matchstr, path);
                     let searchstr = path[path.len()-1];
-                    search_next_scope(m.point, searchstr, &m.filepath, exact_match, false, outputfn);
+                    search_next_scope(m.point, searchstr, &m.filepath, search_type, false, outputfn);
                 }
                 Struct => {
                     debug!("PHIL found a struct. Now need to look for impl");
@@ -787,7 +783,7 @@ pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint,
                         // find the opening brace and skip to it. 
                         src.slice_from(m.point).find_str("{").map(|n|{
                             let point = m.point + n + 1;
-                            search_scope(point, src, searchstr, &m.filepath, exact_match, m.local, outputfn);
+                            search_scope(point, src, searchstr, &m.filepath, search_type, m.local, outputfn);
                         });
                         
                     });
@@ -831,10 +827,10 @@ fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool,
     }
 }
 
-pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, exact_match: bool, outputfn: &mut |Match|) {
+pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, search_type: SearchType, outputfn: &mut |Match|) {
     if path.len() == 1 {
         let searchstr = path[0];
-        search_next_scope(pos, searchstr, filepath, exact_match, false, outputfn);
+        search_next_scope(pos, searchstr, filepath, search_type, false, outputfn);
 
         get_module_file(searchstr, &filepath.dir_path()).map(|path|{
             let m = Match {matchstr: searchstr.to_owned(),
@@ -849,13 +845,13 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, exact_match
 
     } else {
         let parent_path = path.slice_to(path.len()-1);
-        let context = first_match(|m| do_external_search(parent_path, filepath, pos, false, m));
+        let context = first_match(|m| do_external_search(parent_path, filepath, pos, ExactMatch, m));
         context.map(|m| {
             match m.mtype {
                 Module => {
                     debug!("PHIL found an external module {}",m.matchstr);
                     let searchstr = path[path.len()-1];
-                    search_next_scope(m.point, searchstr, &m.filepath, exact_match, false, outputfn);
+                    search_next_scope(m.point, searchstr, &m.filepath, search_type, false, outputfn);
                 }
 
 
@@ -865,7 +861,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, exact_match
                         debug!("PHIL found  impl2!! {}",m.matchstr);
                         let searchstr = path[path.len()-1];
                         debug!("PHIL about to search impl scope...");
-                        search_next_scope(m.point, searchstr, &m.filepath, exact_match, false, outputfn);
+                        search_next_scope(m.point, searchstr, &m.filepath, search_type, false, outputfn);
                         
                     });
                 }

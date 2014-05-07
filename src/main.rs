@@ -50,7 +50,7 @@ fn complete() {
                 if p.len() == 1 {
                     match_fn(m);
                 } else {
-                    do_external_search(p.slice_from(1), &m.filepath, m.point, false, &mut |m| match_fn(m));
+                    do_external_search(p.slice_from(1), &m.filepath, m.point, racer::StartsWith, &mut |m| match_fn(m));
                 }
             });
 
