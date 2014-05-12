@@ -432,6 +432,8 @@ impl visit::Visitor<()> for ExprTypeVisitor {
             }
             // ast::ExprMethodCall(ref spannedident, ref types, _/*ref arguments*/) => {
             //     // spannedident.node is an ident I think
+            //     let name = token::get_ident(spannedident.node).get().to_owned();
+            //     println!("PHIL method call {}",name);
             // }
             _ => {}
         }

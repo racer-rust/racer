@@ -216,6 +216,21 @@ fn finds_enum() {
 }
 
 #[test]
+fn finds_type() {
+    let src="
+    type SpannedIdent = Spanned<Ident>
+    SpannedIdent;
+    ";
+    write_file(&Path::new("src.rs"), src);
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 3, 5);
+    let got = find_definition(src, &path, pos).unwrap();
+    assert_eq!(got.matchstr,"SpannedIdent".to_owned());    
+}
+
+
+#[test]
 fn finds_enum_value() {
     let src="
     enum MyEnum {
