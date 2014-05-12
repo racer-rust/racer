@@ -8,13 +8,22 @@ use syntax::parse::token;
 use syntax::visit;
 use syntax::codemap;
 use std::task;
+use racer::Match;
+use racer;
 
-// This code ripped from libsyntax::parser_testing
-pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: ~str) -> Parser<'a> {
-    new_parser_from_source_str(ps, Vec::new(), "bogofile".to_owned(), source_str)
+// This code ripped from libsyntax::util::parser_testing
+pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: StrBuf) -> Parser<'a> {
+    new_parser_from_source_str(ps,
+                               Vec::new(),
+                               "bogofile".to_strbuf(),
+                               source_str)
 }
 
-fn with_error_checking_parse<T>(s: ~str, f: |&mut Parser| -> T) -> T {
+// pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: ~str) -> Parser<'a> {
+//     new_parser_from_source_str(ps, Vec::new(), "bogofile".to_owned(), source_str)
+// }
+
+fn with_error_checking_parse<T>(s: StrBuf, f: |&mut Parser| -> T) -> T {
     let ps = new_parse_sess();
     let mut p = string_to_parser(&ps, s);
     let x = f(&mut p);
@@ -23,28 +32,28 @@ fn with_error_checking_parse<T>(s: ~str, f: |&mut Parser| -> T) -> T {
 }
 
 // parse a string, return an expr
-pub fn string_to_expr (source_str : ~str) -> @ast::Expr {
+pub fn string_to_expr (source_str : StrBuf) -> @ast::Expr {
     with_error_checking_parse(source_str, |p| {
         p.parse_expr()
     })
 }
 
 // parse a string, return an item
-pub fn string_to_item (source_str : ~str) -> Option<@ast::Item> {
+pub fn string_to_item (source_str : StrBuf) -> Option<@ast::Item> {
     with_error_checking_parse(source_str, |p| {
         p.parse_item(Vec::new())
     })
 }
 
 // parse a string, return a stmt
-pub fn string_to_stmt(source_str : ~str) -> @ast::Stmt {
+pub fn string_to_stmt(source_str : StrBuf) -> @ast::Stmt {
     with_error_checking_parse(source_str, |p| {
         p.parse_stmt(Vec::new())
     })
 }
 
 // parse a string, return a crate.
-pub fn string_to_crate (source_str : ~str) -> ast::Crate {
+pub fn string_to_crate (source_str : StrBuf) -> ast::Crate {
     with_error_checking_parse(source_str, |p| {
         p.parse_crate_mod()
     })
@@ -127,7 +136,7 @@ impl MyLetVisitor {
             debug!("PHIL init node is {:?}",init.node);
             match init.node {
                 ast::ExprCall(callee_expression, _ /*ref arguments*/) => {
-                    debug!("PHIL init is an exprCall {:?}",callee_expression);
+                    println!("PHIL init is an exprCall {:?}",callee_expression);
                     // for argument in arguments.iter() {
                     //     visitor.visit_expr(*argument, env.clone())
                     // }
@@ -135,7 +144,7 @@ impl MyLetVisitor {
 
                     match callee_expression.node {
                         ast::ExprPath(ref path) => {
-                            debug!("PHIL init callee is a path {}",path_to_vec(path));
+                            println!("PHIL init callee is a path {}",path_to_vec(path));
                             self.result = Some(LetResult{name: name.clone(),
                                                          point: point,
                                                          init: path_to_vec(path)
@@ -150,7 +159,9 @@ impl MyLetVisitor {
                                                  init: path_to_vec(path)
                                                  });
                 }
-                _ => {}
+                _ => {
+                    println!("PHIL dont handle decl: {:?}",init.node);
+                }
             }
         });
 
@@ -161,6 +172,7 @@ impl MyLetVisitor {
 impl visit::Visitor<()> for MyLetVisitor {
 
     fn visit_decl(&mut self, decl: &ast::Decl, e: ()) { 
+        println!("PHIL decl {:?}",decl);
         match decl.node {
             ast::DeclLocal(local) => {
                 match local.pat.node {
@@ -295,7 +307,7 @@ impl visit::Visitor<()> for EnumVisitor {
 }
 
 
-pub fn parse_view_item(s: ~str) -> Vec<Vec<~str>> {
+pub fn parse_view_item(s: StrBuf) -> Vec<Vec<~str>> {
     // parser can fail!() so isolate it in another task
     let result = task::try(proc() { 
         return _parse_view_items(s);
@@ -308,14 +320,14 @@ pub fn parse_view_item(s: ~str) -> Vec<Vec<~str>> {
     }
 }
 
-fn _parse_view_items(s: ~str)-> Vec<Vec<~str>> {
+fn _parse_view_items(s: StrBuf)-> Vec<Vec<~str>> {
     let cr = string_to_crate(s);
     let mut v = MyViewItemVisitor{results: Vec::new()};
     visit::walk_crate(&mut v, &cr, ());
     return v.results;
 }
 
-pub fn parse_let(s: ~str) -> Option<LetResult> {
+pub fn parse_let(s: StrBuf) -> Option<LetResult> {
     // parser can fail!() so isolate it in another task
     let result = task::try(proc() { 
         return _parse_let(s);
@@ -328,14 +340,14 @@ pub fn parse_let(s: ~str) -> Option<LetResult> {
     }
 }
 
-fn _parse_let(s: ~str)-> Option<LetResult> {
+fn _parse_let(s: StrBuf)-> Option<LetResult> {
     let stmt = string_to_stmt(s);
     let mut v = MyLetVisitor{ result: None};
     visit::walk_stmt(&mut v, stmt, ());
     return v.result;
 }
 
-pub fn parse_struct_fields(s: ~str) -> Vec<~str> {
+pub fn parse_struct_fields(s: StrBuf) -> Vec<~str> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = StructVisitor{ fields: Vec::new() };
@@ -344,7 +356,7 @@ pub fn parse_struct_fields(s: ~str) -> Vec<~str> {
     }).ok().unwrap_or(Vec::new());
 }
 
-pub fn parse_impl_name(s: ~str) -> Option<~str> {
+pub fn parse_impl_name(s: StrBuf) -> Option<~str> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = ImplVisitor{ name_path: Vec::new() };
@@ -357,7 +369,7 @@ pub fn parse_impl_name(s: ~str) -> Option<~str> {
     }).ok().unwrap_or(None);
 }
 
-pub fn parse_fn_output(s: ~str) -> Vec<~str> {
+pub fn parse_fn_output(s: StrBuf) -> Vec<~str> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = FnVisitor { name: "".to_owned(), output: Vec::new(), is_method: false };
@@ -368,10 +380,83 @@ pub fn parse_fn_output(s: ~str) -> Vec<~str> {
 
 pub fn parse_enum(s: StrBuf) -> EnumVisitor {
     return task::try(proc() {
-        let stmt = string_to_stmt(s.into_owned());
+        let stmt = string_to_stmt(s);
         let mut v = EnumVisitor { name: StrBuf::new(), values: Vec::new()};
         visit::walk_stmt(&mut v, stmt, ());
         return v;
+    }).ok().unwrap();
+}
+
+
+struct ExprTypeVisitor {
+    scope: Match,
+    result: Option<Match>
+}
+
+fn find_match(fqn: &Vec<~str>, fpath: &Path, pos: uint) -> Option<Match> {
+    let myfqn = racer::to_refs(fqn);  
+    return racer::first_match(|m| racer::do_local_search(
+        myfqn.as_slice(),
+        fpath,
+        pos,
+        racer::ExactMatch,
+        m));
+}
+
+impl visit::Visitor<()> for ExprTypeVisitor {
+    fn visit_expr(&mut self, expr: &ast::Expr, _: ()) { 
+        //println!("visit_expr {:?}",expr);
+        //walk_expr(self, ex, e) 
+        match expr.node {
+            ast::ExprPath(ref path) => {
+                println!("PHIL expr is a path {}",path_to_vec(path));
+                let pathvec = path_to_vec(path);
+                self.result = find_match(&pathvec, 
+                                         &self.scope.filepath, 
+                                         self.scope.point);
+            }
+            ast::ExprCall(callee_expression, _/*ref arguments*/) => {
+                self.visit_expr(callee_expression, ());
+                let mut newres: Option<Match> = None;
+                {
+                    let res = &self.result;
+                    match *res {
+                        Some(ref m) => {
+                            let fqn = racer::resolve::get_return_type_of_function(m);
+                            newres = find_match(&fqn, &m.filepath, m.point);
+                        },
+                        None => {}
+                    }
+                }
+                self.result = newres;
+            }
+            // ast::ExprMethodCall(ref spannedident, ref types, _/*ref arguments*/) => {
+            //     // spannedident.node is an ident I think
+            // }
+            _ => {}
+        }
+    }
+
+}
+
+pub fn get_type_of(s: StrBuf, fpath: &Path, pos: uint) -> Option<Match> {
+    let myfpath = fpath.clone();
+
+    return task::try(proc() {
+        let stmt = string_to_stmt(s);
+        let startscope = Match{ 
+            matchstr: "".to_owned(),
+            filepath: myfpath,
+            point: pos,
+            linetxt: "".to_owned(),
+            local: true,
+            mtype: racer::Module
+        };
+
+        let mut v = ExprTypeVisitor{ scope: startscope,
+                                     result: None};
+        visit::walk_stmt(&mut v, stmt, ());
+        return v.result;
     }).ok().unwrap();
 }
 
@@ -381,12 +466,41 @@ fn blah() {
     // let src = ~"fn myfn(a: uint) -> Foo {}";
     // let src = ~"impl blah{    fn visit_item(&mut self, item: &ast::Item, _: ()) {} }";
 
-    let src = "pub enum MyEnum{ One, Two};";
+    //let src = "Foo::Bar().baz(32)";
+    let src = "std::vec::Vec::new().push_all()";
 
-    let cr = string_to_stmt(src.to_owned());
-    let mut v = EnumVisitor { name: StrBuf::new(), values: Vec::new()};
-    visit::walk_stmt(&mut v, cr, ());
-    println!("PHIL {} {}", v.name, v.values);
+    let stmt = string_to_stmt(StrBuf::from_str(src));
+
+    println!("PHIL stmt {:?}",stmt);
+
+// pub struct Match {
+//     pub matchstr: ~str,
+//     pub filepath: Path,
+//     pub point: uint,
+//     pub linetxt: ~str,
+//     pub local: bool,
+//     pub mtype: MatchType
+// }
+
+    let startscope = Match{ 
+        matchstr: "".to_owned(),
+        filepath: Path::new("./ast.rs"),
+        point: 0,
+        linetxt: "".to_owned(),
+        local: true,
+        mtype: racer::Module
+    };
+
+    let mut v = ExprTypeVisitor{ scope: startscope,
+                                 result: None};
+    visit::walk_stmt(&mut v, stmt, ());
+
+    println!("PHIL result was {:?}",v.result);
+    //return v.result;
+
+    // let mut v = EnumVisitor { name: StrBuf::new(), values: Vec::new()};
+    // visit::walk_stmt(&mut v, cr, ());
+    // println!("PHIL {} {}", v.name, v.values);
 
     // let src = "let v = Foo::new();".to_owned();
 
@@ -395,3 +509,4 @@ fn blah() {
 
     fail!("hello");
 }
+

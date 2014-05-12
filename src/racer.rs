@@ -339,7 +339,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         let blob = scopesrc.slice(start,end);
         //debug!("PHIL search_scope BLOB |{}|",blob);
         if blob.starts_with("let ") && blob.find_str(searchstr).is_some() {
-            let res = ast::parse_let(blob.to_owned());
+            let res = ast::parse_let(StrBuf::from_str(blob));
             res.map(|letresult| {
                 
                 let name = letresult.name.as_slice();
@@ -545,7 +545,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
 
         if (local && blob.starts_with("use ")) || blob.starts_with("pub use ") && txt_matches(search_type, searchstr, blob) {
             debug!("PHIL found use: |{}|", blob);
-            for fqn_ in ast::parse_view_item(blob.to_owned()).iter() {
+            for fqn_ in ast::parse_view_item(StrBuf::from_str(blob)).iter() {
                 // HACK, convert from &[~str] to &[&str]
                 let mut fqn = to_refs(fqn_);  
                 //let fqn = v.as_slice();
@@ -627,7 +627,7 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
         let parentexpr = field_expr.slice_to(field_expr.len()-1);
         let def = first_match(|m| search_local_text_(parentexpr, filepath, msrc, point, ExactMatch, m));        
         def.map(|m| {
-            let t = resolve::get_type_of(&m, filepath, msrc);
+            let t = resolve::get_type_of_OLD(&m, filepath, msrc);
             t.map(|m| {
                 debug!("PHIL got type match {:?}",m);
                     
@@ -686,9 +686,9 @@ pub fn complete_from_file(src: &str, filepath: &Path, pos: uint, outputfn: &mut 
     let expr = expand_searchstr(src, pos);
 
     let mut l = expr.split_str("::");
-    let path : ~[&str] = l.collect(); 
+    let path : Vec<&str> = l.collect(); 
 
-    do_local_search(path, filepath, pos, StartsWith, outputfn);
+    do_local_search(path.as_slice(), filepath, pos, StartsWith, outputfn);
 }
 
 pub fn find_definition(src: &str, filepath: &Path, pos: uint) -> Option<Match> {
@@ -700,23 +700,23 @@ pub fn find_definition_(src: &str, filepath: &Path, pos: uint, outputfn: &mut |M
     let expr = src.slice(start, end);    
 
     let mut l = expr.split_str("::");
-    let path : ~[&str] = l.collect(); 
+    let path : Vec<&str> = l.collect(); 
 
-    let lastbit = path[path.len()-1];
+    let lastbit = path.as_slice()[path.len()-1];
 
     let mut field_expr = lastbit.split_str(".");
-    let field_expr : ~[&str] = field_expr.collect(); 
+    let field_expr : Vec<&str> = field_expr.collect(); 
 
     let find_definition_output_fn = &mut |m: Match| {
-        if m.matchstr == field_expr[field_expr.len()-1].to_owned() {  // only if is an exact match
+        if m.matchstr == field_expr.as_slice()[field_expr.len()-1].to_owned() {  // only if is an exact match
             (*outputfn)(m);
         }
     };
 
     let mut l = expr.split_str("::");
-    let path : ~[&str] = l.collect(); 
+    let path : Vec<&str> = l.collect(); 
 
-    do_local_search(path, filepath, pos, ExactMatch, find_definition_output_fn);
+    do_local_search(path.as_slice(), filepath, pos, ExactMatch, find_definition_output_fn);
 }
 
 pub fn search_prelude_file(searchstr: &str, search_type: SearchType, outputfn: &mut |Match|) {
@@ -809,7 +809,7 @@ fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool,
                 decl = decl.append("}");
                 if decl.as_slice().find_str(searchstr).is_some() {
                     debug!("PHIL decl {}",decl);
-                    ast::parse_impl_name(decl.into_owned()).map(|name|{
+                    ast::parse_impl_name(decl).map(|name|{
                         debug!("PHIL parsed an impl {}",name);
                         
                         let m = Match {matchstr: name.to_owned(), 

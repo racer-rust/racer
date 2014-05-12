@@ -3,6 +3,7 @@
 // need this to use libsyntax
 //#![feature(phase)];
 #[phase(syntax, link)] extern crate log;
+
 extern crate syntax;
 use racer::{getline,Match,do_file_search, do_external_search};
 
@@ -23,12 +24,12 @@ fn match_fn(m:Match) {
 }
 
 fn complete() {
-   match std::uint::parse_bytes(std::os::args()[2].as_bytes(), 10) {
+    let args = std::os::args();
+    match std::uint::parse_bytes(std::os::args().as_slice()[2].as_bytes(), 10) {
         Some(linenum) => { 
             // input: linenum, colnum, fname
-            let charnum = std::uint::parse_bytes(std::os::args()[3].as_bytes(), 10).unwrap();
-            let fname = std::os::args()[4];
-
+            let charnum = std::uint::parse_bytes(std::os::args().as_slice()[3].as_bytes(), 10).unwrap();
+            let fname = args.as_slice()[4].as_slice();
             let fpath = Path::new(fname);
             let filetxt = BufferedReader::new(File::open(&fpath)).read_to_end().unwrap();
             // print the start-end of the identifier being matched
@@ -42,11 +43,11 @@ fn complete() {
         }
         None => {
             // input: a command line string passed in
-            let arg = std::os::args()[2];
+            let arg = args.as_slice()[2].as_slice();
             let mut it = arg.split_str("::");
-            let p : ~[&str] = it.collect();
+            let p : Vec<&str> = it.collect();
 
-            do_file_search(p[0], &Path::new("."), &mut |m| {
+            do_file_search(p.as_slice()[0], &Path::new("."), &mut |m| {
                 if p.len() == 1 {
                     match_fn(m);
                 } else {
@@ -59,10 +60,11 @@ fn complete() {
 }
 
 fn prefix() {
-    let args = std::os::args().to_owned();
+    let args_ = std::os::args();
+    let args = args_.as_slice();
     let linenum = std::uint::parse_bytes(args[2].as_bytes(), 10).unwrap();
     let charnum = std::uint::parse_bytes(args[3].as_bytes(), 10).unwrap();
-    let fname = args[4];
+    let fname = args[4].as_slice();
 
     // print the start, end, and the identifier prefix being matched
     let path = Path::new(fname);
@@ -72,10 +74,11 @@ fn prefix() {
 }
 
 fn find_definition() {
-    let args = std::os::args().to_owned();
+    let args_ = std::os::args();
+    let args = args_.as_slice();
     let linenum = std::uint::parse_bytes(args[2].as_bytes(), 10).unwrap();
     let charnum = std::uint::parse_bytes(args[3].as_bytes(), 10).unwrap();
-    let fname = args[4];
+    let fname = args[4].as_slice();
     let fpath = Path::new(fname);
     let filetxt = BufferedReader::new(File::open(&fpath)).read_to_end().unwrap();
     let src = str::from_utf8(filetxt.as_slice()).unwrap();
@@ -85,7 +88,7 @@ fn find_definition() {
 }
 
 fn print_usage() {
-    let program = std::os::args()[0].clone();
+    let program = std::os::args().as_slice()[0].clone();
     println!("usage: {} complete linenum charnum fname", program);
     println!("or:    {} find-definition linenum charnum fname", program);
     println!("or:    {} complete fullyqualifiedname   (e.g. std::io::)",program);
@@ -99,14 +102,15 @@ fn main() {
         return;
     }
 
-    let args = std::os::args().to_owned();
+    let args_ = std::os::args();
+    let args = args_.as_slice();
 
     if args.len() == 1 {
         print_usage();
         return;
     }
 
-    let command = args[1];
+    let command = args[1].as_slice();
     match command.as_slice() {
         "prefix" => prefix(),
         "complete" => complete(),

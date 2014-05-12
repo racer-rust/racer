@@ -21,9 +21,9 @@ pub fn find_stmt_start(msrc: &str, point: uint) -> uint{
     fail!();
 }
 
-pub fn get_type_of(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
-    debug!("PHIL get_type_of {:?}",m);
-    debug!("PHIL get_type_of {}",m.matchstr);
+pub fn get_type_of_OLD(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
+    debug!("PHIL get_type_of OLD {:?}",m);
+    debug!("PHIL get_type_of OLD {}",m.matchstr);
     // ASSUMPTION: this is being called on a let decl
     let mut result = None;
 
@@ -33,7 +33,7 @@ pub fn get_type_of(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
     for (start,end) in codeiter::iter_stmts(src) { 
         let blob = src.slice(start,end);
 
-        ast::parse_let(blob.to_owned()).map(|letres|{
+        ast::parse_let(StrBuf::from_str(blob)).map(|letres|{
             debug!("PHIL parse let result {}", &letres.init);
             // HACK, convert from &[~str] to &[&str]
             let v = to_refs(&letres.init);
@@ -79,7 +79,7 @@ pub fn get_fields_of_struct(m: &Match) -> Vec<~str> {
     let point = find_stmt_start(src, m.point);
     let structsrc = racer::scopes::end_of_next_scope(src.slice_from(point));
 
-    return ast::parse_struct_fields(structsrc.to_owned());
+    return ast::parse_struct_fields(StrBuf::from_str(structsrc));
 }
 
 
@@ -98,7 +98,7 @@ pub fn get_return_type_of_function(fnmatch: &Match) -> Vec<~str> {
         let mut decl = StrBuf::from_str(ss);
         decl = decl.append("}");
         debug!("PHIL: passing in {}",decl);
-        return ast::parse_fn_output(decl.into_owned());
+        return ast::parse_fn_output(decl);
     }).unwrap_or(Vec::new());
     return outputpath;
 }

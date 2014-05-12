@@ -1,6 +1,7 @@
 #![feature(managed_boxes,phase)]   // need this to use libsyntax
 #![allow(dead_code,unused_imports,dead_code,attribute_usage,unused_variable)]
 #[phase(syntax, link)] extern crate log;
+
 extern crate syntax;
 
 use racer::complete_from_file;
