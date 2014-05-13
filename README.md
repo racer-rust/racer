@@ -6,7 +6,11 @@
 
 ## Status
 
-Not much to see here yet: Module, struct and function completion of dubious accuracy
+- Does an ok job of static completions: functions, structs, enums etc.. 
+
+- Not so hot on the dynamic stuff: methods, fields etc.. (yet)
+
+- Also provides 'find-definition' support for jumping around source code
 
 ## Installation
 
@@ -39,5 +43,7 @@ Not much to see here yet: Module, struct and function completion of dubious accu
      ```(load "/path/to/racer/editors/racer.el")```
 
 6. Open a rust file and try typing ```use std::io::B``` and press \<tab\>
+
+7. Place your cursor over a symbol and hit \<f1\> to jump to the definition
 
 N.B. So far I've only tested this on ubuntu linux + emacs 24

@@ -23,7 +23,8 @@ pub enum MatchType {
     Impl,
     Enum,
     Type,
-    FnArg
+    FnArg,
+    Trait
 }
 
 pub enum SearchType {
@@ -428,7 +429,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         }
 
 
-        if local && blob.starts_with("fn "+searchstr) {
+        if local && txt_matches(search_type, "fn "+searchstr, blob) {
             // TODO: parse this properly
             let end = find_path_end(blob, 3);
             let l = blob.slice(3, end);
@@ -442,7 +443,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             (*outputfn)(m);
         }
 
-        if blob.starts_with("pub fn "+searchstr) {
+        if txt_matches(search_type, "pub fn "+searchstr, blob) {
             debug!("PHIL found a pub fn starting {}",searchstr);
             // TODO: parse this properly
             let end = find_path_end(blob, 7);
@@ -459,7 +460,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         }
 
 
-        if local && blob.starts_with("struct "+searchstr) {
+        if local && txt_matches(search_type, "struct "+searchstr, blob) {
             // TODO: parse this properly
             let end = find_path_end(blob, 7);
             let l = blob.slice(7, end);
@@ -474,7 +475,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             (*outputfn)(m);
         }
 
-        if blob.starts_with("pub struct "+searchstr) {
+        if txt_matches(search_type, "pub struct "+searchstr, blob) {
             // TODO: parse this properly
             let end = find_path_end(blob, 11);
             let l = blob.slice(11, end);
@@ -489,7 +490,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             (*outputfn)(m);
         }
 
-        if blob.starts_with("type "+searchstr) {
+        if local && txt_matches(search_type, "type "+searchstr, blob) {
             // TODO: parse this properly
             let end = find_path_end(blob, 5);
             let l = blob.slice(5, end);
@@ -504,7 +505,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             (*outputfn)(m);
         }
         
-        if blob.starts_with("pub type "+searchstr) {
+        if txt_matches(search_type, "pub type "+searchstr, blob) {
             // TODO: parse this properly
             let end = find_path_end(blob, 9);
             let l = blob.slice(9, end);
@@ -519,6 +520,36 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             (*outputfn)(m);
         }
         
+        if local && txt_matches(search_type, "trait "+searchstr, blob) {
+            // TODO: parse this properly
+            let end = find_path_end(blob, 6);
+            let l = blob.slice(6, end);
+            debug!("PHIL found!! a type {}", l);
+            let m = Match {matchstr: l.to_owned(), 
+                           filepath: filepath.clone(), 
+                           point: point + start + 6,
+                           linetxt: blob.to_owned(),
+                           local: local,
+                           mtype: Trait
+            };
+            (*outputfn)(m);
+        }
+        
+        if txt_matches(search_type, "pub trait "+searchstr, blob) {
+            // TODO: parse this properly
+            let end = find_path_end(blob, 10);
+            let l = blob.slice(10, end);
+            debug!("PHIL found!! a pub type {}", l);
+            let m = Match {matchstr: l.to_owned(), 
+                           filepath: filepath.clone(), 
+                           point: point + start + 10,
+                           linetxt: blob.to_owned(),
+                           local: local,
+                           mtype: Trait
+            };
+            (*outputfn)(m);
+        }
+
 
         if blob.starts_with("pub enum") || (local && blob.starts_with("enum")) {
 
