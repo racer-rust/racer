@@ -136,7 +136,7 @@ impl MyLetVisitor {
             debug!("PHIL init node is {:?}",init.node);
             match init.node {
                 ast::ExprCall(callee_expression, _ /*ref arguments*/) => {
-                    println!("PHIL init is an exprCall {:?}",callee_expression);
+                    debug!("PHIL init is an exprCall {:?}",callee_expression);
                     // for argument in arguments.iter() {
                     //     visitor.visit_expr(*argument, env.clone())
                     // }
@@ -144,7 +144,7 @@ impl MyLetVisitor {
 
                     match callee_expression.node {
                         ast::ExprPath(ref path) => {
-                            println!("PHIL init callee is a path {}",path_to_vec(path));
+                            debug!("PHIL init callee is a path {}",path_to_vec(path));
                             self.result = Some(LetResult{name: name.clone(),
                                                          point: point,
                                                          init: path_to_vec(path)
@@ -160,7 +160,7 @@ impl MyLetVisitor {
                                                  });
                 }
                 _ => {
-                    println!("PHIL dont handle decl: {:?}",init.node);
+                    debug!("PHIL dont handle decl: {:?}",init.node);
                 }
             }
         });
@@ -172,7 +172,7 @@ impl MyLetVisitor {
 impl visit::Visitor<()> for MyLetVisitor {
 
     fn visit_decl(&mut self, decl: &ast::Decl, e: ()) { 
-        println!("PHIL decl {:?}",decl);
+        debug!("PHIL decl {:?}",decl);
         match decl.node {
             ast::DeclLocal(local) => {
                 match local.pat.node {
@@ -250,10 +250,11 @@ impl visit::Visitor<()> for ImplVisitor {
     }
 }
 
-struct FnVisitor {
-    name: ~str,
-    output: Vec<~str>,
-    is_method: bool
+pub struct FnVisitor {
+    pub name: ~str,
+    pub output: Vec<~str>,
+    pub args: Vec<(StrBuf, uint)>,
+    pub is_method: bool
 }
 
     
@@ -261,6 +262,30 @@ impl visit::Visitor<()> for FnVisitor {
     fn visit_fn(&mut self, fk: &visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId, _: ()) {
 
         self.name = token::get_ident(visit::name_of_fn(fk)).get().to_owned();
+
+        for arg in fd.inputs.iter() {
+            match arg.pat.node {
+                ast::PatIdent(_ , ref path, _) => {
+                    let codemap::BytePos(point) = path.span.lo;
+                    let pathv = path_to_vec(path);
+                    assert!(pathv.len() == 1);
+                    self.args.push(
+                        (StrBuf::from_str(pathv.get(0).as_slice()), point as uint));
+                }
+                _ => {}
+            }
+            // match arg.ty.node {
+            //     ast::TyRptr(_, ref ty)
+
+            //     ast::TyPath(ref path, _, _) => {
+            //         let type_ = path_to_vec(path);
+            //         debug!("PHIL arg type is {}", type_);
+            //     }
+            //     _ => {}
+            // }
+        }
+
+        debug!("PHIL parsed args: {}", self.args);
 
         match fd.output.node {
             ast::TyPath(ref path, _, _) => {
@@ -372,11 +397,21 @@ pub fn parse_impl_name(s: StrBuf) -> Option<~str> {
 pub fn parse_fn_output(s: StrBuf) -> Vec<~str> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
-        let mut v = FnVisitor { name: "".to_owned(), output: Vec::new(), is_method: false };
+        let mut v = FnVisitor { name: "".to_owned(), args: Vec::new(), output: Vec::new(), is_method: false };
         visit::walk_stmt(&mut v, stmt, ());
         return v.output;
     }).ok().unwrap();
 }
+
+pub fn parse_fn(s: StrBuf) -> FnVisitor {
+    return task::try(proc() {
+        let stmt = string_to_stmt(s);
+        let mut v = FnVisitor { name: "".to_owned(), args: Vec::new(), output: Vec::new(), is_method: false };
+        visit::walk_stmt(&mut v, stmt, ());
+        return v;
+    }).ok().unwrap();
+}
+
 
 pub fn parse_enum(s: StrBuf) -> EnumVisitor {
     return task::try(proc() {
@@ -405,11 +440,11 @@ fn find_match(fqn: &Vec<~str>, fpath: &Path, pos: uint) -> Option<Match> {
 
 impl visit::Visitor<()> for ExprTypeVisitor {
     fn visit_expr(&mut self, expr: &ast::Expr, _: ()) { 
-        //println!("visit_expr {:?}",expr);
+        //debug!("visit_expr {:?}",expr);
         //walk_expr(self, ex, e) 
         match expr.node {
             ast::ExprPath(ref path) => {
-                println!("PHIL expr is a path {}",path_to_vec(path));
+                debug!("PHIL expr is a path {}",path_to_vec(path));
                 let pathvec = path_to_vec(path);
                 self.result = find_match(&pathvec, 
                                          &self.scope.filepath, 
@@ -433,7 +468,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
             // ast::ExprMethodCall(ref spannedident, ref types, _/*ref arguments*/) => {
             //     // spannedident.node is an ident I think
             //     let name = token::get_ident(spannedident.node).get().to_owned();
-            //     println!("PHIL method call {}",name);
+            //     debug!("PHIL method call {}",name);
             // }
             _ => {}
         }
@@ -473,7 +508,7 @@ fn blah() {
 
     let stmt = string_to_stmt(StrBuf::from_str(src));
 
-    println!("PHIL stmt {:?}",stmt);
+    debug!("PHIL stmt {:?}",stmt);
 
 // pub struct Match {
 //     pub matchstr: ~str,

@@ -231,6 +231,22 @@ fn finds_type() {
 
 
 #[test]
+fn finds_fn_arg() {
+    let src="
+    fn myfn(myarg: &str) {
+         myarg
+    }
+    ";
+    write_file(&Path::new("src.rs"), src);
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 3, 10);
+    let got = find_definition(src, &path, pos).unwrap();
+    assert_eq!(got.matchstr,"myarg".to_owned());    
+}
+
+
+#[test]
 fn finds_enum_value() {
     let src="
     enum MyEnum {

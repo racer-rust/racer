@@ -134,6 +134,15 @@ fn iterates_while_stmt() {
     assert_eq!("while self.pos < 3 { }", slice(src.as_slice(), it.next().unwrap()));
 }
 
+// #[test]
+// fn iterates_if_else_stmt() {
+//     let src = rejustify("
+//     if self.pos < 3 { } else { }
+//     ");
+//     let mut it = iter_stmts(src.as_slice());
+//     assert_eq!("if self.pos < 3 { } else { }", slice(src.as_slice(), it.next().unwrap()));
+// }
+
 #[test]
 fn iterates_inner_scope() {
     let src = rejustify("

@@ -22,7 +22,8 @@ pub enum MatchType {
     StructField,
     Impl,
     Enum,
-    Type
+    Type,
+    FnArg
 }
 
 pub enum SearchType {
@@ -598,6 +599,66 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         }
     }
 }
+fn reverse_to_start_of_fn(point: uint, msrc: &str) -> Option<uint> {
+    let closeParen: u8 = ")"[0];
+    let whitespace = " \t\n".as_bytes();
+    let mut n = point;
+
+    // is the char before the '{' a ')'? if so, assume this is a function
+    while n > 5 {
+        if whitespace.contains(&msrc[n]) {
+            n -= 1;
+        } else if msrc[n] == closeParen {
+            
+            break;
+        } else {
+            return None;
+        }
+    }
+    // if got to here then we guess is a fn
+    loop {
+        if msrc.len() > 3 && msrc.slice(n,n+2) == "fn" &&
+            whitespace.contains(&msrc[n+2]) && (n==0 || whitespace.contains(&msrc[n-1])) {
+            return Some(n);
+        }
+        if n == 0 {
+            break;
+        }
+        n-=1;
+    }
+    return None;
+}
+
+fn search_fn_args(point: uint, msrc:&str, searchstr:&str, filepath:&Path, 
+                      search_type: SearchType, local: bool,
+                      outputfn: &mut |Match|) {
+    debug!("PHIL search_fn_args");
+    // 'point' points to the opening brace
+    reverse_to_start_of_fn(point-1, msrc).map(|n| {
+        let mut fndecl = StrBuf::from_str(msrc.slice(n,point+1));
+        fndecl.push_str("}");
+        debug!("PHIL found start of fn!! {} {} {}",n, msrc.slice_from(n), fndecl);
+        
+        if txt_matches(search_type, searchstr, fndecl.as_slice()) {
+            let fn_ = ast::parse_fn(fndecl);
+            debug!("PHIL parsed fn got {:?}",fn_);
+            for (s, pos) in fn_.args.move_iter() {
+                if match search_type {
+                    ExactMatch => s.as_slice() == searchstr,
+                    StartsWith => s.as_slice().starts_with(searchstr)
+                    } {
+                    (*outputfn)(Match { matchstr: s.to_owned(),
+                                        filepath: filepath.clone(),
+                                        point: n+pos,
+                                        linetxt: s.to_owned(),
+                                        local: local,
+                                        mtype: FnArg});
+                }
+            }
+
+        }
+    });
+}
 
 fn search_local_scopes(searchstr: &str, filepath: &Path, msrc: &str, mut point:uint,
                        search_type: SearchType, outputfn: &mut |Match|) {
@@ -616,6 +677,9 @@ fn search_local_scopes(searchstr: &str, filepath: &Path, msrc: &str, mut point:u
                 break; 
             }
             point = n-1;
+
+            search_fn_args(point, msrc, searchstr, filepath, search_type, is_local, outputfn);
+
         }
     }
 }
@@ -632,7 +696,7 @@ fn search_local_text(searchstr: &str, filepath: &Path, point: uint,
 
     match search_type {
         ExactMatch => {
-        search_local_text_(field_expr, filepath, msrc, point, search_type, &mut |m: Match| {
+        search_local_text_(field_expr, filepath, msrc.as_slice(), point, search_type, &mut |m: Match| {
             if m.matchstr == field_expr[field_expr.len()-1].to_owned() {  // only if is an exact match
                 (*outputfn)(m);
             } else {
@@ -642,7 +706,7 @@ fn search_local_text(searchstr: &str, filepath: &Path, point: uint,
         });
 
         },
-        StartsWith => search_local_text_(field_expr, filepath, msrc, point, search_type, outputfn)
+        StartsWith => search_local_text_(field_expr, filepath, msrc.as_slice(), point, search_type, outputfn)
     }
 }
 
