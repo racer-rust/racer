@@ -381,3 +381,25 @@ fn follows_fn_to_method() {
     remove_file(&path);
     assert_eq!(got,"mymethod".to_owned());
 }
+
+#[test]
+fn follows_arg_to_method() {
+    let src="
+    struct Foo<T>;
+    impl<T> Foo<T> {
+        fn mymethod(&self) {}
+    }
+
+    fn myfn(v: &Foo) {
+        v.my
+    }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let mut got : ~str = "NOTHING".to_owned();
+    let pos = scopes::coords_to_point(src, 8, 12);
+    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_owned());
+    remove_file(&path);
+    assert_eq!(got,"mymethod".to_owned());
+}
+

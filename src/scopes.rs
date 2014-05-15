@@ -3,8 +3,7 @@ use std::io::BufferedReader;
 use std::strbuf::StrBuf;
 
 use racer::codecleaner;
-
-
+use racer::codeiter;
 
 pub fn scope_start(src:&str, point:uint) -> uint {
     let s = src.slice(0,point);
@@ -24,6 +23,17 @@ pub fn scope_start(src:&str, point:uint) -> uint {
         pt -= 1;
     }
     return pt;
+}
+
+pub fn find_stmt_start(msrc: &str, point: uint) -> Option<uint> {
+    // iterate the scope to find the start of the statement
+    let scopestart = scope_start(msrc, point);
+    for (start, end) in codeiter::iter_stmts(msrc.slice_from(scopestart)) {
+        if (scopestart + end) > point {
+            return Some(scopestart+start);
+        }
+    }
+    return None;
 }
 
 pub fn mask_comments(src: &str) -> StrBuf {

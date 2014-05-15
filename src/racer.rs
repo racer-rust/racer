@@ -81,6 +81,18 @@ fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
     }
 }
 
+fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bool {
+   return match stype {
+        ExactMatch => {
+            return std::str::eq_slice(searchstr, candidate);
+        },
+        StartsWith => {
+            return candidate.starts_with(searchstr);
+        }
+    }
+}
+
+
 #[test]
 fn matches_matches_stuff() {
     assert_eq!(true, txt_matches(ExactMatch, "Vec","Vec"));
@@ -631,56 +643,42 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
     }
 }
 fn reverse_to_start_of_fn(point: uint, msrc: &str) -> Option<uint> {
-    let closeParen: u8 = ")"[0];
-    let whitespace = " \t\n".as_bytes();
-    let mut n = point;
-
-    // is the char before the '{' a ')'? if so, assume this is a function
-    while n > 5 {
-        if whitespace.contains(&msrc[n]) {
-            n -= 1;
-        } else if msrc[n] == closeParen {
-            
-            break;
+    debug!("PHIL reverse to start of fn. {}", point);
+    scopes::find_stmt_start(msrc, point).map_or(None, |n| {
+        let block = msrc.slice_from(n);
+        if block.starts_with("fn") || block.starts_with("pub fn") {
+            return Some(n);
         } else {
             return None;
         }
-    }
-    // if got to here then we guess is a fn
-    loop {
-        if msrc.len() > 3 && msrc.slice(n,n+2) == "fn" &&
-            whitespace.contains(&msrc[n+2]) && (n==0 || whitespace.contains(&msrc[n-1])) {
-            return Some(n);
-        }
-        if n == 0 {
-            break;
-        }
-        n-=1;
-    }
-    return None;
+    })
 }
 
 fn search_fn_args(point: uint, msrc:&str, searchstr:&str, filepath:&Path, 
                       search_type: SearchType, local: bool,
                       outputfn: &mut |Match|) {
-    debug!("PHIL search_fn_args");
+    debug!("PHIL search_fn_args for |{}| pt: {}",searchstr, point);
     // 'point' points to the opening brace
     reverse_to_start_of_fn(point-1, msrc).map(|n| {
-        let mut fndecl = StrBuf::from_str(msrc.slice(n,point+1));
-        fndecl.push_str("}");
+        let mut fndecl = StrBuf::new();
+        // wrap in 'impl blah {}' so that methods get parsed correctly too
+        fndecl.push_str("impl blah {");
+        let impl_header = fndecl.len();
+        fndecl.push_str(msrc.slice(n,point+1));
+        fndecl.push_str("}}");
         debug!("PHIL found start of fn!! {} {} {}",n, msrc.slice_from(n), fndecl);
         
         if txt_matches(search_type, searchstr, fndecl.as_slice()) {
             let fn_ = ast::parse_fn(fndecl);
             debug!("PHIL parsed fn got {:?}",fn_);
-            for (s, pos) in fn_.args.move_iter() {
+            for (s, pos, _) in fn_.args.move_iter() {
                 if match search_type {
                     ExactMatch => s.as_slice() == searchstr,
                     StartsWith => s.as_slice().starts_with(searchstr)
                     } {
                     (*outputfn)(Match { matchstr: s.to_owned(),
                                         filepath: filepath.clone(),
-                                        point: n+pos,
+                                        point: n + pos - impl_header,
                                         linetxt: s.to_owned(),
                                         local: local,
                                         mtype: FnArg});
@@ -741,6 +739,31 @@ fn search_local_text(searchstr: &str, filepath: &Path, point: uint,
     }
 }
 
+
+
+fn search_struct_fields(searchstr: &str, m: &Match,
+                        search_type: SearchType, outputfn: &mut |Match|) {
+    let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
+    let src = str::from_utf8(filetxt.as_slice()).unwrap();
+
+    let opoint = scopes::find_stmt_start(src, m.point);
+    let structsrc = scopes::end_of_next_scope(src.slice_from(opoint.unwrap()));
+
+    let fields = ast::parse_struct_fields(StrBuf::from_str(structsrc));
+    for (field, fpos) in fields.move_iter() {
+
+        if symbol_matches(search_type, searchstr, field.as_slice()) {
+            (*outputfn)(Match { matchstr: field.to_owned(),
+                                filepath: m.filepath.clone(),
+                                point: fpos + opoint.unwrap(),
+                                linetxt: field.to_owned(),
+                                local: m.local,
+                                mtype: StructField});
+        }
+    }
+}
+
+
 fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: uint, 
                       search_type: SearchType,
                           outputfn: &mut |Match|) {
@@ -762,18 +785,7 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
                         debug!("PHIL got a struct, looking for fields and impls!! {}",m.matchstr);
 
                         let fieldsearchstr = field_expr[field_expr.len()-1];
-
-                        for field in resolve::get_fields_of_struct(&m).iter() {
-                            if field.starts_with(fieldsearchstr) {
-                                (*outputfn)(Match { matchstr: field.to_owned(),
-                                                    filepath: m.filepath.clone(),
-                                                    point: 0,
-                                                    linetxt: "".to_owned(),
-                                                    local: m.local,
-                                                    mtype: StructField});
-                            }
-                        }
-
+                        search_struct_fields(fieldsearchstr, &m, search_type, outputfn);
                         search_for_impls(m.point, m.matchstr, &m.filepath, m.local, &mut |m|{
                             debug!("PHIL found impl!! {}. looking for methods",m.matchstr);
                             let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();

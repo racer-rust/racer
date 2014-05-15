@@ -117,7 +117,7 @@ pub struct LetResult {
 fn path_to_vec(pth: &ast::Path) -> Vec<~str> {
     let mut v = Vec::new();
     for seg in pth.segments.iter() {
-        v.push(token::get_ident(seg.identifier).get().to_owned())
+        v.push(token::get_ident(seg.identifier).get().to_owned());
     }
     return v;
 }
@@ -207,7 +207,7 @@ impl visit::Visitor<()> for MyLetVisitor {
 }
 
 struct StructVisitor {
-    fields: Vec<~str>
+    pub fields: Vec<(StrBuf, uint)>
 }
 
 impl visit::Visitor<()> for StructVisitor {
@@ -215,11 +215,12 @@ impl visit::Visitor<()> for StructVisitor {
         visit::walk_struct_def(self, s, e)
     }
     fn visit_struct_field(&mut self, field: &ast::StructField, _: ()) { 
+        let codemap::BytePos(point) = field.span.lo;
         match field.node.kind {
             ast::NamedField(name, _) => {
                 //visitor.visit_ident(struct_field.span, name, env.clone())
-                let n = token::get_ident(name).get().to_owned();
-                self.fields.push(n);
+                let n = StrBuf::from_str(token::get_ident(name).get());
+                self.fields.push((n, point as uint));
                     
             }
             _ => {}
@@ -253,36 +254,58 @@ impl visit::Visitor<()> for ImplVisitor {
 pub struct FnVisitor {
     pub name: ~str,
     pub output: Vec<~str>,
-    pub args: Vec<(StrBuf, uint)>,
+    pub args: Vec<(StrBuf, uint, Vec<~str>)>,
     pub is_method: bool
 }
 
-    
 impl visit::Visitor<()> for FnVisitor {
     fn visit_fn(&mut self, fk: &visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId, _: ()) {
 
         self.name = token::get_ident(visit::name_of_fn(fk)).get().to_owned();
 
         for arg in fd.inputs.iter() {
-            match arg.pat.node {
-                ast::PatIdent(_ , ref path, _) => {
-                    let codemap::BytePos(point) = path.span.lo;
-                    let pathv = path_to_vec(path);
-                    assert!(pathv.len() == 1);
-                    self.args.push(
-                        (StrBuf::from_str(pathv.get(0).as_slice()), point as uint));
-                }
-                _ => {}
-            }
-            // match arg.ty.node {
-            //     ast::TyRptr(_, ref ty)
+            debug!("PHIL fn arg ast is {:?}",arg);
+            let res  = 
+                match arg.pat.node {
+                    ast::PatIdent(_ , ref path, _) => {
+                        let codemap::BytePos(point) = path.span.lo;
+                        let pathv = path_to_vec(path);
+                        assert!(pathv.len() == 1);
+                        
+                        // self.args.push(
+                        //     (StrBuf::from_str(pathv.get(0).as_slice()), point as uint)
+                        Some((StrBuf::from_str(pathv.get(0).as_slice()), point as uint))
+                    }
+                    _ => None
+                };
 
-            //     ast::TyPath(ref path, _, _) => {
-            //         let type_ = path_to_vec(path);
-            //         debug!("PHIL arg type is {}", type_);
-            //     }
-            //     _ => {}
-            // }
+            if res.is_none() {
+                return;
+            }
+
+            let (name, pos) = res.unwrap();
+
+            let typepath = match arg.ty.node {
+                ast::TyRptr(_, ref ty) => {
+                    match ty.ty.node {
+                        ast::TyPath(ref path, _, _) => {
+                            let type_ = path_to_vec(path);
+                            debug!("PHIL arg type is {}", type_);
+                            type_
+                        }
+                        _ => Vec::new()
+                    }
+                }
+                ast::TyPath(ref path, _, _) => {
+                    let type_ = path_to_vec(path);
+                    debug!("PHIL arg type is {}", type_);
+                    type_
+                }
+                _ => Vec::new()  
+            };
+
+            debug!("PHIL typepath {}", typepath);
+            self.args.push((name, pos, typepath))
         }
 
         debug!("PHIL parsed args: {}", self.args);
@@ -372,7 +395,7 @@ fn _parse_let(s: StrBuf)-> Option<LetResult> {
     return v.result;
 }
 
-pub fn parse_struct_fields(s: StrBuf) -> Vec<~str> {
+pub fn parse_struct_fields(s: StrBuf) -> Vec<(StrBuf, uint)> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = StructVisitor{ fields: Vec::new() };
@@ -404,6 +427,7 @@ pub fn parse_fn_output(s: StrBuf) -> Vec<~str> {
 }
 
 pub fn parse_fn(s: StrBuf) -> FnVisitor {
+    debug!("PHIL parse_fn |{}|",s);
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = FnVisitor { name: "".to_owned(), args: Vec::new(), output: Vec::new(), is_method: false };
