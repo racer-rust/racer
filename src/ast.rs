@@ -211,8 +211,8 @@ struct StructVisitor {
 }
 
 impl visit::Visitor<()> for StructVisitor {
-    fn visit_struct_def(&mut self, s: &ast::StructDef, i: ast::Ident, g: &ast::Generics, n: ast::NodeId, e: ()) {
-        visit::walk_struct_def(self, s, i, g, n, e)
+    fn visit_struct_def(&mut self, s: &ast::StructDef, _: ast::Ident, _: &ast::Generics, _: ast::NodeId, e: ()) {
+        visit::walk_struct_def(self, s, e)
     }
     fn visit_struct_field(&mut self, field: &ast::StructField, _: ()) { 
         match field.node.kind {
