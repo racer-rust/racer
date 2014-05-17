@@ -126,4 +126,5 @@
 	  nil)
 
 
+(provide 'racer)
 
