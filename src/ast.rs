@@ -528,12 +528,18 @@ fn blah() {
     // let src = ~"impl blah{    fn visit_item(&mut self, item: &ast::Item, _: ()) {} }";
 
     //let src = "Foo::Bar().baz(32)";
-    let src = "std::vec::Vec::new().push_all()";
+    //let src = "std::vec::Vec::new().push_all()";
+    let src = "impl visit::Visitor<()> for ExprTypeVisitor {}";
 
     let stmt = string_to_stmt(StrBuf::from_str(src));
 
-    debug!("PHIL stmt {:?}",stmt);
+    println!("PHIL stmt {:?}",stmt);
 
+
+    let mut v = ImplVisitor{ name_path: Vec::new() };
+    visit::walk_stmt(&mut v, stmt, ());
+
+    println!("v {}",v.name_path);
 // pub struct Match {
 //     pub matchstr: ~str,
 //     pub filepath: Path,
@@ -543,20 +549,20 @@ fn blah() {
 //     pub mtype: MatchType
 // }
 
-    let startscope = Match{ 
-        matchstr: "".to_owned(),
-        filepath: Path::new("./ast.rs"),
-        point: 0,
-        linetxt: "".to_owned(),
-        local: true,
-        mtype: racer::Module
-    };
+    // let startscope = Match{ 
+    //     matchstr: "".to_owned(),
+    //     filepath: Path::new("./ast.rs"),
+    //     point: 0,
+    //     linetxt: "".to_owned(),
+    //     local: true,
+    //     mtype: racer::Module
+    // };
 
-    let mut v = ExprTypeVisitor{ scope: startscope,
-                                 result: None};
-    visit::walk_stmt(&mut v, stmt, ());
+    // let mut v = ExprTypeVisitor{ scope: startscope,
+    //                              result: None};
+    // visit::walk_stmt(&mut v, stmt, ());
 
-    println!("PHIL result was {:?}",v.result);
+    // println!("PHIL result was {:?}",v.result);
     //return v.result;
 
     // let mut v = EnumVisitor { name: StrBuf::new(), values: Vec::new()};

@@ -68,15 +68,21 @@ fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
             let nlen = needle.len();
             let hlen = haystack.len();
 
-            return haystack.find_str(needle).map_or(false, |n|{
-                (n == 0  || !is_ident_char(haystack.char_at(n-1))) && 
-                    (n+nlen == hlen || !is_ident_char(haystack.char_at(n+nlen)))
-            });
+            for (n,_) in haystack.match_indices(needle) {
+                if (n == 0  || !is_ident_char(haystack.char_at(n-1))) && 
+                    (n+nlen == hlen || !is_ident_char(haystack.char_at(n+nlen))) {
+                    return true;
+                }
+            }
+            return false;
         },
         StartsWith => {
-            return haystack.find_str(needle).map_or(false, |n|{
-                (n == 0  || !is_ident_char(haystack.char_at(n-1)))
-            });
+            for (n,_) in haystack.match_indices(needle) {
+                if n == 0  || !is_ident_char(haystack.char_at(n-1)) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }
@@ -94,7 +100,7 @@ fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bool {
 
 
 #[test]
-fn matches_matches_stuff() {
+fn txt_matches_matches_stuff() {
     assert_eq!(true, txt_matches(ExactMatch, "Vec","Vec"));
     assert_eq!(true, txt_matches(StartsWith, "Vec","Vector"));
     assert_eq!(false, txt_matches(ExactMatch, "Vec","use Vector"));
@@ -618,8 +624,8 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             }
         } 
 
-        if (local && blob.starts_with("use ")) || blob.starts_with("pub use ") && txt_matches(search_type, searchstr, blob) {
-            debug!("PHIL found use: |{}|", blob);
+        if ((local && blob.starts_with("use ")) || blob.starts_with("pub use ")) && txt_matches(search_type, searchstr, blob) {
+            debug!("PHIL found use: {} in |{}|", searchstr, blob);
             for fqn_ in ast::parse_view_item(StrBuf::from_str(blob)).iter() {
                 // HACK, convert from &[~str] to &[&str]
                 let mut fqn = to_refs(fqn_);  
@@ -666,8 +672,7 @@ fn search_fn_args(point: uint, msrc:&str, searchstr:&str, filepath:&Path,
         let impl_header = fndecl.len();
         fndecl.push_str(msrc.slice(n,point+1));
         fndecl.push_str("}}");
-        debug!("PHIL found start of fn!! {} {} {}",n, msrc.slice_from(n), fndecl);
-        
+        debug!("PHIL found start of fn!! '{}' {} |{}|",searchstr, n, fndecl);
         if txt_matches(search_type, searchstr, fndecl.as_slice()) {
             let fn_ = ast::parse_fn(fndecl);
             debug!("PHIL parsed fn got {:?}",fn_);
@@ -945,7 +950,7 @@ fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool,
             blob.find_str("{").map(|n|{
                 let mut decl = std::strbuf::StrBuf::from_str(blob.slice_to(n+1));
                 decl = decl.append("}");
-                if decl.as_slice().find_str(searchstr).is_some() {
+                if txt_matches(ExactMatch, searchstr, decl.as_slice()) {
                     debug!("PHIL decl {}",decl);
                     ast::parse_impl_name(decl).map(|name|{
                         debug!("PHIL parsed an impl {}",name);
