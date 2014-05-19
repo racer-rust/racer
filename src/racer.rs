@@ -5,11 +5,17 @@ use std::io::File;
 use std::io::BufferedReader;
 use std::str;
 
+#[path="scopes.rs"]
 pub mod scopes;
+#[path="ast.rs"]
 pub mod ast;
+#[path="resolve.rs"]
 pub mod resolve;
+#[path="codeiter.rs"]
 pub mod codeiter;
+#[path="codecleaner.rs"]
 pub mod codecleaner;
+#[path="testutils.rs"]
 pub mod testutils;
 
 
