@@ -1,5 +1,4 @@
-use racer::Match;
-use racer::{Struct, Function, Let, FnArg};
+use racer::{FnArg, Function, Let, Match, Struct};
 use racer::{do_local_search,first_match,to_refs};
 use racer::ast;
 use racer::codeiter;
