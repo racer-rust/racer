@@ -278,6 +278,24 @@ fn finds_enum_value() {
 }
 
 #[test]
+fn finds_inline_fn() {
+    let src="
+    #[inline]
+    fn contains<'a>(&self, needle: &'a str) -> bool {
+        self.find_str(needle).is_some()
+    }
+
+    contains();
+    ";
+    write_file(&Path::new("src.rs"), src);
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 7, 9);
+    let got = find_definition(src, &path, pos).unwrap();
+    assert_eq!(got.matchstr,"contains".to_owned());    
+}
+
+#[test]
 fn follows_self_use() {
     let modsrc = "
     pub use self::src2::{Foo,myfn};

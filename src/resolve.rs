@@ -1,5 +1,5 @@
-use racer::{FnArg, Function, Let, Match, Struct};
-use racer::{do_local_search,first_match,to_refs};
+use racer::{Match, Struct, Function, Let, FnArg};
+use racer::{do_local_search,do_local_search_with_string,first_match,to_refs};
 use racer::ast;
 use racer::codeiter;
 use racer::scopes;
@@ -34,10 +34,10 @@ fn get_type_of_fnarg(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
             if globalpos == m.point && ty_.len() != 0 {
                 let v = to_refs(&ty_);
                 let fqn = v.as_slice();
-                result = first_match(|m| do_local_search(fqn, 
-                                                         fpath, 
-                                                         globalpos, 
-                                                         racer::ExactMatch, m));
+                result = first_match(|m| do_local_search_with_string(fqn, 
+                                                                     fpath, 
+                                                                     globalpos, 
+                                                                     racer::ExactMatch, m));
             }
         }
         return result;
@@ -61,7 +61,9 @@ fn get_type_of_let_expr(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
             // HACK, convert from &[~str] to &[&str]
             let v = to_refs(&letres.init);
             let fqn = v.as_slice();
-            result = first_match(|m| do_local_search(fqn, fpath, point+start, racer::ExactMatch, m));
+            if fqn.len() != 0 {
+                result = first_match(|m| do_local_search(fqn, fpath, point+start, racer::ExactMatch, m));
+            }
         });
         break;
     }
@@ -89,7 +91,7 @@ fn get_type_of_let_expr(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
             debug!("PHIL return type is {}", path);
             let v = to_refs(&path);
             let fqn = v.as_slice();
-            return first_match(|m| do_local_search(fqn, &res.filepath, res.point, racer::ExactMatch, m));
+            return first_match(|m| do_local_search_with_string(fqn, &res.filepath, res.point, racer::ExactMatch, m));
         }
         _ => { return None }
     };

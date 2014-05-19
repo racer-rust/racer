@@ -5,6 +5,7 @@
 #[phase(syntax, link)] extern crate log;
 
 extern crate syntax;
+extern crate time;
 use racer::{getline,Match,do_file_search, do_external_search};
 
 use std::io::File;
@@ -19,8 +20,7 @@ fn match_fn(m:Match) {
     std::io::println("MATCH "+m.matchstr + 
                      "," + linenum.to_str() + 
                      "," + charnum.to_str() + 
-                     "," + m.filepath.as_str().unwrap() + 
-                     "," +  m.linetxt);
+                     "," + m.filepath.as_str().unwrap());
 }
 
 fn complete() {

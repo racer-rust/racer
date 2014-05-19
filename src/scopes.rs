@@ -5,6 +5,28 @@ use std::strbuf::StrBuf;
 use racer::codecleaner;
 use racer::codeiter;
 
+pub fn find_closing_paren(src:&str, mut pos:uint) -> uint {
+    let openparen: u8 = "("[0] as u8;
+    let closeparen: u8 = ")"[0] as u8;
+
+    let mut levels = 0;
+    loop {
+        if src[pos] == closeparen { 
+            if levels == 0 {
+                break;
+            } else {
+                levels -= 1;
+            }
+        }
+        if src[pos] == openparen {
+            levels += 1;
+        }
+        pos += 1;
+    }
+    return pos;
+}
+
+
 pub fn scope_start(src:&str, point:uint) -> uint {
     let s = src.slice(0,point);
     let mut pt = point;

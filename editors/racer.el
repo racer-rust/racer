@@ -105,7 +105,7 @@
 			      tmpfilename)))
     (delete-file tmpfilename)
     (dolist (line lines)
-      (when (string-match "^MATCH \\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\(.+\\)$" line)
+      (when (string-match "^MATCH \\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\).*$" line)
 	(let ((linenum (match-string 2 line))
 	      (charnum (match-string 3 line))
 	      (fname (match-string 4 line)))

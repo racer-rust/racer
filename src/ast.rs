@@ -243,6 +243,16 @@ impl visit::Visitor<()> for ImplVisitor {
                     ast::TyPath(ref path, _, _) => {
                         self.name_path = path_to_vec(path);
                     }
+                    ast::TyRptr(_, ref ty) => {
+                        // HACK for now, treat refs the same as unboxed types 
+                        // so that we can match '&str' to 'str'
+                        match ty.ty.node {
+                            ast::TyPath(ref path, _, _) => {
+                                self.name_path = path_to_vec(path);
+                            }
+                            _ => {}
+                        }
+                    }
                     _ => {}
                 }
             },
@@ -509,7 +519,6 @@ pub fn get_type_of(s: StrBuf, fpath: &Path, pos: uint) -> Option<Match> {
             matchstr: "".to_owned(),
             filepath: myfpath,
             point: pos,
-            linetxt: "".to_owned(),
             local: true,
             mtype: racer::Module
         };
@@ -530,7 +539,7 @@ fn blah() {
     //let src = "Foo::Bar().baz(32)";
     //let src = "std::vec::Vec::new().push_all()";
     let src = "impl visit::Visitor<()> for ExprTypeVisitor {}";
-
+    let src = "impl<'a> StrSlice<'a> for &'a str {}";
     let stmt = string_to_stmt(StrBuf::from_str(src));
 
     println!("PHIL stmt {:?}",stmt);
