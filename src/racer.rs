@@ -19,6 +19,7 @@ pub mod codecleaner;
 #[path="testutils.rs"]
 pub mod testutils;
 
+#[cfg(test)] pub mod test;
 
 pub enum MatchType {
     Struct,

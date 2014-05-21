@@ -1,19 +1,9 @@
-#![feature(managed_boxes,phase)]   // need this to use libsyntax
-#![allow(dead_code,unused_imports,dead_code,attribute_usage,unused_variable)]
-#[phase(syntax, link)] extern crate log;
-
-extern crate syntax;
-
+use racer;
 use racer::complete_from_file;
 use racer::find_definition;
 use std::io::File;
 use std::task;
 use racer::scopes;
-use testutils::rejustify;
-
-mod racer;
-mod testutils;
-mod codecleaner;
 
 fn tmpname() -> Path {
     let mut s = "".to_owned();
@@ -28,7 +18,7 @@ fn write_file(tmppath:&Path, s : &str) {
 }
 
 fn remove_file(tmppath:&Path) {
-    std::io::fs::unlink(tmppath).unwrap();
+    ::std::io::fs::unlink(tmppath).unwrap();
 }
 
 #[test]
@@ -313,7 +303,7 @@ fn follows_self_use() {
     ";
     let basedir = tmpname();
     let moddir = basedir.join("mymod");
-    std::io::fs::mkdir_recursive(&moddir, std::io::UserRWX).unwrap();
+    ::std::io::fs::mkdir_recursive(&moddir, ::std::io::UserRWX).unwrap();
 
     write_file(&moddir.join("mod.rs"), modsrc);
     write_file(&moddir.join("src2.rs"), src2);
@@ -346,7 +336,7 @@ fn follows_use_to_impl() {
     }
     ";
     let basedir = tmpname();
-    std::io::fs::mkdir_recursive(&basedir, std::io::UserRWX).unwrap();
+    ::std::io::fs::mkdir_recursive(&basedir, ::std::io::UserRWX).unwrap();
 
     let modpath = basedir.join("mymod.rs");
     write_file(&modpath, modsrc);

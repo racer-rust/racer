@@ -538,17 +538,18 @@ fn blah() {
 
     //let src = "Foo::Bar().baz(32)";
     //let src = "std::vec::Vec::new().push_all()";
-    let src = "impl visit::Visitor<()> for ExprTypeVisitor {}";
-    let src = "impl<'a> StrSlice<'a> for &'a str {}";
-    let stmt = string_to_stmt(StrBuf::from_str(src));
+    // let src = "impl visit::Visitor<()> for ExprTypeVisitor {}";
+    // let src = "impl<'a> StrSlice<'a> for &'a str {}";
+    // let stmt = string_to_stmt(StrBuf::from_str(src));
 
-    println!("PHIL stmt {:?}",stmt);
+    // println!("PHIL stmt {:?}",stmt);
 
 
-    let mut v = ImplVisitor{ name_path: Vec::new() };
-    visit::walk_stmt(&mut v, stmt, ());
+    // let mut v = ImplVisitor{ name_path: Vec::new() };
+    // visit::walk_stmt(&mut v, stmt, ());
 
-    println!("v {}",v.name_path);
+    // println!("v {}",v.name_path);
+
 // pub struct Match {
 //     pub matchstr: ~str,
 //     pub filepath: Path,

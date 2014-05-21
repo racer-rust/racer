@@ -1,8 +1,6 @@
 use racer::codecleaner::{code_chunks,CodeIndicesIter};
 #[cfg(test)] use racer::testutils::{rejustify, slice};
 
-mod testutils;
-
 pub struct StmtIndicesIter<'a> {
     src: &'a str,
     it: CodeIndicesIter<'a>,

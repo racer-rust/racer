@@ -1,20 +1,23 @@
 #![feature(managed_boxes,phase)]
-
-// need this to use libsyntax
-//#![feature(phase)];
 #[phase(syntax, link)] extern crate log;
 
 extern crate syntax;
 extern crate time;
-use racer::{getline,Match,do_file_search, do_external_search};
 
+#[cfg(not(test))]
+use racer::{getline,Match,do_file_search, do_external_search};
+#[cfg(not(test))]
 use std::io::File;
+#[cfg(not(test))]
 use std::io::BufferedReader;
+#[cfg(not(test))]
 use std::str;
+#[cfg(not(test))]
 use racer::scopes;
 
 pub mod racer;
 
+#[cfg(not(test))]
 fn match_fn(m:Match) {
     let (linenum, charnum) = scopes::point_to_coords2(&m.filepath, m.point).unwrap();
     println!("MATCH {},{},{},{}", m.matchstr,
@@ -23,6 +26,7 @@ fn match_fn(m:Match) {
                                     m.filepath.as_str().unwrap());
 }
 
+#[cfg(not(test))]
 fn complete() {
     let args = std::os::args();
     match std::uint::parse_bytes(std::os::args().as_slice()[2].as_bytes(), 10) {
@@ -59,6 +63,7 @@ fn complete() {
     }
 }
 
+#[cfg(not(test))]
 fn prefix() {
     let args_ = std::os::args();
     let args = args_.as_slice();
@@ -73,6 +78,7 @@ fn prefix() {
     println!("PREFIX {},{},{}", start, pos, line.as_slice().slice(start, pos));
 }
 
+#[cfg(not(test))]
 fn find_definition() {
     let args_ = std::os::args();
     let args = args_.as_slice();
@@ -87,6 +93,7 @@ fn find_definition() {
     racer::find_definition(src, &fpath, pos).map(match_fn);
 }
 
+#[cfg(not(test))]
 fn print_usage() {
     let program = std::os::args().as_slice()[0].clone();
     println!("usage: {} complete linenum charnum fname", program);
@@ -96,6 +103,7 @@ fn print_usage() {
 }
 
 
+#[cfg(not(test))]
 fn main() {
     if std::os::getenv("RUST_SRC_PATH").is_none() {
         println!("RUST_SRC_PATH environment variable must be set");
