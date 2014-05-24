@@ -40,14 +40,14 @@ pub enum SearchType {
 }
 
 pub struct Match {
-    pub matchstr: ~str,
+    pub matchstr: StrBuf,
     pub filepath: Path,
     pub point: uint,
     pub local: bool,
     pub mtype: MatchType
 }
 
-pub fn getline(filepath : &Path, linenum : uint) -> ~str {
+pub fn getline(filepath : &Path, linenum : uint) -> StrBuf {
     let mut i = 0;
     let mut file = BufferedReader::new(File::open(filepath));
     for line in file.lines() {
@@ -151,7 +151,7 @@ pub fn expand_fqn(s: &str, pos: uint) -> (uint,uint) {
     return (start, find_ident_end(s, pos));
 }
 
-pub fn expand_searchstr(s : &str, pos : uint) -> ~str {
+pub fn expand_searchstr(s : &str, pos : uint) -> StrBuf {
     let sb = s.slice_to(pos);
     let mut start = pos;
 
@@ -194,7 +194,7 @@ pub fn find_ident_end(s : &str, pos : uint) -> uint {
 pub fn do_file_search(searchstr: &str, currentdir: &Path, outputfn: &mut |Match|) {
     debug!("PHIL do_file_search {}",searchstr);
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
-    let v: Vec<&str> = srcpaths.split_str(":").collect();
+    let v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
     let v = v.append_one(currentdir.as_str().unwrap());
     for srcpath in v.move_iter() {
         match std::io::fs::readdir(&Path::new(srcpath)) {
@@ -202,7 +202,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path, outputfn: &mut |Match|
                 for fpath in v.iter() {
                     //debug!("PHIL fpath {}",fpath.as_str());
                     let fname = fpath.str_components().rev().next().unwrap().unwrap();
-                    if fname.starts_with("lib"+ searchstr) {
+                    if fname.starts_with(format!("lib{}", searchstr).as_slice()) {
                         //debug!("PHIL Yeah found {}",fpath.as_str());
                         let filepath = Path::new(fpath).join_many([Path::new("lib.rs")]);
                         if File::open(&filepath).is_ok() {
@@ -218,7 +218,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path, outputfn: &mut |Match|
                     if fname.starts_with(searchstr) {
                         {
                             // try <name>/<name>.rs, like in the servo codebase
-                            let filepath = Path::new(fpath).join_many([Path::new(fname + ".rs")]);
+                            let filepath = Path::new(fpath).join_many([Path::new(format!("{}.rs", fname))]);
                             if File::open(&filepath).is_ok() {
                                 let m = Match {matchstr: fname.to_owned(), 
                                                filepath: filepath.clone(), 
@@ -276,14 +276,14 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path, outputfn: &mut |Match|
 
 pub fn get_module_file(name: &str, currentdir: &Path) -> Option<Path> {
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
-    let v: Vec<&str> = srcpaths.split_str(":").collect();
+    let v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
     let v = v.append_one(currentdir.as_str().unwrap());
     for srcpath in v.move_iter() {
         debug!("PHIL searching srcpath: {} for {}",srcpath, name);
         {
             // maybe path is from crate. 
             // try lib<name>/lib.rs, like in the rust source dir
-            let cratelibname = "lib" + name;
+            let cratelibname = format!("lib{}", name);
             let filepath = Path::new(srcpath).join_many([Path::new(cratelibname), 
                                                         Path::new("lib.rs")]);
             if File::open(&filepath).is_ok() {
@@ -293,7 +293,7 @@ pub fn get_module_file(name: &str, currentdir: &Path) -> Option<Path> {
         {
             // try <name>/<name>.rs, like in the servo codebase
             let filepath = Path::new(srcpath).join_many([Path::new(name), 
-                                                     Path::new(name + ".rs")]);
+                                                     Path::new(format!("{}.rs", name))]);
             if File::open(&filepath).is_ok() {
                 return Some(filepath);
             }
@@ -316,7 +316,7 @@ pub fn get_module_file(name: &str, currentdir: &Path) -> Option<Path> {
         }
         {            
             // try just <name>.rs
-            let filepath = Path::new(srcpath).join_many([Path::new(name+".rs")]);
+            let filepath = Path::new(srcpath).join_many([Path::new(format!("{}.rs", name))]);
             if File::open(&filepath).is_ok() {
                 return Some(filepath);
             }
@@ -326,7 +326,7 @@ pub fn get_module_file(name: &str, currentdir: &Path) -> Option<Path> {
 }
 
 
-pub fn to_refs<'a>(v: &'a Vec<~str>) -> Vec<&'a str> {
+pub fn to_refs<'a>(v: &'a Vec<StrBuf>) -> Vec<&'a str> {
     let mut out = Vec::new();
     for item in v.iter() {
         out.push(item.as_slice()); 
@@ -371,7 +371,7 @@ fn search_scope_for_methods(point: uint, src:&str, searchstr:&str, filepath:&Pat
 
     for (start,end) in codeiter::iter_stmts(scopesrc) { 
         let blob = scopesrc.slice(start,end);
-        if local && txt_matches(search_type, "fn "+searchstr, blob) 
+        if local && txt_matches(search_type, format!("fn {}", searchstr).as_slice(), blob) 
             && first_param_is_self(blob) {
             debug!("PHIL found a method starting {}",searchstr);
             // TODO: parse this properly
@@ -386,7 +386,7 @@ fn search_scope_for_methods(point: uint, src:&str, searchstr:&str, filepath:&Pat
             (*outputfn)(m);
         }
 
-        if txt_matches(search_type, "pub fn "+searchstr, blob) && first_param_is_self(blob) {
+        if txt_matches(search_type, format!("pub fn {}", searchstr).as_slice(), blob) && first_param_is_self(blob) {
             debug!("PHIL found a pub method starting {}",searchstr);
             // TODO: parse this properly
             let end = find_path_end(blob, 7);
@@ -433,7 +433,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             });
         }
 
-        if local && blob.starts_with("mod "+searchstr) {
+        if local && blob.starts_with(format!("mod {}", searchstr).as_slice()) {
             debug!("found a module: |{}|",blob);
             // TODO: parse this properly
             let end = find_path_end(blob, 4);
@@ -466,7 +466,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             }
         }
 
-        if blob.starts_with("pub mod "+searchstr) {
+        if blob.starts_with(format!("pub mod {}", searchstr).as_slice()) {
             debug!("found a pub module: |{}|",blob);
             // TODO: parse this properly
             let end = find_path_end(blob, 8);
@@ -500,7 +500,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         }
 
 
-        if local && txt_matches(search_type, "fn "+searchstr, blob) && !first_param_is_self(blob) {
+        if local && txt_matches(search_type, format!("fn {}",searchstr).as_slice(), blob) && !first_param_is_self(blob) {
             // TODO: parse this properly
             let end = find_path_end(blob, 3);
             let l = blob.slice(3, end);
@@ -513,7 +513,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             (*outputfn)(m);
         }
 
-        if txt_matches(search_type, "pub fn "+searchstr, blob) && !first_param_is_self(blob) {
+        if txt_matches(search_type, format!("pub fn {}", searchstr).as_slice(), blob) && !first_param_is_self(blob) {
             debug!("PHIL found a pub fn starting {}",searchstr);
             // TODO: parse this properly
             let end = find_path_end(blob, 7);
@@ -529,7 +529,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         }
 
 
-        if local && txt_matches(search_type, "struct "+searchstr, blob) {
+        if local && txt_matches(search_type, format!("struct {}", searchstr).as_slice(), blob) {
             // TODO: parse this properly
             let end = find_path_end(blob, 7);
             let l = blob.slice(7, end);
@@ -543,7 +543,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             (*outputfn)(m);
         }
 
-        if txt_matches(search_type, "pub struct "+searchstr, blob) {
+        if txt_matches(search_type, format!("pub struct {}", searchstr).as_slice(), blob) {
             // TODO: parse this properly
             let end = find_path_end(blob, 11);
             let l = blob.slice(11, end);
@@ -557,7 +557,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             (*outputfn)(m);
         }
 
-        if local && txt_matches(search_type, "type "+searchstr, blob) {
+        if local && txt_matches(search_type, format!("type {}", searchstr).as_slice(), blob) {
             // TODO: parse this properly
             let end = find_path_end(blob, 5);
             let l = blob.slice(5, end);
@@ -571,7 +571,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             (*outputfn)(m);
         }
         
-        if txt_matches(search_type, "pub type "+searchstr, blob) {
+        if txt_matches(search_type, format!("pub type {}", searchstr).as_slice(), blob) {
             // TODO: parse this properly
             let end = find_path_end(blob, 9);
             let l = blob.slice(9, end);
@@ -585,7 +585,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             (*outputfn)(m);
         }
         
-        if local && txt_matches(search_type, "trait "+searchstr, blob) {
+        if local && txt_matches(search_type, format!("trait {}", searchstr).as_slice(), blob) {
             // TODO: parse this properly
             let end = find_path_end(blob, 6);
             let l = blob.slice(6, end);
@@ -599,7 +599,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             (*outputfn)(m);
         }
         
-        if txt_matches(search_type, "pub trait "+searchstr, blob) {
+        if txt_matches(search_type, format!("pub trait {}", searchstr).as_slice(), blob) {
             // TODO: parse this properly
             let end = find_path_end(blob, 10);
             let l = blob.slice(10, end);
@@ -616,7 +616,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
 
         if blob.starts_with("pub enum") || (local && blob.starts_with("enum")) {
 
-            if blob.starts_with("enum "+searchstr) {
+            if blob.starts_with(format!("enum {}", searchstr).as_slice()) {
                 // TODO: parse this properly
                 let end = find_path_end(blob, 5);
                 let l = blob.slice(5, end);
@@ -630,7 +630,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
                 (*outputfn)(m);
             }
 
-            if blob.starts_with("pub enum "+searchstr) {
+            if blob.starts_with(format!("pub enum {}", searchstr).as_slice()) {
                 // TODO: parse this properly
                 let end = find_path_end(blob, 9);
                 let l = blob.slice(9, end);
@@ -836,7 +836,7 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
                         let fieldsearchstr = field_expr[field_expr.len()-1];
                         search_struct_fields(fieldsearchstr, &m, search_type, outputfn);
 
-                        search_for_impls(m.point, m.matchstr, &m.filepath, m.local, &mut |m|{
+                        search_for_impls(m.point, m.matchstr.as_slice(), &m.filepath, m.local, &mut |m|{
                             debug!("PHIL found impl!! {}. looking for methods",m.matchstr);
                             let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
                             let src = str::from_utf8(filetxt.as_slice()).unwrap();
@@ -873,7 +873,7 @@ pub fn first_match(myfn: |outputfn : &mut |Match||) -> Option<Match> {
 pub fn complete_from_file(src: &str, filepath: &Path, pos: uint, outputfn: &mut |Match|) {
     let expr = expand_searchstr(src, pos);
 
-    let mut l = expr.split_str("::");
+    let mut l = expr.as_slice().split_str("::");
     let path : Vec<&str> = l.collect(); 
 
     do_local_search(path.as_slice(), filepath, pos, StartsWith, outputfn);
@@ -910,7 +910,7 @@ pub fn find_definition_(src: &str, filepath: &Path, pos: uint, outputfn: &mut |M
 pub fn search_prelude_file(searchstr: &str, search_type: SearchType, outputfn: &mut |Match|) {
     // find the prelude file from teh search path and scan it
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
-    let v: Vec<&str> = srcpaths.split_str(":").collect();
+    let v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
     for srcpath in v.move_iter() {
         let filepath = Path::new(srcpath).join_many([Path::new("libstd/prelude.rs")]);
         if File::open(&filepath).is_ok() {
@@ -985,7 +985,7 @@ pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint,
                 }
                 Struct => {
                     debug!("PHIL found a struct. Now need to look for impl");
-                    search_for_impls(m.point, m.matchstr, &m.filepath, m.local, &mut |m|{
+                    search_for_impls(m.point, m.matchstr.as_slice(), &m.filepath, m.local, &mut |m|{
                         debug!("PHIL found impl!! {}",m.matchstr);
                         let searchstr = path[path.len()-1];
 
@@ -1071,7 +1071,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, search_type
 
                 Struct => {
                     debug!("PHIL found a pub struct. Now need to look for impl");
-                    search_for_impls(m.point, m.matchstr, &m.filepath, m.local, &mut |m|{
+                    search_for_impls(m.point, m.matchstr.as_slice(), &m.filepath, m.local, &mut |m|{
                         debug!("PHIL found  impl2!! {}",m.matchstr);
                         let searchstr = path[path.len()-1];
                         debug!("PHIL about to search impl scope...");

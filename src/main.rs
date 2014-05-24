@@ -17,10 +17,10 @@ pub mod racer;
 
 fn match_fn(m:Match) {
     let (linenum, charnum) = scopes::point_to_coords2(&m.filepath, m.point).unwrap();
-    std::io::println("MATCH "+m.matchstr + 
-                     "," + linenum.to_str() + 
-                     "," + charnum.to_str() + 
-                     "," + m.filepath.as_str().unwrap());
+    println!("MATCH {},{},{},{}", m.matchstr,
+                                    linenum.to_str(),
+                                    charnum.to_str(),
+                                    m.filepath.as_str().unwrap());
 }
 
 fn complete() {
@@ -35,8 +35,8 @@ fn complete() {
             // print the start-end of the identifier being matched
             let src = str::from_utf8(filetxt.as_slice()).unwrap();
             let line = getline(&fpath, linenum);
-            let (start, pos) = racer::expand_ident(line, charnum);
-            println!("PREFIX {},{},{}", start, pos, line.slice(start, pos));
+            let (start, pos) = racer::expand_ident(line.as_slice(), charnum);
+            println!("PREFIX {},{},{}", start, pos, line.as_slice().slice(start, pos));
 
             let point = scopes::coords_to_point(src, linenum, charnum);
             racer::complete_from_file(src, &fpath, point, &mut |m| match_fn(m));
@@ -69,8 +69,8 @@ fn prefix() {
     // print the start, end, and the identifier prefix being matched
     let path = Path::new(fname);
     let line = getline(&path, linenum);
-    let (start, pos) = racer::expand_ident(line, charnum);
-    println!("PREFIX {},{},{}", start, pos, line.slice(start, pos));
+    let (start, pos) = racer::expand_ident(line.as_slice(), charnum);
+    println!("PREFIX {},{},{}", start, pos, line.as_slice().slice(start, pos));
 }
 
 fn find_definition() {

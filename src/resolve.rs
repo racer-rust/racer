@@ -120,7 +120,7 @@ pub fn get_fields_of_struct(m: &Match) -> Vec<(StrBuf, uint)> {
 }
 
 
-pub fn get_return_type_of_function(fnmatch: &Match) -> Vec<~str> {
+pub fn get_return_type_of_function(fnmatch: &Match) -> Vec<StrBuf> {
     let filetxt = BufferedReader::new(File::open(&fnmatch.filepath)).read_to_end().unwrap();
     let src = str::from_utf8(filetxt.as_slice()).unwrap();
     let point = scopes::find_stmt_start(src, fnmatch.point).unwrap();

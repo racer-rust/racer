@@ -61,7 +61,7 @@ pub fn string_to_crate (source_str : StrBuf) -> ast::Crate {
 
 
 struct MyViewItemVisitor {
-    results : Vec<Vec<~str>>
+    results : Vec<Vec<StrBuf>>
 }
 
 impl visit::Visitor<()> for MyViewItemVisitor {
@@ -72,7 +72,7 @@ impl visit::Visitor<()> for MyViewItemVisitor {
                     ast::ViewPathSimple(_, ref path, _) => {
                         let mut v = Vec::new();
                         for seg in path.segments.iter() {
-                            v.push(token::get_ident(seg.identifier).get().to_owned())
+                            v.push(token::get_ident(seg.identifier).get().to_strbuf())
                         }
                         self.results.push(v);
                     },
@@ -80,13 +80,13 @@ impl visit::Visitor<()> for MyViewItemVisitor {
                         let mut v = Vec::new();
 
                         for seg in pth.segments.iter() {
-                            v.push(token::get_ident(seg.identifier).get().to_owned())
+                            v.push(token::get_ident(seg.identifier).get().to_strbuf())
                         }
 
                         for path in paths.iter() {
                             let mut vv = v.clone();
                             //debug!("PHIL view path list item {}",token::get_ident(path.node.name));
-                            vv.push(token::get_ident(path.node.name).get().to_owned());
+                            vv.push(token::get_ident(path.node.name).get().to_strbuf());
                             self.results.push(vv);
                         }
                     }
@@ -108,25 +108,25 @@ struct MyLetVisitor {
 }
 
 pub struct LetResult { 
-    pub name: ~str,
+    pub name: StrBuf,
     pub point: uint,
-    pub init: Vec<~str>
+    pub init: Vec<StrBuf>
 }
 
 
-fn path_to_vec(pth: &ast::Path) -> Vec<~str> {
+fn path_to_vec(pth: &ast::Path) -> Vec<StrBuf> {
     let mut v = Vec::new();
     for seg in pth.segments.iter() {
-        v.push(token::get_ident(seg.identifier).get().to_owned());
+        v.push(token::get_ident(seg.identifier).get().to_strbuf());
     }
     return v;
 }
 
 impl MyLetVisitor {
-    fn visit_let_initializer(&mut self, name: ~str, point: uint, init: Option<@ast::Expr> ) {
+    fn visit_let_initializer(&mut self, name: &str, point: uint, init: Option<@ast::Expr> ) {
 
         // chances are we can't parse the init yet, so the default is to leave blank
-        self.result = Some(LetResult{name: name.clone(),
+        self.result = Some(LetResult{name: name.to_strbuf(),
                                 point: point,
                                 init: vec!()});
 
@@ -145,7 +145,7 @@ impl MyLetVisitor {
                     match callee_expression.node {
                         ast::ExprPath(ref path) => {
                             debug!("PHIL init callee is a path {}",path_to_vec(path));
-                            self.result = Some(LetResult{name: name.clone(),
+                            self.result = Some(LetResult{name: name.to_strbuf(),
                                                          point: point,
                                                          init: path_to_vec(path)
                             });
@@ -154,7 +154,7 @@ impl MyLetVisitor {
                     }
                 }
                 ast::ExprStruct(ref path, _, _) => {
-                    self.result = Some(LetResult{name: name.clone(),
+                    self.result = Some(LetResult{name: name.to_strbuf(),
                                                  point: point,
                                                  init: path_to_vec(path)
                                                  });
@@ -181,7 +181,7 @@ impl visit::Visitor<()> for MyLetVisitor {
                     ast::PatIdent(_ , ref path, _) => {
                         let codemap::BytePos(point) = path.span.lo;
                         let pathv = path_to_vec(path);
-                        self.visit_let_initializer(pathv.get(0).to_owned(),
+                        self.visit_let_initializer(pathv.get(0).as_slice(),
                                                    point.to_uint().unwrap(),
                                                    local.init);
                     },
@@ -232,7 +232,7 @@ impl visit::Visitor<()> for StructVisitor {
 
 
 struct ImplVisitor {
-    name_path: Vec<~str>
+    name_path: Vec<StrBuf>
 }
 
 impl visit::Visitor<()> for ImplVisitor {
@@ -262,9 +262,9 @@ impl visit::Visitor<()> for ImplVisitor {
 }
 
 pub struct FnVisitor {
-    pub name: ~str,
-    pub output: Vec<~str>,
-    pub args: Vec<(StrBuf, uint, Vec<~str>)>,
+    pub name: StrBuf,
+    pub output: Vec<StrBuf>,
+    pub args: Vec<(StrBuf, uint, Vec<StrBuf>)>,
     pub is_method: bool
 }
 
@@ -365,7 +365,7 @@ impl visit::Visitor<()> for EnumVisitor {
 }
 
 
-pub fn parse_view_item(s: StrBuf) -> Vec<Vec<~str>> {
+pub fn parse_view_item(s: StrBuf) -> Vec<Vec<StrBuf>> {
     // parser can fail!() so isolate it in another task
     let result = task::try(proc() { 
         return _parse_view_items(s);
@@ -378,7 +378,7 @@ pub fn parse_view_item(s: StrBuf) -> Vec<Vec<~str>> {
     }
 }
 
-fn _parse_view_items(s: StrBuf)-> Vec<Vec<~str>> {
+fn _parse_view_items(s: StrBuf)-> Vec<Vec<StrBuf>> {
     let cr = string_to_crate(s);
     let mut v = MyViewItemVisitor{results: Vec::new()};
     visit::walk_crate(&mut v, &cr, ());
@@ -414,7 +414,7 @@ pub fn parse_struct_fields(s: StrBuf) -> Vec<(StrBuf, uint)> {
     }).ok().unwrap_or(Vec::new());
 }
 
-pub fn parse_impl_name(s: StrBuf) -> Option<~str> {
+pub fn parse_impl_name(s: StrBuf) -> Option<StrBuf> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = ImplVisitor{ name_path: Vec::new() };
@@ -427,7 +427,7 @@ pub fn parse_impl_name(s: StrBuf) -> Option<~str> {
     }).ok().unwrap_or(None);
 }
 
-pub fn parse_fn_output(s: StrBuf) -> Vec<~str> {
+pub fn parse_fn_output(s: StrBuf) -> Vec<StrBuf> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = FnVisitor { name: "".to_owned(), args: Vec::new(), output: Vec::new(), is_method: false };
@@ -462,7 +462,7 @@ struct ExprTypeVisitor {
     result: Option<Match>
 }
 
-fn find_match(fqn: &Vec<~str>, fpath: &Path, pos: uint) -> Option<Match> {
+fn find_match(fqn: &Vec<StrBuf>, fpath: &Path, pos: uint) -> Option<Match> {
     let myfqn = racer::to_refs(fqn);  
     return racer::first_match(|m| racer::do_local_search(
         myfqn.as_slice(),
@@ -516,7 +516,7 @@ pub fn get_type_of(s: StrBuf, fpath: &Path, pos: uint) -> Option<Match> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let startscope = Match{ 
-            matchstr: "".to_owned(),
+            matchstr: "".to_strbuf(),
             filepath: myfpath,
             point: pos,
             local: true,

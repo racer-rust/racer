@@ -178,7 +178,7 @@ this is some code
 this is a line // with a comment
 some more
 ";
-    let r = mask_comments(src.to_owned());
+    let r = mask_comments(src);
     
     assert!(src.len() == r.len());
     // characters at the start are the same
