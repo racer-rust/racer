@@ -1,5 +1,5 @@
-use racer::{Match, Struct, Function, Let, FnArg};
-use racer::{do_local_search,do_local_search_with_string,first_match,to_refs};
+use racer::{Match, Let, FnArg};
+use racer::{do_local_search_with_string,first_match,to_refs};
 use racer::ast;
 use racer::codeiter;
 use racer::scopes;
@@ -20,7 +20,6 @@ fn get_type_of_fnarg(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
     let point = scopes::find_stmt_start(msrc, m.point).unwrap();
     for (start,end) in codeiter::iter_stmts(msrc.slice_from(point)) { 
         let blob = msrc.slice(point+start,point+end);
-
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut s = StrBuf::new();
         s.push_str("impl blah {");
@@ -45,10 +44,8 @@ fn get_type_of_fnarg(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
     None
 }
 
-fn get_type_of_let_expr(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
+fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<Match> {
     // ASSUMPTION: this is being called on a let decl
-    let mut result = None;
-
     let opoint = scopes::find_stmt_start(msrc, m.point);
     let point = opoint.unwrap();
 
@@ -56,45 +53,12 @@ fn get_type_of_let_expr(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
     for (start,end) in codeiter::iter_stmts(src) { 
         let blob = src.slice(start,end);
         
-        ast::parse_let(StrBuf::from_str(blob)).map(|letres|{
-            debug!("PHIL parse let result {}", &letres.init);
-            // HACK, convert from &[~str] to &[&str]
-            let v = to_refs(&letres.init);
-            let fqn = v.as_slice();
-            if fqn.len() != 0 {
-                result = first_match(|m| do_local_search(fqn, fpath, point+start, racer::ExactMatch, m));
-            }
+        return ast::parse_let(StrBuf::from_str(blob), m.filepath.clone(), m.point).map_or(None, |letres|{
+            debug!("PHIL parse let result {:?}", &letres.inittype);
+            return letres.inittype;
         });
-        break;
     }
-
-    debug!("PHIL let search result is {:?}",result);
-
-    // if it's a struct then cool
-    // if it's a function then we need to resolve the return type
-
-    if result.is_none(){ 
-        return result
-    }
-
-    let res = result.unwrap();
-    match res.mtype {
-        Struct => {
-            return Some(res);
-        }
-        Function => {
-            let path = get_return_type_of_function(&res);
-            if path.len() == 0 {
-                return None;
-            }
-
-            debug!("PHIL return type is {}", path);
-            let v = to_refs(&path);
-            let fqn = v.as_slice();
-            return first_match(|m| do_local_search_with_string(fqn, &res.filepath, res.point, racer::ExactMatch, m));
-        }
-        _ => { return None }
-    };
+    return None;
 }
 
 
@@ -103,9 +67,9 @@ pub fn get_type_of_OLD(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
     debug!("PHIL get_type_of OLD {}",m.matchstr);
 
     match m.mtype {
-        Let => get_type_of_let_expr(m, fpath, msrc),
+        Let => get_type_of_let_expr(m, msrc),
         FnArg => get_type_of_fnarg(m, fpath, msrc),
-        _ => { println!("Can't get type of {:?}",m.mtype); None }
+        _ => { debug!("Can't get type of {:?}",m.mtype); None }
     }
 }
 

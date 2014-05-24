@@ -10,6 +10,13 @@ use syntax::codemap;
 use std::task;
 use racer::Match;
 use racer;
+use syntax::visit::Visitor;
+
+#[deriving(Clone)]
+struct Scope {
+    pub filepath: Path,
+    pub point: uint
+}
 
 // This code ripped from libsyntax::util::parser_testing
 pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: StrBuf) -> Parser<'a> {
@@ -103,14 +110,15 @@ impl visit::Visitor<()> for MyViewItemVisitor {
     }
 }
 
-struct MyLetVisitor { 
+struct MyLetVisitor {
+    scope: Scope,
     result: Option<LetResult>
 }
 
 pub struct LetResult { 
     pub name: StrBuf,
     pub point: uint,
-    pub init: Vec<StrBuf>
+    pub inittype: Option<Match>
 }
 
 
@@ -122,47 +130,117 @@ fn path_to_vec(pth: &ast::Path) -> Vec<StrBuf> {
     return v;
 }
 
+
+struct ExprTypeVisitor {
+    scope: Scope,
+    result: Option<Match>
+}
+
+fn find_match(fqn: &Vec<StrBuf>, fpath: &Path, pos: uint) -> Option<Match> {
+    let myfqn = racer::to_refs(fqn);  
+    return racer::first_match(|m| racer::do_local_search(
+        myfqn.as_slice(),
+        fpath,
+        pos,
+        racer::ExactMatch,
+        m));
+}
+
+impl visit::Visitor<()> for ExprTypeVisitor {
+    fn visit_expr(&mut self, expr: &ast::Expr, _: ()) { 
+        debug!("PHIL visit_expr {:?}",expr);
+        //walk_expr(self, ex, e) 
+        match expr.node {
+            ast::ExprPath(ref path) => {
+                debug!("PHIL expr is a path {}",path_to_vec(path));
+                let pathvec = path_to_vec(path);
+                self.result = find_match(&pathvec, 
+                                         &self.scope.filepath, 
+                                         self.scope.point);
+            }
+            ast::ExprCall(callee_expression, _/*ref arguments*/) => {
+                self.visit_expr(callee_expression, ());
+                let mut newres: Option<Match> = None;
+                {
+                    let res = &self.result;
+                    match *res {
+                        Some(ref m) => {
+                            let fqn = racer::resolve::get_return_type_of_function(m);
+                            debug!("PHIL found exprcall return type: {}",fqn);
+                            newres = find_match(&fqn, &m.filepath, m.point);
+                        },
+                        None => {}
+                    }
+                }
+                self.result = newres;
+            }
+            ast::ExprStruct(ref path, _, _) => {
+                let pathvec = path_to_vec(path);
+                self.result = find_match(&pathvec,
+                                         &self.scope.filepath,
+                                         self.scope.point);
+            }
+
+            // ast::ExprMethodCall(ref spannedident, ref types, _/*ref arguments*/) => {
+            //     // spannedident.node is an ident I think
+            //     let name = token::get_ident(spannedident.node).get().to_owned();
+            //     debug!("PHIL method call {}",name);
+            // }
+            _ => {}
+        }
+    }
+
+}
+
 impl MyLetVisitor {
     fn visit_let_initializer(&mut self, name: &str, point: uint, init: Option<@ast::Expr> ) {
 
         // chances are we can't parse the init yet, so the default is to leave blank
         self.result = Some(LetResult{name: name.to_strbuf(),
                                 point: point,
-                                init: vec!()});
+                                inittype: None});
 
         debug!("PHIL result before is {:?}",self.result);
         // attempt to parse the init
-        init.map(|init| {
-            debug!("PHIL init node is {:?}",init.node);
-            match init.node {
-                ast::ExprCall(callee_expression, _ /*ref arguments*/) => {
-                    debug!("PHIL init is an exprCall {:?}",callee_expression);
-                    // for argument in arguments.iter() {
-                    //     visitor.visit_expr(*argument, env.clone())
-                    // }
-                    // visitor.visit_expr(callee_expression, env.clone())
+        init.map(|initexpr| {
+            debug!("PHIL init node is {:?}",initexpr.node);
 
-                    match callee_expression.node {
-                        ast::ExprPath(ref path) => {
-                            debug!("PHIL init callee is a path {}",path_to_vec(path));
-                            self.result = Some(LetResult{name: name.to_strbuf(),
-                                                         point: point,
-                                                         init: path_to_vec(path)
-                            });
-                        }
-                        _ => {}
-                    }
-                }
-                ast::ExprStruct(ref path, _, _) => {
-                    self.result = Some(LetResult{name: name.to_strbuf(),
-                                                 point: point,
-                                                 init: path_to_vec(path)
-                                                 });
-                }
-                _ => {
-                    debug!("PHIL dont handle decl: {:?}",init.node);
-                }
-            }
+            let mut v = ExprTypeVisitor{ scope: self.scope.clone(),
+                                 result: None};
+            v.visit_expr(initexpr, ());
+
+            self.result = Some(LetResult{name: name.to_strbuf(), point: point, 
+                                         inittype: v.result});
+
+            // match init.node {
+            //     ast::ExprCall(callee_expression, _ /*ref arguments*/) => {
+            //         debug!("PHIL init is an exprCall {:?}",callee_expression);
+            //         // for argument in arguments.iter() {
+            //         //     visitor.visit_expr(*argument, env.clone())
+            //         // }
+            //         // visitor.visit_expr(callee_expression, env.clone())
+
+            //         match callee_expression.node {
+            //             ast::ExprPath(ref path) => {
+            //                 debug!("PHIL init callee is a path {}",path_to_vec(path));
+            //                 self.result = Some(LetResult{name: name.clone(),
+            //                                              point: point,
+            //                                              init: path_to_vec(path)
+            //                 });
+            //             }
+            //             _ => {}
+            //         }
+            //     }
+            //     ast::ExprStruct(ref path, _, _) => {
+            //         self.result = Some(LetResult{name: name.clone(),
+            //                                      point: point,
+            //                                      init: path_to_vec(path)
+            //                                      });
+            //     }
+            //     _ => {
+            //         debug!("PHIL dont handle decl: {:?}",init.node);
+            //     }
+            // }
         });
 
         debug!("PHIL result is {:?}",self.result);
@@ -385,10 +463,17 @@ fn _parse_view_items(s: StrBuf)-> Vec<Vec<StrBuf>> {
     return v.results;
 }
 
-pub fn parse_let(s: StrBuf) -> Option<LetResult> {
-    // parser can fail!() so isolate it in another task
+pub fn parse_let(s: StrBuf, fpath: Path, pos: uint) -> Option<LetResult> {
+
     let result = task::try(proc() { 
-        return _parse_let(s);
+        debug!("PHIL parse_let s=|{}|",s);
+        let stmt = string_to_stmt(s);
+        debug!("PHIL parse_let stmt={:?}",stmt);
+        let scope = Scope{filepath: fpath, point: pos};
+
+        let mut v = MyLetVisitor{ scope: scope, result: None};
+        visit::walk_stmt(&mut v, stmt, ());
+        return v.result;
     });
     match result {
         Ok(s) => {return s;},
@@ -396,13 +481,6 @@ pub fn parse_let(s: StrBuf) -> Option<LetResult> {
             return None;
         }
     }
-}
-
-fn _parse_let(s: StrBuf)-> Option<LetResult> {
-    let stmt = string_to_stmt(s);
-    let mut v = MyLetVisitor{ result: None};
-    visit::walk_stmt(&mut v, stmt, ());
-    return v.result;
 }
 
 pub fn parse_struct_fields(s: StrBuf) -> Vec<(StrBuf, uint)> {
@@ -456,71 +534,22 @@ pub fn parse_enum(s: StrBuf) -> EnumVisitor {
     }).ok().unwrap();
 }
 
-
-struct ExprTypeVisitor {
-    scope: Match,
-    result: Option<Match>
-}
-
-fn find_match(fqn: &Vec<StrBuf>, fpath: &Path, pos: uint) -> Option<Match> {
-    let myfqn = racer::to_refs(fqn);  
-    return racer::first_match(|m| racer::do_local_search(
-        myfqn.as_slice(),
-        fpath,
-        pos,
-        racer::ExactMatch,
-        m));
-}
-
-impl visit::Visitor<()> for ExprTypeVisitor {
-    fn visit_expr(&mut self, expr: &ast::Expr, _: ()) { 
-        //debug!("visit_expr {:?}",expr);
-        //walk_expr(self, ex, e) 
-        match expr.node {
-            ast::ExprPath(ref path) => {
-                debug!("PHIL expr is a path {}",path_to_vec(path));
-                let pathvec = path_to_vec(path);
-                self.result = find_match(&pathvec, 
-                                         &self.scope.filepath, 
-                                         self.scope.point);
-            }
-            ast::ExprCall(callee_expression, _/*ref arguments*/) => {
-                self.visit_expr(callee_expression, ());
-                let mut newres: Option<Match> = None;
-                {
-                    let res = &self.result;
-                    match *res {
-                        Some(ref m) => {
-                            let fqn = racer::resolve::get_return_type_of_function(m);
-                            newres = find_match(&fqn, &m.filepath, m.point);
-                        },
-                        None => {}
-                    }
-                }
-                self.result = newres;
-            }
-            // ast::ExprMethodCall(ref spannedident, ref types, _/*ref arguments*/) => {
-            //     // spannedident.node is an ident I think
-            //     let name = token::get_ident(spannedident.node).get().to_owned();
-            //     debug!("PHIL method call {}",name);
-            // }
-            _ => {}
-        }
-    }
-
-}
-
 pub fn get_type_of(s: StrBuf, fpath: &Path, pos: uint) -> Option<Match> {
     let myfpath = fpath.clone();
 
     return task::try(proc() {
         let stmt = string_to_stmt(s);
-        let startscope = Match{ 
-            matchstr: "".to_strbuf(),
+        // let startscope = Match{ 
+        //     matchstr: "".to_owned(),
+        //     filepath: myfpath,
+        //     point: pos,
+        //     local: true,
+        //     mtype: racer::Module
+        // };
+
+        let startscope = Scope {
             filepath: myfpath,
-            point: pos,
-            local: true,
-            mtype: racer::Module
+            point: pos
         };
 
         let mut v = ExprTypeVisitor{ scope: startscope,
@@ -533,6 +562,11 @@ pub fn get_type_of(s: StrBuf, fpath: &Path, pos: uint) -> Option<Match> {
 
 #[test]
 fn blah() {
+
+    // let mut v = ExprTypeVisitor{ scope: startscope,
+    //                              result: None};
+    
+
     // let src = ~"fn myfn(a: uint) -> Foo {}";
     // let src = ~"impl blah{    fn visit_item(&mut self, item: &ast::Item, _: ()) {} }";
 
@@ -584,6 +618,6 @@ fn blah() {
     // let res = parse_let(src);
     // debug!("PHIL res {}",res.unwrap().init);
 
-    fail!("hello");
+//    fail!("hello");
 }
 

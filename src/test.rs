@@ -8,7 +8,7 @@ use racer::scopes;
 fn tmpname() -> Path {
     let mut s = "".to_owned();
     task::with_task_name(|name| s = name.unwrap().to_owned());
-    return Path::new("tmpfile."+s);
+    return Path::new(StrBuf::from_str("tmpfile.").append(s.as_slice()).as_slice());
 }
 
 fn write_file(tmppath:&Path, s : &str) {
@@ -32,7 +32,7 @@ fn completes_fn() {
     }";
     let path = tmpname();
     write_file(&path, src);
-    let mut got : ~str = "NOTHING".to_owned();
+    let mut got  = "NOTHING".to_owned();
     let pos = scopes::coords_to_point(src, 6, 18);
     complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_owned());
     remove_file(&path);
@@ -50,7 +50,7 @@ fn completes_pub_fn_locally() {
     }";
     let path = tmpname();
     write_file(&path, src);
-    let mut got : ~str = "NOTHING".to_owned();
+    let mut got = "NOTHING".to_owned();
     let pos = scopes::coords_to_point(src, 6, 18);
     complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_owned());
     remove_file(&path);
@@ -125,7 +125,7 @@ fn completes_struct_field_via_assignment() {
 ";
     let path = tmpname();
     write_file(&path, src);
-    let mut got : ~str = "NOTHING".to_owned();
+    let mut got = "NOTHING".to_owned();
     let pos = scopes::coords_to_point(src, 8, 9);
     complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_owned());
     remove_file(&path);
@@ -271,8 +271,7 @@ fn finds_enum_value() {
 fn finds_inline_fn() {
     let src="
     #[inline]
-    fn contains<'a>(&self, needle: &'a str) -> bool {
-        self.find_str(needle).is_some()
+    fn contains<'a>(&needle: &'a str) -> bool {
     }
 
     contains();
@@ -280,7 +279,7 @@ fn finds_inline_fn() {
     write_file(&Path::new("src.rs"), src);
     let path = tmpname();
     write_file(&path, src);
-    let pos = scopes::coords_to_point(src, 7, 9);
+    let pos = scopes::coords_to_point(src, 6, 9);
     let got = find_definition(src, &path, pos).unwrap();
     assert_eq!(got.matchstr,"contains".to_owned());    
 }
@@ -383,7 +382,7 @@ fn follows_fn_to_method() {
     ";
     let path = tmpname();
     write_file(&path, src);
-    let mut got : ~str = "NOTHING".to_owned();
+    let mut got = "NOTHING".to_owned();
     let pos = scopes::coords_to_point(src, 10, 12);
     complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_owned());
     remove_file(&path);
@@ -404,7 +403,7 @@ fn follows_arg_to_method() {
     ";
     let path = tmpname();
     write_file(&path, src);
-    let mut got : ~str = "NOTHING".to_owned();
+    let mut got = "NOTHING".to_owned();
     let pos = scopes::coords_to_point(src, 8, 12);
     complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_owned());
     remove_file(&path);

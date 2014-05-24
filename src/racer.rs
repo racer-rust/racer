@@ -19,6 +19,7 @@ pub mod codecleaner;
 #[path="testutils.rs"]
 pub mod testutils;
 
+#[path="test.rs"]
 #[cfg(test)] pub mod test;
 
 pub enum MatchType {
@@ -419,7 +420,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         let blob = scopesrc.slice(start,end);
         //debug!("PHIL search_scope BLOB |{}|",blob);
         if blob.starts_with("let ") && blob.find_str(searchstr).is_some() {
-            let res = ast::parse_let(StrBuf::from_str(blob));
+            let res = ast::parse_let(StrBuf::from_str(blob), filepath.clone(), start);
             res.map(|letresult| {
                 
                 let name = letresult.name.as_slice();
@@ -828,17 +829,17 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
         def.map(|m| {
             let t = resolve::get_type_of_OLD(&m, filepath, msrc);
             t.map(|m| {
-                debug!("PHIL got type match {:?}",m);
+                println!("PHIL got type match {:?}",m);
                     
                 match m.mtype {
                     Struct => {
-                        debug!("PHIL got a struct, looking for fields and impls!! {}",m.matchstr);
+                        println!("PHIL got a struct, looking for fields and impls!! {}",m.matchstr);
 
                         let fieldsearchstr = field_expr[field_expr.len()-1];
                         search_struct_fields(fieldsearchstr, &m, search_type, outputfn);
 
                         search_for_impls(m.point, m.matchstr.as_slice(), &m.filepath, m.local, &mut |m|{
-                            debug!("PHIL found impl!! {}. looking for methods",m.matchstr);
+                            println!("PHIL found impl!! {}. looking for methods",m.matchstr);
                             let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
                             let src = str::from_utf8(filetxt.as_slice()).unwrap();
                         
