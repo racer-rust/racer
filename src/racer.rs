@@ -817,7 +817,7 @@ fn search_struct_fields(searchstr: &str, m: &Match,
 
 fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: uint, 
                       search_type: SearchType,
-                          outputfn: &mut |Match|) {
+                      outputfn: &mut |Match|) {
     debug!("PHIL search_local_text_ {} {} {}",field_expr,filepath.as_str(),point);
 
     if field_expr.len() == 1 {
@@ -829,17 +829,17 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
         def.map(|m| {
             let t = resolve::get_type_of_OLD(&m, filepath, msrc);
             t.map(|m| {
-                println!("PHIL got type match {:?}",m);
+                debug!("PHIL got type match {:?}",m);
                     
                 match m.mtype {
                     Struct => {
-                        println!("PHIL got a struct, looking for fields and impls!! {}",m.matchstr);
+                        debug!("PHIL got a struct, looking for fields and impls!! {}",m.matchstr);
 
                         let fieldsearchstr = field_expr[field_expr.len()-1];
                         search_struct_fields(fieldsearchstr, &m, search_type, outputfn);
 
                         search_for_impls(m.point, m.matchstr.as_slice(), &m.filepath, m.local, &mut |m|{
-                            println!("PHIL found impl!! {}. looking for methods",m.matchstr);
+                            debug!("PHIL found impl!! {}. looking for methods",m.matchstr);
                             let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
                             let src = str::from_utf8(filetxt.as_slice()).unwrap();
                         
@@ -851,11 +851,40 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
                         
                         });
                     }
+
+                    Enum => {
+                        let fieldsearchstr = field_expr[field_expr.len()-1];
+                        search_for_impl_methods(m.matchstr.as_slice(),
+                                                fieldsearchstr,
+                                                m.point,
+                                                &m.filepath,
+                                                m.local,
+                                                search_type,
+                                                outputfn);
+                    }
                     _ => ()
                 }
             });
         });
     }
+}
+
+fn search_for_impl_methods(implsearchstr: &str,
+                           fieldsearchstr: &str, point: uint, 
+                           fpath: &Path, local: bool,
+                           search_type: SearchType,
+                           outputfn: &mut |Match|) {
+    search_for_impls(point, implsearchstr, fpath, local, &mut |m|{
+        debug!("PHIL found impl!! {}. looking for methods",m.matchstr);
+        let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
+        let src = str::from_utf8(filetxt.as_slice()).unwrap();
+                        
+        // find the opening brace and skip to it. 
+        src.slice_from(m.point).find_str("{").map(|n|{
+            let point = m.point + n + 1;
+            search_scope_for_methods(point, src, fieldsearchstr, &m.filepath, search_type, true, outputfn);
+        });
+    });
 }
 
 pub fn first_match(myfn: |outputfn : &mut |Match||) -> Option<Match> {
@@ -1007,6 +1036,7 @@ pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint,
         });
     }
 }
+
 
 fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool,
                     outputfn: &mut |Match|) {

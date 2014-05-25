@@ -109,6 +109,7 @@ fn main() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 5, 6);
     let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
     assert_eq!(got.matchstr,"myfn".to_owned());
 }
 
@@ -165,6 +166,7 @@ fn finds_impl_fn() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 7, 10);
     let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
     assert_eq!(got.matchstr,"new".to_owned());
 }
 
@@ -185,6 +187,7 @@ fn follows_use_to_inline_mod() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 8, 9);
     let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
     assert_eq!(got.matchstr,"myfn".to_owned());
 }
 
@@ -202,6 +205,7 @@ fn finds_enum() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 6, 16);
     let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
     assert_eq!(got.matchstr,"MyEnum".to_owned());    
 }
 
@@ -216,6 +220,7 @@ fn finds_type() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 5);
     let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
     assert_eq!(got.matchstr,"SpannedIdent".to_owned());    
 }
 
@@ -230,6 +235,7 @@ fn finds_trait() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 5);
     let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
     assert_eq!(got.matchstr,"MyTrait".to_owned());    
 }
 
@@ -246,6 +252,7 @@ fn finds_fn_arg() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 10);
     let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
     assert_eq!(got.matchstr,"myarg".to_owned());    
 }
 
@@ -264,6 +271,7 @@ fn finds_enum_value() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 6, 6);
     let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
     assert_eq!(got.matchstr,"Two".to_owned());    
 }
 
@@ -281,6 +289,7 @@ fn finds_inline_fn() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 6, 9);
     let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
     assert_eq!(got.matchstr,"contains".to_owned());    
 }
 
@@ -310,6 +319,7 @@ fn follows_self_use() {
     write_file(&srcpath, src);
     let pos = scopes::coords_to_point(src, 5, 10);
     let got = find_definition(src, &srcpath, pos).unwrap();
+    ::std::io::fs::rmdir_recursive(&basedir).unwrap();
     assert_eq!(got.matchstr,"myfn".to_owned());
     assert_eq!(moddir.join("src2.rs").display().to_str(), 
                got.filepath.display().to_str());
@@ -343,6 +353,8 @@ fn follows_use_to_impl() {
     write_file(&srcpath, src);
     let pos = scopes::coords_to_point(src, 5, 14);
     let got = find_definition(src, &srcpath, pos).unwrap();
+
+    ::std::io::fs::rmdir_recursive(&basedir).unwrap();
     assert_eq!(got.matchstr,"new".to_owned());
     assert_eq!(90, got.point);
     assert_eq!(modpath.display().to_str(), 
@@ -363,6 +375,7 @@ fn finds_templated_impl_fn() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 7, 10);
     let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
     assert_eq!(got.matchstr,"new".to_owned());
 }
 
@@ -410,3 +423,25 @@ fn follows_arg_to_method() {
     assert_eq!(got,"mymethod".to_owned());
 }
 
+#[test]
+fn follows_arg_to_enum_method() {
+    let src="
+    enum Foo<T> {
+       EnumVal
+    }
+    impl<T> Foo<T> {
+        fn mymethod(&self) {}
+    }
+
+    fn myfn(v: &Foo) {
+        v.my
+    }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let mut got = "NOTHING".to_owned();
+    let pos = scopes::coords_to_point(src, 10, 12);
+    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_owned());
+    remove_file(&path);
+    assert_eq!(got,"mymethod".to_owned());
+}
