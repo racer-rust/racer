@@ -978,7 +978,6 @@ pub fn do_local_search_with_string(path: &[&str], filepath: &Path, pos: uint,
 pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint, 
                        search_type: SearchType,
                        outputfn: &mut |Match|) {
-
     debug!("PHIL do_local_search path {}",path);
 
     if path.len() == 1 {
@@ -1003,6 +1002,12 @@ pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint,
             ExactMatch => ()
         };
     } else {
+        if path[0] == "" {
+            // match global searches starting with :: - e.g. ::std::blah::...
+            return do_external_search(path.slice_from(1), filepath, pos, search_type, outputfn);
+            
+        }
+
         let parent_path = path.slice_to(path.len()-1);
         debug!("PHIL doing nested search: {} -> {}", path, parent_path);
         let context = first_match(|m| do_local_search(parent_path, filepath, pos, ExactMatch, m));
