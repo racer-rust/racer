@@ -112,6 +112,7 @@ impl visit::Visitor<()> for MyViewItemVisitor {
 
 struct MyLetVisitor {
     scope: Scope,
+    parseinit: bool,
     result: Option<LetResult>
 }
 
@@ -199,6 +200,10 @@ impl MyLetVisitor {
         self.result = Some(LetResult{name: name.to_strbuf(),
                                 point: point,
                                 inittype: None});
+
+        if !self.parseinit {
+            return;
+        }
 
         debug!("PHIL result before is {:?}",self.result);
         // attempt to parse the init
@@ -463,7 +468,7 @@ fn _parse_view_items(s: StrBuf)-> Vec<Vec<StrBuf>> {
     return v.results;
 }
 
-pub fn parse_let(s: StrBuf, fpath: Path, pos: uint) -> Option<LetResult> {
+pub fn parse_let(s: StrBuf, fpath: Path, pos: uint, parseinit: bool) -> Option<LetResult> {
 
     let result = task::try(proc() { 
         debug!("PHIL parse_let s=|{}|",s);
@@ -471,7 +476,7 @@ pub fn parse_let(s: StrBuf, fpath: Path, pos: uint) -> Option<LetResult> {
         debug!("PHIL parse_let stmt={:?}",stmt);
         let scope = Scope{filepath: fpath, point: pos};
 
-        let mut v = MyLetVisitor{ scope: scope, result: None};
+        let mut v = MyLetVisitor{ scope: scope, result: None, parseinit: parseinit};
         visit::walk_stmt(&mut v, stmt, ());
         return v.result;
     });

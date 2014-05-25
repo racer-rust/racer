@@ -53,7 +53,7 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<Match> {
     for (start,end) in codeiter::iter_stmts(src) { 
         let blob = src.slice(start,end);
         
-        return ast::parse_let(StrBuf::from_str(blob), m.filepath.clone(), m.point).map_or(None, |letres|{
+        return ast::parse_let(StrBuf::from_str(blob), m.filepath.clone(), m.point, true).map_or(None, |letres|{
             debug!("PHIL parse let result {:?}", &letres.inittype);
             return letres.inittype;
         });

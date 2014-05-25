@@ -420,7 +420,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         let blob = scopesrc.slice(start,end);
         //debug!("PHIL search_scope BLOB |{}|",blob);
         if blob.starts_with("let ") && blob.find_str(searchstr).is_some() {
-            let res = ast::parse_let(StrBuf::from_str(blob), filepath.clone(), start);
+            let res = ast::parse_let(StrBuf::from_str(blob), filepath.clone(), start, false);
             res.map(|letresult| {
                 
                 let name = letresult.name.as_slice();
