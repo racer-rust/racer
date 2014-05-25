@@ -107,6 +107,7 @@ fn print_usage() {
 fn main() {
     if std::os::getenv("RUST_SRC_PATH").is_none() {
         println!("RUST_SRC_PATH environment variable must be set");
+        std::os::set_exit_status(1);
         return;
     }
 
@@ -115,6 +116,7 @@ fn main() {
 
     if args.len() == 1 {
         print_usage();
+        std::os::set_exit_status(1);
         return;
     }
 
@@ -127,6 +129,7 @@ fn main() {
         _ => { 
             println!("Sorry, I didn't understand command {}", command ); 
             print_usage(); 
+            std::os::set_exit_status(1);
             return;
         }
     }
