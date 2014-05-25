@@ -1,6 +1,5 @@
 use std::io::File;
 use std::io::BufferedReader;
-use std::strbuf::StrBuf;
 
 use racer::codecleaner;
 use racer::codeiter;
@@ -58,8 +57,8 @@ pub fn find_stmt_start(msrc: &str, point: uint) -> Option<uint> {
     return None;
 }
 
-pub fn mask_comments(src: &str) -> StrBuf {
-    let mut result = StrBuf::new();
+pub fn mask_comments(src: &str) -> String {
+    let mut result = String::new();
     let space = " ";
 
     let mut prev: uint = 0;

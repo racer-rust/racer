@@ -1,7 +1,7 @@
 #[cfg(test)]
-pub fn rejustify(src: &str) -> StrBuf {
+pub fn rejustify(src: &str) -> String {
     let s = src.slice_from(1); // remove the newline
-    let mut sb = StrBuf::new();
+    let mut sb = String::new();
     for l in s.lines() {
         let tabless = l.slice_from(4);
         sb.push_str(tabless); 

@@ -42,14 +42,14 @@ pub enum SearchType {
 }
 
 pub struct Match {
-    pub matchstr: StrBuf,
+    pub matchstr: String,
     pub filepath: Path,
     pub point: uint,
     pub local: bool,
     pub mtype: MatchType
 }
 
-pub fn getline(filepath : &Path, linenum : uint) -> StrBuf {
+pub fn getline(filepath : &Path, linenum : uint) -> String {
     let mut i = 0;
     let mut file = BufferedReader::new(File::open(filepath));
     for line in file.lines() {
@@ -153,7 +153,7 @@ pub fn expand_fqn(s: &str, pos: uint) -> (uint,uint) {
     return (start, find_ident_end(s, pos));
 }
 
-pub fn expand_searchstr(s : &str, pos : uint) -> StrBuf {
+pub fn expand_searchstr(s : &str, pos : uint) -> String {
     let sb = s.slice_to(pos);
     let mut start = pos;
 
@@ -328,7 +328,7 @@ pub fn get_module_file(name: &str, currentdir: &Path) -> Option<Path> {
 }
 
 
-pub fn to_refs<'a>(v: &'a Vec<StrBuf>) -> Vec<&'a str> {
+pub fn to_refs<'a>(v: &'a Vec<String>) -> Vec<&'a str> {
     let mut out = Vec::new();
     for item in v.iter() {
         out.push(item.as_slice()); 
@@ -420,7 +420,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         let blob = scopesrc.slice(start,end);
         //debug!("PHIL search_scope BLOB |{}|",blob);
         if blob.starts_with("let ") && blob.find_str(searchstr).is_some() {
-            let res = ast::parse_let(StrBuf::from_str(blob), filepath.clone(), start, false);
+            let res = ast::parse_let(String::from_str(blob), filepath.clone(), start, false);
             res.map(|letresult| {
                 
                 let name = letresult.name.as_slice();
@@ -650,7 +650,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
 
             if txt_matches(search_type, searchstr, blob) {
                 // parse the enum
-                let parsedEnum = ast::parse_enum(StrBuf::from_str(blob));
+                let parsedEnum = ast::parse_enum(String::from_str(blob));
                 if parsedEnum.name.as_slice().starts_with(searchstr) {
                 }
 
@@ -671,7 +671,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         if ((local && blob.starts_with("use ")) || blob.starts_with("pub use ")) && txt_matches(search_type, searchstr, blob) {
             debug!("PHIL found use: {} in |{}|", searchstr, blob);
             let t0 = time::precise_time_s();
-            let view_item = ast::parse_view_item(StrBuf::from_str(blob));
+            let view_item = ast::parse_view_item(String::from_str(blob));
             let t1 = time::precise_time_s();
             debug!("PHIL ast use parse_view_item time {}",t1-t0);
             for fqn_ in view_item.iter() {
@@ -715,7 +715,7 @@ fn search_fn_args(point: uint, msrc:&str, searchstr:&str, filepath:&Path,
     debug!("PHIL search_fn_args for |{}| pt: {}",searchstr, point);
     // 'point' points to the opening brace
     reverse_to_start_of_fn(point-1, msrc).map(|n| {
-        let mut fndecl = StrBuf::new();
+        let mut fndecl = String::new();
         // wrap in 'impl blah {}' so that methods get parsed correctly too
         fndecl.push_str("impl blah {");
         let impl_header = fndecl.len();
@@ -801,7 +801,7 @@ fn search_struct_fields(searchstr: &str, m: &Match,
     let opoint = scopes::find_stmt_start(src, m.point);
     let structsrc = scopes::end_of_next_scope(src.slice_from(opoint.unwrap()));
 
-    let fields = ast::parse_struct_fields(StrBuf::from_str(structsrc));
+    let fields = ast::parse_struct_fields(String::from_str(structsrc));
     for (field, fpos) in fields.move_iter() {
 
         if symbol_matches(search_type, searchstr, field.as_slice()) {
@@ -1054,7 +1054,7 @@ fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool,
 
         if blob.starts_with("impl") {
             blob.find_str("{").map(|n|{
-                let mut decl = std::strbuf::StrBuf::from_str(blob.slice_to(n+1));
+                let mut decl = String::from_str(blob.slice_to(n+1));
                 decl = decl.append("}");
                 if txt_matches(ExactMatch, searchstr, decl.as_slice()) {
                     debug!("PHIL impl decl {}",decl);

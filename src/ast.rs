@@ -19,7 +19,7 @@ struct Scope {
 }
 
 // This code ripped from libsyntax::util::parser_testing
-pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: StrBuf) -> Parser<'a> {
+pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: String) -> Parser<'a> {
     new_parser_from_source_str(ps,
                                Vec::new(),
                                "bogofile".to_strbuf(),
@@ -30,7 +30,7 @@ pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: StrBuf) -> Parser<'a>
 //     new_parser_from_source_str(ps, Vec::new(), "bogofile".to_owned(), source_str)
 // }
 
-fn with_error_checking_parse<T>(s: StrBuf, f: |&mut Parser| -> T) -> T {
+fn with_error_checking_parse<T>(s: String, f: |&mut Parser| -> T) -> T {
     let ps = new_parse_sess();
     let mut p = string_to_parser(&ps, s);
     let x = f(&mut p);
@@ -39,28 +39,28 @@ fn with_error_checking_parse<T>(s: StrBuf, f: |&mut Parser| -> T) -> T {
 }
 
 // parse a string, return an expr
-pub fn string_to_expr (source_str : StrBuf) -> @ast::Expr {
+pub fn string_to_expr (source_str : String) -> @ast::Expr {
     with_error_checking_parse(source_str, |p| {
         p.parse_expr()
     })
 }
 
 // parse a string, return an item
-pub fn string_to_item (source_str : StrBuf) -> Option<@ast::Item> {
+pub fn string_to_item (source_str : String) -> Option<@ast::Item> {
     with_error_checking_parse(source_str, |p| {
         p.parse_item(Vec::new())
     })
 }
 
 // parse a string, return a stmt
-pub fn string_to_stmt(source_str : StrBuf) -> @ast::Stmt {
+pub fn string_to_stmt(source_str : String) -> @ast::Stmt {
     with_error_checking_parse(source_str, |p| {
         p.parse_stmt(Vec::new())
     })
 }
 
 // parse a string, return a crate.
-pub fn string_to_crate (source_str : StrBuf) -> ast::Crate {
+pub fn string_to_crate (source_str : String) -> ast::Crate {
     with_error_checking_parse(source_str, |p| {
         p.parse_crate_mod()
     })
@@ -68,7 +68,7 @@ pub fn string_to_crate (source_str : StrBuf) -> ast::Crate {
 
 
 struct MyViewItemVisitor {
-    results : Vec<Vec<StrBuf>>
+    results : Vec<Vec<String>>
 }
 
 impl visit::Visitor<()> for MyViewItemVisitor {
@@ -117,13 +117,13 @@ struct MyLetVisitor {
 }
 
 pub struct LetResult { 
-    pub name: StrBuf,
+    pub name: String,
     pub point: uint,
     pub inittype: Option<Match>
 }
 
 
-fn path_to_vec(pth: &ast::Path) -> Vec<StrBuf> {
+fn path_to_vec(pth: &ast::Path) -> Vec<String> {
     let mut v = Vec::new();
     for seg in pth.segments.iter() {
         v.push(token::get_ident(seg.identifier).get().to_strbuf());
@@ -137,7 +137,7 @@ struct ExprTypeVisitor {
     result: Option<Match>
 }
 
-fn find_match(fqn: &Vec<StrBuf>, fpath: &Path, pos: uint) -> Option<Match> {
+fn find_match(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
     let myfqn = racer::to_refs(fqn);  
     return racer::first_match(|m| racer::do_local_search(
         myfqn.as_slice(),
@@ -290,7 +290,7 @@ impl visit::Visitor<()> for MyLetVisitor {
 }
 
 struct StructVisitor {
-    pub fields: Vec<(StrBuf, uint)>
+    pub fields: Vec<(String, uint)>
 }
 
 impl visit::Visitor<()> for StructVisitor {
@@ -302,7 +302,7 @@ impl visit::Visitor<()> for StructVisitor {
         match field.node.kind {
             ast::NamedField(name, _) => {
                 //visitor.visit_ident(struct_field.span, name, env.clone())
-                let n = StrBuf::from_str(token::get_ident(name).get());
+                let n = String::from_str(token::get_ident(name).get());
                 self.fields.push((n, point as uint));
                     
             }
@@ -315,7 +315,7 @@ impl visit::Visitor<()> for StructVisitor {
 
 
 struct ImplVisitor {
-    name_path: Vec<StrBuf>
+    name_path: Vec<String>
 }
 
 impl visit::Visitor<()> for ImplVisitor {
@@ -345,9 +345,9 @@ impl visit::Visitor<()> for ImplVisitor {
 }
 
 pub struct FnVisitor {
-    pub name: StrBuf,
-    pub output: Vec<StrBuf>,
-    pub args: Vec<(StrBuf, uint, Vec<StrBuf>)>,
+    pub name: String,
+    pub output: Vec<String>,
+    pub args: Vec<(String, uint, Vec<String>)>,
     pub is_method: bool
 }
 
@@ -366,8 +366,8 @@ impl visit::Visitor<()> for FnVisitor {
                         assert!(pathv.len() == 1);
                         
                         // self.args.push(
-                        //     (StrBuf::from_str(pathv.get(0).as_slice()), point as uint)
-                        Some((StrBuf::from_str(pathv.get(0).as_slice()), point as uint))
+                        //     (String::from_str(pathv.get(0).as_slice()), point as uint)
+                        Some((String::from_str(pathv.get(0).as_slice()), point as uint))
                     }
                     _ => None
                 };
@@ -421,15 +421,15 @@ impl visit::Visitor<()> for FnVisitor {
 }
 
 pub struct EnumVisitor {
-    pub name: StrBuf,
-    pub values: Vec<(StrBuf, uint)>,
+    pub name: String,
+    pub values: Vec<(String, uint)>,
 }
 
 impl visit::Visitor<()> for EnumVisitor {
     fn visit_item(&mut self, i: &ast::Item, _: ()) { 
         match i.node {
             ast::ItemEnum(ref enum_definition, _) => {
-                self.name = StrBuf::from_str(token::get_ident(i.ident).get());
+                self.name = String::from_str(token::get_ident(i.ident).get());
                 //visitor.visit_generics(type_parameters, env.clone());
                 //visit::walk_enum_def(self, enum_definition, type_parameters, e)
 
@@ -439,7 +439,7 @@ impl visit::Visitor<()> for EnumVisitor {
 
                 for &variant in enum_definition.variants.iter() {
                     let codemap::BytePos(point) = variant.span.lo;
-                    self.values.push((StrBuf::from_str(token::get_ident(variant.node.name).get()), point as uint));
+                    self.values.push((String::from_str(token::get_ident(variant.node.name).get()), point as uint));
                 }
             },
             _ => {}
@@ -448,7 +448,7 @@ impl visit::Visitor<()> for EnumVisitor {
 }
 
 
-pub fn parse_view_item(s: StrBuf) -> Vec<Vec<StrBuf>> {
+pub fn parse_view_item(s: String) -> Vec<Vec<String>> {
     // parser can fail!() so isolate it in another task
     let result = task::try(proc() { 
         return _parse_view_items(s);
@@ -461,14 +461,14 @@ pub fn parse_view_item(s: StrBuf) -> Vec<Vec<StrBuf>> {
     }
 }
 
-fn _parse_view_items(s: StrBuf)-> Vec<Vec<StrBuf>> {
+fn _parse_view_items(s: String)-> Vec<Vec<String>> {
     let cr = string_to_crate(s);
     let mut v = MyViewItemVisitor{results: Vec::new()};
     visit::walk_crate(&mut v, &cr, ());
     return v.results;
 }
 
-pub fn parse_let(s: StrBuf, fpath: Path, pos: uint, parseinit: bool) -> Option<LetResult> {
+pub fn parse_let(s: String, fpath: Path, pos: uint, parseinit: bool) -> Option<LetResult> {
 
     let result = task::try(proc() { 
         debug!("PHIL parse_let s=|{}|",s);
@@ -488,7 +488,7 @@ pub fn parse_let(s: StrBuf, fpath: Path, pos: uint, parseinit: bool) -> Option<L
     }
 }
 
-pub fn parse_struct_fields(s: StrBuf) -> Vec<(StrBuf, uint)> {
+pub fn parse_struct_fields(s: String) -> Vec<(String, uint)> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = StructVisitor{ fields: Vec::new() };
@@ -497,7 +497,7 @@ pub fn parse_struct_fields(s: StrBuf) -> Vec<(StrBuf, uint)> {
     }).ok().unwrap_or(Vec::new());
 }
 
-pub fn parse_impl_name(s: StrBuf) -> Option<StrBuf> {
+pub fn parse_impl_name(s: String) -> Option<String> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = ImplVisitor{ name_path: Vec::new() };
@@ -510,7 +510,7 @@ pub fn parse_impl_name(s: StrBuf) -> Option<StrBuf> {
     }).ok().unwrap_or(None);
 }
 
-pub fn parse_fn_output(s: StrBuf) -> Vec<StrBuf> {
+pub fn parse_fn_output(s: String) -> Vec<String> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = FnVisitor { name: "".to_owned(), args: Vec::new(), output: Vec::new(), is_method: false };
@@ -519,7 +519,7 @@ pub fn parse_fn_output(s: StrBuf) -> Vec<StrBuf> {
     }).ok().unwrap();
 }
 
-pub fn parse_fn(s: StrBuf) -> FnVisitor {
+pub fn parse_fn(s: String) -> FnVisitor {
     debug!("PHIL parse_fn |{}|",s);
     return task::try(proc() {
         let stmt = string_to_stmt(s);
@@ -530,16 +530,16 @@ pub fn parse_fn(s: StrBuf) -> FnVisitor {
 }
 
 
-pub fn parse_enum(s: StrBuf) -> EnumVisitor {
+pub fn parse_enum(s: String) -> EnumVisitor {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
-        let mut v = EnumVisitor { name: StrBuf::new(), values: Vec::new()};
+        let mut v = EnumVisitor { name: String::new(), values: Vec::new()};
         visit::walk_stmt(&mut v, stmt, ());
         return v;
     }).ok().unwrap();
 }
 
-pub fn get_type_of(s: StrBuf, fpath: &Path, pos: uint) -> Option<Match> {
+pub fn get_type_of(s: String, fpath: &Path, pos: uint) -> Option<Match> {
     let myfpath = fpath.clone();
 
     return task::try(proc() {
@@ -579,7 +579,7 @@ fn blah() {
     //let src = "std::vec::Vec::new().push_all()";
     // let src = "impl visit::Visitor<()> for ExprTypeVisitor {}";
     // let src = "impl<'a> StrSlice<'a> for &'a str {}";
-    // let stmt = string_to_stmt(StrBuf::from_str(src));
+    // let stmt = string_to_stmt(String::from_str(src));
 
     // println!("PHIL stmt {:?}",stmt);
 
@@ -614,7 +614,7 @@ fn blah() {
     // println!("PHIL result was {:?}",v.result);
     //return v.result;
 
-    // let mut v = EnumVisitor { name: StrBuf::new(), values: Vec::new()};
+    // let mut v = EnumVisitor { name: String::new(), values: Vec::new()};
     // visit::walk_stmt(&mut v, cr, ());
     // println!("PHIL {} {}", v.name, v.values);
 

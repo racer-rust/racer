@@ -8,7 +8,7 @@ use racer::scopes;
 fn tmpname() -> Path {
     let mut s = "".to_owned();
     task::with_task_name(|name| s = name.unwrap().to_owned());
-    return Path::new(StrBuf::from_str("tmpfile.").append(s.as_slice()).as_slice());
+    return Path::new(String::from_str("tmpfile.").append(s.as_slice()).as_slice());
 }
 
 fn write_file(tmppath:&Path, s : &str) {
