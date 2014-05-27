@@ -1,4 +1,4 @@
-use racer::{Match, Let, FnArg};
+use racer::{Match};
 use racer::{do_local_search_with_string,first_match,to_refs};
 use racer::ast;
 use racer::codeiter;
@@ -14,7 +14,7 @@ fn find_start_of_function_body(src: &str) -> uint {
     return src.find_str("{").unwrap();
 }
 
-fn get_type_of_fnarg(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
+fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<Match> {
     debug!("PHIL get type of fn arg {:?}",m);
     let point = scopes::find_stmt_start(msrc, m.point).unwrap();
     for (start,end) in codeiter::iter_stmts(msrc.slice_from(point)) { 
@@ -32,10 +32,11 @@ fn get_type_of_fnarg(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
             if globalpos == m.point && ty_.len() != 0 {
                 let v = to_refs(&ty_);
                 let fqn = v.as_slice();
-                result = first_match(|m| do_local_search_with_string(fqn, 
-                                                                     fpath, 
+                result = first_match(|outfn| do_local_search_with_string(fqn, 
+                                                                     &m.filepath, 
                                                                      globalpos, 
-                                                                     racer::ExactMatch, m));
+                                                                     racer::ExactMatch, 
+                                                                     outfn));
             }
         }
         return result;
@@ -61,14 +62,18 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<Match> {
 }
 
 
-pub fn get_type_of_OLD(m: &Match, fpath: &Path, msrc: &str) -> Option<Match> {
+pub fn get_type_of_OLD(m: Match, msrc: &str) -> Option<Match> {
     debug!("PHIL get_type_of OLD {:?}",m);
     debug!("PHIL get_type_of OLD {}",m.matchstr);
 
-    match m.mtype {
-        Let => get_type_of_let_expr(m, msrc),
-        FnArg => get_type_of_fnarg(m, fpath, msrc),
-        _ => { debug!("Can't get type of {:?}",m.mtype); None }
+    return match m.mtype {
+        racer::Let => get_type_of_let_expr(&m, msrc),
+        racer::FnArg => get_type_of_fnarg(&m, msrc),
+        racer::Struct => Some(m),
+        racer::Enum => Some(m),
+        racer::Function => Some(m),
+        racer::Module => Some(m),
+        _ => { debug!("!!! WARNING !!! Can't get type of {:?}",m.mtype); None }
     }
 }
 
@@ -91,12 +96,12 @@ pub fn get_return_type_of_function(fnmatch: &Match) -> Vec<String> {
     debug!("get_return_type_of_function |{}|",src.slice_from(point));
     
     let outputpath = src.slice_from(point).find_str("{").map(|n|{
-
-        // TODO: surround this with 'impl { ... }' so that methods get parsed also
-        let ss = src.slice(point, point+n+1);
-        let mut decl = String::from_str(ss);
-        decl = decl.append("}");
-        debug!("PHIL: passing in {}",decl);
+        // wrap in "impl blah { }" so that methods get parsed correctly too
+        let mut decl = String::new();
+        decl.push_str("impl blah {");
+        decl.push_str(src.slice(point, point+n+1));
+        decl.push_str("}}");
+        debug!("PHIL: passing in |{}|",decl);
         return ast::parse_fn_output(decl);
     }).unwrap_or(Vec::new());
 

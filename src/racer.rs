@@ -765,12 +765,16 @@ fn search_local_scopes(searchstr: &str, filepath: &Path, msrc: &str, mut point:u
     }
 }
 
-fn search_local_text(searchstr: &str, filepath: &Path, point: uint,
-                     search_type: SearchType, outputfn: &mut |Match|) {
+pub fn load_file_and_mask_comments(filepath: &Path) -> String {
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
     let src = str::from_utf8(filetxt.as_slice()).unwrap();
     let msrc = scopes::mask_comments(src);
+    return msrc;
+}
 
+fn search_local_text(searchstr: &str, filepath: &Path, point: uint,
+                     search_type: SearchType, outputfn: &mut |Match|) {
+    let msrc = load_file_and_mask_comments(filepath);
     let mut l = searchstr.split_str(".");
     let field_expr: Vec<&str> = l.collect();
     let field_expr = field_expr.as_slice();
@@ -827,7 +831,7 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
         let parentexpr = field_expr.slice_to(field_expr.len()-1);
         let def = first_match(|m| search_local_text_(parentexpr, filepath, msrc, point, ExactMatch, m));        
         def.map(|m| {
-            let t = resolve::get_type_of_OLD(&m, filepath, msrc);
+            let t = resolve::get_type_of_OLD(m, msrc);
             t.map(|m| {
                 debug!("PHIL got type match {:?}",m);
                     
@@ -837,19 +841,13 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
 
                         let fieldsearchstr = field_expr[field_expr.len()-1];
                         search_struct_fields(fieldsearchstr, &m, search_type, outputfn);
-
-                        search_for_impls(m.point, m.matchstr.as_slice(), &m.filepath, m.local, &mut |m|{
-                            debug!("PHIL found impl!! {}. looking for methods",m.matchstr);
-                            let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
-                            let src = str::from_utf8(filetxt.as_slice()).unwrap();
-                        
-                            // find the opening brace and skip to it. 
-                            src.slice_from(m.point).find_str("{").map(|n|{
-                                let point = m.point + n + 1;
-                                search_scope_for_methods(point, src, fieldsearchstr, &m.filepath, search_type, true, outputfn);
-                            });
-                        
-                        });
+                        search_for_impl_methods(m.matchstr.as_slice(),
+                                                fieldsearchstr,
+                                                m.point,
+                                                &m.filepath,
+                                                m.local,
+                                                search_type,
+                                                outputfn);
                     }
 
                     Enum => {
@@ -869,7 +867,7 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
     }
 }
 
-fn search_for_impl_methods(implsearchstr: &str,
+pub fn search_for_impl_methods(implsearchstr: &str,
                            fieldsearchstr: &str, point: uint, 
                            fpath: &Path, local: bool,
                            search_type: SearchType,

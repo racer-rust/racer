@@ -182,7 +182,6 @@ fn follows_use_to_inline_mod() {
         myfn();
     }
     ";
-    write_file(&Path::new("src.rs"), src);
     let path = tmpname();
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 8, 9);
@@ -444,4 +443,30 @@ fn follows_arg_to_enum_method() {
     complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_string());
     remove_file(&path);
     assert_eq!(got,"mymethod".to_string());
+}
+
+#[test]
+fn follows_let_method_call() {
+    let src="
+    struct Foo;
+    struct Bar;
+    impl<T> Foo<T> {
+        fn mymethod(&self) -> Bar {}
+    }
+    impl<T> Bar<T> {
+        fn mybarmethod(&self) -> Bar {}
+    }
+
+    fn myfn(v: &Foo) {
+        let f = v.mymethod();
+        f.my
+    }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let mut got = "NOTHING".to_owned();
+    let pos = scopes::coords_to_point(src, 13, 12);
+    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_owned());
+    remove_file(&path);
+    assert_eq!(got,"mybarmethod".to_owned());
 }

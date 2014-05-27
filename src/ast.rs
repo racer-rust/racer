@@ -10,6 +10,7 @@ use syntax::codemap;
 use std::task;
 use racer::Match;
 use racer;
+use racer::resolve;
 use syntax::visit::Visitor;
 
 #[deriving(Clone)]
@@ -147,6 +148,20 @@ fn find_match(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
         m));
 }
 
+fn get_type_of_path(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
+
+    let om = find_match(fqn, fpath, pos);
+    if om.is_some() {
+        let m = om.unwrap();
+        let msrc = racer::load_file_and_mask_comments(&m.filepath);
+        return resolve::get_type_of_OLD(m, msrc.as_slice())
+    } else {
+        return None;
+    }
+}
+
+
+
 impl visit::Visitor<()> for ExprTypeVisitor {
     fn visit_expr(&mut self, expr: &ast::Expr, _: ()) { 
         debug!("PHIL visit_expr {:?}",expr);
@@ -155,9 +170,9 @@ impl visit::Visitor<()> for ExprTypeVisitor {
             ast::ExprPath(ref path) => {
                 debug!("PHIL expr is a path {}",path_to_vec(path));
                 let pathvec = path_to_vec(path);
-                self.result = find_match(&pathvec, 
-                                         &self.scope.filepath, 
-                                         self.scope.point);
+                self.result = get_type_of_path(&pathvec,
+                                               &self.scope.filepath,
+                                               self.scope.point);
             }
             ast::ExprCall(callee_expression, _/*ref arguments*/) => {
                 self.visit_expr(callee_expression, ());
@@ -182,11 +197,45 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                                          self.scope.point);
             }
 
-            // ast::ExprMethodCall(ref spannedident, ref types, _/*ref arguments*/) => {
-            //     // spannedident.node is an ident I think
-            //     let name = token::get_ident(spannedident.node).get().to_owned();
-            //     debug!("PHIL method call {}",name);
-            // }
+            ast::ExprMethodCall(ref spannedident, ref types, ref arguments) => {
+                // spannedident.node is an ident I think
+                let methodname = token::get_ident(spannedident.node).get().to_owned();
+                debug!("PHIL method call ast name {}",methodname);
+                debug!("PHIL method call ast types {:?} {}",types, types.len());
+                
+                let objexpr = arguments.get(0);
+                //println!("PHIL obj expr is {:?}",objexpr);
+                self.visit_expr(*objexpr, ());
+                let mut newres: Option<Match> = None;
+                match self.result {
+                    Some(ref m) => {
+                        debug!("PHIL obj expr type is {:?}",m);
+
+                        // locate the method
+                        let omethod = racer::first_match(|outputfn| 
+                                               racer::search_for_impl_methods(
+                                                           m.matchstr.as_slice(),
+                                                           methodname.as_slice(), 
+                                                           m.point, 
+                                                           &m.filepath,
+                                                           m.local,
+                                                           racer::ExactMatch,
+                                                           outputfn));
+
+                        match omethod {
+                            Some(ref m) => {
+                            let fqn = racer::resolve::get_return_type_of_function(m);
+                            debug!("PHIL found exprcall return type: {}",fqn);
+                            newres = find_match(&fqn, &m.filepath, m.point);
+     
+                            }
+                            None => {}
+                        }
+                    }
+                    None => {}
+                }
+                self.result = newres;
+            }
             _ => {}
         }
     }
@@ -217,35 +266,6 @@ impl MyLetVisitor {
             self.result = Some(LetResult{name: name.to_string(), point: point,
                                          inittype: v.result});
 
-            // match init.node {
-            //     ast::ExprCall(callee_expression, _ /*ref arguments*/) => {
-            //         debug!("PHIL init is an exprCall {:?}",callee_expression);
-            //         // for argument in arguments.iter() {
-            //         //     visitor.visit_expr(*argument, env.clone())
-            //         // }
-            //         // visitor.visit_expr(callee_expression, env.clone())
-
-            //         match callee_expression.node {
-            //             ast::ExprPath(ref path) => {
-            //                 debug!("PHIL init callee is a path {}",path_to_vec(path));
-            //                 self.result = Some(LetResult{name: name.clone(),
-            //                                              point: point,
-            //                                              init: path_to_vec(path)
-            //                 });
-            //             }
-            //             _ => {}
-            //         }
-            //     }
-            //     ast::ExprStruct(ref path, _, _) => {
-            //         self.result = Some(LetResult{name: name.clone(),
-            //                                      point: point,
-            //                                      init: path_to_vec(path)
-            //                                      });
-            //     }
-            //     _ => {
-            //         debug!("PHIL dont handle decl: {:?}",init.node);
-            //     }
-            // }
         });
 
         debug!("PHIL result is {:?}",self.result);
@@ -364,10 +384,7 @@ impl visit::Visitor<()> for FnVisitor {
                     ast::PatIdent(_ , ref path, _) => {
                         let codemap::BytePos(point) = path.span.lo;
                         let pathv = path_to_vec(path);
-                        assert!(pathv.len() == 1);
-                        
-                        // self.args.push(
-                        //     (String::from_str(pathv.get(0).as_slice()), point as uint)
+                        assert!(pathv.len() == 1);                        
                         Some((String::from_str(pathv.get(0).as_slice()), point as uint))
                     }
                     _ => None
@@ -415,8 +432,6 @@ impl visit::Visitor<()> for FnVisitor {
             visit::FkMethod(_, _, _) => true,
             _ => false
         }
-
-        //visit::walk_fn(self, fk, fd, b, s, n , e)
     }
 
 }
@@ -545,14 +560,6 @@ pub fn get_type_of(s: String, fpath: &Path, pos: uint) -> Option<Match> {
 
     return task::try(proc() {
         let stmt = string_to_stmt(s);
-        // let startscope = Match{ 
-        //     matchstr: "".to_owned(),
-        //     filepath: myfpath,
-        //     point: pos,
-        //     local: true,
-        //     mtype: racer::Module
-        // };
-
         let startscope = Scope {
             filepath: myfpath,
             point: pos
@@ -567,7 +574,7 @@ pub fn get_type_of(s: String, fpath: &Path, pos: uint) -> Option<Match> {
 
 
 #[test]
-fn blah() {
+fn ast_sandbox() {
 
     // let mut v = ExprTypeVisitor{ scope: startscope,
     //                              result: None};
@@ -576,7 +583,7 @@ fn blah() {
     // let src = ~"fn myfn(a: uint) -> Foo {}";
     // let src = ~"impl blah{    fn visit_item(&mut self, item: &ast::Item, _: ()) {} }";
 
-    //let src = "Foo::Bar().baz(32)";
+    // let src = "Foo::Bar().baz(32)";
     //let src = "std::vec::Vec::new().push_all()";
     // let src = "impl visit::Visitor<()> for ExprTypeVisitor {}";
     // let src = "impl<'a> StrSlice<'a> for &'a str {}";
@@ -608,6 +615,11 @@ fn blah() {
     //     mtype: racer::Module
     // };
 
+    // let startscope = Scope {
+    //     filepath: Path::new("./ast.rs"),
+    //     point: 0
+    // };
+
     // let mut v = ExprTypeVisitor{ scope: startscope,
     //                              result: None};
     // visit::walk_stmt(&mut v, stmt, ());
@@ -624,6 +636,6 @@ fn blah() {
     // let res = parse_let(src);
     // debug!("PHIL res {}",res.unwrap().init);
 
-//    fail!("hello");
+    //fail!("hello");
 }
 
