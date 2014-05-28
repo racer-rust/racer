@@ -354,7 +354,7 @@ pub struct FnVisitor {
 impl visit::Visitor<()> for FnVisitor {
     fn visit_fn(&mut self, fk: &visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId, _: ()) {
 
-        self.name = token::get_ident(visit::name_of_fn(fk)).get().to_owned();
+        self.name = token::get_ident(visit::name_of_fn(fk)).get().to_string();
 
         for arg in fd.inputs.iter() {
             debug!("PHIL fn arg ast is {:?}",arg);
@@ -513,7 +513,7 @@ pub fn parse_impl_name(s: String) -> Option<String> {
 pub fn parse_fn_output(s: String) -> Vec<String> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
-        let mut v = FnVisitor { name: "".to_owned(), args: Vec::new(), output: Vec::new(), is_method: false };
+        let mut v = FnVisitor { name: "".to_string(), args: Vec::new(), output: Vec::new(), is_method: false };
         visit::walk_stmt(&mut v, stmt, ());
         return v.output;
     }).ok().unwrap();
@@ -523,7 +523,7 @@ pub fn parse_fn(s: String) -> FnVisitor {
     debug!("PHIL parse_fn |{}|",s);
     return task::try(proc() {
         let stmt = string_to_stmt(s);
-        let mut v = FnVisitor { name: "".to_owned(), args: Vec::new(), output: Vec::new(), is_method: false };
+        let mut v = FnVisitor { name: "".to_string(), args: Vec::new(), output: Vec::new(), is_method: false };
         visit::walk_stmt(&mut v, stmt, ());
         return v;
     }).ok().unwrap();

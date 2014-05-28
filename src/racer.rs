@@ -56,10 +56,10 @@ pub fn getline(filepath : &Path, linenum : uint) -> String {
         //print!("{}", line);
         i += 1;
         if i == linenum {
-            return line.unwrap().to_owned();
+            return line.unwrap().to_string();
         }
     }
-    return "not found".to_owned();
+    return "not found".to_string();
 }
 
 fn is_path_char(c : char) -> bool {
@@ -164,7 +164,7 @@ pub fn expand_searchstr(s : &str, pos : uint) -> String {
         }
         start = i;
     }
-    return s.slice(start,pos).to_owned();
+    return s.slice(start,pos).to_string();
 }
 
 pub fn find_path_end(s : &str, pos : uint) -> uint {
@@ -208,7 +208,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path, outputfn: &mut |Match|
                         //debug!("PHIL Yeah found {}",fpath.as_str());
                         let filepath = Path::new(fpath).join_many([Path::new("lib.rs")]);
                         if File::open(&filepath).is_ok() {
-                            let m = Match {matchstr: fname.slice_from(3).to_owned(), 
+                            let m = Match {matchstr: fname.slice_from(3).to_string(),
                                            filepath: filepath.clone(), 
                                            point: 0,
                                            local: false,
@@ -222,7 +222,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path, outputfn: &mut |Match|
                             // try <name>/<name>.rs, like in the servo codebase
                             let filepath = Path::new(fpath).join_many([Path::new(format!("{}.rs", fname))]);
                             if File::open(&filepath).is_ok() {
-                                let m = Match {matchstr: fname.to_owned(), 
+                                let m = Match {matchstr: fname.to_string(),
                                                filepath: filepath.clone(), 
                                                point: 0,
                                                local: false,
@@ -234,7 +234,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path, outputfn: &mut |Match|
                             // try <name>/mod.rs
                             let filepath = Path::new(fpath).join_many([Path::new("mod.rs")]);
                             if File::open(&filepath).is_ok() {
-                                let m = Match {matchstr: fname.to_owned(), 
+                                let m = Match {matchstr: fname.to_string(),
                                                filepath: filepath.clone(), 
                                                point: 0,
                                                local: false,
@@ -246,7 +246,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path, outputfn: &mut |Match|
                             // try <name>/lib.rs
                             let filepath = Path::new(srcpath).join_many([Path::new("lib.rs")]);
                             if File::open(&filepath).is_ok() {
-                                let m = Match {matchstr: fname.to_owned(), 
+                                let m = Match {matchstr: fname.to_string(),
                                                filepath: filepath.clone(), 
                                                point: 0,
                                                local: false,
@@ -257,7 +257,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path, outputfn: &mut |Match|
                         {            
                             // try just <name>.rs
                             if fname.ends_with(".rs") {
-                                let m = Match {matchstr: fname.slice_to(fname.len()-3).to_owned(), 
+                                let m = Match {matchstr: fname.slice_to(fname.len()-3).to_string(),
                                                filepath: fpath.clone(),
                                                point: 0,
                                                local: false,
@@ -379,7 +379,7 @@ fn search_scope_for_methods(point: uint, src:&str, searchstr:&str, filepath:&Pat
             // TODO: parse this properly
             let end = find_path_end(blob, 3);
             let l = blob.slice(3, end);
-            let m = Match {matchstr: l.to_owned(), 
+            let m = Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: point + start + 3,
                            local: local,
@@ -394,7 +394,7 @@ fn search_scope_for_methods(point: uint, src:&str, searchstr:&str, filepath:&Pat
             let end = find_path_end(blob, 7);
             let l = blob.slice(7, end);
             debug!("PHIL found a pub fn {}",l);
-            let m = Match {matchstr: l.to_owned(), 
+            let m = Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: point + start + 7,
                            local: local,
@@ -426,7 +426,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
                 let name = letresult.name.as_slice();
 
                 if (exact_match && name == searchstr) || (!exact_match && name.starts_with(searchstr)) {
-                    (*outputfn)(Match { matchstr: letresult.name.to_owned(),
+                    (*outputfn)(Match { matchstr: letresult.name.to_string(),
                                         filepath: filepath.clone(),
                                         point: point + start + letresult.point,
                                         local: local,
@@ -445,7 +445,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
                 if blob.find_str("{").is_some() {
                     debug!("PHIL found an inline module!");
 
-                    let m = Match {matchstr: l.to_owned(), 
+                    let m = Match {matchstr: l.to_string(),
                                    filepath: filepath.clone(), 
                                    point: point + start + 4, 
                                    local: false,
@@ -456,7 +456,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
                 } else {
                     // reference to a local file
                     get_module_file(l, &filepath.dir_path()).map(|modpath|{
-                        let m = Match {matchstr: l.to_owned(), 
+                        let m = Match {matchstr: l.to_string(),
                                        filepath: modpath.clone(), 
                                        point: 0,
                                        local: false,
@@ -478,7 +478,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
                 if blob.find_str("{").is_some() {
                     debug!("PHIL found an inline module!");
 
-                    let m = Match {matchstr: l.to_owned(), 
+                    let m = Match {matchstr: l.to_string(),
                                    filepath: filepath.clone(), 
                                    point: point + start + 8,
                                    local: false,
@@ -489,7 +489,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
                 } else {
                     // reference to a local file
                     get_module_file(l, &filepath.dir_path()).map(|modpath|{
-                        let m = Match {matchstr: l.to_owned(), 
+                        let m = Match {matchstr: l.to_string(),
                                        filepath: modpath.clone(), 
                                        point: 0,
                                        local: false,
@@ -506,7 +506,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             // TODO: parse this properly
             let end = find_path_end(blob, 3);
             let l = blob.slice(3, end);
-            let m = Match {matchstr: l.to_owned(), 
+            let m = Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: point + start + 3,
                            local: local,
@@ -521,7 +521,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             let end = find_path_end(blob, 7);
             let l = blob.slice(7, end);
             debug!("PHIL found a pub fn {}",l);
-            let m = Match {matchstr: l.to_owned(), 
+            let m = Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: point + start + 7,
                            local: local,
@@ -536,7 +536,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             let end = find_path_end(blob, 7);
             let l = blob.slice(7, end);
             debug!("PHIL found!! a local struct {}", l);
-            let m = Match {matchstr: l.to_owned(), 
+            let m = Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: point + start + 7,
                            local: local,
@@ -550,7 +550,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             let end = find_path_end(blob, 11);
             let l = blob.slice(11, end);
             debug!("PHIL found!! a pub struct {}", l);
-            let m = Match {matchstr: l.to_owned(), 
+            let m = Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: point + start + 11,
                            local: local,
@@ -564,7 +564,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             let end = find_path_end(blob, 5);
             let l = blob.slice(5, end);
             debug!("PHIL found!! a type {}", l);
-            let m = Match {matchstr: l.to_owned(), 
+            let m = Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: point + start + 5,
                            local: local,
@@ -578,7 +578,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             let end = find_path_end(blob, 9);
             let l = blob.slice(9, end);
             debug!("PHIL found!! a pub type {}", l);
-            let m = Match {matchstr: l.to_owned(), 
+            let m = Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: point + start + 9,
                            local: local,
@@ -592,7 +592,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             let end = find_path_end(blob, 6);
             let l = blob.slice(6, end);
             debug!("PHIL found!! a type {}", l);
-            let m = Match {matchstr: l.to_owned(), 
+            let m = Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: point + start + 6,
                            local: local,
@@ -606,7 +606,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             let end = find_path_end(blob, 10);
             let l = blob.slice(10, end);
             debug!("PHIL found!! a pub type {}", l);
-            let m = Match {matchstr: l.to_owned(), 
+            let m = Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: point + start + 10,
                            local: local,
@@ -623,7 +623,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
                 let end = find_path_end(blob, 5);
                 let l = blob.slice(5, end);
                 debug!("PHIL found!! a local enum {}", l);
-                let m = Match {matchstr: l.to_owned(), 
+                let m = Match {matchstr: l.to_string(),
                                filepath: filepath.clone(), 
                                point: point + start + 5,
                                local: local,
@@ -638,7 +638,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
                 let l = blob.slice(9, end);
                 if !exact_match || l == searchstr {
                     debug!("PHIL found!! a pub enum {}", l);
-                    let m = Match {matchstr: l.to_owned(), 
+                    let m = Match {matchstr: l.to_string(),
                                    filepath: filepath.clone(), 
                                    point: point + start + 9,
                                    local: local,
@@ -730,7 +730,7 @@ fn search_fn_args(point: uint, msrc:&str, searchstr:&str, filepath:&Path,
                     ExactMatch => s.as_slice() == searchstr,
                     StartsWith => s.as_slice().starts_with(searchstr)
                     } {
-                    (*outputfn)(Match { matchstr: s.to_owned(),
+                    (*outputfn)(Match { matchstr: s.to_string(),
                                         filepath: filepath.clone(),
                                         point: n + pos - impl_header,
                                         local: local,
@@ -778,7 +778,7 @@ fn search_local_text(searchstr: &str, filepath: &Path, point: uint,
     match search_type {
         ExactMatch => {
         search_local_text_(field_expr, filepath, msrc.as_slice(), point, search_type, &mut |m: Match| {
-            if m.matchstr == field_expr[field_expr.len()-1].to_owned() {  // only if is an exact match
+            if m.matchstr == field_expr[field_expr.len()-1].to_string() {  // only if is an exact match
                 (*outputfn)(m);
             } else {
                 debug!("PHIL got match '{}', but doesnt exact match '{}'",
@@ -805,7 +805,7 @@ fn search_struct_fields(searchstr: &str, m: &Match,
     for (field, fpos) in fields.move_iter() {
 
         if symbol_matches(search_type, searchstr, field.as_slice()) {
-            (*outputfn)(Match { matchstr: field.to_owned(),
+            (*outputfn)(Match { matchstr: field.to_string(),
                                 filepath: m.filepath.clone(),
                                 point: fpos + opoint.unwrap(),
                                 local: m.local,
@@ -927,7 +927,7 @@ pub fn find_definition_(src: &str, filepath: &Path, pos: uint, outputfn: &mut |M
     let field_expr : Vec<&str> = field_expr.collect(); 
 
     let find_definition_output_fn = &mut |m: Match| {
-        if m.matchstr == field_expr.as_slice()[field_expr.len()-1].to_owned() {  // only if is an exact match
+        if m.matchstr == field_expr.as_slice()[field_expr.len()-1].to_string() {  // only if is an exact match
             (*outputfn)(m);
         }
     };
@@ -962,7 +962,7 @@ pub fn do_local_search_with_string(path: &[&str], filepath: &Path, pos: uint,
         
         str_match.map(|str_match|{
             debug!("PHIL: found Str, converting to str");
-            let m = Match {matchstr: "str".to_owned(),
+            let m = Match {matchstr: "str".to_string(),
                            filepath: str_match.filepath.clone(), 
                            point: str_match.point,
                            local: false,
@@ -988,7 +988,7 @@ pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint,
         // don't need to match substrings here because substring matches are done
         // on the use stmts.
         get_module_file(searchstr, &filepath.dir_path()).map(|path|{
-            let m = Match {matchstr: searchstr.to_owned(),
+            let m = Match {matchstr: searchstr.to_string(),
                            filepath: path.clone(), 
                            point: 0,
                            local: false,
@@ -1064,7 +1064,7 @@ fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool,
                     implres.map(|name|{
                         debug!("PHIL parsed an impl {}",name);
                         
-                        let m = Match {matchstr: name.to_owned(), 
+                        let m = Match {matchstr: name.to_string(),
                                        filepath: filepath.clone(), 
                                        point: pos + start + 5,
                                        local: local,
@@ -1086,7 +1086,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, search_type
         search_next_scope(pos, searchstr, filepath, search_type, false, outputfn);
 
         get_module_file(searchstr, &filepath.dir_path()).map(|path|{
-            let m = Match {matchstr: searchstr.to_owned(),
+            let m = Match {matchstr: searchstr.to_string(),
                            filepath: path.clone(), 
                            point: 0,
                            local: false,
