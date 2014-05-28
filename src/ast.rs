@@ -22,7 +22,7 @@ struct Scope {
 pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: String) -> Parser<'a> {
     new_parser_from_source_str(ps,
                                Vec::new(),
-                               "bogofile".to_strbuf(),
+                               "bogofile".to_string(),
                                source_str)
 }
 
@@ -79,7 +79,7 @@ impl visit::Visitor<()> for MyViewItemVisitor {
                     ast::ViewPathSimple(_, ref path, _) => {
                         let mut v = Vec::new();
                         for seg in path.segments.iter() {
-                            v.push(token::get_ident(seg.identifier).get().to_strbuf())
+                            v.push(token::get_ident(seg.identifier).get().to_string())
                         }
                         self.results.push(v);
                     },
@@ -87,13 +87,13 @@ impl visit::Visitor<()> for MyViewItemVisitor {
                         let mut v = Vec::new();
 
                         for seg in pth.segments.iter() {
-                            v.push(token::get_ident(seg.identifier).get().to_strbuf())
+                            v.push(token::get_ident(seg.identifier).get().to_string())
                         }
 
                         for path in paths.iter() {
                             let mut vv = v.clone();
                             //debug!("PHIL view path list item {}",token::get_ident(path.node.name));
-                            vv.push(token::get_ident(path.node.name).get().to_strbuf());
+                            vv.push(token::get_ident(path.node.name).get().to_string());
                             self.results.push(vv);
                         }
                     }
@@ -126,7 +126,7 @@ pub struct LetResult {
 fn path_to_vec(pth: &ast::Path) -> Vec<String> {
     let mut v = Vec::new();
     for seg in pth.segments.iter() {
-        v.push(token::get_ident(seg.identifier).get().to_strbuf());
+        v.push(token::get_ident(seg.identifier).get().to_string());
     }
     return v;
 }
@@ -197,7 +197,7 @@ impl MyLetVisitor {
     fn visit_let_initializer(&mut self, name: &str, point: uint, init: Option<@ast::Expr> ) {
 
         // chances are we can't parse the init yet, so the default is to leave blank
-        self.result = Some(LetResult{name: name.to_strbuf(),
+        self.result = Some(LetResult{name: name.to_string(),
                                 point: point,
                                 inittype: None});
 
@@ -214,7 +214,7 @@ impl MyLetVisitor {
                                  result: None};
             v.visit_expr(initexpr, ());
 
-            self.result = Some(LetResult{name: name.to_strbuf(), point: point, 
+            self.result = Some(LetResult{name: name.to_string(), point: point,
                                          inittype: v.result});
 
             // match init.node {
