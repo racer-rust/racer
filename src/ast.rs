@@ -275,7 +275,8 @@ impl visit::Visitor<()> for MyLetVisitor {
                     ast::PatRegion(_) => {},
                     ast::PatLit(_) => {},
                     ast::PatRange(_,_) => {},
-                    ast::PatVec(_,_,_ ) => {}
+                    ast::PatVec(_,_,_ ) => {},
+                    ast::PatMac(_) => {}
                     
                 }
 
