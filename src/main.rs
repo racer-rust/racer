@@ -3,6 +3,7 @@
 
 extern crate syntax;
 extern crate time;
+extern crate debug;
 
 #[cfg(not(test))]
 use racer::{getline,Match,do_file_search, do_external_search};
