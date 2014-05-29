@@ -199,7 +199,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
 
             ast::ExprMethodCall(ref spannedident, ref types, ref arguments) => {
                 // spannedident.node is an ident I think
-                let methodname = token::get_ident(spannedident.node).get().to_owned();
+                let methodname = token::get_ident(spannedident.node).get().to_string();
                 debug!("PHIL method call ast name {}",methodname);
                 debug!("PHIL method call ast types {:?} {}",types, types.len());
                 
@@ -279,8 +279,6 @@ impl visit::Visitor<()> for MyLetVisitor {
         match decl.node {
             ast::DeclLocal(local) => {
                 match local.pat.node {
-                    ast::PatWild => {},
-                    ast::PatWildMulti => {},
                     ast::PatIdent(_ , ref path, _) => {
                         let codemap::BytePos(point) = path.span.lo;
                         let pathv = path_to_vec(path);
@@ -288,16 +286,7 @@ impl visit::Visitor<()> for MyLetVisitor {
                                                    point.to_uint().unwrap(),
                                                    local.init);
                     },
-                    ast::PatEnum(_,_) => {}, 
-                    ast::PatStruct(_,_,_) => {},
-                    ast::PatTup(_) => {},
-                    ast::PatUniq(_) => {},
-                    ast::PatRegion(_) => {},
-                    ast::PatLit(_) => {},
-                    ast::PatRange(_,_) => {},
-                    ast::PatVec(_,_,_ ) => {},
-                    ast::PatMac(_) => {}
-                    
+                    _ => {}
                 }
 
                 
