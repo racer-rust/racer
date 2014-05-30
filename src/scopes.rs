@@ -1,6 +1,7 @@
 use std::io::File;
 use std::io::BufferedReader;
 
+use racer;
 use racer::codecleaner;
 use racer::codeiter;
 
@@ -55,6 +56,86 @@ pub fn find_stmt_start(msrc: &str, point: uint) -> Option<uint> {
         }
     }
     return None;
+}
+
+pub fn split_into_context_and_completion<'a>(s: &'a str) -> (&'a str, &'a str, racer::CompletionType) {
+
+    let mut start = 0;
+    let colon: u8 = ":"[0];
+    let dot: u8 = "."[0];
+
+    for (i, c) in s.char_indices().rev() {
+        if ! racer::is_ident_char(c) {
+            start = i+1;
+            break;
+        }
+    }
+
+    if start != 0 && s[start-1] == dot {    // field completion
+        return (s.slice_to(start-1), s.slice_from(start), racer::Field);
+    }
+
+    if start > 0 && s[start-1] == colon {  // path completion
+        return (s.slice_to(start-2), s.slice_from(start), racer::Path);
+    }
+
+    return (s.slice_to(start), s.slice_from(start), racer::Path);
+}
+
+pub fn get_start_of_search_expr(msrc: &str, point: uint) -> uint {
+    let openparen: u8 = "("[0];
+    let closeparen: u8 = ")"[0];
+    let mut levels = 0;
+    let mut i = point-1;
+    loop {
+        if i == -1 {
+            i = 0;
+            break;
+        }
+
+        if msrc[i] == closeparen { 
+            levels += 1;
+        }
+        if levels == 0 && !racer::is_path_char(msrc.char_at(i)) {
+            i += 1;
+            break;
+        }
+        if msrc[i] == openparen && levels > 0 { 
+            levels -= 1;
+        }
+
+        i -= 1;
+    }
+    return i;
+}
+
+pub fn expand_search_expr(msrc: &str, point: uint) -> (uint,uint) {
+    let start = get_start_of_search_expr(msrc, point);
+    return (start, racer::find_ident_end(msrc, point));
+}
+
+#[test]
+fn expand_search_expr_finds_ident() {
+    assert_eq!((0, 7), expand_search_expr("foo.bar", 5))
+}
+
+#[test]
+fn expand_search_expr_handles_chained_calls() {
+    assert_eq!((0, 20), expand_search_expr("yeah::blah.foo().bar", 18))
+}
+
+#[test]
+fn expand_search_expr_handles_inline_closures() {
+    assert_eq!((0, 24), expand_search_expr("yeah::blah.foo(||{}).bar", 22))
+}
+#[test]
+fn expand_search_expr_handles_a_function_arg() {
+    assert_eq!((5, 25), expand_search_expr("myfn(foo::new().baz().com)", 23))
+}
+
+#[test]
+fn expand_search_expr_handles_pos_at_end_of_search_str() {
+    assert_eq!((0, 7), expand_search_expr("foo.bar", 7))
 }
 
 pub fn mask_comments(src: &str) -> String {

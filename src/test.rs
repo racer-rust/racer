@@ -464,9 +464,34 @@ fn follows_let_method_call() {
     ";
     let path = tmpname();
     write_file(&path, src);
-    let mut got = "NOTHING".to_owned();
+    let mut got = "NOTHING".to_string();
     let pos = scopes::coords_to_point(src, 13, 12);
-    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_owned());
+    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_string());
     remove_file(&path);
-    assert_eq!(got,"mybarmethod".to_owned());
+    assert_eq!(got,"mybarmethod".to_string());
+}
+
+#[test]
+fn follows_chained_method_call() {
+    let src="
+    struct Foo;
+    struct Bar;
+    impl<T> Foo<T> {
+        fn mymethod(&self) -> Bar {}
+    }
+    impl<T> Bar<T> {
+        fn mybarmethod(&self) -> Bar {}
+    }
+
+    fn myfn(v: &Foo) {
+        v.mymethod().my
+    }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let mut got = "NOTHING".to_string();
+    let pos = scopes::coords_to_point(src, 12, 23);
+    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_string());
+    remove_file(&path);
+    assert_eq!(got,"mybarmethod".to_string());
 }

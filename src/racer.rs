@@ -41,6 +41,11 @@ pub enum SearchType {
     StartsWith
 }
 
+pub enum CompletionType {
+    Field,
+    Path
+}
+
 pub struct Match {
     pub matchstr: String,
     pub filepath: Path,
@@ -66,7 +71,7 @@ fn is_path_char(c : char) -> bool {
     c.is_alphanumeric() || (c == '_') || (c == ':') || (c == '.')
 }
 
-fn is_ident_char(c : char) -> bool {
+pub fn is_ident_char(c : char) -> bool {
     c.is_alphanumeric() || (c == '_')
 }
 
@@ -900,13 +905,89 @@ pub fn first_match(myfn: |outputfn : &mut |Match||) -> Option<Match> {
 }
 
 pub fn complete_from_file(src: &str, filepath: &Path, pos: uint, outputfn: &mut |Match|) {
-    let expr = expand_searchstr(src, pos);
 
-    let mut l = expr.as_slice().split_str("::");
-    let path : Vec<&str> = l.collect(); 
+    let start = scopes::get_start_of_search_expr(src, pos);
+    let expr = src.slice(start,pos);
 
-    do_local_search(path.as_slice(), filepath, pos, StartsWith, outputfn);
+    let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
+
+    debug!("PHIL contextstr is |{}|, searchstr is |{}|",contextstr, searchstr);
+
+    if contextstr == "" {
+        do_local_search([searchstr], filepath, pos, StartsWith, outputfn);
+        return;
+    }
+
+    let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
+
+    let search_type = StartsWith;
+
+    context.map(|m| {
+        match completetype {
+            Field => {
+                search_for_field(m, searchstr, search_type, outputfn);
+            }
+            Path => {
+                search_for_path(m, searchstr, search_type, outputfn);
+            }
+        }
+    });
 }
+
+pub fn search_for_path(context: Match, searchstr: &str, search_type: SearchType,  outputfn: &mut |Match|) {
+    let m = context;
+    match m.mtype {
+        Module => {
+            search_next_scope(m.point, searchstr, &m.filepath, search_type, false, outputfn);
+        }
+        Struct => {
+            debug!("PHIL found a struct. Now need to look for impl");
+            search_for_impls(m.point, m.matchstr.as_slice(), &m.filepath, m.local, &mut |m|{
+                debug!("PHIL found impl!! {}",m.matchstr);
+                let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
+                let src = str::from_utf8(filetxt.as_slice()).unwrap();
+                
+                // find the opening brace and skip to it. 
+                src.slice_from(m.point).find_str("{").map(|n|{
+                    let point = m.point + n + 1;
+                    search_scope(point, src, searchstr, &m.filepath, search_type, m.local, outputfn);
+                });
+                
+            });
+        }
+        _ => ()
+    }
+}
+
+pub fn search_for_field(context: Match, searchstr: &str, search_type: SearchType, outputfn: &mut |Match|) {
+    let m = context;
+    match m.mtype {
+        Struct => {
+            debug!("PHIL got a struct, looking for fields and impls!! {}",m.matchstr);
+            search_struct_fields(searchstr, &m, search_type, outputfn);
+            search_for_impl_methods(m.matchstr.as_slice(),
+                                    searchstr,
+                                    m.point,
+                                    &m.filepath,
+                                    m.local,
+                                    search_type,
+                                    outputfn);
+        }
+
+        Enum => {
+            search_for_impl_methods(m.matchstr.as_slice(),
+                                    searchstr,
+                                    m.point,
+                                    &m.filepath,
+                                    m.local,
+                                    search_type,
+                                    outputfn);
+        }
+        _ => ()
+    };
+}
+
+
 
 pub fn find_definition(src: &str, filepath: &Path, pos: uint) -> Option<Match> {
     return first_match(|m| find_definition_(src, filepath, pos, m));
