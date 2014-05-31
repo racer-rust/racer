@@ -920,15 +920,13 @@ pub fn complete_from_file(src: &str, filepath: &Path, pos: uint, outputfn: &mut 
 
     let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
 
-    let search_type = StartsWith;
-
     context.map(|m| {
         match completetype {
             Field => {
-                search_for_field(m, searchstr, search_type, outputfn);
+                search_for_field(m, searchstr, StartsWith, outputfn);
             }
             Path => {
-                search_for_path(m, searchstr, search_type, outputfn);
+                search_for_path(m, searchstr, StartsWith, outputfn);
             }
         }
     });
@@ -994,27 +992,37 @@ pub fn find_definition(src: &str, filepath: &Path, pos: uint) -> Option<Match> {
 }
 
 pub fn find_definition_(src: &str, filepath: &Path, pos: uint, outputfn: &mut |Match|) {
-    let (start, end) = expand_fqn(src, pos);
-    let expr = src.slice(start, end);    
 
-    let mut l = expr.split_str("::");
-    let path : Vec<&str> = l.collect(); 
+    let (start, end) = scopes::expand_search_expr(src, pos);
+    let expr = src.slice(start,end);
 
-    let lastbit = path.as_slice()[path.len()-1];
+    let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
-    let mut field_expr = lastbit.split_str(".");
-    let field_expr : Vec<&str> = field_expr.collect(); 
+    debug!("PHIL searching for |{}| |{}| {:?}",contextstr, searchstr, completetype);
 
     let find_definition_output_fn = &mut |m: Match| {
-        if m.matchstr == field_expr.as_slice()[field_expr.len()-1].to_string() {  // only if is an exact match
+        if m.matchstr == searchstr.to_string() {  // only if is an exact match
             (*outputfn)(m);
         }
     };
 
-    let mut l = expr.split_str("::");
-    let path : Vec<&str> = l.collect(); 
+    if contextstr == "" {
+        do_local_search([searchstr], filepath, pos, ExactMatch, find_definition_output_fn);
+        return;
+    }
 
-    do_local_search(path.as_slice(), filepath, pos, ExactMatch, find_definition_output_fn);
+    let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
+
+    context.map(|m| {
+        match completetype {
+            Field => {
+                search_for_field(m, searchstr, ExactMatch, find_definition_output_fn);
+            }
+            Path => {
+                search_for_path(m, searchstr, ExactMatch, find_definition_output_fn);
+            }
+        }
+    });
 }
 
 pub fn search_prelude_file(searchstr: &str, search_type: SearchType, outputfn: &mut |Match|) {
