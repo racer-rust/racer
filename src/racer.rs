@@ -661,7 +661,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
 
                 for (name, offset) in parsedEnum.values.move_iter() {
                     if name.as_slice().starts_with(searchstr) {
-                        let m = Match {matchstr: name.into_owned(), 
+                        let m = Match {matchstr: name.into_string(),
                                        filepath: filepath.clone(), 
                                        point: point + start + offset,
                                        local: local,
