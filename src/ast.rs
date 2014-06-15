@@ -7,6 +7,7 @@ use syntax::parse::parser::Parser;
 use syntax::parse::token;
 use syntax::visit;
 use syntax::codemap;
+use std::gc::Gc;
 use std::task;
 use racer::Match;
 use racer;
@@ -40,21 +41,21 @@ fn with_error_checking_parse<T>(s: String, f: |&mut Parser| -> T) -> T {
 }
 
 // parse a string, return an expr
-pub fn string_to_expr (source_str : String) -> @ast::Expr {
+pub fn string_to_expr (source_str : String) -> Gc<ast::Expr> {
     with_error_checking_parse(source_str, |p| {
         p.parse_expr()
     })
 }
 
 // parse a string, return an item
-pub fn string_to_item (source_str : String) -> Option<@ast::Item> {
+pub fn string_to_item (source_str : String) -> Option<Gc<ast::Item>> {
     with_error_checking_parse(source_str, |p| {
         p.parse_item(Vec::new())
     })
 }
 
 // parse a string, return a stmt
-pub fn string_to_stmt(source_str : String) -> @ast::Stmt {
+pub fn string_to_stmt(source_str : String) -> Gc<ast::Stmt> {
     with_error_checking_parse(source_str, |p| {
         p.parse_stmt(Vec::new())
     })
@@ -243,7 +244,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
 }
 
 impl MyLetVisitor {
-    fn visit_let_initializer(&mut self, name: &str, point: uint, init: Option<@ast::Expr> ) {
+    fn visit_let_initializer(&mut self, name: &str, point: uint, init: Option<Gc<ast::Expr>> ) {
 
         // chances are we can't parse the init yet, so the default is to leave blank
         self.result = Some(LetResult{name: name.to_string(),
