@@ -62,9 +62,8 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<Match> {
 }
 
 
-pub fn get_type_of_OLD(m: Match, msrc: &str) -> Option<Match> {
-    debug!("PHIL get_type_of OLD {:?}",m);
-    debug!("PHIL get_type_of OLD {}",m.matchstr);
+pub fn get_type_of_match(m: Match, msrc: &str) -> Option<Match> {
+    debug!("PHIL get_type_of match {:?} {} ",m, m.matchstr);
 
     return match m.mtype {
         racer::Let => get_type_of_let_expr(&m, msrc),

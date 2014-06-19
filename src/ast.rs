@@ -68,22 +68,23 @@ pub fn string_to_crate (source_str : String) -> ast::Crate {
     })
 }
 
-
-struct MyViewItemVisitor {
-    results : Vec<Vec<String>>
+pub struct ViewItemVisitor {
+    pub ident : Option<String>,
+    pub paths : Vec<Vec<String>>
 }
 
-impl visit::Visitor<()> for MyViewItemVisitor {
+impl visit::Visitor<()> for ViewItemVisitor {
     fn visit_view_item(&mut self, i: &ast::ViewItem, e: ()) { 
         match i.node {
             ast::ViewItemUse(ref path) => {
                 match path.node {
-                    ast::ViewPathSimple(_, ref path, _) => {
+                    ast::ViewPathSimple(ident, ref path, _) => {
                         let mut v = Vec::new();
                         for seg in path.segments.iter() {
                             v.push(token::get_ident(seg.identifier).get().to_string())
                         }
-                        self.results.push(v);
+                        self.paths.push(v);
+                        self.ident = Some(token::get_ident(ident).get().to_string());
                     },
                     ast::ViewPathList(ref pth, ref paths, _) => {
                         let mut v = Vec::new();
@@ -96,7 +97,7 @@ impl visit::Visitor<()> for MyViewItemVisitor {
                             let mut vv = v.clone();
                             //debug!("PHIL view path list item {}",token::get_ident(path.node.name));
                             vv.push(token::get_ident(path.node.name).get().to_string());
-                            self.results.push(vv);
+                            self.paths.push(vv);
                         }
                     }
                     ast::ViewPathGlob(_, id) => {
@@ -104,7 +105,17 @@ impl visit::Visitor<()> for MyViewItemVisitor {
                     }
                 }
             },
-            ast::ViewItemExternCrate(..) => {
+            ast::ViewItemExternCrate(ident, ref loc, _) => {
+                self.ident = Some(token::get_ident(ident).get().to_string());
+
+                let ll = loc.clone();
+                ll.map(|(ref istr, _ /* str style */)| {
+                    let mut v = Vec::new();
+                    v.push(istr.get().to_string());
+                    self.paths.push(v);
+                    // println!("PHIL crate loc {}", istr);
+                    // println!("PHIL crate style {:?}", style);
+                });
             }
         }
 
@@ -112,7 +123,7 @@ impl visit::Visitor<()> for MyViewItemVisitor {
     }
 }
 
-struct MyLetVisitor {
+struct LetVisitor {
     scope: Scope,
     parseinit: bool,
     result: Option<LetResult>
@@ -155,7 +166,7 @@ fn get_type_of_path(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match>
     if om.is_some() {
         let m = om.unwrap();
         let msrc = racer::load_file_and_mask_comments(&m.filepath);
-        return resolve::get_type_of_OLD(m, msrc.as_slice())
+        return resolve::get_type_of_match(m, msrc.as_slice())
     } else {
         return None;
     }
@@ -243,7 +254,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
 
 }
 
-impl MyLetVisitor {
+impl LetVisitor {
     fn visit_let_initializer(&mut self, name: &str, point: uint, init: Option<Gc<ast::Expr>> ) {
 
         // chances are we can't parse the init yet, so the default is to leave blank
@@ -273,7 +284,7 @@ impl MyLetVisitor {
     }
 }
 
-impl visit::Visitor<()> for MyLetVisitor {
+impl visit::Visitor<()> for LetVisitor {
 
     fn visit_decl(&mut self, decl: &ast::Decl, e: ()) { 
         debug!("PHIL decl {:?}",decl);
@@ -454,24 +465,20 @@ impl visit::Visitor<()> for EnumVisitor {
 }
 
 
-pub fn parse_view_item(s: String) -> Vec<Vec<String>> {
+pub fn parse_view_item(s: String) -> ViewItemVisitor {
     // parser can fail!() so isolate it in another task
     let result = task::try(proc() { 
-        return _parse_view_items(s);
+        let cr = string_to_crate(s);
+        let mut v = ViewItemVisitor{ident: None, paths: Vec::new()};
+        visit::walk_crate(&mut v, &cr, ());
+        return v;
     });
     match result {
         Ok(s) => {return s;},
         Err(_) => {
-            return Vec::new();
+            return ViewItemVisitor{ident: None, paths: Vec::new()};
         }
     }
-}
-
-fn _parse_view_items(s: String)-> Vec<Vec<String>> {
-    let cr = string_to_crate(s);
-    let mut v = MyViewItemVisitor{results: Vec::new()};
-    visit::walk_crate(&mut v, &cr, ());
-    return v.results;
 }
 
 pub fn parse_let(s: String, fpath: Path, pos: uint, parseinit: bool) -> Option<LetResult> {
@@ -482,7 +489,7 @@ pub fn parse_let(s: String, fpath: Path, pos: uint, parseinit: bool) -> Option<L
         debug!("PHIL parse_let stmt={:?}",stmt);
         let scope = Scope{filepath: fpath, point: pos};
 
-        let mut v = MyLetVisitor{ scope: scope, result: None, parseinit: parseinit};
+        let mut v = LetVisitor{ scope: scope, result: None, parseinit: parseinit};
         visit::walk_stmt(&mut v, stmt, ());
         return v.result;
     });
@@ -579,11 +586,26 @@ fn ast_sandbox() {
     // let src = "impl<'a> StrSlice<'a> for &'a str {}";
     // let stmt = string_to_stmt(String::from_str(src));
 
+    // let src = "extern crate core_collections = \"collections\";";
+    // let src = "use foo = bar;";
+    // let src = "use bar::baz;";
+
+    // let src = "use bar::{baz,blah};";
+    // let src = "extern crate collections;";
+    // let cr = string_to_crate(String::from_str(src));
+    // let mut v = ViewItemVisitor{ ident: None, paths: Vec::new() };
+    // visit::walk_crate(&mut v, &cr, ());
+
+    // println!("PHIL v {} {}",v.ident, v.paths);
+
+    // visit::walk_stmt(&mut v, stmt, ());
+
     // println!("PHIL stmt {:?}",stmt);
 
 
     // let mut v = ImplVisitor{ name_path: Vec::new() };
     // visit::walk_stmt(&mut v, stmt, ());
+
 
     // println!("v {}",v.name_path);
 

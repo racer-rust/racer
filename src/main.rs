@@ -1,4 +1,4 @@
-#![feature(managed_boxes,phase)]
+#![feature(phase)]
 #[phase(plugin, link)] extern crate log;
 
 extern crate syntax;

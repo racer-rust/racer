@@ -281,6 +281,29 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path, outputfn: &mut |Match|
     }
 }
 
+pub fn search_crate_root(searchstr: &str, modfpath: &Path, 
+                         searchtype: SearchType, outputfn: &mut |Match|) {
+    let crateroots = find_possible_crate_root_modules(&modfpath.dir_path());
+    for crateroot in crateroots.iter() {
+        if crateroot == modfpath {
+            continue;
+        }
+        debug!("PHIL going to search for {} in crateroot {}",searchstr, crateroot.as_str());
+        do_local_search([searchstr], crateroot, 0, searchtype, outputfn);
+    }
+}
+
+pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<Path> {
+    let mut res = Vec::new();
+    {
+        let filepath = currentdir.join_many([Path::new("lib.rs")]);
+        if File::open(&filepath).is_ok() {
+            res.push(filepath);
+        }
+    }
+    return res;
+}
+
 pub fn get_module_file(name: &str, currentdir: &Path) -> Option<Path> {
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
     let v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
@@ -438,6 +461,51 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
                                         mtype: Let});
                 }
             });
+        }
+
+        if blob.starts_with(format!("extern crate {}", searchstr).as_slice()) {
+            debug!("found an extern crate: |{}|",blob);
+
+
+            let view_item;
+            if blob.contains("\"") {
+                // Annoyingly the extern crate can use a string literal for the
+                // real crate name (e.g. extern crate collections_core = "collections")
+                //so we need to get the source text without scrubbed strings 
+                let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
+                let rawsrc = str::from_utf8(filetxt.as_slice()).unwrap();
+                let rawblob = rawsrc.slice(start,end);
+                debug!("found an extern crate (unscrubbed): |{}|", rawblob);
+                
+                view_item = ast::parse_view_item(String::from_str(rawblob));
+            } else {
+                view_item = ast::parse_view_item(String::from_str(blob));
+            }
+
+
+            if view_item.paths.is_empty() {
+                // reference to a crate. For now do nothing since will
+                // be picked up by file search. This will change
+                // sometime in the future when racer has more accurate
+                // crate handling
+            } else {
+
+                view_item.ident.clone().map(|ident|{
+                    if symbol_matches(search_type, searchstr, ident.as_slice()) {
+                        let real_str = view_item.paths.get(0).get(0);
+                        get_module_file(real_str.as_slice(), &filepath.dir_path()).map(|modpath|{
+                            let m = Match {matchstr: ident.to_string(),
+                                           filepath: modpath.clone(), 
+                                           point: 0,
+                                           local: false,
+                                           mtype: Module
+                            };
+                            (*outputfn)(m);
+                        });
+
+                    }
+                });
+            }
         }
 
         if local && blob.starts_with(format!("mod {}", searchstr).as_slice()) {
@@ -679,7 +747,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             let view_item = ast::parse_view_item(String::from_str(blob));
             let t1 = time::precise_time_s();
             debug!("PHIL ast use parse_view_item time {}",t1-t0);
-            for fqn_ in view_item.iter() {
+            for fqn_ in view_item.paths.iter() {
                 // HACK, convert from &[~str] to &[&str]
                 let mut fqn = to_refs(fqn_);  
                 //let fqn = v.as_slice();
@@ -836,7 +904,7 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
         let parentexpr = field_expr.slice_to(field_expr.len()-1);
         let def = first_match(|m| search_local_text_(parentexpr, filepath, msrc, point, ExactMatch, m));        
         def.map(|m| {
-            let t = resolve::get_type_of_OLD(m, msrc);
+            let t = resolve::get_type_of_match(m, msrc);
             t.map(|m| {
                 debug!("PHIL got type match {:?}",m);
                     
@@ -1065,12 +1133,16 @@ pub fn do_local_search_with_string(path: &[&str], filepath: &Path, pos: uint,
 pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint, 
                        search_type: SearchType,
                        outputfn: &mut |Match|) {
-    debug!("PHIL do_local_search path {}",path);
+    debug!("PHIL do_local_search path {} in {}",path, filepath.as_str());
 
     if path.len() == 1 {
         let searchstr = path[0];
         search_local_text(searchstr, filepath, pos, search_type, outputfn);
         search_prelude_file(searchstr, search_type, outputfn);
+
+        // don't need to match substrings here because substring matches are done
+        // on the use stmts.
+        search_crate_root(searchstr, filepath, search_type, outputfn);
 
         // don't need to match substrings here because substring matches are done
         // on the use stmts.
