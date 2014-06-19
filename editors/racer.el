@@ -121,7 +121,7 @@
 	     (company-mode)
 	     (set (make-local-variable 'company-backends) '(racer-company-complete))
 	     (local-set-key "\t" 'racer--complete-or-indent)
-	     (local-set-key [(f1)] 'racer-find-definition)
+	     (local-set-key "\M-." 'racer-find-definition)
 	     (setq company-idle-delay nil)) 
 	  nil)
 

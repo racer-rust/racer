@@ -44,6 +44,6 @@
 
 6. Open a rust file and try typing ```use std::io::B``` and press \<tab\>
 
-7. Place your cursor over a symbol and hit \<f1\> to jump to the definition
+7. Place your cursor over a symbol and hit M-. to jump to the definition
 
 N.B. So far I've only tested this on ubuntu linux + emacs 24
