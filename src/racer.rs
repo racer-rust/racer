@@ -387,13 +387,13 @@ fn search_next_scope(mut startpoint: uint, searchstr:&str, filepath:&Path,
 fn first_param_is_self(blob: &str) -> bool {
     return blob.find_str("(").map_or(false, |start| {
         let end = scopes::find_closing_paren(blob, start+1);
-        debug!("PHIL searching fn args: {} {}",blob.slice(start+1,end), txt_matches(ExactMatch, "self", blob.slice(start+1,end)));
+        debug!("PHIL searching fn args: |{}| {}",blob.slice(start+1,end), txt_matches(ExactMatch, "self", blob.slice(start+1,end)));
         return txt_matches(ExactMatch, "self", blob.slice(start+1,end));
     });
 }
 
 fn search_scope_for_methods(point: uint, src:&str, searchstr:&str, filepath:&Path, 
-                      search_type: SearchType, local: bool,
+                      search_type: SearchType, 
                       outputfn: &mut |Match|) {
     debug!("PHIL searching scope for methods {} {} {}",point, searchstr, filepath.as_str());
     
@@ -401,31 +401,18 @@ fn search_scope_for_methods(point: uint, src:&str, searchstr:&str, filepath:&Pat
 
     for (start,end) in codeiter::iter_stmts(scopesrc) { 
         let blob = scopesrc.slice(start,end);
-        if local && txt_matches(search_type, format!("fn {}", searchstr).as_slice(), blob) 
+
+        if txt_matches(search_type, format!("fn {}", searchstr).as_slice(), blob) 
             && first_param_is_self(blob) {
-            debug!("PHIL found a method starting {}",searchstr);
+            debug!("PHIL found a method starting |{}| |{}|",searchstr,blob);
             // TODO: parse this properly
-            let end = find_path_end(blob, 3);
-            let l = blob.slice(3, end);
+            let start = blob.find_str(format!("fn {}", searchstr).as_slice()).unwrap();
+            let end = find_path_end(blob, start+3);
+            let l = blob.slice(start + 3, end);
             let m = Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: point + start + 3,
-                           local: local,
-                           mtype: Function
-            };
-            (*outputfn)(m);
-        }
-
-        if txt_matches(search_type, format!("pub fn {}", searchstr).as_slice(), blob) && first_param_is_self(blob) {
-            debug!("PHIL found a pub method starting {}",searchstr);
-            // TODO: parse this properly
-            let end = find_path_end(blob, 7);
-            let l = blob.slice(7, end);
-            debug!("PHIL found a pub fn {}",l);
-            let m = Match {matchstr: l.to_string(),
-                           filepath: filepath.clone(), 
-                           point: point + start + 7,
-                           local: local,
+                           local: true,
                            mtype: Function
             };
             (*outputfn)(m);
@@ -946,14 +933,14 @@ pub fn search_for_impl_methods(implsearchstr: &str,
                            search_type: SearchType,
                            outputfn: &mut |Match|) {
     search_for_impls(point, implsearchstr, fpath, local, &mut |m|{
-        debug!("PHIL found impl!! {}. looking for methods",m.matchstr);
+        debug!("PHIL found impl!! |{}| looking for methods",m.matchstr);
         let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
         let src = str::from_utf8(filetxt.as_slice()).unwrap();
                         
         // find the opening brace and skip to it. 
         src.slice_from(m.point).find_str("{").map(|n|{
             let point = m.point + n + 1;
-            search_scope_for_methods(point, src, fieldsearchstr, &m.filepath, search_type, true, outputfn);
+            search_scope_for_methods(point, src, fieldsearchstr, &m.filepath, search_type, outputfn);
         });
     });
 }
