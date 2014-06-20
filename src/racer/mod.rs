@@ -2,24 +2,18 @@ extern crate std;
 extern crate log;
 extern crate collections;
 extern crate time;
+
 use std::io::File;
 use std::io::BufferedReader;
 use std::str;
 
-#[path="scopes.rs"]
 pub mod scopes;
-#[path="ast.rs"]
 pub mod ast;
-#[path="resolve.rs"]
 pub mod resolve;
-#[path="codeiter.rs"]
 pub mod codeiter;
-#[path="codecleaner.rs"]
 pub mod codecleaner;
-#[path="testutils.rs"]
 pub mod testutils;
 
-#[path="test.rs"]
 #[cfg(test)] pub mod test;
 
 pub enum MatchType {
@@ -1037,8 +1031,12 @@ pub fn find_definition_(src: &str, filepath: &Path, pos: uint, outputfn: &mut |M
 }
 
 pub fn search_prelude_file(searchstr: &str, search_type: SearchType, outputfn: &mut |Match|) {
-    // find the prelude file from teh search path and scan it
-    let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
+    // find the prelude file from the search path and scan it
+    let srcpaths = match std::os::getenv("RUST_SRC_PATH") { 
+        Some(paths) => paths,
+        None => return
+    };
+
     let v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
     for srcpath in v.move_iter() {
         let filepath = Path::new(srcpath).join_many([Path::new("libstd/prelude.rs")]);
