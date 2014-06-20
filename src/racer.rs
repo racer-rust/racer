@@ -856,29 +856,11 @@ fn search_local_text(searchstr: &str, filepath: &Path, point: uint,
 
     if searchstr.contains(".") {
         println!("PHIL FIXME search_local_text searchstr contains a dot!!!!! |{}|",searchstr);
+        fail!("PHIL FIXME search_local_text searchstr contains a dot!!!!!");
     }
 
-    let mut l = searchstr.split_str(".");
-    let field_expr: Vec<&str> = l.collect();
-    let field_expr = field_expr.as_slice();
-
-    match search_type {
-        ExactMatch => {
-        search_local_text_(field_expr, filepath, msrc.as_slice(), point, search_type, &mut |m: Match| {
-            if m.matchstr == field_expr[field_expr.len()-1].to_string() {  // only if is an exact match
-                (*outputfn)(m);
-            } else {
-                debug!("PHIL got match '{}', but doesnt exact match '{}'",
-                      m.matchstr, field_expr[field_expr.len()-1]);
-            }
-        });
-
-        },
-        StartsWith => search_local_text_(field_expr, filepath, msrc.as_slice(), point, search_type, outputfn)
-    }
+    search_local_scopes(searchstr, filepath, msrc.as_slice(), point, search_type, outputfn);
 }
-
-
 
 fn search_struct_fields(searchstr: &str, m: &Match,
                         search_type: SearchType, outputfn: &mut |Match|) {
@@ -898,58 +880,6 @@ fn search_struct_fields(searchstr: &str, m: &Match,
                                 local: m.local,
                                 mtype: StructField});
         }
-    }
-}
-
-
-fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: uint, 
-                      search_type: SearchType,
-                      outputfn: &mut |Match|) {
-    debug!("PHIL search_local_text_ {} {} {}",field_expr,filepath.as_str(),point);
-
-    if field_expr.len() == 1 {
-        search_local_scopes(field_expr[0], filepath, msrc, point, search_type, outputfn);
-    } else {
-
-        println!("PHIL: FIXME!! search_local_text_ not expecting field reference any more");
-
-         // field reference. 
-        let parentexpr = field_expr.slice_to(field_expr.len()-1);
-        let def = first_match(|m| search_local_text_(parentexpr, filepath, msrc, point, ExactMatch, m));        
-        def.map(|m| {
-            let t = resolve::get_type_of_match(m, msrc);
-            t.map(|m| {
-                debug!("PHIL got type match {:?}",m);
-                    
-                match m.mtype {
-                    Struct => {
-                        debug!("PHIL got a struct, looking for fields and impls!! {}",m.matchstr);
-
-                        let fieldsearchstr = field_expr[field_expr.len()-1];
-                        search_struct_fields(fieldsearchstr, &m, search_type, outputfn);
-                        search_for_impl_methods(m.matchstr.as_slice(),
-                                                fieldsearchstr,
-                                                m.point,
-                                                &m.filepath,
-                                                m.local,
-                                                search_type,
-                                                outputfn);
-                    }
-
-                    Enum => {
-                        let fieldsearchstr = field_expr[field_expr.len()-1];
-                        search_for_impl_methods(m.matchstr.as_slice(),
-                                                fieldsearchstr,
-                                                m.point,
-                                                &m.filepath,
-                                                m.local,
-                                                search_type,
-                                                outputfn);
-                    }
-                    _ => ()
-                }
-            });
-        });
     }
 }
 
