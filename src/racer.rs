@@ -431,8 +431,26 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
     };
 
     let scopesrc = src.slice_from(point);
+
+    let mut skip_next_block = false;
+
     for (start,end) in codeiter::iter_stmts(scopesrc) { 
+
+        if skip_next_block {
+            skip_next_block = false;
+            continue;
+        }
+
         let blob = scopesrc.slice(start,end);
+
+        // for now skip stuff that's meant for testing. Often the test
+        // module hierarchy is incompatible with the non-test
+        // hierarchy and we get into recursive loops
+        if blob.starts_with("#[cfg(test)") {
+            skip_next_block = true;
+            continue;
+        }
+
         //debug!("PHIL search_scope BLOB |{}|",blob);
         if blob.starts_with("let ") && blob.find_str(searchstr).is_some() {
             let res = ast::parse_let(String::from_str(blob), filepath.clone(), start, false);
@@ -835,6 +853,11 @@ pub fn load_file_and_mask_comments(filepath: &Path) -> String {
 fn search_local_text(searchstr: &str, filepath: &Path, point: uint,
                      search_type: SearchType, outputfn: &mut |Match|) {
     let msrc = load_file_and_mask_comments(filepath);
+
+    if searchstr.contains(".") {
+        println!("PHIL FIXME search_local_text searchstr contains a dot!!!!! |{}|",searchstr);
+    }
+
     let mut l = searchstr.split_str(".");
     let field_expr: Vec<&str> = l.collect();
     let field_expr = field_expr.as_slice();
@@ -887,6 +910,9 @@ fn search_local_text_(field_expr: &[&str], filepath: &Path, msrc: &str, point: u
     if field_expr.len() == 1 {
         search_local_scopes(field_expr[0], filepath, msrc, point, search_type, outputfn);
     } else {
+
+        println!("PHIL: FIXME!! search_local_text_ not expecting field reference any more");
+
          // field reference. 
         let parentexpr = field_expr.slice_to(field_expr.len()-1);
         let def = first_match(|m| search_local_text_(parentexpr, filepath, msrc, point, ExactMatch, m));        
@@ -1157,8 +1183,8 @@ pub fn do_local_search(path: &[&str], filepath: &Path, pos: uint,
         let parent_path = path.slice_to(path.len()-1);
         debug!("PHIL doing nested search: {} -> {}", path, parent_path);
         let context = first_match(|m| do_local_search(parent_path, filepath, pos, ExactMatch, m));
-        debug!("PHIL context match is : {:?} ", context);
         context.map(|m| {
+            debug!("PHIL context match is : {:?} {}", m, m.matchstr);
             match m.mtype {
                 Module => {
                     debug!("PHIL searching a module '{}' (whole path: {})",m.matchstr, path);
