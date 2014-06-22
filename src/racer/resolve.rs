@@ -54,8 +54,15 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<Match> {
         let blob = src.slice(start,end);
         
         return ast::parse_let(String::from_str(blob), m.filepath.clone(), m.point, true).map_or(None, |letres|{
-            debug!("PHIL parse let result {:?}", &letres.inittype);
-            return letres.inittype;
+
+            let inittype = letres.inittype;
+            debug!("PHIL parse let result {:?}", inittype);
+
+            inittype.as_ref().map(|m|{
+                debug!("PHIL parse let type is {}",m.matchstr);
+            });
+
+            return inittype;
         });
     }
     return None;
@@ -92,7 +99,7 @@ pub fn get_return_type_of_function(fnmatch: &Match) -> Vec<String> {
     let src = str::from_utf8(filetxt.as_slice()).unwrap();
     let point = scopes::find_stmt_start(src, fnmatch.point).unwrap();
 
-    debug!("get_return_type_of_function |{}|",src.slice_from(point));
+    //debug!("get_return_type_of_function |{}|",src.slice_from(point));
     
     let outputpath = src.slice_from(point).find_str("{").map(|n|{
         // wrap in "impl blah { }" so that methods get parsed correctly too
