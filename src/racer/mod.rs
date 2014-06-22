@@ -393,19 +393,19 @@ fn search_scope_for_methods(point: uint, src:&str, searchstr:&str, filepath:&Pat
     
     let scopesrc = src.slice_from(point);
 
-    for (start,end) in codeiter::iter_stmts(scopesrc) { 
-        let blob = scopesrc.slice(start,end);
+    for (blobstart,blobend) in codeiter::iter_stmts(scopesrc) { 
+        let blob = scopesrc.slice(blobstart, blobend);
 
         if txt_matches(search_type, format!("fn {}", searchstr).as_slice(), blob) 
             && first_param_is_self(blob) {
             debug!("PHIL found a method starting |{}| |{}|",searchstr,blob);
             // TODO: parse this properly
-            let start = blob.find_str(format!("fn {}", searchstr).as_slice()).unwrap();
-            let end = find_path_end(blob, start+3);
-            let l = blob.slice(start + 3, end);
+            let start = blob.find_str(format!("fn {}", searchstr).as_slice()).unwrap() + 3;
+            let end = find_ident_end(blob, start);
+            let l = blob.slice(start, end);
             let m = Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
-                           point: point + start + 3,
+                           point: point + blobstart + start,
                            local: true,
                            mtype: Function
             };
@@ -510,7 +510,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         if local && blob.starts_with(format!("mod {}", searchstr).as_slice()) {
             debug!("found a module: |{}|",blob);
             // TODO: parse this properly
-            let end = find_path_end(blob, 4);
+            let end = find_ident_end(blob, 4);
             let l = blob.slice(4, end);
 
             if (exact_match && l == searchstr) || (!exact_match && l.starts_with(searchstr)) {
@@ -543,7 +543,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         if blob.starts_with(format!("pub mod {}", searchstr).as_slice()) {
             debug!("found a pub module: |{}|",blob);
             // TODO: parse this properly
-            let end = find_path_end(blob, 8);
+            let end = find_ident_end(blob, 8);
             let l = blob.slice(8, end);
 
             if (exact_match && l == searchstr) || (!exact_match && l.starts_with(searchstr)) {
@@ -577,7 +577,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             debug!("PHIL found a pub fn starting {}",searchstr);
             // TODO: parse this properly
             let start = blob.find_str(format!("pub fn {}", searchstr).as_slice()).unwrap() + 7;
-            let end = find_path_end(blob, start);
+            let end = find_ident_end(blob, start);
             let l = blob.slice(start, end);
             debug!("PHIL found a pub fn {}",l);
             let m = Match {matchstr: l.to_string(),
@@ -590,7 +590,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         } else if local && txt_matches(search_type, format!("fn {}",searchstr).as_slice(), blob) && !first_param_is_self(blob) {
             // TODO: parse this properly
             let start = blob.find_str(format!("fn {}", searchstr).as_slice()).unwrap() + 3;
-            let end = find_path_end(blob, start);
+            let end = find_ident_end(blob, start);
             let l = blob.slice(start, end);
             let m = Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
@@ -605,7 +605,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         if local && txt_matches(search_type, format!("struct {}", searchstr).as_slice(), blob) {
             // TODO: parse this properly
             let start = blob.find_str(format!("struct {}", searchstr).as_slice()).unwrap() + 7;
-            let end = find_path_end(blob, start);
+            let end = find_ident_end(blob, start);
             let l = blob.slice(start, end);
             debug!("PHIL found!! a local struct |{}|", l);
             let m = Match {matchstr: l.to_string(),
@@ -620,7 +620,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         if txt_matches(search_type, format!("pub struct {}", searchstr).as_slice(), blob) {
             // TODO: parse this properly
             let start = blob.find_str(format!("pub struct {}", searchstr).as_slice()).unwrap() + 11;
-            let end = find_path_end(blob, start);
+            let end = find_ident_end(blob, start);
             let l = blob.slice(start, end);
             debug!("PHIL found!! a pub struct |{}|", l);
             let m = Match {matchstr: l.to_string(),
@@ -635,7 +635,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         if local && txt_matches(search_type, format!("type {}", searchstr).as_slice(), blob) {
             // TODO: parse this properly
             let start = blob.find_str(format!("type {}", searchstr).as_slice()).unwrap() + 5;
-            let end = find_path_end(blob, start);
+            let end = find_ident_end(blob, start);
             let l = blob.slice(start, end);
             debug!("PHIL found!! a type {}", l);
             let m = Match {matchstr: l.to_string(),
@@ -650,7 +650,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         if txt_matches(search_type, format!("pub type {}", searchstr).as_slice(), blob) {
             // TODO: parse this properly
             let start = blob.find_str(format!("pub type {}", searchstr).as_slice()).unwrap() + 9;
-            let end = find_path_end(blob, start);
+            let end = find_ident_end(blob, start);
             let l = blob.slice(start, end);
             debug!("PHIL found!! a pub type {}", l);
             let m = Match {matchstr: l.to_string(),
@@ -665,7 +665,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         if local && txt_matches(search_type, format!("trait {}", searchstr).as_slice(), blob) {
             // TODO: parse this properly
             let start = blob.find_str(format!("trait {}", searchstr).as_slice()).unwrap() + 6;
-            let end = find_path_end(blob, start);
+            let end = find_ident_end(blob, start);
             let l = blob.slice(start, end);
             debug!("PHIL found!! a type {}", l);
             let m = Match {matchstr: l.to_string(),
@@ -680,7 +680,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         if txt_matches(search_type, format!("pub trait {}", searchstr).as_slice(), blob) {
             // TODO: parse this properly
             let start = blob.find_str(format!("pub trait {}", searchstr).as_slice()).unwrap() + 10;
-            let end = find_path_end(blob, start);
+            let end = find_ident_end(blob, start);
             let l = blob.slice(start, end);
             debug!("PHIL found!! a pub type {}", l);
             let m = Match {matchstr: l.to_string(),
@@ -698,7 +698,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             if blob.starts_with(format!("pub enum {}", searchstr).as_slice()) {
                 // TODO: parse this properly
                 let start = blob.find_str(format!("pub enum {}", searchstr).as_slice()).unwrap() + 9;
-                let end = find_path_end(blob, start);
+                let end = find_ident_end(blob, start);
                 let l = blob.slice(start, end);
                 if !exact_match || l == searchstr {
                     debug!("PHIL found!! a pub enum {}", l);
@@ -713,7 +713,7 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             } else if blob.starts_with(format!("enum {}", searchstr).as_slice()) {
                 // TODO: parse this properly
                 let start = blob.find_str(format!("enum {}", searchstr).as_slice()).unwrap() + 5;
-                let end = find_path_end(blob, start);
+                let end = find_ident_end(blob, start);
                 let l = blob.slice(start, end);
                 debug!("PHIL found!! a local enum {}", l);
                 let m = Match {matchstr: l.to_string(),
