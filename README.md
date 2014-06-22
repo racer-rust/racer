@@ -40,10 +40,24 @@
 
 5. Load it. E.g. eval the buffer or add this to .emacs:
 
-     ```(load "/path/to/racer/editors/racer.el")```
+     ```(add-to-list 'load-path "<path-to-racer>/editors")
+     (require 'racer)'''
 
 6. Open a rust file and try typing ```use std::io::B``` and press \<tab\>
 
 7. Place your cursor over a symbol and hit M-. to jump to the definition
 
 N.B. So far I've only tested this on ubuntu linux + emacs 24
+
+## Vim integration
+
+1. Copy racer/editors/racer.vim into your .vim/plugin directory
+
+2. Add g:racer_cmd and $RUST_SRC_PATH variables to your .vimrc. E.g.:
+
+     ```let g:racer_cmd = "/home/pld/src/rust/racer/bin/racer"
+     let $RUST_SRC_PATH="/usr/local/src/rust/src"```
+
+3. In insert mode, use C-x-C-o to search for completions
+
+4. In normal mode do 'gd' to go to definition
