@@ -53,11 +53,14 @@ N.B. So far I've only tested this on ubuntu linux + emacs 24
 
 1. Copy racer/editors/racer.vim into your .vim/plugin directory
 
-2. Add g:racer_cmd and $RUST_SRC_PATH variables to your .vimrc. E.g.:
+2. Add g:racer_cmd and $RUST_SRC_PATH variables to your .vimrc. Also it's worth turning on 'hidden' mode for buffers otherwise you need to save the current buffer every time you do a goto-definition. E.g.:
 
-     ```let g:racer_cmd = "/home/pld/src/rust/racer/bin/racer"
-     let $RUST_SRC_PATH="/usr/local/src/rust/src"```
+     ```
+     set hidden
+     let g:racer_cmd = "/home/pld/src/rust/racer/bin/racer"
+     let $RUST_SRC_PATH="/usr/local/src/rust/src"
+     ```
 
-3. In insert mode, use C-x-C-o to search for completions
+3. In insert mode use C-x-C-o to search for completions
 
-4. In normal mode do 'gd' to go to definition
+4. In normal mode type 'gd' to go to a definition
