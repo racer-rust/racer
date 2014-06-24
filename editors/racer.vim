@@ -6,7 +6,8 @@
 " 3. - now in insert mode do 'C-x C-o' to autocomplete the thing at the cursor
 "    - in normal mode do 'gd' to go to definition
 "
-" (N.B. I don't use vim so this is most likely a bit scrappy and n00bish)
+" (This plugin is best used with the 'hidden' option enabled so that switching buffers doesn't force you to save) 
+
 
 if !exists('g:racer_cmd')
     let g:racer_cmd = "/home/pld/src/rust/racer/bin/racer"
