@@ -9,7 +9,7 @@ pub fn find_closing_paren(src:&str, mut pos:uint) -> uint {
     let openparen: u8 = "("[0] as u8;
     let closeparen: u8 = ")"[0] as u8;
 
-    let mut levels = 0;
+    let mut levels = 0i;
     loop {
         if src[pos] == closeparen { 
             if levels == 0 {
@@ -30,7 +30,7 @@ pub fn find_closing_paren(src:&str, mut pos:uint) -> uint {
 pub fn scope_start(src:&str, point:uint) -> uint {
     let s = src.slice(0,point);
     let mut pt = point;
-    let mut levels = 0;
+    let mut levels = 0i;
     for c in s.chars().rev() {
         if c == '{' { 
             if levels == 0 {
@@ -85,7 +85,7 @@ pub fn split_into_context_and_completion<'a>(s: &'a str) -> (&'a str, &'a str, r
 pub fn get_start_of_search_expr(msrc: &str, point: uint) -> uint {
     let openparen: u8 = "("[0];
     let closeparen: u8 = ")"[0];
-    let mut levels = 0;
+    let mut levels = 0i;
     let mut i = point-1;
     loop {
         if i == -1 {
@@ -154,7 +154,7 @@ pub fn mask_comments(src: &str) -> String {
 }
 
 pub fn end_of_next_scope<'a>(src: &'a str) -> &'a str {
-    let mut level = 0;
+    let mut level = 0i;
     let mut end = 0;
     for (i,c) in src.char_indices() {
         if c == '}' {
