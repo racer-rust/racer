@@ -265,13 +265,13 @@ some more
 
     assert!(src.len() == r.len());
     // characters at the start are the same
-    assert!(src[5] == r.as_slice()[5]);
+    assert!(src.as_bytes()[5] == r.as_bytes()[5]);
     // characters in the comments are masked
     let commentoffset = coords_to_point(src,3,23);
     assert!(r.as_slice().char_at(commentoffset) == ' ');
-    assert!(src[commentoffset] != r.as_slice()[commentoffset]);
+    assert!(src.as_bytes()[commentoffset] != r.as_bytes()[commentoffset]);
     // characters afterwards are the same
-    assert!(src[src.len()-3] == r.as_slice()[src.len()-3]);
+    assert!(src.as_bytes()[src.len()-3] == r.as_bytes()[src.len()-3]);
 }
 
 #[test]
