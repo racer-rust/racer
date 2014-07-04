@@ -30,29 +30,30 @@ impl<'a> Iterator<(uint, uint)> for CodeIndicesIter<'a> {
 }
 
 fn code(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
-    let slash: u8 = "/"[0] as u8;
-    let star: u8 = "*"[0] as u8;
-    let dblquote: u8 = "\""[0] as u8;
+    let slash: u8 = "/".as_bytes()[0] as u8;
+    let star: u8 = "*".as_bytes()[0] as u8;
+    let dblquote: u8 = "\"".as_bytes()[0] as u8;
 
     let (mut pos, src, end) = (self_.pos, self_.src, self_.src.len());
+    let src_bytes = src.as_bytes();
     let start = self_.start;
     while pos < end {
-        if pos > 0 && src[pos] == slash && src[pos-1] == slash {
+        if pos > 0 && src_bytes[pos] == slash && src_bytes[pos-1] == slash {
             self_.start = pos+1;
             self_.pos = pos+1;
             self_.state = Comment;
             return Some((start, pos-1));
-        } 
+        }
 
-        if pos > 0 && src[pos] == star && src[pos-1] == slash {
+        if pos > 0 && src_bytes[pos] == star && src_bytes[pos-1] == slash {
             self_.start = pos+1;
             self_.pos = pos+1;
             self_.state = CommentBlock;
             self_.nesting_level = 0;
             return Some((start, pos-1));
-        } 
+        }
 
-        if src[pos] == dblquote {
+        if src_bytes[pos] == dblquote {
             self_.start = pos+1;
             self_.pos = pos+1;
             self_.state = String;
@@ -66,33 +67,35 @@ fn code(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
 }
 
 fn comment(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
-    let newline: u8 = "\n"[0] as u8;
+    let newline: u8 = "\n".as_bytes()[0] as u8;
     let (mut pos, src, end) = (self_.pos, self_.src, self_.src.len());
+    let src_bytes = src.as_bytes();
     let start = pos;
     while pos < end {
-        if src[pos] == newline {
+        if src_bytes[pos] == newline {
             self_.start = pos+1;
             self_.pos = pos+1;
             self_.state = Code;
             return code(self_);
-        } 
+        }
         pos += 1;
     }
     self_.state = Finished;
-    return Some((start, end));    
+    return Some((start, end));
 }
 
 fn comment_block(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
-    let slash: u8 = "/"[0] as u8;
-    let star: u8 = "*"[0] as u8;
+    let slash: u8 = "/".as_bytes()[0] as u8;
+    let star: u8 = "*".as_bytes()[0] as u8;
     let (mut pos, src, end) = (self_.pos, self_.src, self_.src.len());
+    let src_bytes = src.as_bytes();
     let start = pos;
     while pos < end {
-        if pos > 0 && src[pos] == star && src[pos-1] == slash {
+        if pos > 0 && src_bytes[pos] == star && src_bytes[pos-1] == slash {
             self_.nesting_level += 1;
         }
 
-        if pos > 0 && src[pos] == slash && src[pos-1] == star {
+        if pos > 0 && src_bytes[pos] == slash && src_bytes[pos-1] == star {
             if self_.nesting_level == 0 {
                 self_.start = pos+1;
                 self_.pos = pos+1;
@@ -101,29 +104,30 @@ fn comment_block(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
             } else {
                 self_.nesting_level -= 1;
             }
-        } 
+        }
         pos += 1;
     }
     self_.state = Finished;
-    return Some((start, end));    
+    return Some((start, end));
 }
 
 
 fn string(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
-    let dblquote: u8 = "\""[0] as u8;
-    let backslash: u8 = "\\"[0] as u8;
+    let dblquote: u8 = "\"".as_bytes()[0] as u8;
+    let backslash: u8 = "\\".as_bytes()[0] as u8;
 
     let (mut pos, src, end) = (self_.pos, self_.src, self_.src.len());
+    let src_bytes = src.as_bytes();
     let start = self_.start;
     while pos < end {
         // is the dblquote escaped? Is the escape char escaped?
-        if (src[pos] == dblquote && src[pos-1] != backslash) || 
-           (src[pos] == dblquote && src[pos-1] == backslash && src[pos-2] == backslash){
+        if (src_bytes[pos] == dblquote && src_bytes[pos-1] != backslash) ||
+           (src_bytes[pos] == dblquote && src_bytes[pos-1] == backslash && src_bytes[pos-2] == backslash){
             self_.start = pos;   // include the dblquote as code
             self_.pos = pos+1;
             self_.state = Code;
             return code(self_);
-        } 
+        }
         pos += 1;
     }
     self_.state = Finished;
@@ -133,7 +137,7 @@ fn string(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
 /// Returns indices of chunks of code (minus comments and string contents)
 pub fn code_chunks<'a>(src: &'a str) -> CodeIndicesIter<'a> {
     CodeIndicesIter { src: src, start: 0, pos: 0, state: Code, nesting_level: 0 }
-} 
+}
 
 #[test]
 fn removes_a_comment() {
@@ -203,7 +207,7 @@ fn removes_string_with_escaped_dblquote_in_it() {
     let src = rejustify("
     this is some code \"string with a \\\" escaped dblquote fake comment \" more code
     ");
-    
+
     let mut it = code_chunks(src.as_slice());
     assert_eq!("this is some code \"", slice(src.as_slice(), it.next().unwrap()));
     assert_eq!("\" more code", slice(src.as_slice(), it.next().unwrap()));
@@ -214,7 +218,7 @@ fn removes_string_with_escaped_slash_before_dblquote_in_it() {
     let src = rejustify("
     this is some code \"string with an escaped slash, so dbl quote does end the string after all \\\\\" more code
     ");
-    
+
     let mut it = code_chunks(src.as_slice());
     assert_eq!("this is some code \"", slice(src.as_slice(), it.next().unwrap()));
     assert_eq!("\" more code", slice(src.as_slice(), it.next().unwrap()));
