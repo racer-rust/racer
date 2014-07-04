@@ -291,10 +291,10 @@ impl visit::Visitor<()> for LetVisitor {
         match decl.node {
             ast::DeclLocal(local) => {
                 match local.pat.node {
-                    ast::PatIdent(_ , ref path, _) => {
-                        let codemap::BytePos(point) = path.span.lo;
-                        let pathv = path_to_vec(path);
-                        self.visit_let_initializer(pathv.get(0).as_slice(),
+                    ast::PatIdent(_ , ref spannedident, _) => {
+                        let codemap::BytePos(point) = spannedident.span.lo;
+                        let name = token::get_ident(spannedident.node).get().to_string();
+                        self.visit_let_initializer(name.as_slice(),
                                                    point.to_uint().unwrap(),
                                                    local.init);
                     },
@@ -382,11 +382,10 @@ impl visit::Visitor<()> for FnVisitor {
             debug!("PHIL fn arg ast is {:?}",arg);
             let res  = 
                 match arg.pat.node {
-                    ast::PatIdent(_ , ref path, _) => {
-                        let codemap::BytePos(point) = path.span.lo;
-                        let pathv = path_to_vec(path);
-                        assert!(pathv.len() == 1);                        
-                        Some((String::from_str(pathv.get(0).as_slice()), point as uint))
+                    ast::PatIdent(_ , ref spannedident, _) => {
+                        let codemap::BytePos(point) = spannedident.span.lo;
+                        let argname = token::get_ident(spannedident.node).get().to_string();
+                        Some((String::from_str(argname.as_slice()), point as uint))
                     }
                     _ => None
                 };
