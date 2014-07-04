@@ -13,7 +13,9 @@ pub struct StmtIndicesIter<'a> {
     pos: uint,
     start: uint,
     end: uint,
-    level: int,
+    bracelevel: int,
+    parenlevel: int,
+    is_macro: bool,
     enddelim: u8
 }
 
@@ -25,6 +27,8 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
         let colon: u8 = ":".as_bytes()[0];
         let openbrace: u8 = "{".as_bytes()[0];
         let closebrace: u8 = "}".as_bytes()[0];
+        let openparen: u8 = "(".as_bytes()[0];
+        let closeparen: u8 = ")".as_bytes()[0];
         let closesqbrace: u8 = "]".as_bytes()[0];
         let whitespace = " \t\n".as_bytes();
 
@@ -60,39 +64,62 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
                 self.start = self.pos;
             }
 
+            
+            // if the statement starts with 'macro_rules!' then we're in a macro
+            // We need to know this because a closeparen can terminate a macro
+            if (self.end - self.pos) > 12 && 
+               self.src.slice(self.pos, self.pos+12) == "macro_rules!" {
+                self.is_macro = true;
+            }
 
             // iterate through the chunk, looking for stmt end
             while self.pos < self.end {
+                if src_bytes[self.pos] == openparen {
 
-                if src_bytes[self.pos] == openbrace {
-                    // if is not a ::{Foo,Bar}; then closebrace finishes the stmt
-                    if self.level == 0 &&
-                       !(self.pos > 1 &&
-                         src_bytes[self.pos-1] == colon &&
+                    // macros can be terminated by closeparen if opened by one
+                    if self.is_macro &&
+                        self.bracelevel == 0 && 
+                        self.parenlevel == 0 {
+                        self.enddelim = closeparen;
+                    }
+                    self.parenlevel += 1;
+
+                } else if src_bytes[self.pos] == closeparen {
+                    self.parenlevel -= 1;
+
+                } else if src_bytes[self.pos] == openbrace {
+                    // if we are top level and stmt is not a ::{Foo,Bar}; then 
+                    // closebrace finishes the stmt
+                    if self.bracelevel == 0 && 
+                        self.parenlevel == 0 &&
+                       !(self.pos > 1 && 
+                         src_bytes[self.pos-1] == colon && 
                          src_bytes[self.pos-2] == colon) {
                            self.enddelim = closebrace;
                     }
-                    self.level += 1;
+                    self.bracelevel += 1;
                 } else if src_bytes[self.pos] == closebrace {
-                    self.level -= 1;
+                    self.bracelevel -= 1;
                     // have we reached the end of the scope?
-                    if self.level < 0 {
+                    if self.bracelevel < 0 {
                         self.fuse();
                         return None;
                     }
                 }
 
                 // attribute   #[foo = bar]
-                if self.level == 0 && self.start == self.pos &&
+                if self.bracelevel == 0 && self.start == self.pos && 
                     src_bytes[self.pos] == hash {
                     self.enddelim = closesqbrace;
                 }
 
-                if self.level == 0 && src_bytes[self.pos] == self.enddelim {
+                if self.bracelevel == 0 && self.parenlevel == 0 && 
+                   src_bytes[self.pos] == self.enddelim {
                     let start = self.start;
                     self.start = self.pos+1;
                     self.pos = self.pos+1;
                     self.enddelim = semicolon;
+                    self.is_macro = false;
                     return Some((start, self.pos));
                 }
 
@@ -104,8 +131,9 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
 
 pub fn iter_stmts<'a>(src: &'a str) -> StmtIndicesIter<'a> {
     let semicolon: u8 = ";".as_bytes()[0];
-    StmtIndicesIter{src: src, it: code_chunks(src),
-                    pos: 0, start: 0, end: 0, level: 0, enddelim: semicolon}
+    StmtIndicesIter{src: src, it: code_chunks(src), 
+                    pos: 0, start: 0, end: 0, bracelevel: 0, 
+                    parenlevel: 0, enddelim: semicolon, is_macro: false}
 }
 
 
@@ -140,6 +168,32 @@ fn iterates_while_stmt() {
     assert_eq!("while self.pos < 3 { }", slice(src.as_slice(), it.next().unwrap()));
 }
 
+#[test]
+fn iterates_lambda_arg() {
+    let src = rejustify("
+    myfn(|n|{});
+    ");
+    let mut it = iter_stmts(src.as_slice());
+    assert_eq!("myfn(|n|{});", slice(src.as_slice(), it.next().unwrap()));
+}
+
+#[test]
+fn iterates_macro() {
+    let src = "
+    mod foo;
+    macro_rules! otry(
+        ($e:expr) => (match $e { Some(e) => e, None => return })
+    )
+    mod bar;
+    ";
+    let mut it = iter_stmts(src.as_slice());
+    assert_eq!("mod foo;", slice(src.as_slice(), it.next().unwrap()));
+    assert_eq!("macro_rules! otry(
+        ($e:expr) => (match $e { Some(e) => e, None => return })
+    )", slice(src.as_slice(), it.next().unwrap()));
+    assert_eq!("mod bar;", slice(src.as_slice(), it.next().unwrap()));
+}
+
 // #[test]
 // fn iterates_if_else_stmt() {
 //     let src = rejustify("
@@ -151,7 +205,7 @@ fn iterates_while_stmt() {
 
 #[test]
 fn iterates_inner_scope() {
-    let src = rejustify("
+    let src = "
     while self.pos < 3 {
        let a = 35;
        return a + 35;  // should iterate this
@@ -159,10 +213,10 @@ fn iterates_inner_scope() {
     {
        b = foo;       // but not this
     }
-    ");
+    ";
 
     let scope = src.as_slice().slice_from(25);
-    debug!("blah{}",scope);
+    //println!("blah{}",scope);
     let mut it = iter_stmts(scope);
 
     assert_eq!("let a = 35;", slice(scope, it.next().unwrap()));
