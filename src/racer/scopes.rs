@@ -6,19 +6,20 @@ use racer::codecleaner;
 use racer::codeiter;
 
 pub fn find_closing_paren(src:&str, mut pos:uint) -> uint {
-    let openparen: u8 = "("[0] as u8;
-    let closeparen: u8 = ")"[0] as u8;
+    let openparen: u8 = "(".as_bytes()[0] as u8;
+    let closeparen: u8 = ")".as_bytes()[0] as u8;
+    let src_bytes = src.as_bytes();
 
     let mut levels = 0i;
     loop {
-        if src[pos] == closeparen { 
+        if src_bytes[pos] == closeparen {
             if levels == 0 {
                 break;
             } else {
                 levels -= 1;
             }
         }
-        if src[pos] == openparen {
+        if src_bytes[pos] == openparen {
             levels += 1;
         }
         pos += 1;
@@ -32,7 +33,7 @@ pub fn scope_start(src:&str, point:uint) -> uint {
     let mut pt = point;
     let mut levels = 0i;
     for c in s.chars().rev() {
-        if c == '{' { 
+        if c == '{' {
             if levels == 0 {
                 break;
             } else {
@@ -61,8 +62,9 @@ pub fn find_stmt_start(msrc: &str, point: uint) -> Option<uint> {
 pub fn split_into_context_and_completion<'a>(s: &'a str) -> (&'a str, &'a str, racer::CompletionType) {
 
     let mut start = 0;
-    let colon: u8 = ":"[0];
-    let dot: u8 = "."[0];
+    let s_bytes = s.as_bytes();
+    let colon: u8 = ":".as_bytes()[0];
+    let dot: u8 = ".".as_bytes()[0];
 
     for (i, c) in s.char_indices().rev() {
         if ! racer::is_ident_char(c) {
@@ -71,11 +73,11 @@ pub fn split_into_context_and_completion<'a>(s: &'a str) -> (&'a str, &'a str, r
         }
     }
 
-    if start != 0 && s[start-1] == dot {    // field completion
+    if start != 0 && s_bytes[start-1] == dot {    // field completion
         return (s.slice_to(start-1), s.slice_from(start), racer::Field);
     }
 
-    if start > 0 && s[start-1] == colon {  // path completion
+    if start > 0 && s_bytes[start-1] == colon {  // path completion
         return (s.slice_to(start-2), s.slice_from(start), racer::Path);
     }
 
@@ -83,8 +85,9 @@ pub fn split_into_context_and_completion<'a>(s: &'a str) -> (&'a str, &'a str, r
 }
 
 pub fn get_start_of_search_expr(msrc: &str, point: uint) -> uint {
-    let openparen: u8 = "("[0];
-    let closeparen: u8 = ")"[0];
+    let openparen: u8 = "(".as_bytes()[0];
+    let closeparen: u8 = ")".as_bytes()[0];
+    let msrc_bytes = msrc.as_bytes();
     let mut levels = 0i;
     let mut i = point-1;
     loop {
@@ -93,14 +96,14 @@ pub fn get_start_of_search_expr(msrc: &str, point: uint) -> uint {
             break;
         }
 
-        if msrc[i] == closeparen { 
+        if msrc_bytes[i] == closeparen {
             levels += 1;
         }
         if levels == 0 && !racer::is_path_char(msrc.char_at(i)) {
             i += 1;
             break;
         }
-        if msrc[i] == openparen && levels > 0 { 
+        if msrc_bytes[i] == openparen && levels > 0 {
             levels -= 1;
         }
 
@@ -159,7 +162,7 @@ pub fn end_of_next_scope<'a>(src: &'a str) -> &'a str {
     for (i,c) in src.char_indices() {
         if c == '}' {
             level -= 1;
-            if level == 0 { 
+            if level == 0 {
                 end = i + 1;
                 break;
             }
@@ -259,16 +262,16 @@ this is a line // with a comment
 some more
 ";
     let r = mask_comments(src);
-    
+
     assert!(src.len() == r.len());
     // characters at the start are the same
-    assert!(src[5] == r.as_slice()[5]);
+    assert!(src.as_bytes()[5] == r.as_bytes()[5]);
     // characters in the comments are masked
     let commentoffset = coords_to_point(src,3,23);
     assert!(r.as_slice().char_at(commentoffset) == ' ');
-    assert!(src[commentoffset] != r.as_slice()[commentoffset]);
-    // characters afterwards are the same 
-    assert!(src[src.len()-3] == r.as_slice()[src.len()-3]);
+    assert!(src.as_bytes()[commentoffset] != r.as_bytes()[commentoffset]);
+    // characters afterwards are the same
+    assert!(src.as_bytes()[src.len()-3] == r.as_bytes()[src.len()-3]);
 }
 
 #[test]

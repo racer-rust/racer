@@ -1,7 +1,7 @@
 // #![feature(phase)]
 // #[phase(plugin, link)] extern crate log;
 
-use racer::codecleaner::{code_chunks,CodeIndicesIter}; 
+use racer::codecleaner::{code_chunks,CodeIndicesIter};
 //use codecleaner::{code_chunks,CodeIndicesIter};
 //mod codecleaner;
 
@@ -20,13 +20,15 @@ pub struct StmtIndicesIter<'a> {
 impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
     #[inline]
     fn next(&mut self) -> Option<(uint, uint)> {
-        let semicolon: u8 = ";"[0];
-        let hash: u8 = "#"[0];
-        let colon: u8 = ":"[0];
-        let openbrace: u8 = "{"[0];
-        let closebrace: u8 = "}"[0];
-        let closesqbrace: u8 = "]"[0];
+        let semicolon: u8 = ";".as_bytes()[0];
+        let hash: u8 = "#".as_bytes()[0];
+        let colon: u8 = ":".as_bytes()[0];
+        let openbrace: u8 = "{".as_bytes()[0];
+        let closebrace: u8 = "}".as_bytes()[0];
+        let closesqbrace: u8 = "]".as_bytes()[0];
         let whitespace = " \t\n".as_bytes();
+
+        let src_bytes = self.src.as_bytes();
 
         loop {
 
@@ -49,7 +51,7 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
             // if this is a new stmt block, skip the whitespace
             if self.pos == self.start {
                 while self.pos < self.end {
-                    if !whitespace.contains(&self.src[self.pos]) {
+                    if !whitespace.contains(&src_bytes[self.pos]) {
                         break;
                     } else {
                         self.pos += 1;
@@ -62,16 +64,16 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
             // iterate through the chunk, looking for stmt end
             while self.pos < self.end {
 
-                if self.src[self.pos] == openbrace {
+                if src_bytes[self.pos] == openbrace {
                     // if is not a ::{Foo,Bar}; then closebrace finishes the stmt
-                    if self.level == 0 &&  
-                       !(self.pos > 1 && 
-                         self.src[self.pos-1] == colon && 
-                         self.src[self.pos-2] == colon) {
+                    if self.level == 0 &&
+                       !(self.pos > 1 &&
+                         src_bytes[self.pos-1] == colon &&
+                         src_bytes[self.pos-2] == colon) {
                            self.enddelim = closebrace;
                     }
                     self.level += 1;
-                } else if self.src[self.pos] == closebrace {
+                } else if src_bytes[self.pos] == closebrace {
                     self.level -= 1;
                     // have we reached the end of the scope?
                     if self.level < 0 {
@@ -81,12 +83,12 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
                 }
 
                 // attribute   #[foo = bar]
-                if self.level == 0 && self.start == self.pos && 
-                    self.src[self.pos] == hash {
+                if self.level == 0 && self.start == self.pos &&
+                    src_bytes[self.pos] == hash {
                     self.enddelim = closesqbrace;
                 }
 
-                if self.level == 0 && self.src[self.pos] == self.enddelim {
+                if self.level == 0 && src_bytes[self.pos] == self.enddelim {
                     let start = self.start;
                     self.start = self.pos+1;
                     self.pos = self.pos+1;
@@ -101,8 +103,8 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
 }
 
 pub fn iter_stmts<'a>(src: &'a str) -> StmtIndicesIter<'a> {
-    let semicolon: u8 = ";"[0];
-    StmtIndicesIter{src: src, it: code_chunks(src), 
+    let semicolon: u8 = ";".as_bytes()[0];
+    StmtIndicesIter{src: src, it: code_chunks(src),
                     pos: 0, start: 0, end: 0, level: 0, enddelim: semicolon}
 }
 
@@ -150,7 +152,7 @@ fn iterates_while_stmt() {
 #[test]
 fn iterates_inner_scope() {
     let src = rejustify("
-    while self.pos < 3 { 
+    while self.pos < 3 {
        let a = 35;
        return a + 35;  // should iterate this
     }
@@ -162,7 +164,7 @@ fn iterates_inner_scope() {
     let scope = src.as_slice().slice_from(25);
     debug!("blah{}",scope);
     let mut it = iter_stmts(scope);
-    
+
     assert_eq!("let a = 35;", slice(scope, it.next().unwrap()));
     assert_eq!("return a + 35;", slice(scope, it.next().unwrap()));
     assert_eq!(None, it.next());
@@ -191,5 +193,5 @@ fn iterates_module_attribute() {
 //     for (start,end) in iter_stmts(src) {
 //         println!("BLOB |{}|",src.slice(start,end));
 //     }
-    
+
 // }
