@@ -289,12 +289,30 @@ pub fn search_crate_root(searchstr: &str, modfpath: &Path,
 
 pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<Path> {
     let mut res = Vec::new();
+    
     {
         let filepath = currentdir.join_many([Path::new("lib.rs")]);
         if File::open(&filepath).is_ok() {
             res.push(filepath);
+            return res;   // for now stop at the first match
         }
     }
+    {
+        let filepath = currentdir.join_many([Path::new("main.rs")]);
+        if File::open(&filepath).is_ok() {
+            res.push(filepath);
+            return res;   // for now stop at the first match
+        }
+    }
+    {
+        // recurse up the directory structure
+        let parentdir = currentdir.dir_path();
+        if parentdir != *currentdir {
+            res.push_all(find_possible_crate_root_modules(&parentdir).as_slice());
+            return res;   // for now stop at the first match
+        }
+    }
+
     return res;
 }
 
