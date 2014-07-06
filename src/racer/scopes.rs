@@ -4,6 +4,8 @@ use std::io::BufferedReader;
 use racer;
 use racer::codecleaner;
 use racer::codeiter;
+use racer::resolve;
+use racer::ast;
 
 pub fn find_closing_paren(src:&str, mut pos:uint) -> uint {
     let openparen: u8 = "(".as_bytes()[0] as u8;
@@ -58,6 +60,52 @@ pub fn find_stmt_start(msrc: &str, point: uint) -> Option<uint> {
     }
     return None;
 }
+
+pub fn get_local_module_path(msrc: &str, point: uint) -> Vec<String> {
+    let mut v = Vec::new();
+    get_local_module_path_(msrc, point, &mut v);
+    return v;
+}
+
+fn get_local_module_path_(msrc: &str, point: uint, out: &mut Vec<String>) {
+
+    for (start, end) in codeiter::iter_stmts(msrc) {
+        if start < point && end > point {
+            let blob = msrc.slice(start, end);
+            if blob.starts_with("pub mod "){
+                let p = resolve::generate_skeleton_for_parsing(blob);
+                ast::parse_mod(p).name.map(|name|{
+
+                    let newstart = blob.find_str("{").unwrap() + 1;
+                    out.push(name);
+                    get_local_module_path_(blob.slice_from(newstart), 
+                                       point - start - newstart, out);
+                });
+            }
+
+        }
+    }
+   
+}
+
+#[test]
+fn finds_subnested_module() {
+    let src = "
+    pub mod foo {
+        pub mod bar {
+            here
+        }
+    }";
+    let point = coords_to_point(src, 4, 12);
+    let v = get_local_module_path(src, point);
+    assert_eq!("foo", v.get(0).as_slice());
+    assert_eq!("bar", v.get(1).as_slice());
+
+    let point = coords_to_point(src, 2, 8);
+    let v = get_local_module_path(src, point);
+    assert_eq!("foo", v.get(0).as_slice());
+}
+
 
 pub fn split_into_context_and_completion<'a>(s: &'a str) -> (&'a str, &'a str, racer::CompletionType) {
 

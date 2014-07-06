@@ -325,6 +325,35 @@ fn follows_self_use() {
     assert_eq!(28, got.point);
 }
 
+#[test]
+fn finds_nested_submodule_file() {
+    let src = "
+    pub mod sub1 {
+        pub mod sub2 {
+            pub mod sub3;
+        }
+    }
+    sub1::sub2::sub3::myfn();
+    ";
+
+    let sub3src = "
+    pub fn myfn() {}
+    ";
+
+    let basedir = tmpname();
+    let srcpath = basedir.join("root.rs");
+    let sub3dir = basedir.join("sub1").join("sub2").join("sub3");
+    ::std::io::fs::mkdir_recursive(&sub3dir, ::std::io::UserRWX).unwrap();
+    write_file(&srcpath, src);
+    write_file(&sub3dir.join("sub3.rs"), sub3src);
+    let pos = scopes::coords_to_point(src, 7, 23);
+    let got = find_definition(src, &srcpath, pos).unwrap();
+    ::std::io::fs::rmdir_recursive(&basedir).unwrap();
+    assert_eq!(got.matchstr,"myfn".to_string());
+    assert_eq!(sub3dir.join("sub3.rs").display().to_str(), 
+               got.filepath.display().to_str());
+}
+
 
 #[test]
 fn follows_use_to_impl() {

@@ -436,6 +436,23 @@ impl visit::Visitor<()> for FnVisitor {
 
 }
 
+pub struct ModVisitor {
+    pub name: Option<String>
+}
+
+impl visit::Visitor<()> for ModVisitor {
+    fn visit_item(&mut self, item: &ast::Item, _: ()) { 
+        match item.node {
+            ast::ItemMod(_) => {
+                self.name = Some(String::from_str(token::get_ident(item.ident).get()));
+            }
+            _ => {}
+        }
+    }
+
+}
+
+
 pub struct EnumVisitor {
     pub name: String,
     pub values: Vec<(String, uint)>,
@@ -541,6 +558,15 @@ pub fn parse_fn(s: String) -> FnVisitor {
     }).ok().unwrap();
 }
 
+pub fn parse_mod(s: String) -> ModVisitor {
+    return task::try(proc() {
+        let stmt = string_to_stmt(s);
+        let mut v = ModVisitor { name: None };
+        visit::walk_stmt(&mut v, stmt, ());
+        return v;
+    }).ok().unwrap();    
+}
+
 
 pub fn parse_enum(s: String) -> EnumVisitor {
     return task::try(proc() {
@@ -572,6 +598,14 @@ pub fn get_type_of(s: String, fpath: &Path, pos: uint) -> Option<Match> {
 #[test]
 fn ast_sandbox() {
 
+    // let src = "pub mod foo {}";
+    // let stmt = string_to_stmt(String::from_str(src));
+    // let mut v = ModVisitor{ name: None };
+    // visit::walk_stmt(&mut v, stmt, ());
+
+    // println!("PHIL {:?}", stmt);
+    // println!("PHIL {}", v.name);
+    // fail!("");
     // let mut v = ExprTypeVisitor{ scope: startscope,
     //                              result: None};
     
@@ -583,6 +617,11 @@ fn ast_sandbox() {
     //let src = "std::vec::Vec::new().push_all()";
     // let src = "impl visit::Visitor<()> for ExprTypeVisitor {}";
     // let src = "impl<'a> StrSlice<'a> for &'a str {}";
+
+    //let src = "a(|b|{});";
+    // let src = "(a,b) = (3,4);";
+    // let src = "fn foo() -> (a,b) {}";
+
     // let stmt = string_to_stmt(String::from_str(src));
 
     // let src = "extern crate core_collections = \"collections\";";
@@ -597,7 +636,7 @@ fn ast_sandbox() {
 
     // println!("PHIL v {} {}",v.ident, v.paths);
 
-    // visit::walk_stmt(&mut v, stmt, ());
+    //visit::walk_stmt(&mut v, stmt, ());
 
     // println!("PHIL stmt {:?}",stmt);
 
@@ -646,7 +685,5 @@ fn ast_sandbox() {
 
     // let res = parse_let(src);
     // debug!("PHIL res {}",res.unwrap().init);
-
-    //fail!("hello");
 }
 

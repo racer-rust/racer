@@ -14,6 +14,24 @@ fn find_start_of_function_body(src: &str) -> uint {
     return src.find_str("{").unwrap();
 }
 
+// Removes the body of the statement (anything in the braces {...}), leaving just
+// the header 
+// TODO: this should skip parens (e.g. function arguments)
+pub fn generate_skeleton_for_parsing(src: &str) -> String {
+    let mut s = String::new();
+    let n = src.find_str("{").unwrap();
+    s.push_str(src.slice_to(n+1));
+    s.push_str("};");
+    return s;
+}
+
+#[test]
+fn generates_skeleton_for_mod() {
+    let src = "mod foo { blah };";
+    let out = generate_skeleton_for_parsing(src);
+    assert_eq!("mod foo {};", out.as_slice());
+}
+
 fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<Match> {
     debug!("PHIL get type of fn arg {:?}",m);
     let point = scopes::find_stmt_start(msrc, m.point).unwrap();

@@ -316,10 +316,10 @@ pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<Path> {
     return res;
 }
 
-pub fn get_module_file(name: &str, currentdir: &Path) -> Option<Path> {
+pub fn get_module_file(name: &str, parentdir: &Path) -> Option<Path> {
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
     let v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
-    let v = v.append_one(currentdir.as_str().unwrap());
+    let v = v.append_one(parentdir.as_str().unwrap());
     for srcpath in v.move_iter() {
         debug!("PHIL searching srcpath: {} for {}",srcpath, name);
         {
@@ -448,6 +448,8 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
 
     for (blobstart,blobend) in codeiter::iter_stmts(scopesrc) { 
 
+        // sometimes we need to skip blocks of code if the preceeding attribute disables it
+        //  (e.g. #[cfg(test)])
         if skip_next_block {
             skip_next_block = false;
             continue;
@@ -577,8 +579,15 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
                     (*outputfn)(m);
                     
                 } else {
-                    // reference to a local file
-                    get_module_file(l, &filepath.dir_path()).map(|modpath|{
+
+                    // get internal module nesting  
+                    // e.g. is this in an inline submodule?  mod foo{ mod bar; } 
+                    // because if it is then we need to search further down the 
+                    // directory hierarchy
+                    let internalpath = scopes::get_local_module_path(src, 
+                                                                  point+blobstart);
+                    let searchdir = filepath.dir_path().join_many(internalpath.as_slice());
+                    get_module_file(l, &searchdir).map(|modpath|{
                         let m = Match {matchstr: l.to_string(),
                                        filepath: modpath.clone(), 
                                        point: 0,
