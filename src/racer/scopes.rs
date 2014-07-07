@@ -4,7 +4,7 @@ use std::io::BufferedReader;
 use racer;
 use racer::codecleaner;
 use racer::codeiter;
-use racer::resolve;
+use racer::typeinference;
 use racer::ast;
 
 pub fn find_closing_paren(src:&str, mut pos:uint) -> uint {
@@ -73,7 +73,7 @@ fn get_local_module_path_(msrc: &str, point: uint, out: &mut Vec<String>) {
         if start < point && end > point {
             let blob = msrc.slice(start, end);
             if blob.starts_with("pub mod "){
-                let p = resolve::generate_skeleton_for_parsing(blob);
+                let p = typeinference::generate_skeleton_for_parsing(blob);
                 ast::parse_mod(p).name.map(|name|{
 
                     let newstart = blob.find_str("{").unwrap() + 1;

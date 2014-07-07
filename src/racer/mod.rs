@@ -9,7 +9,7 @@ use std::str;
 
 pub mod scopes;
 pub mod ast;
-pub mod resolve;
+pub mod typeinference;
 pub mod codeiter;
 pub mod codecleaner;
 pub mod testutils;

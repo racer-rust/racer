@@ -11,7 +11,7 @@ use std::gc::Gc;
 use std::task;
 use racer::Match;
 use racer;
-use racer::resolve;
+use racer::typeinference;
 use syntax::visit::Visitor;
 
 #[deriving(Clone)]
@@ -166,7 +166,7 @@ fn get_type_of_path(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match>
     if om.is_some() {
         let m = om.unwrap();
         let msrc = racer::load_file_and_mask_comments(&m.filepath);
-        return resolve::get_type_of_match(m, msrc.as_slice())
+        return typeinference::get_type_of_match(m, msrc.as_slice())
     } else {
         return None;
     }
@@ -193,7 +193,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                     let res = &self.result;
                     match *res {
                         Some(ref m) => {
-                            let fqn = racer::resolve::get_return_type_of_function(m);
+                            let fqn = racer::typeinference::get_return_type_of_function(m);
                             debug!("PHIL found exprcall return type: {}",fqn);
                             newres = find_match(&fqn, &m.filepath, m.point);
                         },
@@ -236,7 +236,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
 
                         match omethod {
                             Some(ref m) => {
-                            let fqn = racer::resolve::get_return_type_of_function(m);
+                            let fqn = racer::typeinference::get_return_type_of_function(m);
                             debug!("PHIL found exprcall return type: {}",fqn);
                             newres = find_match(&fqn, &m.filepath, m.point);
      
