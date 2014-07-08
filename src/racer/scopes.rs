@@ -2,9 +2,10 @@ use std::io::File;
 use std::io::BufferedReader;
 
 use racer;
+use racer::util;
 use racer::codecleaner;
 use racer::codeiter;
-use racer::typeinference;
+use racer::typeinf;
 use racer::ast;
 
 pub fn find_closing_paren(src:&str, mut pos:uint) -> uint {
@@ -68,12 +69,11 @@ pub fn get_local_module_path(msrc: &str, point: uint) -> Vec<String> {
 }
 
 fn get_local_module_path_(msrc: &str, point: uint, out: &mut Vec<String>) {
-
     for (start, end) in codeiter::iter_stmts(msrc) {
         if start < point && end > point {
             let blob = msrc.slice(start, end);
             if blob.starts_with("pub mod "){
-                let p = typeinference::generate_skeleton_for_parsing(blob);
+                let p = typeinf::generate_skeleton_for_parsing(blob);
                 ast::parse_mod(p).name.map(|name|{
 
                     let newstart = blob.find_str("{").unwrap() + 1;
@@ -82,10 +82,8 @@ fn get_local_module_path_(msrc: &str, point: uint, out: &mut Vec<String>) {
                                        point - start - newstart, out);
                 });
             }
-
         }
     }
-   
 }
 
 #[test]
@@ -115,7 +113,7 @@ pub fn split_into_context_and_completion<'a>(s: &'a str) -> (&'a str, &'a str, r
     let dot: u8 = ".".as_bytes()[0];
 
     for (i, c) in s.char_indices().rev() {
-        if ! racer::is_ident_char(c) {
+        if ! util::is_ident_char(c) {
             start = i+1;
             break;
         }
@@ -147,7 +145,7 @@ pub fn get_start_of_search_expr(msrc: &str, point: uint) -> uint {
         if msrc_bytes[i] == closeparen {
             levels += 1;
         }
-        if levels == 0 && !racer::is_path_char(msrc.char_at(i)) {
+        if levels == 0 && !util::is_path_char(msrc.char_at(i)) {
             i += 1;
             break;
         }
@@ -162,7 +160,7 @@ pub fn get_start_of_search_expr(msrc: &str, point: uint) -> uint {
 
 pub fn expand_search_expr(msrc: &str, point: uint) -> (uint,uint) {
     let start = get_start_of_search_expr(msrc, point);
-    return (start, racer::find_ident_end(msrc, point));
+    return (start, util::find_ident_end(msrc, point));
 }
 
 #[test]

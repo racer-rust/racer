@@ -1,5 +1,8 @@
+// Type inference
+
 use racer::{Match};
-use racer::{do_local_search_with_string,first_match,to_refs};
+use racer::util::{to_refs, first_match};
+use racer::nameres::{do_local_search_with_string};
 use racer::ast;
 use racer::codeiter;
 use racer::scopes;
@@ -100,17 +103,6 @@ pub fn get_type_of_match(m: Match, msrc: &str) -> Option<Match> {
         _ => { debug!("!!! WARNING !!! Can't get type of {:?}",m.mtype); None }
     }
 }
-
-pub fn get_fields_of_struct(m: &Match) -> Vec<(String, uint)> {
-    let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
-    let src = str::from_utf8(filetxt.as_slice()).unwrap();
-
-    let opoint = scopes::find_stmt_start(src, m.point);
-    let structsrc = scopes::end_of_next_scope(src.slice_from(opoint.unwrap()));
-
-    return ast::parse_struct_fields(String::from_str(structsrc));
-}
-
 
 pub fn get_return_type_of_function(fnmatch: &Match) -> Vec<String> {
     let filetxt = BufferedReader::new(File::open(&fnmatch.filepath)).read_to_end().unwrap();

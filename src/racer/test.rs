@@ -1,4 +1,4 @@
-use racer;
+use racer::util;
 use racer::complete_from_file;
 use racer::find_definition;
 use std::io::File;
@@ -67,7 +67,7 @@ fn completes_local_scope_let(){
     let path = tmpname();
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 4, 18);
-    let got = racer::first_match(|m| complete_from_file(src, &path, pos, m)).unwrap();
+    let got = util::first_match(|m| complete_from_file(src, &path, pos, m)).unwrap();
     remove_file(&path);
     assert_eq!("apple".to_string(), got.matchstr);
     assert_eq!(29, got.point);
@@ -85,7 +85,7 @@ fn main() {
     let path = tmpname();
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 5, 18);
-    let got = racer::first_match(|m| complete_from_file(src, &path, pos,m)).unwrap();
+    let got = util::first_match(|m| complete_from_file(src, &path, pos,m)).unwrap();
     remove_file(&path);
     assert_eq!(got.matchstr,"apple".to_string());
     assert_eq!(got.point,25);
@@ -523,4 +523,22 @@ fn follows_chained_method_call() {
     complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_string());
     remove_file(&path);
     assert_eq!(got,"mybarmethod".to_string());
+}
+
+#[test]
+fn differentiates_type_and_value_namespaces() {
+    let src = "
+    enum MyEnum{ Foo }
+    struct Foo {}
+    impl Foo { pub fn new() -> Foo {} }
+    let l = Foo::new();
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 5, 18);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    println!("PHIL {}",got.matchstr);
+    println!("PHIL {:?}",got.mtype);
+    assert_eq!("new", got.matchstr.as_slice());
 }

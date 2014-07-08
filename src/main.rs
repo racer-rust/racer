@@ -8,7 +8,11 @@ extern crate time;
 extern crate debug;
 
 #[cfg(not(test))]
-use racer::{getline,Match,do_file_search, do_external_search};
+use racer::Match;
+#[cfg(not(test))]
+use racer::util::getline;
+#[cfg(not(test))]
+use racer::nameres::{do_file_search, do_external_search};
 #[cfg(not(test))]
 use std::io::File;
 #[cfg(not(test))]
@@ -45,7 +49,7 @@ fn complete() {
             // print the start-end of the identifier being matched
             let src = str::from_utf8(filetxt.as_slice()).unwrap();
             let line = getline(&fpath, linenum);
-            let (start, pos) = racer::expand_ident(line.as_slice(), charnum);
+            let (start, pos) = racer::util::expand_ident(line.as_slice(), charnum);
             println!("PREFIX {},{},{}", start, pos, line.as_slice().slice(start, pos));
 
             let point = scopes::coords_to_point(src, linenum, charnum);
@@ -80,7 +84,7 @@ fn prefix() {
     // print the start, end, and the identifier prefix being matched
     let path = Path::new(fname);
     let line = getline(&path, linenum);
-    let (start, pos) = racer::expand_ident(line.as_slice(), charnum);
+    let (start, pos) = racer::util::expand_ident(line.as_slice(), charnum);
     println!("PREFIX {},{},{}", start, pos, line.as_slice().slice(start, pos));
 }
 

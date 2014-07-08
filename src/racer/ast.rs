@@ -11,8 +11,11 @@ use std::gc::Gc;
 use std::task;
 use racer::Match;
 use racer;
-use racer::typeinference;
+use racer::util;
+use racer::nameres::{resolve_path};
+use racer::typeinf;
 use syntax::visit::Visitor;
+use racer::nameres;
 
 #[deriving(Clone)]
 struct Scope {
@@ -151,8 +154,8 @@ struct ExprTypeVisitor {
 }
 
 fn find_match(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
-    let myfqn = racer::to_refs(fqn);  
-    return racer::first_match(|m| racer::do_local_search(
+    let myfqn = util::to_refs(fqn);  
+    return util::first_match(|m| resolve_path(
         myfqn.as_slice(),
         fpath,
         pos,
@@ -166,7 +169,7 @@ fn get_type_of_path(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match>
     if om.is_some() {
         let m = om.unwrap();
         let msrc = racer::load_file_and_mask_comments(&m.filepath);
-        return typeinference::get_type_of_match(m, msrc.as_slice())
+        return typeinf::get_type_of_match(m, msrc.as_slice())
     } else {
         return None;
     }
@@ -193,7 +196,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                     let res = &self.result;
                     match *res {
                         Some(ref m) => {
-                            let fqn = racer::typeinference::get_return_type_of_function(m);
+                            let fqn = racer::typeinf::get_return_type_of_function(m);
                             debug!("PHIL found exprcall return type: {}",fqn);
                             newres = find_match(&fqn, &m.filepath, m.point);
                         },
@@ -224,8 +227,8 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                         debug!("PHIL obj expr type is {:?}",m);
 
                         // locate the method
-                        let omethod = racer::first_match(|outputfn| 
-                                               racer::search_for_impl_methods(
+                        let omethod = util::first_match(|outputfn| 
+                                               nameres::search_for_impl_methods(
                                                            m.matchstr.as_slice(),
                                                            methodname.as_slice(), 
                                                            m.point, 
@@ -236,7 +239,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
 
                         match omethod {
                             Some(ref m) => {
-                            let fqn = racer::typeinference::get_return_type_of_function(m);
+                            let fqn = racer::typeinf::get_return_type_of_function(m);
                             debug!("PHIL found exprcall return type: {}",fqn);
                             newres = find_match(&fqn, &m.filepath, m.point);
      
