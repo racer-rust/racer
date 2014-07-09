@@ -371,6 +371,385 @@ pub fn get_module_file(name: &str, parentdir: &Path) -> Option<Path> {
     return None;
 }
 
+fn match_let(msrc: &str, blobstart: uint, blobend: uint, 
+                  searchstr: &str, filepath: &Path, exact_match: bool, 
+                  local: bool)  -> Option<Match> {
+    let mut res = None;
+    let blob = msrc.slice(blobstart, blobend);
+    if blob.starts_with("let ") && blob.find_str(searchstr).is_some() {
+        let letres = ast::parse_let(String::from_str(blob), filepath.clone(), blobstart, false);
+        letres.map(|letresult| {
+            
+            let name = letresult.name.as_slice();
+
+            if (exact_match && name == searchstr) || (!exact_match && name.starts_with(searchstr)) {
+                res = Some(Match { matchstr: letresult.name.to_string(),
+                                    filepath: filepath.clone(),
+                                    point: blobstart + letresult.point,
+                                    local: local,
+                                    mtype: Let});
+            }
+        });
+    }
+    return res;
+}
+
+fn match_extern_crate(msrc: &str, blobstart: uint, blobend: uint, 
+         searchstr: &str, filepath: &Path, search_type: SearchType) -> Option<Match> {
+    let mut res = None;
+    let blob = msrc.slice(blobstart, blobend);
+    if blob.starts_with(format!("extern crate {}", searchstr).as_slice()) {
+        debug!("found an extern crate: |{}|",blob);
+
+        let view_item;
+        if blob.contains("\"") {
+            // Annoyingly the extern crate can use a string literal for the
+            // real crate name (e.g. extern crate collections_core = "collections")
+            //so we need to get the source text without scrubbed strings 
+            let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
+            let rawsrc = str::from_utf8(filetxt.as_slice()).unwrap();
+            let rawblob = rawsrc.slice(blobstart,blobend);
+            debug!("found an extern crate (unscrubbed): |{}|", rawblob);
+            
+            view_item = ast::parse_view_item(String::from_str(rawblob));
+        } else {
+            view_item = ast::parse_view_item(String::from_str(blob));
+        }
+
+        if view_item.paths.is_empty() {
+            // reference to a crate. For now do nothing since will
+            // be picked up by file search. This will change
+            // sometime in the future when racer has more accurate
+            // crate handling
+        } else {
+
+            view_item.ident.clone().map(|ident|{
+                if symbol_matches(search_type, searchstr, ident.as_slice()) {
+                    let real_str = view_item.paths.get(0).get(0);
+                    get_module_file(real_str.as_slice(), &filepath.dir_path()).map(|modpath|{
+                        res = Some(Match {matchstr: ident.to_string(),
+                                       filepath: modpath.clone(), 
+                                       point: 0,
+                                       local: false,
+                                       mtype: Module
+                        });
+                    });
+
+                }
+            });
+        }
+    }
+    return res;
+}
+
+fn match_mod(msrc: &str, blobstart: uint, blobend: uint, 
+             searchstr: &str, filepath: &Path, search_type: SearchType,
+             local: bool) -> Option<Match> {
+    let mut res = None;
+    let blob = msrc.slice(blobstart, blobend);
+    let exact_match = match search_type {
+        ExactMatch => true,
+        StartsWith => false
+    };
+    
+    if local && blob.starts_with(format!("mod {}", searchstr).as_slice()) {
+        debug!("found a module: |{}|",blob);
+        // TODO: parse this properly
+        let end = util::find_ident_end(blob, 4);
+        let l = blob.slice(4, end);
+
+        if (exact_match && l == searchstr) || (!exact_match && l.starts_with(searchstr)) {
+            if blob.find_str("{").is_some() {
+                debug!("PHIL found an inline module!");
+
+                res = Some(Match {matchstr: l.to_string(),
+                               filepath: filepath.clone(), 
+                               point: blobstart + 4, 
+                               local: false,
+                               mtype: Module
+                });
+                
+            } else {
+                // reference to a local file
+                get_module_file(l, &filepath.dir_path()).map(|modpath|{
+                    res = Some(Match {matchstr: l.to_string(),
+                                   filepath: modpath.clone(), 
+                                   point: 0,
+                                   local: false,
+                                   mtype: Module
+                    });
+                });
+            }
+        }
+    }
+
+    if blob.starts_with(format!("pub mod {}", searchstr).as_slice()) {
+        debug!("found a pub module: |{}|",blob);
+        // TODO: parse this properly
+        let end = util::find_ident_end(blob, 8);
+        let l = blob.slice(8, end);
+
+        if (exact_match && l == searchstr) || (!exact_match && l.starts_with(searchstr)) {
+            if blob.find_str("{").is_some() {
+                debug!("PHIL found an inline module!");
+
+                res = Some(Match {matchstr: l.to_string(),
+                               filepath: filepath.clone(), 
+                               point: blobstart + 8,
+                               local: false,
+                               mtype: Module
+                });
+                
+            } else {
+
+                // get internal module nesting  
+                // e.g. is this in an inline submodule?  mod foo{ mod bar; } 
+                // because if it is then we need to search further down the 
+                // directory hierarchy
+                let internalpath = scopes::get_local_module_path(msrc, 
+                                                                 blobstart);
+                let searchdir = filepath.dir_path().join_many(internalpath.as_slice());
+                get_module_file(l, &searchdir).map(|modpath|{
+                    res = Some(Match {matchstr: l.to_string(),
+                                   filepath: modpath.clone(), 
+                                   point: 0,
+                                   local: false,
+                                   mtype: Module
+                    });
+                });
+            }
+        }
+    }
+    return res;
+}
+
+fn match_struct(msrc: &str, blobstart: uint, blobend: uint, 
+                searchstr: &str, filepath: &Path, search_type: SearchType,
+                local: bool) -> Option<Match> {
+    let blob = msrc.slice(blobstart, blobend);
+    if local && txt_matches(search_type, format!("struct {}", searchstr).as_slice(), blob) {
+        // TODO: parse this properly
+        let start = blob.find_str(format!("struct {}", searchstr).as_slice()).unwrap() + 7;
+        let end = find_ident_end(blob, start);
+        let l = blob.slice(start, end);
+        debug!("PHIL found!! a local struct |{}|", l);
+        return Some(Match {matchstr: l.to_string(),
+                           filepath: filepath.clone(), 
+                           point: blobstart + start,
+                           local: local,
+                           mtype: Struct
+        });
+    }
+
+    if txt_matches(search_type, format!("pub struct {}", searchstr).as_slice(), blob) {
+        // TODO: parse this properly
+        let start = blob.find_str(format!("pub struct {}", searchstr).as_slice()).unwrap() + 11;
+        let end = find_ident_end(blob, start);
+        let l = blob.slice(start, end);
+        debug!("PHIL found!! a pub struct |{}|", l);
+        return Some(Match {matchstr: l.to_string(),
+                           filepath: filepath.clone(), 
+                           point: blobstart + start,
+                           local: local,
+                           mtype: Struct
+        });
+    }
+    return None
+}
+
+fn match_type(msrc: &str, blobstart: uint, blobend: uint, 
+             searchstr: &str, filepath: &Path, search_type: SearchType,
+             local: bool) -> Option<Match> {
+    let blob = msrc.slice(blobstart, blobend);
+    if local && txt_matches(search_type, format!("type {}", searchstr).as_slice(), blob) {
+        // TODO: parse this properly
+        let start = blob.find_str(format!("type {}", searchstr).as_slice()).unwrap() + 5;
+        let end = find_ident_end(blob, start);
+        let l = blob.slice(start, end);
+        debug!("PHIL found!! a type {}", l);
+        return Some(Match {matchstr: l.to_string(),
+                           filepath: filepath.clone(), 
+                           point: blobstart + start,
+                           local: local,
+                           mtype: Type
+        });
+    }
+    
+    if txt_matches(search_type, format!("pub type {}", searchstr).as_slice(), blob) {
+        // TODO: parse this properly
+        let start = blob.find_str(format!("pub type {}", searchstr).as_slice()).unwrap() + 9;
+        let end = find_ident_end(blob, start);
+        let l = blob.slice(start, end);
+        debug!("PHIL found!! a pub type {}", l);
+        return Some(Match {matchstr: l.to_string(),
+                           filepath: filepath.clone(), 
+                           point: blobstart + start,
+                           local: local,
+                           mtype: Type
+        });
+    }
+    return None;
+}
+
+fn match_trait(msrc: &str, blobstart: uint, blobend: uint, 
+             searchstr: &str, filepath: &Path, search_type: SearchType,
+             local: bool) -> Option<Match> {
+    let blob = msrc.slice(blobstart, blobend);
+    if local && txt_matches(search_type, format!("trait {}", searchstr).as_slice(), blob) {
+        // TODO: parse this properly
+        let start = blob.find_str(format!("trait {}", searchstr).as_slice()).unwrap() + 6;
+        let end = find_ident_end(blob, start);
+        let l = blob.slice(start, end);
+        debug!("PHIL found!! a type {}", l);
+        return Some(Match {matchstr: l.to_string(),
+                           filepath: filepath.clone(), 
+                           point: blobstart + start,
+                           local: local,
+                           mtype: Trait
+        });
+    }
+    
+    if txt_matches(search_type, format!("pub trait {}", searchstr).as_slice(), blob) {
+        // TODO: parse this properly
+        let start = blob.find_str(format!("pub trait {}", searchstr).as_slice()).unwrap() + 10;
+        let end = find_ident_end(blob, start);
+        let l = blob.slice(start, end);
+        debug!("PHIL found!! a pub type {}", l);
+        return Some(Match {matchstr: l.to_string(),
+                           filepath: filepath.clone(), 
+                           point: blobstart + start,
+                           local: local,
+                           mtype: Trait
+        });
+    }
+    return None;
+}
+
+fn match_enum(msrc: &str, blobstart: uint, blobend: uint, 
+             searchstr: &str, filepath: &Path, search_type: SearchType,
+             local: bool, outputfn: &mut |Match|) {
+    let blob = msrc.slice(blobstart, blobend);
+    let exact_match = match search_type {
+        ExactMatch => true,
+        StartsWith => false
+    };
+    if blob.starts_with("pub enum") || (local && blob.starts_with("enum")) {
+
+        if blob.starts_with(format!("pub enum {}", searchstr).as_slice()) {
+            // TODO: parse this properly
+            let start = blob.find_str(format!("pub enum {}", searchstr).as_slice()).unwrap() + 9;
+            let end = find_ident_end(blob, start);
+            let l = blob.slice(start, end);
+            if !exact_match || l == searchstr {
+                debug!("PHIL found!! a pub enum {}", l);
+                let m = Match {matchstr: l.to_string(),
+                               filepath: filepath.clone(), 
+                               point: blobstart + start,
+                               local: local,
+                               mtype: Enum
+                };
+                (*outputfn)(m);
+            }
+        } else if blob.starts_with(format!("enum {}", searchstr).as_slice()) {
+            // TODO: parse this properly
+            let start = blob.find_str(format!("enum {}", searchstr).as_slice()).unwrap() + 5;
+            let end = find_ident_end(blob, start);
+            let l = blob.slice(start, end);
+            debug!("PHIL found!! a local enum {}", l);
+            let m = Match {matchstr: l.to_string(),
+                           filepath: filepath.clone(), 
+                           point: blobstart + start,
+                           local: local,
+                           mtype: Enum
+            };
+            (*outputfn)(m);
+        }
+
+        if txt_matches(search_type, searchstr, blob) {
+            // parse the enum
+            let parsedEnum = ast::parse_enum(String::from_str(blob));
+            if parsedEnum.name.as_slice().starts_with(searchstr) {
+            }
+
+            for (name, offset) in parsedEnum.values.move_iter() {
+                if name.as_slice().starts_with(searchstr) {
+                    let m = Match {matchstr: name.into_string(),
+                                   filepath: filepath.clone(), 
+                                   point: blobstart + offset,
+                                   local: local,
+                                   mtype: Enum
+                    };
+                    (*outputfn)(m);
+                }
+            }                
+        }
+    }
+}
+
+fn match_use(msrc: &str, blobstart: uint, blobend: uint, 
+             searchstr: &str, filepath: &Path, search_type: SearchType,
+             local: bool, outputfn: &mut |Match|) {
+    let blob = msrc.slice(blobstart, blobend);
+    if ((local && blob.starts_with("use ")) || blob.starts_with("pub use ")) && txt_matches(search_type, searchstr, blob) {
+        debug!("PHIL found use: {} in |{}|", searchstr, blob);
+        let t0 = time::precise_time_s();
+        let view_item = ast::parse_view_item(String::from_str(blob));
+        let t1 = time::precise_time_s();
+        debug!("PHIL ast use parse_view_item time {}",t1-t0);
+        for fqn_ in view_item.paths.iter() {
+            // HACK, convert from &[~str] to &[&str]
+            let mut fqn = to_refs(fqn_);  
+            //let fqn = v.as_slice();
+
+            // if searching for a symbol and the last bit matches the symbol
+            // then find the fqn
+            if fqn.len() == 1 && fqn.as_slice()[0] == searchstr {
+                // is an exact match of a single use stmt. 
+                // Do nothing because this will be picked up by the module
+                // search in a bit.
+            } else if fqn.as_slice()[fqn.len()-1].starts_with(searchstr) {
+                // TODO: pretty sure this isn't correct/complete
+                if fqn.as_slice()[0] == "self" {
+                    fqn.remove(0);
+                }
+                resolve_path(fqn.as_slice(), filepath, 0, ExactMatch, outputfn)
+            }
+        }
+    }
+}
+
+fn match_fn(msrc: &str, blobstart: uint, blobend: uint, 
+             searchstr: &str, filepath: &Path, search_type: SearchType,
+             local: bool) -> Option<Match> {
+    let blob = msrc.slice(blobstart, blobend);
+
+    if txt_matches(search_type, format!("pub fn {}", searchstr).as_slice(), blob) && !first_param_is_self(blob) {
+        debug!("PHIL found a pub fn starting {}",searchstr);
+        // TODO: parse this properly
+        let start = blob.find_str(format!("pub fn {}", searchstr).as_slice()).unwrap() + 7;
+        let end = util::find_ident_end(blob, start);
+        let l = blob.slice(start, end);
+        debug!("PHIL found a pub fn {}",l);
+        return Some(Match {matchstr: l.to_string(),
+                       filepath: filepath.clone(), 
+                       point: blobstart + start,
+                       local: local,
+                       mtype: Function
+        });
+    } else if local && txt_matches(search_type, format!("fn {}",searchstr).as_slice(), blob) && !first_param_is_self(blob) {
+        // TODO: parse this properly
+        let start = blob.find_str(format!("fn {}", searchstr).as_slice()).unwrap() + 3;
+        let end = find_ident_end(blob, start);
+        let l = blob.slice(start, end);
+        return Some(Match {matchstr: l.to_string(),
+                       filepath: filepath.clone(), 
+                       point: blobstart + start,
+                       local: local,
+                       mtype: Function
+        });
+    }
+    return None;
+}
 fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path, 
                       search_type: SearchType, local: bool,
                       outputfn: &mut |Match|) {
@@ -405,338 +784,38 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
         }
 
         //debug!("PHIL search_scope BLOB |{}|",blob);
-        if blob.starts_with("let ") && blob.find_str(searchstr).is_some() {
-            let res = ast::parse_let(String::from_str(blob), filepath.clone(), blobstart, false);
-            res.map(|letresult| {
-                
-                let name = letresult.name.as_slice();
 
-                if (exact_match && name == searchstr) || (!exact_match && name.starts_with(searchstr)) {
-                    (*outputfn)(Match { matchstr: letresult.name.to_string(),
-                                        filepath: filepath.clone(),
-                                        point: point + blobstart + letresult.point,
-                                        local: local,
-                                        mtype: Let});
-                }
-            });
-        }
-
-        if blob.starts_with(format!("extern crate {}", searchstr).as_slice()) {
-            debug!("found an extern crate: |{}|",blob);
-
-
-            let view_item;
-            if blob.contains("\"") {
-                // Annoyingly the extern crate can use a string literal for the
-                // real crate name (e.g. extern crate collections_core = "collections")
-                //so we need to get the source text without scrubbed strings 
-                let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
-                let rawsrc = str::from_utf8(filetxt.as_slice()).unwrap();
-                let rawblob = rawsrc.slice(blobstart,blobend);
-                debug!("found an extern crate (unscrubbed): |{}|", rawblob);
-                
-                view_item = ast::parse_view_item(String::from_str(rawblob));
-            } else {
-                view_item = ast::parse_view_item(String::from_str(blob));
-            }
-
-
-            if view_item.paths.is_empty() {
-                // reference to a crate. For now do nothing since will
-                // be picked up by file search. This will change
-                // sometime in the future when racer has more accurate
-                // crate handling
-            } else {
-
-                view_item.ident.clone().map(|ident|{
-                    if symbol_matches(search_type, searchstr, ident.as_slice()) {
-                        let real_str = view_item.paths.get(0).get(0);
-                        get_module_file(real_str.as_slice(), &filepath.dir_path()).map(|modpath|{
-                            let m = Match {matchstr: ident.to_string(),
-                                           filepath: modpath.clone(), 
-                                           point: 0,
-                                           local: false,
-                                           mtype: Module
-                            };
-                            (*outputfn)(m);
-                        });
-
-                    }
-                });
-            }
-        }
-
-        if local && blob.starts_with(format!("mod {}", searchstr).as_slice()) {
-            debug!("found a module: |{}|",blob);
-            // TODO: parse this properly
-            let end = util::find_ident_end(blob, 4);
-            let l = blob.slice(4, end);
-
-            if (exact_match && l == searchstr) || (!exact_match && l.starts_with(searchstr)) {
-                if blob.find_str("{").is_some() {
-                    debug!("PHIL found an inline module!");
-
-                    let m = Match {matchstr: l.to_string(),
-                                   filepath: filepath.clone(), 
-                                   point: point + blobstart + 4, 
-                                   local: false,
-                                   mtype: Module
-                    };
-                    (*outputfn)(m);
-                    
-                } else {
-                    // reference to a local file
-                    get_module_file(l, &filepath.dir_path()).map(|modpath|{
-                        let m = Match {matchstr: l.to_string(),
-                                       filepath: modpath.clone(), 
-                                       point: 0,
-                                       local: false,
-                                       mtype: Module
-                        };
-                        (*outputfn)(m);
-                    });
-                }
-            }
-        }
-
-        if blob.starts_with(format!("pub mod {}", searchstr).as_slice()) {
-            debug!("found a pub module: |{}|",blob);
-            // TODO: parse this properly
-            let end = util::find_ident_end(blob, 8);
-            let l = blob.slice(8, end);
-
-            if (exact_match && l == searchstr) || (!exact_match && l.starts_with(searchstr)) {
-                if blob.find_str("{").is_some() {
-                    debug!("PHIL found an inline module!");
-
-                    let m = Match {matchstr: l.to_string(),
-                                   filepath: filepath.clone(), 
-                                   point: point + blobstart + 8,
-                                   local: false,
-                                   mtype: Module
-                    };
-                    (*outputfn)(m);
-                    
-                } else {
-
-                    // get internal module nesting  
-                    // e.g. is this in an inline submodule?  mod foo{ mod bar; } 
-                    // because if it is then we need to search further down the 
-                    // directory hierarchy
-                    let internalpath = scopes::get_local_module_path(src, 
-                                                                  point+blobstart);
-                    let searchdir = filepath.dir_path().join_many(internalpath.as_slice());
-                    get_module_file(l, &searchdir).map(|modpath|{
-                        let m = Match {matchstr: l.to_string(),
-                                       filepath: modpath.clone(), 
-                                       point: 0,
-                                       local: false,
-                                       mtype: Module
-                        };
-                        (*outputfn)(m);
-                    });
-                }
-            }
-        }
-
-        if txt_matches(search_type, format!("pub fn {}", searchstr).as_slice(), blob) && !first_param_is_self(blob) {
-            debug!("PHIL found a pub fn starting {}",searchstr);
-            // TODO: parse this properly
-            let start = blob.find_str(format!("pub fn {}", searchstr).as_slice()).unwrap() + 7;
-            let end = util::find_ident_end(blob, start);
-            let l = blob.slice(start, end);
-            debug!("PHIL found a pub fn {}",l);
-            let m = Match {matchstr: l.to_string(),
-                           filepath: filepath.clone(), 
-                           point: point + blobstart + start,
-                           local: local,
-                           mtype: Function
-            };
+        match_let(src, point+blobstart, point+blobend, searchstr, filepath, exact_match, local).map(|m|{
             (*outputfn)(m);
-        } else if local && txt_matches(search_type, format!("fn {}",searchstr).as_slice(), blob) && !first_param_is_self(blob) {
-            // TODO: parse this properly
-            let start = blob.find_str(format!("fn {}", searchstr).as_slice()).unwrap() + 3;
-            let end = find_ident_end(blob, start);
-            let l = blob.slice(start, end);
-            let m = Match {matchstr: l.to_string(),
-                           filepath: filepath.clone(), 
-                           point: point + blobstart + start,
-                           local: local,
-                           mtype: Function
-            };
+        });
+
+        match_extern_crate(src, point+blobstart, point+blobend, searchstr, filepath, search_type).map(|m|{
             (*outputfn)(m);
-        }
+        });
 
-
-        if local && txt_matches(search_type, format!("struct {}", searchstr).as_slice(), blob) {
-            // TODO: parse this properly
-            let start = blob.find_str(format!("struct {}", searchstr).as_slice()).unwrap() + 7;
-            let end = find_ident_end(blob, start);
-            let l = blob.slice(start, end);
-            debug!("PHIL found!! a local struct |{}|", l);
-            let m = Match {matchstr: l.to_string(),
-                           filepath: filepath.clone(), 
-                           point: point + blobstart + start,
-                           local: local,
-                           mtype: Struct
-            };
+        match_mod(src, point+blobstart, point+blobend, searchstr, filepath, search_type, local).map(|m|{
             (*outputfn)(m);
-        }
+        });
 
-        if txt_matches(search_type, format!("pub struct {}", searchstr).as_slice(), blob) {
-            // TODO: parse this properly
-            let start = blob.find_str(format!("pub struct {}", searchstr).as_slice()).unwrap() + 11;
-            let end = find_ident_end(blob, start);
-            let l = blob.slice(start, end);
-            debug!("PHIL found!! a pub struct |{}|", l);
-            let m = Match {matchstr: l.to_string(),
-                           filepath: filepath.clone(), 
-                           point: point + blobstart + start,
-                           local: local,
-                           mtype: Struct
-            };
+        match_fn(src, point+blobstart, point+blobend, searchstr, filepath, search_type, local).map(|m|{
             (*outputfn)(m);
-        }
+        });
 
-        if local && txt_matches(search_type, format!("type {}", searchstr).as_slice(), blob) {
-            // TODO: parse this properly
-            let start = blob.find_str(format!("type {}", searchstr).as_slice()).unwrap() + 5;
-            let end = find_ident_end(blob, start);
-            let l = blob.slice(start, end);
-            debug!("PHIL found!! a type {}", l);
-            let m = Match {matchstr: l.to_string(),
-                           filepath: filepath.clone(), 
-                           point: point + blobstart + start,
-                           local: local,
-                           mtype: Type
-            };
+        match_struct(src, point+blobstart, point+blobend, searchstr, filepath, search_type, local).map(|m|{
             (*outputfn)(m);
-        }
-        
-        if txt_matches(search_type, format!("pub type {}", searchstr).as_slice(), blob) {
-            // TODO: parse this properly
-            let start = blob.find_str(format!("pub type {}", searchstr).as_slice()).unwrap() + 9;
-            let end = find_ident_end(blob, start);
-            let l = blob.slice(start, end);
-            debug!("PHIL found!! a pub type {}", l);
-            let m = Match {matchstr: l.to_string(),
-                           filepath: filepath.clone(), 
-                           point: point + blobstart + start,
-                           local: local,
-                           mtype: Type
-            };
+        });
+
+        match_type(src, point+blobstart, point+blobend, searchstr, filepath, search_type, local).map(|m|{
             (*outputfn)(m);
-        }
-        
-        if local && txt_matches(search_type, format!("trait {}", searchstr).as_slice(), blob) {
-            // TODO: parse this properly
-            let start = blob.find_str(format!("trait {}", searchstr).as_slice()).unwrap() + 6;
-            let end = find_ident_end(blob, start);
-            let l = blob.slice(start, end);
-            debug!("PHIL found!! a type {}", l);
-            let m = Match {matchstr: l.to_string(),
-                           filepath: filepath.clone(), 
-                           point: point + blobstart + start,
-                           local: local,
-                           mtype: Trait
-            };
+        });
+
+        match_trait(src, point+blobstart, point+blobend, searchstr, filepath, search_type, local).map(|m|{
             (*outputfn)(m);
-        }
-        
-        if txt_matches(search_type, format!("pub trait {}", searchstr).as_slice(), blob) {
-            // TODO: parse this properly
-            let start = blob.find_str(format!("pub trait {}", searchstr).as_slice()).unwrap() + 10;
-            let end = find_ident_end(blob, start);
-            let l = blob.slice(start, end);
-            debug!("PHIL found!! a pub type {}", l);
-            let m = Match {matchstr: l.to_string(),
-                           filepath: filepath.clone(), 
-                           point: point + blobstart + start,
-                           local: local,
-                           mtype: Trait
-            };
-            (*outputfn)(m);
-        }
+        });
 
+        match_enum(src, point+blobstart, point+blobend, searchstr, filepath, search_type, local, outputfn);
 
-        if blob.starts_with("pub enum") || (local && blob.starts_with("enum")) {
-
-            if blob.starts_with(format!("pub enum {}", searchstr).as_slice()) {
-                // TODO: parse this properly
-                let start = blob.find_str(format!("pub enum {}", searchstr).as_slice()).unwrap() + 9;
-                let end = find_ident_end(blob, start);
-                let l = blob.slice(start, end);
-                if !exact_match || l == searchstr {
-                    debug!("PHIL found!! a pub enum {}", l);
-                    let m = Match {matchstr: l.to_string(),
-                                   filepath: filepath.clone(), 
-                                   point: point + blobstart + start,
-                                   local: local,
-                                   mtype: Enum
-                    };
-                    (*outputfn)(m);
-                }
-            } else if blob.starts_with(format!("enum {}", searchstr).as_slice()) {
-                // TODO: parse this properly
-                let start = blob.find_str(format!("enum {}", searchstr).as_slice()).unwrap() + 5;
-                let end = find_ident_end(blob, start);
-                let l = blob.slice(start, end);
-                debug!("PHIL found!! a local enum {}", l);
-                let m = Match {matchstr: l.to_string(),
-                               filepath: filepath.clone(), 
-                               point: point + blobstart + start,
-                               local: local,
-                               mtype: Enum
-                };
-                (*outputfn)(m);
-            }
-
-            if txt_matches(search_type, searchstr, blob) {
-                // parse the enum
-                let parsedEnum = ast::parse_enum(String::from_str(blob));
-                if parsedEnum.name.as_slice().starts_with(searchstr) {
-                }
-
-                for (name, offset) in parsedEnum.values.move_iter() {
-                    if name.as_slice().starts_with(searchstr) {
-                        let m = Match {matchstr: name.into_string(),
-                                       filepath: filepath.clone(), 
-                                       point: point + blobstart + offset,
-                                       local: local,
-                                       mtype: Enum
-                        };
-                        (*outputfn)(m);
-                    }
-                }                
-            }
-        } 
-
-        if ((local && blob.starts_with("use ")) || blob.starts_with("pub use ")) && txt_matches(search_type, searchstr, blob) {
-            debug!("PHIL found use: {} in |{}|", searchstr, blob);
-            let t0 = time::precise_time_s();
-            let view_item = ast::parse_view_item(String::from_str(blob));
-            let t1 = time::precise_time_s();
-            debug!("PHIL ast use parse_view_item time {}",t1-t0);
-            for fqn_ in view_item.paths.iter() {
-                // HACK, convert from &[~str] to &[&str]
-                let mut fqn = to_refs(fqn_);  
-                //let fqn = v.as_slice();
-
-                // if searching for a symbol and the last bit matches the symbol
-                // then find the fqn
-                if fqn.len() == 1 && fqn.as_slice()[0] == searchstr {
-                    // is an exact match of a single use stmt. 
-                    // Do nothing because this will be picked up by the module
-                    // search in a bit.
-                } else if fqn.as_slice()[fqn.len()-1].starts_with(searchstr) {
-                    // TODO: pretty sure this isn't correct/complete
-                    if fqn.as_slice()[0] == "self" {
-                        fqn.remove(0);
-                    }
-                    resolve_path(fqn.as_slice(), filepath, 0, ExactMatch, outputfn)
-                }
-            }
-        }
+        match_use(src, point+blobstart, point+blobend, searchstr, filepath, search_type, local, outputfn);
     }
 }
 
@@ -806,31 +885,30 @@ pub fn do_local_search_with_string(path: &[&str], filepath: &Path, pos: uint,
 }
 
 pub fn resolve_name(searchstr: &str, filepath: &Path, pos: uint, 
-                       search_type: SearchType,
-                       outputfn: &mut |Match|) {
-        search_local_text(searchstr, filepath, pos, search_type, outputfn);
-        search_prelude_file(searchstr, search_type, outputfn);
+                    search_type: SearchType, outputfn: &mut |Match|) {
+    search_local_text(searchstr, filepath, pos, search_type, outputfn);
+    search_prelude_file(searchstr, search_type, outputfn);
 
-        // don't need to match substrings here because substring matches are done
-        // on the use stmts.
-        search_crate_root(searchstr, filepath, search_type, outputfn);
+    // don't need to match substrings here because substring matches are done
+    // on the use stmts.
+    search_crate_root(searchstr, filepath, search_type, outputfn);
 
-        // don't need to match substrings here because substring matches are done
-        // on the use stmts.
-        get_module_file(searchstr, &filepath.dir_path()).map(|path|{
-            let m = Match {matchstr: searchstr.to_string(),
-                           filepath: path.clone(), 
-                           point: 0,
-                           local: false,
-                           mtype: Module
-            };
-            (*outputfn)(m);
-        });
-
-        match search_type {
-            StartsWith => do_file_search(searchstr, &filepath.dir_path(), outputfn),
-            ExactMatch => ()
+    // don't need to match substrings here because substring matches are done
+    // on the use stmts.
+    get_module_file(searchstr, &filepath.dir_path()).map(|path|{
+        let m = Match {matchstr: searchstr.to_string(),
+                       filepath: path.clone(), 
+                       point: 0,
+                       local: false,
+                       mtype: Module
         };
+        (*outputfn)(m);
+    });
+
+    match search_type {
+        StartsWith => do_file_search(searchstr, &filepath.dir_path(), outputfn),
+        ExactMatch => ()
+    };
 }
 
 pub fn resolve_path(path: &[&str], filepath: &Path, pos: uint, 
