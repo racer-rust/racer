@@ -31,8 +31,8 @@ fn match_fn(m:Match) {
         fail!("MATCHSTR is empty - waddup?");
     }
     println!("MATCH {},{},{},{}", m.matchstr,
-                                    linenum.to_str(),
-                                    charnum.to_str(),
+                                    linenum.to_string(),
+                                    charnum.to_string(),
                                     m.filepath.as_str().unwrap());
 }
 
