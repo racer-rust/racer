@@ -25,12 +25,6 @@ fn reverse_to_start_of_fn(point: uint, msrc: &str) -> Option<uint> {
     })
 }
 
-fn search_local_text(searchstr: &str, filepath: &Path, point: uint,
-                     search_type: SearchType, outputfn: &mut |Match|) {
-    let msrc = racer::load_file_and_mask_comments(filepath);
-    search_local_scopes(searchstr, filepath, msrc.as_slice(), point, search_type, outputfn);
-}
-
 fn search_struct_fields(searchstr: &str, m: &Match,
                         search_type: SearchType, outputfn: &mut |Match|) {
     let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
@@ -854,7 +848,9 @@ pub fn search_prelude_file(searchstr: &str, search_type: SearchType, outputfn: &
     for srcpath in v.move_iter() {
         let filepath = Path::new(srcpath).join_many([Path::new("libstd/prelude.rs")]);
         if File::open(&filepath).is_ok() {
-            search_local_text(searchstr, &filepath, 0, search_type, outputfn);
+            let msrc = racer::load_file_and_mask_comments(&filepath);
+            search_local_scopes(searchstr, &filepath, msrc.as_slice(), 0,
+                                search_type, outputfn);
         }
     }
 }
@@ -886,7 +882,13 @@ pub fn do_local_search_with_string(path: &[&str], filepath: &Path, pos: uint,
 
 pub fn resolve_name(searchstr: &str, filepath: &Path, pos: uint, 
                     search_type: SearchType, outputfn: &mut |Match|) {
-    search_local_text(searchstr, filepath, pos, search_type, outputfn);
+
+    // search the current file
+    let msrc = racer::load_file_and_mask_comments(filepath);
+    search_local_scopes(searchstr, filepath, msrc.as_slice(), pos,
+                        search_type, outputfn);
+
+    // search the prelude
     search_prelude_file(searchstr, search_type, outputfn);
 
     // don't need to match substrings here because substring matches are done
