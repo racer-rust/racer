@@ -60,23 +60,19 @@ pub fn complete_from_file(src: &str, filepath: &Path, pos: uint, outputfn: &mut 
 
     debug!("PHIL contextstr is |{}|, searchstr is |{}|",contextstr, searchstr);
 
-    if contextstr == "" {
-        nameres::resolve_path([searchstr], filepath, pos, StartsWith, outputfn);
-        return;
-    }
 
-    let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
-
-    context.map(|m| {
-        match completetype {
-            Field => {
+    match completetype {
+        Path => {
+            let v : Vec<&str> = expr.split_str("::").collect();
+            nameres::resolve_path(v.as_slice(), filepath, pos, StartsWith, outputfn);
+        },
+        Field => {
+            let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
+            context.map(|m| {
                 nameres::search_for_field(m, searchstr, StartsWith, outputfn);
-            }
-            Path => {
-                nameres::search_for_path(m, searchstr, StartsWith, outputfn);
-            }
+            });
         }
-    });
+    }
 }
 
 pub fn find_definition(src: &str, filepath: &Path, pos: uint) -> Option<Match> {
@@ -98,21 +94,16 @@ pub fn find_definition_(src: &str, filepath: &Path, pos: uint, outputfn: &mut |M
         }
     };
 
-    if contextstr == "" {
-        nameres::resolve_path([searchstr], filepath, pos, ExactMatch, find_definition_output_fn);
-        return;
-    }
-
-    let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
-
-    context.map(|m| {
-        match completetype {
-            Field => {
+    match completetype {
+        Path => {
+            let v : Vec<&str> = expr.split_str("::").collect();
+            nameres::resolve_path(v.as_slice(), filepath, pos, ExactMatch, find_definition_output_fn);
+        },
+        Field => {
+            let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
+            context.map(|m| {
                 nameres::search_for_field(m, searchstr, ExactMatch, find_definition_output_fn);
-            }
-            Path => {
-                nameres::search_for_path(m, searchstr, ExactMatch, find_definition_output_fn);
-            }
+            });
         }
-    });
+    }
 }

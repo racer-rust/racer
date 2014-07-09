@@ -951,29 +951,3 @@ pub fn search_for_field(context: Match, searchstr: &str, search_type: SearchType
         _ => ()
     };
 }
-
-
-pub fn search_for_path(context: Match, searchstr: &str, search_type: SearchType,  outputfn: &mut |Match|) {
-    let m = context;
-    match m.mtype {
-        Module => {
-            search_next_scope(m.point, searchstr, &m.filepath, search_type, false, outputfn);
-        }
-        Struct => {
-            debug!("PHIL found a struct. Now need to look for impl");
-            search_for_impls(m.point, m.matchstr.as_slice(), &m.filepath, m.local, &mut |m|{
-                debug!("PHIL found impl!! {}",m.matchstr);
-                let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
-                let src = str::from_utf8(filetxt.as_slice()).unwrap();
-                
-                // find the opening brace and skip to it. 
-                src.slice_from(m.point).find_str("{").map(|n|{
-                    let point = m.point + n + 1;
-                    search_scope(point, src, searchstr, &m.filepath, search_type, m.local, outputfn);
-                });
-                
-            });
-        }
-        _ => ()
-    }
-}
