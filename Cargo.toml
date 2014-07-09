@@ -1,0 +1,8 @@
+[project]
+name = "racer"
+version = "0.0.0"
+authors = []
+
+[[bin]]
+name = "racer"
+path = "src/main.rs"
