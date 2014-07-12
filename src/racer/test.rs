@@ -320,8 +320,8 @@ fn follows_self_use() {
     let got = find_definition(src, &srcpath, pos).unwrap();
     ::std::io::fs::rmdir_recursive(&basedir).unwrap();
     assert_eq!(got.matchstr,"myfn".to_string());
-    assert_eq!(moddir.join("src2.rs").display().to_str(), 
-               got.filepath.display().to_str());
+    assert_eq!(moddir.join("src2.rs").display().to_string(), 
+               got.filepath.display().to_string());
     assert_eq!(28, got.point);
 }
 
@@ -350,8 +350,8 @@ fn finds_nested_submodule_file() {
     let got = find_definition(src, &srcpath, pos).unwrap();
     ::std::io::fs::rmdir_recursive(&basedir).unwrap();
     assert_eq!(got.matchstr,"myfn".to_string());
-    assert_eq!(sub3dir.join("sub3.rs").display().to_str(), 
-               got.filepath.display().to_str());
+    assert_eq!(sub3dir.join("sub3.rs").display().to_string(), 
+               got.filepath.display().to_string());
 }
 
 
@@ -385,8 +385,8 @@ fn follows_use_to_impl() {
     ::std::io::fs::rmdir_recursive(&basedir).unwrap();
     assert_eq!(got.matchstr,"new".to_string());
     assert_eq!(90, got.point);
-    assert_eq!(modpath.display().to_str(), 
-               got.filepath.display().to_str());
+    assert_eq!(modpath.display().to_string(), 
+               got.filepath.display().to_string());
 }
 
 #[test]

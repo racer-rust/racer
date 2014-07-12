@@ -12,6 +12,9 @@ use std::io::File;
 use std::io::BufferedReader;
 use std::str;
 
+use racer::{ExactMatch};
+use racer::util::txt_matches;
+
 fn find_start_of_function_body(src: &str) -> uint {
     // TODO: this should ignore anything inside parens so as to skip the arg list
     return src.find_str("{").unwrap();
@@ -27,6 +30,15 @@ pub fn generate_skeleton_for_parsing(src: &str) -> String {
     s.push_str("};");
     return s;
 }
+
+pub fn first_param_is_self(blob: &str) -> bool {
+    return blob.find_str("(").map_or(false, |start| {
+        let end = scopes::find_closing_paren(blob, start+1);
+        debug!("PHIL searching fn args: |{}| {}",blob.slice(start+1,end), txt_matches(ExactMatch, "self", blob.slice(start+1,end)));
+        return txt_matches(ExactMatch, "self", blob.slice(start+1,end));
+    });
+}
+
 
 #[test]
 fn generates_skeleton_for_mod() {

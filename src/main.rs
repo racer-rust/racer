@@ -6,6 +6,7 @@
 extern crate syntax;
 extern crate time;
 extern crate debug;
+extern crate collections;
 
 #[cfg(not(test))]
 use racer::Match;

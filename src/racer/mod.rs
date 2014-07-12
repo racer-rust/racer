@@ -10,6 +10,8 @@ pub mod codeiter;
 pub mod codecleaner;
 pub mod testutils;
 pub mod util;
+pub mod matchers;
+
 #[cfg(test)] pub mod test;
 
 pub enum MatchType {

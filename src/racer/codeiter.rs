@@ -102,7 +102,6 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
                     self.bracelevel -= 1;
                     // have we reached the end of the scope?
                     if self.bracelevel < 0 {
-                        self.fuse();
                         return None;
                     }
                 }
