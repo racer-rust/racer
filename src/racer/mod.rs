@@ -33,6 +33,12 @@ pub enum SearchType {
     StartsWith
 }
 
+pub enum Namespace {
+    TypeNamespace,
+    ValueNamespace,
+    BothNamespaces
+}
+
 pub enum CompletionType {
     Field,
     Path
@@ -66,7 +72,7 @@ pub fn complete_from_file(src: &str, filepath: &Path, pos: uint, outputfn: &mut 
     match completetype {
         Path => {
             let v : Vec<&str> = expr.split_str("::").collect();
-            nameres::resolve_path(v.as_slice(), filepath, pos, StartsWith, outputfn);
+            nameres::resolve_path(v.as_slice(), filepath, pos, StartsWith, BothNamespaces, outputfn);
         },
         Field => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
@@ -99,7 +105,7 @@ pub fn find_definition_(src: &str, filepath: &Path, pos: uint, outputfn: &mut |M
     match completetype {
         Path => {
             let v : Vec<&str> = expr.split_str("::").collect();
-            nameres::resolve_path(v.as_slice(), filepath, pos, ExactMatch, find_definition_output_fn);
+            nameres::resolve_path(v.as_slice(), filepath, pos, ExactMatch, BothNamespaces, find_definition_output_fn);
         },
         Field => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);

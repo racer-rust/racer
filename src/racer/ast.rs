@@ -160,12 +160,24 @@ fn find_match(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
         fpath,
         pos,
         racer::ExactMatch,
+        racer::BothNamespaces,
+        m));
+}
+
+fn find_type_match(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
+    let myfqn = util::to_refs(fqn);  
+    return util::first_match(|m| resolve_path(
+        myfqn.as_slice(),
+        fpath,
+        pos,
+        racer::ExactMatch,
+        racer::TypeNamespace,
         m));
 }
 
 fn get_type_of_path(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
 
-    let om = find_match(fqn, fpath, pos);
+    let om = find_type_match(fqn, fpath, pos);
     if om.is_some() {
         let m = om.unwrap();
         let msrc = racer::load_file_and_mask_comments(&m.filepath);
@@ -207,7 +219,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
             }
             ast::ExprStruct(ref path, _, _) => {
                 let pathvec = path_to_vec(path);
-                self.result = find_match(&pathvec,
+                self.result = find_type_match(&pathvec,
                                          &self.scope.filepath,
                                          self.scope.point);
             }

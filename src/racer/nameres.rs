@@ -3,7 +3,7 @@ use racer;
 
 use racer::{SearchType, StartsWith, ExactMatch, Match, Module, 
             Function, Struct, Enum, FnArg,
-            StructField, Impl};
+            StructField, Impl, Namespace, TypeNamespace, ValueNamespace, BothNamespaces};
 
 use racer::typeinf;
 use racer::matchers;
@@ -250,14 +250,14 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path, outputfn: &mut |Match|
 }
 
 pub fn search_crate_root(searchstr: &str, modfpath: &Path, 
-                         searchtype: SearchType, outputfn: &mut |Match|) {
+                         searchtype: SearchType, namespace: Namespace, outputfn: &mut |Match|) {
     let crateroots = find_possible_crate_root_modules(&modfpath.dir_path());
     for crateroot in crateroots.iter() {
         if crateroot == modfpath {
             continue;
         }
         debug!("PHIL going to search for {} in crateroot {}",searchstr, crateroot.as_str());
-        resolve_path([searchstr], crateroot, 0, searchtype, outputfn);
+        resolve_name(searchstr, crateroot, 0, searchtype, namespace, outputfn);
     }
 }
 
@@ -291,7 +291,9 @@ pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<Path> {
 }
 
 fn search_next_scope(mut startpoint: uint, searchstr:&str, filepath:&Path, 
-                     search_type: SearchType, local: bool, outputfn: &mut |Match|) {
+                     search_type: SearchType, local: bool, 
+                     namespace: Namespace,
+                     outputfn: &mut |Match|) {
 
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
     let filesrc = str::from_utf8(filetxt.as_slice()).unwrap();
@@ -306,7 +308,7 @@ fn search_next_scope(mut startpoint: uint, searchstr:&str, filepath:&Path,
         });
     }
 
-    search_scope(startpoint, filesrc, searchstr, filepath, search_type, local, outputfn);
+    search_scope(startpoint, filesrc, searchstr, filepath, search_type, local, namespace, outputfn);
 }
 
 pub fn get_module_file(name: &str, parentdir: &Path) -> Option<Path> {
@@ -361,8 +363,9 @@ pub fn get_module_file(name: &str, parentdir: &Path) -> Option<Path> {
 }
 
 fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path, 
-                      search_type: SearchType, local: bool,
-                      outputfn: &mut |Match|) {
+                search_type: SearchType, local: bool,
+                namespace: Namespace,
+                outputfn: &mut |Match|) {
     debug!("PHIL searching scope {} {} {}",point, searchstr, filepath.as_str());
     
     let scopesrc = src.slice_from(point);
@@ -390,65 +393,49 @@ fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
 
         //debug!("PHIL search_scope BLOB |{}|",blob);
 
-        for m in matchers::match_types(src, point+blobstart, point+blobend, searchstr, filepath, search_type, local) {
-            (*outputfn)(m);
+        match namespace {
+            TypeNamespace => 
+                for m in matchers::match_types(src, point+blobstart, 
+                                       point+blobend, searchstr, 
+                                       filepath, search_type, local) {
+                    (*outputfn)(m);
+                },
+            ValueNamespace => 
+                for m in matchers::match_values(src, point+blobstart, 
+                                       point+blobend, searchstr, 
+                                       filepath, search_type, local) {
+                    (*outputfn)(m);
+                },
+            BothNamespaces => {
+                for m in matchers::match_types(src, point+blobstart, 
+                                       point+blobend, searchstr, 
+                                       filepath, search_type, local) {
+                    (*outputfn)(m);
+                }
+                for m in matchers::match_values(src, point+blobstart, 
+                                       point+blobend, searchstr, 
+                                       filepath, search_type, local) {
+                    (*outputfn)(m);
+                }
+            }
         }
 
-        // matchers::match_let(src, point+blobstart, point+blobend, searchstr, filepath, exact_match, local).map(|m|{
-        //     (*outputfn)(m);
-        // });
-
-        // matchers::match_extern_crate(src, point+blobstart, point+blobend, searchstr, filepath, search_type).map(|m|{
-        //     (*outputfn)(m);
-        // });
-
-        // matchers::match_mod(src, point+blobstart, point+blobend, searchstr, filepath, search_type, local).map(|m|{
-        //     (*outputfn)(m);
-        // });
-
-        // matchers::match_fn(src, point+blobstart, point+blobend, searchstr, filepath, search_type, local).map(|m|{
-        //     (*outputfn)(m);
-        // });
-
-        // matchers::match_struct(src, point+blobstart, point+blobend, searchstr, filepath, search_type, local).map(|m|{
-        //     (*outputfn)(m);
-        // });
-
-        // matchers::match_type(src, point+blobstart, point+blobend, searchstr, filepath, search_type, local).map(|m|{
-        //     (*outputfn)(m);
-        // });
-
-        // for m in matchers::match_trait(src, point+blobstart, point+blobend, searchstr, filepath, search_type, local).move_iter() {
-        //     (*outputfn)(m);
-        // }
-
-        // for m in matchers::match_enum(src, point+blobstart, point+blobend, searchstr, filepath, search_type, local).move_iter() {
-        //     (*outputfn)(m);
-        // }
-
-        // for m in matchers::match_enum_variants(src, point+blobstart, point+blobend, searchstr, filepath, search_type, local) {
-        //     (*outputfn)(m);
-        // }
-
-        // matchers::match_use(src, point+blobstart, point+blobend, searchstr, filepath, search_type, local, outputfn);
     }
 }
 
-
-
 fn search_local_scopes(searchstr: &str, filepath: &Path, msrc: &str, mut point:uint,
-                       search_type: SearchType, outputfn: &mut |Match|) {
+                       search_type: SearchType, namespace: Namespace, outputfn: &mut |Match|) {
     debug!("PHIL searching local scopes for {}",searchstr);
 
     let is_local = true;
     if point == 0 {
         // search the whole file
-        search_scope(0, msrc, searchstr, filepath, search_type, is_local, outputfn);
+        search_scope(0, msrc, searchstr, filepath, search_type, is_local, namespace, outputfn);
     } else {
         // search each parent scope in turn
         while point > 0 {
             let n = scopes::scope_start(msrc, point);
-               search_scope(n, msrc, searchstr, filepath, search_type, is_local, outputfn);
+            search_scope(n, msrc, searchstr, filepath, search_type, is_local, namespace, outputfn);
             if n == 0 { 
                 break; 
             }
@@ -460,7 +447,9 @@ fn search_local_scopes(searchstr: &str, filepath: &Path, msrc: &str, mut point:u
     }
 }
 
-pub fn search_prelude_file(searchstr: &str, search_type: SearchType, outputfn: &mut |Match|) {
+pub fn search_prelude_file(searchstr: &str, search_type: SearchType, 
+                           namespace: Namespace,
+                           outputfn: &mut |Match|) {
     // find the prelude file from the search path and scan it
     let srcpaths = match std::os::getenv("RUST_SRC_PATH") { 
         Some(paths) => paths,
@@ -469,23 +458,25 @@ pub fn search_prelude_file(searchstr: &str, search_type: SearchType, outputfn: &
 
     let v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
     for srcpath in v.move_iter() {
-        let filepath = Path::new(srcpath).join_many([Path::new("libstd/prelude.rs")]);
+        let filepath = Path::new(srcpath).join_many([Path::new("libstd"), 
+                                                     Path::new("prelude.rs")]);
         if File::open(&filepath).is_ok() {
             let msrc = racer::load_file_and_mask_comments(&filepath);
-            search_local_scopes(searchstr, &filepath, msrc.as_slice(), 0,
-                                search_type, outputfn);
+            let is_local = true;
+            search_scope(0, msrc.as_slice(), searchstr, &filepath, search_type, is_local, 
+                         namespace, outputfn);
         }
     }
 }
 
 pub fn do_local_search_with_string(path: &[&str], filepath: &Path, pos: uint, 
-                       search_type: SearchType,
+                       search_type: SearchType, namespace: Namespace,
                        outputfn: &mut |Match|) {
     debug!("PHIL: do_local_search_with_string {}", path);
     // HACK
     if path.len() == 1 && path[0] == "str" {
         debug!("PHIL {} == {}", path[0], "str");
-        let str_match = first_match(|m| resolve_path(["Str"], filepath, pos, ExactMatch, m));
+        let str_match = first_match(|m| resolve_name("Str", filepath, pos, ExactMatch, namespace, m));
         debug!("PHIL: str_match {:?}", str_match);
         
         str_match.map(|str_match|{
@@ -499,24 +490,25 @@ pub fn do_local_search_with_string(path: &[&str], filepath: &Path, pos: uint,
             (*outputfn)(m);
         });
     } else {
-        resolve_path(path, filepath, pos, search_type, outputfn);
+        resolve_path(path, filepath, pos, search_type, namespace, outputfn);
     }
 }
 
 pub fn resolve_name(searchstr: &str, filepath: &Path, pos: uint, 
-                    search_type: SearchType, outputfn: &mut |Match|) {
+                    search_type: SearchType, namespace: Namespace, outputfn: &mut |Match|) {
 
     // search the current file
     let msrc = racer::load_file_and_mask_comments(filepath);
+
     search_local_scopes(searchstr, filepath, msrc.as_slice(), pos,
-                        search_type, outputfn);
+                        search_type, namespace, outputfn);
 
     // search the prelude
-    search_prelude_file(searchstr, search_type, outputfn);
+    search_prelude_file(searchstr, search_type, namespace, outputfn);
 
     // don't need to match substrings here because substring matches are done
     // on the use stmts.
-    search_crate_root(searchstr, filepath, search_type, outputfn);
+    search_crate_root(searchstr, filepath, search_type, namespace, outputfn);
 
     // don't need to match substrings here because substring matches are done
     // on the use stmts.
@@ -537,30 +529,31 @@ pub fn resolve_name(searchstr: &str, filepath: &Path, pos: uint,
 }
 
 pub fn resolve_path(path: &[&str], filepath: &Path, pos: uint, 
-                       search_type: SearchType,
+                       search_type: SearchType, namespace: Namespace,
                        outputfn: &mut |Match|) {
     debug!("PHIL do_local_search path {} in {}",path, filepath.as_str());
 
     if path.len() == 1 {
         let searchstr = path[0];
-        resolve_name(searchstr, filepath, pos, search_type, outputfn);
+        resolve_name(searchstr, filepath, pos, search_type, namespace, outputfn);
     } else {
         if path[0] == "" {
             // match global searches starting with :: - e.g. ::std::blah::...
-            return do_external_search(path.slice_from(1), filepath, pos, search_type, outputfn);
-            
+            return do_external_search(path.slice_from(1), filepath, pos, 
+                                      search_type, namespace, outputfn);
         }
 
         let parent_path = path.slice_to(path.len()-1);
         debug!("PHIL doing nested search: {} -> {}", path, parent_path);
-        let context = first_match(|m| resolve_path(parent_path, filepath, pos, ExactMatch, m));
+        let context = first_match(|m| resolve_path(parent_path, filepath, pos, 
+                                                   ExactMatch, TypeNamespace, m));
         context.map(|m| {
             debug!("PHIL context match is : {:?} {}", m, m.matchstr);
             match m.mtype {
                 Module => {
                     debug!("PHIL searching a module '{}' (whole path: {})",m.matchstr, path);
                     let searchstr = path[path.len()-1];
-                    search_next_scope(m.point, searchstr, &m.filepath, search_type, false, outputfn);
+                    search_next_scope(m.point, searchstr, &m.filepath, search_type, false, namespace, outputfn);
                 }
                 Struct => {
                     debug!("PHIL found a struct. Now need to look for impl");
@@ -574,7 +567,7 @@ pub fn resolve_path(path: &[&str], filepath: &Path, pos: uint,
                         // find the opening brace and skip to it. 
                         src.slice_from(m.point).find_str("{").map(|n|{
                             let point = m.point + n + 1;
-                            search_scope(point, src, searchstr, &m.filepath, search_type, m.local, outputfn);
+                            search_scope(point, src, searchstr, &m.filepath, search_type, m.local, namespace, outputfn);
                         });
                         
                     });
@@ -585,11 +578,11 @@ pub fn resolve_path(path: &[&str], filepath: &Path, pos: uint,
     }
 }
 
-pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, search_type: SearchType, outputfn: &mut |Match|) {
+pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, search_type: SearchType, namespace: Namespace, outputfn: &mut |Match|) {
     debug!("PHIL do_external_search path {} {}",path, filepath.as_str());
     if path.len() == 1 {
         let searchstr = path[0];
-        search_next_scope(pos, searchstr, filepath, search_type, false, outputfn);
+        search_next_scope(pos, searchstr, filepath, search_type, false, namespace, outputfn);
 
         get_module_file(searchstr, &filepath.dir_path()).map(|path|{
             let m = Match {matchstr: searchstr.to_string(),
@@ -603,13 +596,13 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, search_type
 
     } else {
         let parent_path = path.slice_to(path.len()-1);
-        let context = first_match(|m| do_external_search(parent_path, filepath, pos, ExactMatch, m));
+        let context = first_match(|m| do_external_search(parent_path, filepath, pos, ExactMatch, TypeNamespace, m));
         context.map(|m| {
             match m.mtype {
                 Module => {
                     debug!("PHIL found an external module {}",m.matchstr);
                     let searchstr = path[path.len()-1];
-                    search_next_scope(m.point, searchstr, &m.filepath, search_type, false, outputfn);
+                    search_next_scope(m.point, searchstr, &m.filepath, search_type, false, namespace, outputfn);
                 }
 
                 Struct => {
@@ -618,7 +611,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, search_type
                         debug!("PHIL found  impl2!! {}",m.matchstr);
                         let searchstr = path[path.len()-1];
                         debug!("PHIL about to search impl scope...");
-                        search_next_scope(m.point, searchstr, &m.filepath, search_type, false, outputfn);
+                        search_next_scope(m.point, searchstr, &m.filepath, search_type, false, namespace, outputfn);
                     });
                 }
                 _ => ()

@@ -69,6 +69,7 @@ fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<Match> {
                                                                      &m.filepath, 
                                                                      globalpos, 
                                                                      racer::ExactMatch, 
+                                                                     racer::TypeNamespace,  // just the type namespace
                                                                      outfn));
             }
         }
