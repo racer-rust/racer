@@ -116,8 +116,6 @@ impl visit::Visitor<()> for ViewItemVisitor {
                     let mut v = Vec::new();
                     v.push(istr.get().to_string());
                     self.paths.push(v);
-                    // println!("PHIL crate loc {}", istr);
-                    // println!("PHIL crate style {:?}", style);
                 });
             }
         }
@@ -176,8 +174,7 @@ fn find_type_match(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> 
 }
 
 fn get_type_of_path(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
-
-    let om = find_type_match(fqn, fpath, pos);
+    let om = find_match(fqn, fpath, pos);
     if om.is_some() {
         let m = om.unwrap();
         let msrc = racer::load_file_and_mask_comments(&m.filepath);

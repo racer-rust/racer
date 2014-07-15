@@ -3,7 +3,8 @@ use racer;
 
 use racer::{SearchType, StartsWith, ExactMatch, Match, Module, 
             Function, Struct, Enum, FnArg,
-            StructField, Impl, Namespace, TypeNamespace, ValueNamespace, BothNamespaces};
+            StructField, Impl, Namespace, TypeNamespace, 
+            ValueNamespace, BothNamespaces};
 
 use racer::typeinf;
 use racer::matchers;
