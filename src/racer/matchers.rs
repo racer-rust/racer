@@ -104,7 +104,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: uint, blobend: uint,
 
             view_item.ident.clone().map(|ident|{
                 if symbol_matches(search_type, searchstr, ident.as_slice()) {
-                    let real_str = view_item.paths.get(0).get(0);
+                    let ref real_str = view_item.paths[0][0];
                     get_module_file(real_str.as_slice(), &filepath.dir_path()).map(|modpath|{
                         res = Some(Match {matchstr: ident.to_string(),
                                        filepath: modpath.clone(), 

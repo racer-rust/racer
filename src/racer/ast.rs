@@ -227,9 +227,9 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                 debug!("PHIL method call ast name {}",methodname);
                 debug!("PHIL method call ast types {:?} {}",types, types.len());
                 
-                let objexpr = arguments.get(0);
+                let objexpr = arguments[0];
                 //println!("PHIL obj expr is {:?}",objexpr);
-                self.visit_expr(&**objexpr, ());
+                self.visit_expr(&*objexpr, ());
                 let mut newres: Option<Match> = None;
                 match self.result {
                     Some(ref m) => {
