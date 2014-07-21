@@ -199,7 +199,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                                                self.scope.point);
             }
             ast::ExprCall(callee_expression, _/*ref arguments*/) => {
-                self.visit_expr(callee_expression, ());
+                self.visit_expr(&*callee_expression, ());
                 let mut newres: Option<Match> = None;
                 {
                     let res = &self.result;
@@ -227,9 +227,9 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                 debug!("PHIL method call ast name {}",methodname);
                 debug!("PHIL method call ast types {:?} {}",types, types.len());
                 
-                let objexpr = arguments.get(0);
+                let objexpr = arguments[0];
                 //println!("PHIL obj expr is {:?}",objexpr);
-                self.visit_expr(*objexpr, ());
+                self.visit_expr(&*objexpr, ());
                 let mut newres: Option<Match> = None;
                 match self.result {
                     Some(ref m) => {
@@ -285,7 +285,7 @@ impl LetVisitor {
 
             let mut v = ExprTypeVisitor{ scope: self.scope.clone(),
                                  result: None};
-            v.visit_expr(initexpr, ());
+            v.visit_expr(&*initexpr, ());
 
             self.result = Some(LetResult{name: name.to_string(), point: point,
                                          inittype: v.result});
@@ -518,7 +518,7 @@ pub fn parse_let(s: String, fpath: Path, pos: uint, parseinit: bool) -> Option<L
         let scope = Scope{filepath: fpath, point: pos};
 
         let mut v = LetVisitor{ scope: scope, result: None, parseinit: parseinit};
-        visit::walk_stmt(&mut v, stmt, ());
+        visit::walk_stmt(&mut v, &*stmt, ());
         return v.result;
     });
     match result {
@@ -533,7 +533,7 @@ pub fn parse_struct_fields(s: String) -> Vec<(String, uint)> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = StructVisitor{ fields: Vec::new() };
-        visit::walk_stmt(&mut v, stmt, ());
+        visit::walk_stmt(&mut v, &*stmt, ());
         return v.fields;
     }).ok().unwrap_or(Vec::new());
 }
@@ -542,7 +542,7 @@ pub fn parse_impl_name(s: String) -> Option<String> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = ImplVisitor{ name_path: Vec::new() };
-        visit::walk_stmt(&mut v, stmt, ());
+        visit::walk_stmt(&mut v, &*stmt, ());
         if v.name_path.len() == 1 {
             return Some(v.name_path.pop().unwrap());
         } else {
@@ -555,7 +555,7 @@ pub fn parse_fn_output(s: String) -> Vec<String> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = FnVisitor { name: "".to_string(), args: Vec::new(), output: Vec::new(), is_method: false };
-        visit::walk_stmt(&mut v, stmt, ());
+        visit::walk_stmt(&mut v, &*stmt, ());
         return v.output;
     }).ok().unwrap();
 }
@@ -565,7 +565,7 @@ pub fn parse_fn(s: String) -> FnVisitor {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = FnVisitor { name: "".to_string(), args: Vec::new(), output: Vec::new(), is_method: false };
-        visit::walk_stmt(&mut v, stmt, ());
+        visit::walk_stmt(&mut v, &*stmt, ());
         return v;
     }).ok().unwrap();
 }
@@ -574,7 +574,7 @@ pub fn parse_mod(s: String) -> ModVisitor {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = ModVisitor { name: None };
-        visit::walk_stmt(&mut v, stmt, ());
+        visit::walk_stmt(&mut v, &*stmt, ());
         return v;
     }).ok().unwrap();    
 }
@@ -584,7 +584,7 @@ pub fn parse_enum(s: String) -> EnumVisitor {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = EnumVisitor { name: String::new(), values: Vec::new()};
-        visit::walk_stmt(&mut v, stmt, ());
+        visit::walk_stmt(&mut v, &*stmt, ());
         return v;
     }).ok().unwrap();
 }
@@ -601,7 +601,7 @@ pub fn get_type_of(s: String, fpath: &Path, pos: uint) -> Option<Match> {
 
         let mut v = ExprTypeVisitor{ scope: startscope,
                                      result: None};
-        visit::walk_stmt(&mut v, stmt, ());
+        visit::walk_stmt(&mut v, &*stmt, ());
         return v.result;
     }).ok().unwrap();
 }
