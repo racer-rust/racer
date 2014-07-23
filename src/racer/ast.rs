@@ -97,10 +97,15 @@ impl visit::Visitor<()> for ViewItemVisitor {
                         }
 
                         for path in paths.iter() {
-                            let mut vv = v.clone();
                             //debug!("PHIL view path list item {}",token::get_ident(path.node.name));
-                            vv.push(token::get_ident(path.node.name).get().to_string());
-                            self.paths.push(vv);
+                            match path.node {
+                                ast::PathListIdent{name, ..} => {
+                                    let mut vv = v.clone();
+                                    vv.push(token::get_ident(name).get().to_string());
+                                    self.paths.push(vv);
+                                }
+                                ast::PathListMod{..} => (), // TODO
+                            }
                         }
                     }
                     ast::ViewPathGlob(_, id) => {

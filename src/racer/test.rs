@@ -6,8 +6,7 @@ use std::task;
 use racer::scopes;
 
 fn tmpname() -> Path {
-    let mut s = "".to_string();
-    task::with_task_name(|name| s = name.unwrap().to_string());
+    let s = task::name().unwrap();
     return Path::new(String::from_str("tmpfile.").append(s.as_slice()).as_slice());
 }
 
