@@ -158,24 +158,14 @@ struct ExprTypeVisitor {
 
 fn find_match(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
     let myfqn = util::to_refs(fqn);  
-    return util::first_match(|m| resolve_path(
-        myfqn.as_slice(),
-        fpath,
-        pos,
-        racer::ExactMatch,
-        racer::BothNamespaces,
-        m));
+    return resolve_path(myfqn.as_slice(), fpath, pos, racer::ExactMatch,
+        racer::BothNamespaces).nth(0);
 }
 
 fn find_type_match(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
     let myfqn = util::to_refs(fqn);  
-    return util::first_match(|m| resolve_path(
-        myfqn.as_slice(),
-        fpath,
-        pos,
-        racer::ExactMatch,
-        racer::TypeNamespace,
-        m));
+    return resolve_path(myfqn.as_slice(), fpath, pos,
+        racer::ExactMatch, racer::TypeNamespace).nth(0);
 }
 
 fn get_type_of_path(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {

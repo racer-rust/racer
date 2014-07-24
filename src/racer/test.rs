@@ -1,4 +1,3 @@
-use racer::util;
 use racer::complete_from_file;
 use racer::find_definition;
 use std::io::File;
@@ -31,11 +30,10 @@ fn completes_fn() {
     }";
     let path = tmpname();
     write_file(&path, src);
-    let mut got  = "NOTHING".to_string();
     let pos = scopes::coords_to_point(src, 6, 18);
-    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_string());
+    let got = complete_from_file(src, &path, pos).nth(0).unwrap();
     remove_file(&path);
-    assert_eq!("apple".to_string(), got);
+    assert_eq!("apple".to_string(), got.matchstr.to_string());
 }
 
 #[test]
@@ -49,11 +47,10 @@ fn completes_pub_fn_locally() {
     }";
     let path = tmpname();
     write_file(&path, src);
-    let mut got = "NOTHING".to_string();
     let pos = scopes::coords_to_point(src, 6, 18);
-    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_string());
+    let got = complete_from_file(src, &path, pos).nth(0).unwrap();
     remove_file(&path);
-    assert_eq!("apple".to_string(), got);
+    assert_eq!("apple".to_string(), got.matchstr.to_string());
 }
 
 #[test]
@@ -66,7 +63,7 @@ fn completes_local_scope_let(){
     let path = tmpname();
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 4, 18);
-    let got = util::first_match(|m| complete_from_file(src, &path, pos, m)).unwrap();
+    let got = complete_from_file(src, &path, pos).nth(0).unwrap();
     remove_file(&path);
     assert_eq!("apple".to_string(), got.matchstr);
     assert_eq!(29, got.point);
@@ -84,10 +81,10 @@ fn main() {
     let path = tmpname();
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 5, 18);
-    let got = util::first_match(|m| complete_from_file(src, &path, pos,m)).unwrap();
+    let got = complete_from_file(src, &path, pos).nth(0).unwrap();
     remove_file(&path);
-    assert_eq!(got.matchstr,"apple".to_string());
-    assert_eq!(got.point,25);
+    assert_eq!("apple".to_string(), got.matchstr);
+    assert_eq!(25, got.point);
 }
 
 #[test]
@@ -125,11 +122,10 @@ fn completes_struct_field_via_assignment() {
 ";
     let path = tmpname();
     write_file(&path, src);
-    let mut got = "NOTHING".to_string();
     let pos = scopes::coords_to_point(src, 8, 9);
-    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_string());
+    let got = complete_from_file(src, &path, pos).nth(0).unwrap();
     remove_file(&path);
-    assert_eq!(got,"first".to_string());
+    assert_eq!("first".to_string(), got.matchstr);
 }
 
 #[test]
@@ -422,11 +418,10 @@ fn follows_fn_to_method() {
     ";
     let path = tmpname();
     write_file(&path, src);
-    let mut got = "NOTHING".to_string();
     let pos = scopes::coords_to_point(src, 10, 12);
-    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_string());
+    let got = complete_from_file(src, &path, pos).nth(0).unwrap();
     remove_file(&path);
-    assert_eq!(got,"mymethod".to_string());
+    assert_eq!("mymethod".to_string(), got.matchstr);
 }
 
 #[test]
@@ -443,11 +438,10 @@ fn follows_arg_to_method() {
     ";
     let path = tmpname();
     write_file(&path, src);
-    let mut got = "NOTHING".to_string();
     let pos = scopes::coords_to_point(src, 8, 12);
-    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_string());
+    let got = complete_from_file(src, &path, pos).nth(0).unwrap();
     remove_file(&path);
-    assert_eq!(got,"mymethod".to_string());
+    assert_eq!("mymethod".to_string(), got.matchstr);
 }
 
 #[test]
@@ -466,11 +460,10 @@ fn follows_arg_to_enum_method() {
     ";
     let path = tmpname();
     write_file(&path, src);
-    let mut got = "NOTHING".to_string();
     let pos = scopes::coords_to_point(src, 10, 12);
-    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_string());
+    let got = complete_from_file(src, &path, pos).nth(0).unwrap();
     remove_file(&path);
-    assert_eq!(got,"mymethod".to_string());
+    assert_eq!("mymethod".to_string(), got.matchstr);
 }
 
 #[test]
@@ -492,11 +485,10 @@ fn follows_let_method_call() {
     ";
     let path = tmpname();
     write_file(&path, src);
-    let mut got = "NOTHING".to_string();
     let pos = scopes::coords_to_point(src, 13, 12);
-    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_string());
+    let got = complete_from_file(src, &path, pos).nth(0).unwrap();
     remove_file(&path);
-    assert_eq!(got,"mybarmethod".to_string());
+    assert_eq!("mybarmethod".to_string(), got.matchstr);
 }
 
 #[test]
@@ -517,11 +509,10 @@ fn follows_chained_method_call() {
     ";
     let path = tmpname();
     write_file(&path, src);
-    let mut got = "NOTHING".to_string();
     let pos = scopes::coords_to_point(src, 12, 23);
-    complete_from_file(src, &path, pos, &mut |m| got=m.matchstr.to_string());
+    let got = complete_from_file(src, &path, pos).nth(0).unwrap();
     remove_file(&path);
-    assert_eq!(got,"mybarmethod".to_string());
+    assert_eq!("mybarmethod".to_string(), got.matchstr);
 }
 
 #[test]

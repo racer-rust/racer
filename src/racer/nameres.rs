@@ -10,6 +10,7 @@ use racer::typeinf;
 use racer::matchers;
 use racer::codeiter;
 use racer::ast;
+use racer::util;
 use racer::util::{symbol_matches, txt_matches, find_ident_end, first_match};
 use racer::scopes;
 use std::io::{BufferedReader, File};
@@ -258,7 +259,10 @@ pub fn search_crate_root(searchstr: &str, modfpath: &Path,
             continue;
         }
         debug!("PHIL going to search for {} in crateroot {}",searchstr, crateroot.as_str());
-        resolve_name(searchstr, crateroot, 0, searchtype, namespace, outputfn);
+        for m in resolve_name(searchstr, crateroot, 0, searchtype, namespace) {
+            (*outputfn)(m);
+        }
+        break
     }
 }
 
@@ -477,7 +481,7 @@ pub fn do_local_search_with_string(path: &[&str], filepath: &Path, pos: uint,
     // HACK
     if path.len() == 1 && path[0] == "str" {
         debug!("PHIL {} == {}", path[0], "str");
-        let str_match = first_match(|m| resolve_name("Str", filepath, pos, ExactMatch, namespace, m));
+        let str_match = resolve_name("Str", filepath, pos, ExactMatch, namespace).nth(0);
         debug!("PHIL: str_match {:?}", str_match);
         
         str_match.map(|str_match|{
@@ -491,12 +495,19 @@ pub fn do_local_search_with_string(path: &[&str], filepath: &Path, pos: uint,
             (*outputfn)(m);
         });
     } else {
-        resolve_path(path, filepath, pos, search_type, namespace, outputfn);
+        for m in resolve_path(path, filepath, pos, search_type, namespace) {
+            (*outputfn)(m);
+        }
     }
 }
 
 pub fn resolve_name(searchstr: &str, filepath: &Path, pos: uint, 
-                    search_type: SearchType, namespace: Namespace, outputfn: &mut |Match|) {
+                    search_type: SearchType, namespace: Namespace) -> Box<Iterator<Match>> {
+
+    let mut v = Vec::new();
+
+    {
+    let outputfn = &mut |m: Match| v.push(m);
 
     // search the current file
     let msrc = racer::load_file_and_mask_comments(filepath);
@@ -504,11 +515,8 @@ pub fn resolve_name(searchstr: &str, filepath: &Path, pos: uint,
     search_local_scopes(searchstr, filepath, msrc.as_slice(), pos,
                         search_type, namespace, outputfn);
 
-    // search the prelude
     search_prelude_file(searchstr, search_type, namespace, outputfn);
 
-    // don't need to match substrings here because substring matches are done
-    // on the use stmts.
     search_crate_root(searchstr, filepath, search_type, namespace, outputfn);
 
     // don't need to match substrings here because substring matches are done
@@ -527,27 +535,50 @@ pub fn resolve_name(searchstr: &str, filepath: &Path, pos: uint,
         StartsWith => do_file_search(searchstr, &filepath.dir_path(), outputfn),
         ExactMatch => ()
     };
+    }
+
+    return box v.move_iter() as Box<Iterator<Match>>;
 }
 
+
+
+// struct ResolveNameIter<'a> {
+//     searchstr: &'a str,
+//     filepath: Path,
+//     pos: uint,
+//     search_type: SearchType,
+//     namespace: Namespace
+// }
+
+// impl<'a> Iterator<Match> for ResolveNameIter<'a> {
+//     #[inline]
+//     fn next(&mut self) -> Match {
+        
+//     }
+// }
+
+
+
 pub fn resolve_path(path: &[&str], filepath: &Path, pos: uint, 
-                       search_type: SearchType, namespace: Namespace,
-                       outputfn: &mut |Match|) {
+                       search_type: SearchType, namespace: Namespace) -> Box<Iterator<Match>> {
     debug!("PHIL do_local_search path {} in {}",path, filepath.as_str());
 
     if path.len() == 1 {
         let searchstr = path[0];
-        resolve_name(searchstr, filepath, pos, search_type, namespace, outputfn);
+        return resolve_name(searchstr, filepath, pos, search_type, namespace);
     } else {
         if path[0] == "" {
             // match global searches starting with :: - e.g. ::std::blah::...
-            return do_external_search(path.slice_from(1), filepath, pos, 
-                                      search_type, namespace, outputfn);
+            return util::outputfn_to_boxed_iter(|outputfn| do_external_search(path.slice_from(1), filepath, pos, 
+                                      search_type, namespace, outputfn));
         }
 
         let parent_path = path.slice_to(path.len()-1);
         debug!("PHIL doing nested search: {} -> {}", path, parent_path);
-        let context = first_match(|m| resolve_path(parent_path, filepath, pos, 
-                                                   ExactMatch, TypeNamespace, m));
+        return util::outputfn_to_boxed_iter(|outputfn| {
+        let context = resolve_path(parent_path, filepath, pos, 
+                                   ExactMatch, TypeNamespace).nth(0);
+
         context.map(|m| {
             debug!("PHIL context match is : {:?} {}", m, m.matchstr);
             match m.mtype {
@@ -576,6 +607,7 @@ pub fn resolve_path(path: &[&str], filepath: &Path, pos: uint,
                 _ => ()
             }
         });
+            });
     }
 }
 

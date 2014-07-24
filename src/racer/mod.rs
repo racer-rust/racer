@@ -59,7 +59,7 @@ pub fn load_file_and_mask_comments(filepath: &Path) -> String {
     return msrc;
 }
 
-pub fn complete_from_file(src: &str, filepath: &Path, pos: uint, outputfn: &mut |Match|) {
+pub fn complete_from_file(src: &str, filepath: &Path, pos: uint) -> Box<Iterator<Match>> {
 
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = src.slice(start,pos);
@@ -72,22 +72,25 @@ pub fn complete_from_file(src: &str, filepath: &Path, pos: uint, outputfn: &mut 
     match completetype {
         Path => {
             let v : Vec<&str> = expr.split_str("::").collect();
-            nameres::resolve_path(v.as_slice(), filepath, pos, StartsWith, BothNamespaces, outputfn);
+            return nameres::resolve_path(v.as_slice(), filepath, pos, 
+                                         StartsWith, BothNamespaces);
         },
         Field => {
-            let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
-            context.map(|m| {
-                nameres::search_for_field(m, searchstr, StartsWith, outputfn);
-            });
+            return util::outputfn_to_boxed_iter(|outputfn| {
+                let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
+                context.map(|m| {
+                    nameres::search_for_field(m, searchstr, StartsWith, outputfn);
+                });
+            })
         }
     }
 }
 
 pub fn find_definition(src: &str, filepath: &Path, pos: uint) -> Option<Match> {
-    return util::first_match(|m| find_definition_(src, filepath, pos, m));
+    return find_definition_(src, filepath, pos);
 }
 
-pub fn find_definition_(src: &str, filepath: &Path, pos: uint, outputfn: &mut |Match|) {
+pub fn find_definition_(src: &str, filepath: &Path, pos: uint) -> Option<Match> {
 
     let (start, end) = scopes::expand_search_expr(src, pos);
     let expr = src.slice(start,end);
@@ -96,22 +99,18 @@ pub fn find_definition_(src: &str, filepath: &Path, pos: uint, outputfn: &mut |M
 
     debug!("PHIL searching for |{}| |{}| {:?}",contextstr, searchstr, completetype);
 
-    let find_definition_output_fn = &mut |m: Match| {
-        if m.matchstr == searchstr.to_string() {  // only if is an exact match
-            (*outputfn)(m);
-        }
-    };
-
-    match completetype {
+    return match completetype {
         Path => {
             let v : Vec<&str> = expr.split_str("::").collect();
-            nameres::resolve_path(v.as_slice(), filepath, pos, ExactMatch, BothNamespaces, find_definition_output_fn);
+            return nameres::resolve_path(v.as_slice(), filepath, pos, ExactMatch, BothNamespaces).nth(0);
         },
         Field => {
-            let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
-            context.map(|m| {
-                nameres::search_for_field(m, searchstr, ExactMatch, find_definition_output_fn);
-            });
+            return util::outputfn_to_boxed_iter(|outputfn| {
+                let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
+                context.map(|m| {
+                    nameres::search_for_field(m, searchstr, ExactMatch, outputfn);
+                });
+            }).nth(0);
         }
     }
 }

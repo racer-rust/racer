@@ -16,13 +16,11 @@ use racer::util;
 // Should I return a boxed trait object to make this signature nicer?
 pub fn match_types(src: &str, blobstart: uint, blobend: uint, 
                   searchstr: &str, filepath: &Path, search_type: SearchType, 
-                  local: bool) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::Item<Match>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,vec::MoveItems<Match>> {
+                  local: bool) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::Item<Match>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,vec::MoveItems<Match>> {
     
     let it = match_extern_crate(src, blobstart, blobend, searchstr, filepath, search_type).move_iter();
     
     let it = it.chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local).move_iter());
-    
-    let it = it.chain(match_fn(src, blobstart, blobend, searchstr, filepath, search_type, local).move_iter());
     
     let it = it.chain(match_struct(src, blobstart, blobend, searchstr, filepath, search_type, local).move_iter());
     
@@ -39,10 +37,11 @@ pub fn match_types(src: &str, blobstart: uint, blobend: uint,
 
 pub fn match_values(src: &str, blobstart: uint, blobend: uint, 
                   searchstr: &str, filepath: &Path, search_type: SearchType, 
-                  local: bool) -> iter::Chain<option::Item<Match>,vec::MoveItems<Match>> {
+                  local: bool) -> iter::Chain<iter::Chain<option::Item<Match>,option::Item<Match>>,vec::MoveItems<Match>> {
     let it = match_let(src, blobstart, blobend, searchstr, filepath, search_type, local).move_iter();
+    let it = it.chain(match_fn(src, blobstart, blobend, searchstr, filepath, search_type, local).move_iter());
     let it = it.chain(match_enum_variants(src, blobstart, blobend, searchstr, filepath, search_type, local));
-    
+        
     return it;
 }
 
@@ -401,9 +400,9 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
                 if fqn.as_slice()[0] == "self" {
                     fqn.remove(0);
                 }
-                resolve_path(fqn.as_slice(), filepath, 0, ExactMatch, BothNamespaces, &mut |m: Match| {
+                for m in resolve_path(fqn.as_slice(), filepath, 0, ExactMatch, BothNamespaces) {
                     out.push(m);
-                });
+                }
             }
         }
     }

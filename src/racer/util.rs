@@ -1,6 +1,7 @@
 // Small functions of utility
 use std::io::{File, BufferedReader};
 use racer::{SearchType, ExactMatch, StartsWith, Match};
+use collections::vec;
 use std;
 
 pub fn getline(filepath : &Path, linenum : uint) -> String {
@@ -169,4 +170,14 @@ pub fn first_match(myfn: |outputfn : &mut |Match||) -> Option<Match> {
         myfn(output_fn);
     }
     return result;
+}
+
+pub fn outputfn_to_iter(myfn: |outputfn : &mut |Match||) -> vec::MoveItems<Match> {
+    let mut out = Vec::new();
+    myfn(&mut |m: Match| out.push(m));
+    return out.move_iter();
+}
+
+pub fn outputfn_to_boxed_iter(myfn: |outputfn : &mut |Match||) -> Box<Iterator<Match>> {
+    return (box outputfn_to_iter(myfn)) as Box<Iterator<Match>>
 }
