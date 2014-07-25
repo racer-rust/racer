@@ -23,6 +23,7 @@ pub enum MatchType {
     StructField,
     Impl,
     Enum,
+    EnumVariant,
     Type,
     FnArg,
     Trait
@@ -76,12 +77,14 @@ pub fn complete_from_file(src: &str, filepath: &Path, pos: uint) -> Box<Iterator
                                          StartsWith, BothNamespaces);
         },
         Field => {
-            return util::outputfn_to_boxed_iter(|outputfn| {
-                let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
-                context.map(|m| {
-                    nameres::search_for_field(m, searchstr, StartsWith, outputfn);
-                });
-            })
+            let mut out = Vec::new();
+            let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
+            context.map(|m| {
+                for m in nameres::search_for_field(m, searchstr, StartsWith) {
+                    out.push(m)
+                }
+            });
+            return box out.move_iter() as Box<Iterator<Match>>
         }
     }
 }
@@ -105,12 +108,11 @@ pub fn find_definition_(src: &str, filepath: &Path, pos: uint) -> Option<Match> 
             return nameres::resolve_path(v.as_slice(), filepath, pos, ExactMatch, BothNamespaces).nth(0);
         },
         Field => {
-            return util::outputfn_to_boxed_iter(|outputfn| {
-                let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
-                context.map(|m| {
-                    nameres::search_for_field(m, searchstr, ExactMatch, outputfn);
-                });
-            }).nth(0);
+            let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
+
+            return context.and_then(|m| {
+                return nameres::search_for_field(m, searchstr, ExactMatch).nth(0);
+            });
         }
     }
 }

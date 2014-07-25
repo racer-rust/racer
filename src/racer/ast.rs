@@ -231,15 +231,13 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                         debug!("PHIL obj expr type is {:?}",m);
 
                         // locate the method
-                        let omethod = util::first_match(|outputfn| 
-                                               nameres::search_for_impl_methods(
-                                                           m.matchstr.as_slice(),
-                                                           methodname.as_slice(), 
-                                                           m.point, 
-                                                           &m.filepath,
-                                                           m.local,
-                                                           racer::ExactMatch,
-                                                           outputfn));
+                        let omethod = nameres::search_for_impl_methods(
+                            m.matchstr.as_slice(),
+                            methodname.as_slice(), 
+                            m.point, 
+                            &m.filepath,
+                            m.local,
+                            racer::ExactMatch).nth(0);
 
                         match omethod {
                             Some(ref m) => {

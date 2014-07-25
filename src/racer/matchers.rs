@@ -9,7 +9,7 @@ use racer::typeinf;
 
 use racer::{ast};
 use racer::{SearchType, StartsWith, ExactMatch, Match, Let, Module, 
-            Function, Struct, Type, Trait, Enum, BothNamespaces};
+            Function, Struct, Type, Trait, Enum, EnumVariant, BothNamespaces};
 use racer::util;
 
 
@@ -321,7 +321,7 @@ pub fn match_enum_variants(msrc: &str, blobstart: uint, blobend: uint,
                                    filepath: filepath.clone(), 
                                    point: blobstart + offset,
                                    local: local,
-                                   mtype: Enum
+                                   mtype: EnumVariant
                     };
                     out.push(m);
                 }

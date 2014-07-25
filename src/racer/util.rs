@@ -1,8 +1,8 @@
 // Small functions of utility
 use std::io::{File, BufferedReader};
-use racer::{SearchType, ExactMatch, StartsWith, Match};
-use collections::vec;
+use racer::{SearchType, ExactMatch, StartsWith};
 use std;
+use std::{iter,option};
 
 pub fn getline(filepath : &Path, linenum : uint) -> String {
     let mut i = 0;
@@ -158,26 +158,7 @@ pub fn to_refs<'a>(v: &'a Vec<String>) -> Vec<&'a str> {
 }
 
 
-pub fn first_match(myfn: |outputfn : &mut |Match||) -> Option<Match> {
-    let mut result: Option<Match> = None;
-    {
-        let output_fn = &mut |m: Match| {
-            if result.is_none() {
-                result = Some(m);
-            }
-        };
-
-        myfn(output_fn);
-    }
-    return result;
-}
-
-pub fn outputfn_to_iter(myfn: |outputfn : &mut |Match||) -> vec::MoveItems<Match> {
-    let mut out = Vec::new();
-    myfn(&mut |m: Match| out.push(m));
-    return out.move_iter();
-}
-
-pub fn outputfn_to_boxed_iter(myfn: |outputfn : &mut |Match||) -> Box<Iterator<Match>> {
-    return (box outputfn_to_iter(myfn)) as Box<Iterator<Match>>
+// Transforms an iterator into an iterator that only evaluates once iterated
+pub fn lazyit<T,I:Iterator<T>>(p: proc() -> I) -> iter::FlatMap<'static,proc() -> I,option::Item<proc() -> I>,I> {
+    return Some(p).move_iter().flat_map(|p| p());
 }

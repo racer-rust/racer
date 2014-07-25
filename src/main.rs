@@ -54,7 +54,9 @@ fn complete() {
             println!("PREFIX {},{},{}", start, pos, line.as_slice().slice(start, pos));
 
             let point = scopes::coords_to_point(src, linenum, charnum);
-            racer::complete_from_file(src, &fpath, point, &mut |m| match_fn(m));
+            for m in racer::complete_from_file(src, &fpath, point) {
+                match_fn(m);
+            }
         }
         None => {
             // input: a command line string passed in

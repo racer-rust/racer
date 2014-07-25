@@ -1,7 +1,7 @@
 // Type inference
 
 use racer::{Match};
-use racer::util::{to_refs, first_match};
+use racer::util::{to_refs};
 use racer::nameres::{do_local_search_with_string};
 use racer::ast;
 use racer::codeiter;
@@ -65,13 +65,12 @@ fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<Match> {
             if globalpos == m.point && ty_.len() != 0 {
                 let v = to_refs(&ty_);
                 let fqn = v.as_slice();
-                result = first_match(
-                    |outfn| do_local_search_with_string(fqn, 
+                result = do_local_search_with_string(fqn, 
                                                         &m.filepath, 
                                                         globalpos, 
                                                         racer::ExactMatch, 
                                                         racer::TypeNamespace,  // just the type namespace
-                                                        outfn));
+                                                        ).nth(0);
             }
         }
         return result;
