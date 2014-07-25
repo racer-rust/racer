@@ -64,14 +64,15 @@ fn complete() {
             let mut it = arg.split_str("::");
             let p : Vec<&str> = it.collect();
 
-            do_file_search(p.as_slice()[0], &Path::new("."), &mut |m| {
+            for m in do_file_search(p.as_slice()[0], &Path::new(".")) {
                 if p.len() == 1 {
                     match_fn(m);
                 } else {
-                    do_external_search(p.slice_from(1), &m.filepath, m.point, racer::StartsWith, racer::BothNamespaces, &mut |m| match_fn(m));
+                    for m in do_external_search(p.slice_from(1), &m.filepath, m.point, racer::StartsWith, racer::BothNamespaces) {
+                        match_fn(m);
+                    }
                 }
-            });
-
+            }
         }
     }
 }
