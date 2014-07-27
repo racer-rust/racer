@@ -539,19 +539,23 @@ pub fn do_local_search_with_string(path: &[&str], filepath: &Path, pos: uint,
 // HACK: Make box iterator support iterator trait
 //
 // I can't get the type signature to resolve_name to compile, so instead am boxing it into a trait object and then returning it as an iterator
-pub struct BoxIter {
-    iter: Box<Iterator<Match>>
+pub struct BoxIter<T> {
+    iter: Box<Iterator<T>>
 }
 
-impl Iterator<Match> for BoxIter {
+impl<T> Iterator<T> for BoxIter<T> {
     #[inline]
-    fn next(&mut self) -> Option<Match> {
+    fn next(&mut self) -> Option<T> {
         return self.iter.next();
     }
 }
 
+pub fn wrap_boxed_iter<T>(boxediter: Box<Iterator<T>>) -> BoxIter<T> {
+    return BoxIter{ iter: boxediter };
+}
+
 pub fn resolve_name(searchstr: &str, filepath: &Path, pos: uint, 
-                    search_type: SearchType, namespace: Namespace) -> BoxIter {
+                    search_type: SearchType, namespace: Namespace) -> BoxIter<Match> {
     let msrc = racer::load_file_and_mask_comments(filepath);
 
     let s = String::from_str(searchstr);
@@ -628,18 +632,14 @@ pub fn resolve_name(searchstr: &str, filepath: &Path, pos: uint,
 
 
 pub fn resolve_path(path: &[&str], filepath: &Path, pos: uint, 
-                       search_type: SearchType, namespace: Namespace) -> vec::MoveItems<Match> {
+                       search_type: SearchType, namespace: Namespace) -> BoxIter<Match> {
     debug!("PHIL do_local_search path {} in {}",path, filepath.as_str());
-
-    let mut out = Vec::new();
 
     if path.len() == 1 {
         let searchstr = path[0];
-        for m in resolve_name(searchstr, filepath, pos, search_type, namespace) {
-            out.push(m);
-        }
-        return out.move_iter();
+        return resolve_name(searchstr, filepath, pos, search_type, namespace);
     } else {
+        let mut out = Vec::new();
         if path[0] == "" {
             // match global searches starting with :: - e.g. ::std::blah::...
             for m in do_external_search(path.slice_from(1), filepath, pos, search_type, namespace) {
@@ -688,7 +688,7 @@ pub fn resolve_path(path: &[&str], filepath: &Path, pos: uint,
             }
         });
 
-        return out.move_iter();
+        return BoxIter{iter: box out.move_iter() as Box<Iterator<Match>>};
     }
 }
 
