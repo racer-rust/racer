@@ -1,6 +1,6 @@
 use std::io::File;
 use std::io::BufferedReader;
-use std::str;
+use std::{str,vec};
 
 pub mod scopes;
 pub mod ast;
@@ -60,7 +60,7 @@ pub fn load_file_and_mask_comments(filepath: &Path) -> String {
     return msrc;
 }
 
-pub fn complete_from_file(src: &str, filepath: &Path, pos: uint) -> Box<Iterator<Match>> {
+pub fn complete_from_file(src: &str, filepath: &Path, pos: uint) -> vec::MoveItems<Match> {
 
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = src.slice(start,pos);
@@ -69,24 +69,26 @@ pub fn complete_from_file(src: &str, filepath: &Path, pos: uint) -> Box<Iterator
 
     debug!("PHIL contextstr is |{}|, searchstr is |{}|",contextstr, searchstr);
 
+    let mut out = Vec::new();
 
     match completetype {
         Path => {
             let v : Vec<&str> = expr.split_str("::").collect();
-            return nameres::resolve_path(v.as_slice(), filepath, pos, 
-                                         StartsWith, BothNamespaces);
+            for m in nameres::resolve_path(v.as_slice(), filepath, pos, 
+                                         StartsWith, BothNamespaces) {
+                out.push(m);
+            }
         },
         Field => {
-            let mut out = Vec::new();
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
             context.map(|m| {
                 for m in nameres::search_for_field(m, searchstr, StartsWith) {
                     out.push(m)
                 }
             });
-            return box out.move_iter() as Box<Iterator<Match>>
         }
     }
+    return out.move_iter();
 }
 
 pub fn find_definition(src: &str, filepath: &Path, pos: uint) -> Option<Match> {
