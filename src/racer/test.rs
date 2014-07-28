@@ -532,3 +532,26 @@ fn differentiates_type_and_value_namespaces() {
     println!("PHIL {:?}",got.mtype);
     assert_eq!("new", got.matchstr.as_slice());
 }
+
+// #[test]
+// fn finds_methods_of_string_slice() {
+//     let src = "
+//     fn strargfn(s: &str) {
+//             s.
+//     }
+//     ";
+//     let path = tmpname();
+//     write_file(&path, src);
+//     let pos = scopes::coords_to_point(src, 3, 10);
+//     let mut it = complete_from_file(src, &path, pos);
+//     remove_file(&path);
+//     let mut found = false;
+//     for m in it {
+//         println!("got {}",m.matchstr);
+//         if m.matchstr.as_slice() == "contains" {
+//             found = true;
+//             break;
+//         }
+//     }
+//     assert!(found);
+// }

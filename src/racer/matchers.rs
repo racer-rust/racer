@@ -162,7 +162,6 @@ pub fn match_mod(msrc: &str, blobstart: uint, blobend: uint,
     }
 
     if blob.starts_with(format!("pub mod {}", searchstr).as_slice()) {
-        debug!("found a pub module: |{}|",blob);
         // TODO: parse this properly
         let end = util::find_ident_end(blob, 8);
         let l = blob.slice(8, end);
@@ -179,6 +178,7 @@ pub fn match_mod(msrc: &str, blobstart: uint, blobend: uint,
                 });
                 
             } else {
+                debug!("found a pub module: |{}|",blob);
 
                 // get internal module nesting  
                 // e.g. is this in an inline submodule?  mod foo{ mod bar; } 

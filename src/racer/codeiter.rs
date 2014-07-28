@@ -2,8 +2,8 @@
 // #[phase(plugin, link)] extern crate log;
 
 use racer::codecleaner::{code_chunks,CodeIndicesIter};
-//use codecleaner::{code_chunks,CodeIndicesIter};
-//mod codecleaner;
+// use codecleaner::{code_chunks,CodeIndicesIter};
+// mod codecleaner;
 
 #[cfg(test)] use racer::testutils::{rejustify, slice};
 
@@ -240,7 +240,9 @@ fn iterates_module_attribute() {
 //     use std::io::File;
 //     use std::str;
 
-//     let filetxt = BufferedReader::new(File::open(&Path::new("/usr/local/src/rust/src/libstd/prelude.rs"))).read_to_end().unwrap();
+//     //let filetxt = BufferedReader::new(File::open(&Path::new("/usr/local/src/rust/src/libstd/prelude.rs"))).read_to_end().unwrap();
+//     //let filetxt = BufferedReader::new(File::open(&Path::new("/usr/local/src/rust/src/libstd/prelude.rs"))).read_to_end().unwrap();
+//     let filetxt = BufferedReader::new(File::open(&Path::new("/usr/local/src/rust/src/libcollections/str.rs"))).read_to_end().unwrap();
 //     let src = str::from_utf8(filetxt.as_slice()).unwrap();
 
 //     for (start,end) in iter_stmts(src) {

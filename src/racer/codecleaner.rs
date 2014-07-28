@@ -1,4 +1,22 @@
-#[cfg(test)] use racer::testutils::{rejustify, slice};
+//#[cfg(test)] use racer::testutils::{rejustify, slice};
+
+pub fn rejustify(src: &str) -> String {
+    let s = src.slice_from(1); // remove the newline
+    let mut sb = String::new();
+    for l in s.lines() {
+        let tabless = l.slice_from(4);
+        sb.push_str(tabless); 
+        if tabless.len() != 0 { 
+            sb.push_str("\n");
+        }
+    }
+    let newlen = sb.len()-1; // remove the trailing newline
+    sb.truncate(newlen);
+    return sb;
+}
+pub fn slice<'a>(src: &'a str, (begin, end): (uint, uint)) -> &'a str{
+    return src.slice(begin, end);
+}
 
 enum State {
     Code,
@@ -112,17 +130,25 @@ fn comment_block(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
 }
 
 
+// returns true if char at position is escaped
+fn escaped(src_bytes: &[u8], mut pos: uint) -> bool {
+    let mut num_backslashes = 0u;
+    let backslash: u8 = "\\".as_bytes()[0] as u8;
+    while pos > 0 && src_bytes[pos-1] == backslash {
+        num_backslashes += 1;
+        pos -= 1;
+    }
+    return num_backslashes % 2 == 1;
+}
+
 fn string(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
     let dblquote: u8 = "\"".as_bytes()[0] as u8;
-    let backslash: u8 = "\\".as_bytes()[0] as u8;
 
     let (mut pos, src, end) = (self_.pos, self_.src, self_.src.len());
     let src_bytes = src.as_bytes();
     let start = self_.start;
     while pos < end {
-        // is the dblquote escaped? Is the escape char escaped?
-        if (src_bytes[pos] == dblquote && src_bytes[pos-1] != backslash) ||
-           (src_bytes[pos] == dblquote && src_bytes[pos-1] == backslash && src_bytes[pos-2] == backslash){
+        if src_bytes[pos] == dblquote && !escaped(src_bytes, pos) {
             self_.start = pos;   // include the dblquote as code
             self_.pos = pos+1;
             self_.state = Code;
@@ -223,3 +249,36 @@ fn removes_string_with_escaped_slash_before_dblquote_in_it() {
     assert_eq!("this is some code \"", slice(src.as_slice(), it.next().unwrap()));
     assert_eq!("\" more code", slice(src.as_slice(), it.next().unwrap()));
 }
+
+#[test]
+fn handles_tricky_bit_from_str_rs() {
+    let src = rejustify("
+        before(\"\\\\\'\\\\\\\"\\\\\\\\\");
+        more_code(\" skip me \")
+    ");
+
+    let src = src.as_slice();
+
+    for (start,end) in code_chunks(src) {
+        println!("BLOB |{}|",src.slice(start,end));
+        if src.slice(start,end).contains("skip me") {
+            fail!("{}", src.slice(start,end));
+        }
+    }
+}
+
+// fn main() {
+//     use std::io::BufferedReader;
+//     use std::io::File;
+//     use std::str;
+
+//     //let filetxt = BufferedReader::new(File::open(&Path::new("/usr/local/src/rust/src/libstd/prelude.rs"))).read_to_end().unwrap();
+//     //let filetxt = BufferedReader::new(File::open(&Path::new("/usr/local/src/rust/src/libstd/prelude.rs"))).read_to_end().unwrap();
+//     let filetxt = BufferedReader::new(File::open(&Path::new("/usr/local/src/rust/src/libcollections/str.rs"))).read_to_end().unwrap();
+//     let src = str::from_utf8(filetxt.as_slice()).unwrap();
+
+//     for (start,end) in code_chunks(src) {
+//         println!("BLOB |{}|",src.slice(start,end));
+//     }
+
+// }

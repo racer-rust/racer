@@ -630,7 +630,6 @@ pub fn resolve_name(searchstr: &str, filepath: &Path, pos: uint,
 
 }
 
-
 pub fn resolve_path(path: &[&str], filepath: &Path, pos: uint, 
                        search_type: SearchType, namespace: Namespace) -> BoxIter<Match> {
     debug!("PHIL do_local_search path {} in {}",path, filepath.as_str());
