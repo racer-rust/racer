@@ -32,10 +32,13 @@ fn match_fn(m:Match) {
     if m.matchstr.as_slice() == "" {
         fail!("MATCHSTR is empty - waddup?");
     }
-    println!("MATCH {},{},{},{}", m.matchstr,
+    println!("MATCH {},{},{},{},{:?},{}", m.matchstr,
                                     linenum.to_string(),
                                     charnum.to_string(),
-                                    m.filepath.as_str().unwrap());
+                                    m.filepath.as_str().unwrap(),
+                                    m.mtype,
+                                    m.contextstr
+             );
 }
 
 #[cfg(not(test))]

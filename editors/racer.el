@@ -23,8 +23,15 @@
 				tmpfilename)))
       (delete-file tmpfilename)
       (dolist (line lines)
-	(when (string-match "^MATCH \\([^,]+\\),\\(.+\\)$" line)
-	  (let ((completion (match-string 1 line)))
+	(when (string-match "^MATCH \\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\(.+\\)$" line)
+	  (let ((completion (match-string 1 line))
+		(linenum (match-string 2 line))
+		(colnum (match-string 3 line))
+		(fname (match-string 4 line))
+		(matchtype (match-string 5 line))
+		(contextstr (match-string 6 line)))
+	    (put-text-property 0 1 'contextstr contextstr completion)
+	    (put-text-property 0 1 'matchtype matchtype completion)
 	    (push completion completion-results))))
       completion-results))
 
@@ -75,9 +82,34 @@
     (case command
       (prefix (racer--prefix))
       (candidates (racer--candidates))
+      (duplicates t)
+      (sorted nil)
+      (annotation 
+       (progn
+	 (format "%s %10s : %s"
+		 (make-string (max 0 (- 20 (length arg))) ? )
+		 (get-text-property 0 'matchtype arg)
+		 (get-text-property 0 'contextstr arg))))
+      (meta (format "This value is named %s" arg))
+;      (doc-buffer (company-doc-buffer "PHil hello Yeah"))
       )))
 
-(add-hook 'completion-at-point-functions 'racer-complete nil)
+;; (defun racer-complete (command &optional arg &rest ignored)
+;;   (interactive)
+;;   (message "PHIL racer-company-complete %s %s %s" command arg ignored)
+;;   (when (looking-back "[a-zA-z1-9:.]")
+;;     (case command
+;;       (prefix (racer--prefix))
+;;       (candidates (racer--candidates))
+;;       (duplicates t)
+;;       (sorted nil)
+;;       (annotation (format ":%s yeah mother" arg))
+;;       (meta (format "This value is named %s" arg))
+;; ;      (doc-buffer (company-doc-buffer "PHil hello Yeah"))
+;;       )))
+
+
+;; (add-hook 'completion-at-point-functions 'racer-complete nil)
 
 (defun racer--complete-or-indent ()
   (interactive)
@@ -122,7 +154,8 @@
 	     (set (make-local-variable 'company-backends) '(racer-company-complete))
 	     (local-set-key "\t" 'racer--complete-or-indent)
 	     (local-set-key "\M-." 'racer-find-definition)
-	     (setq company-idle-delay nil)) 
+	     (setq company-idle-delay nil)
+	     ) 
 	  nil)
 
 

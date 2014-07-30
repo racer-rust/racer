@@ -50,7 +50,9 @@ fn search_struct_fields(searchstr: &str, m: &Match,
                                 filepath: m.filepath.clone(),
                                 point: fpos + opoint.unwrap(),
                                 local: m.local,
-                                mtype: StructField});
+                                mtype: StructField,
+                                contextstr: field.to_string()
+            });
         }
     }
     return out.move_iter();
@@ -97,11 +99,14 @@ fn search_scope_for_methods(point: uint, src:&str, searchstr:&str, filepath:&Pat
             let start = blob.find_str(format!("fn {}", searchstr).as_slice()).unwrap() + 3;
             let end = find_ident_end(blob, start);
             let l = blob.slice(start, end);
+            // TODO: make a better context string for functions
+            let ctxt = blob.slice_to(blob.find_str("{").unwrap() -1);
             let m = Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: point + blobstart + start,
                            local: true,
-                           mtype: Function
+                           mtype: Function,
+                           contextstr: ctxt.to_string()
             };
             out.push(m);
         }
@@ -136,7 +141,8 @@ fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool) ->
                                        filepath: filepath.clone(), 
                                        point: pos + start + 5,
                                        local: local,
-                                       mtype: Impl
+                                       mtype: Impl,
+                                       contextstr: name.to_string()
                         };
                         out.push(m);
                     });
@@ -174,7 +180,9 @@ fn search_fn_args(point: uint, msrc:&str, searchstr:&str, filepath:&Path,
                                         filepath: filepath.clone(),
                                         point: n + pos - impl_header,
                                         local: local,
-                                        mtype: FnArg});
+                                        mtype: FnArg,
+                                     contextstr: s.to_string()
+                    });
                 };
             }
         }
@@ -202,7 +210,9 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
                                            filepath: filepath.clone(), 
                                            point: 0,
                                            local: false,
-                                           mtype: Module};
+                                           mtype: Module,
+                                           contextstr: fname.slice_from(3).to_string()
+                            };
                             out.push(m);
                         }
                     }
@@ -211,12 +221,15 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
                         {
                             // try <name>/<name>.rs, like in the servo codebase
                             let filepath = Path::new(fpath).join_many([Path::new(format!("{}.rs", fname))]);
+
                             if File::open(&filepath).is_ok() {
                                 let m = Match {matchstr: fname.to_string(),
                                                filepath: filepath.clone(), 
                                                point: 0,
                                                local: false,
-                                               mtype: Module};
+                                               mtype: Module,
+                                               contextstr: filepath.as_str().unwrap().to_string()
+                                };
                                 out.push(m);
                             }
                         }
@@ -228,7 +241,9 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
                                                filepath: filepath.clone(), 
                                                point: 0,
                                                local: false,
-                                               mtype: Module};
+                                               mtype: Module,
+                                               contextstr: filepath.as_str().unwrap().to_string()
+                                };
                                 out.push(m);
                             }
                         }
@@ -240,7 +255,9 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
                                                filepath: filepath.clone(), 
                                                point: 0,
                                                local: false,
-                                               mtype: Module};
+                                               mtype: Module,
+                                               contextstr: filepath.as_str().unwrap().to_string()
+                                };
                                 out.push(m);
                             }
                         }
@@ -251,7 +268,9 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
                                                filepath: fpath.clone(),
                                                point: 0,
                                                local: false,
-                                               mtype: Module};
+                                               mtype: Module,
+                                               contextstr: fpath.as_str().unwrap().to_string()
+                                };
                                 out.push(m);
                             }
 
@@ -523,7 +542,8 @@ pub fn do_local_search_with_string(path: &[&str], filepath: &Path, pos: uint,
                            filepath: str_match.filepath.clone(), 
                            point: str_match.point,
                            local: false,
-                           mtype: Struct
+                           mtype: Struct,
+                           contextstr: "str".to_string()
             };
             out.push(m);
         });
@@ -602,7 +622,8 @@ pub fn resolve_name(searchstr: &str, filepath: &Path, pos: uint,
                         filepath: path.clone(), 
                         point: 0,
                         local: false,
-                        mtype: Module 
+                        mtype: Module,
+                        contextstr: path.as_str().unwrap().to_string()
                   });
         });
         return out.move_iter();
@@ -705,7 +726,8 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, search_type
                            filepath: path.clone(), 
                            point: 0,
                            local: false,
-                           mtype: Module
+                           mtype: Module,
+                           contextstr: path.as_str().unwrap().to_string()
                            });
         });
 

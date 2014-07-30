@@ -65,11 +65,18 @@ pub fn match_let(msrc: &str, blobstart: uint, blobend: uint,
                                     filepath: filepath.clone(),
                                     point: blobstart + letresult.point,
                                     local: local,
-                                    mtype: Let});
+                                    mtype: Let,
+                                    contextstr: first_line(blob)
+                });
             }
         });
     }
     return res;
+}
+
+
+pub fn first_line(blob: &str) -> String {
+    return blob.slice_to(blob.find_str("\n").unwrap_or(blob.len())).to_string();
 }
 
 pub fn match_extern_crate(msrc: &str, blobstart: uint, blobend: uint, 
@@ -109,7 +116,8 @@ pub fn match_extern_crate(msrc: &str, blobstart: uint, blobend: uint,
                                        filepath: modpath.clone(), 
                                        point: 0,
                                        local: false,
-                                       mtype: Module
+                                       mtype: Module,
+                                       contextstr: modpath.as_str().unwrap().to_string()
                         });
                     });
 
@@ -144,7 +152,8 @@ pub fn match_mod(msrc: &str, blobstart: uint, blobend: uint,
                                filepath: filepath.clone(), 
                                point: blobstart + 4, 
                                local: false,
-                               mtype: Module
+                               mtype: Module,
+                               contextstr: filepath.as_str().unwrap().to_string()
                 });
                 
             } else {
@@ -154,7 +163,8 @@ pub fn match_mod(msrc: &str, blobstart: uint, blobend: uint,
                                    filepath: modpath.clone(), 
                                    point: 0,
                                    local: false,
-                                   mtype: Module
+                                   mtype: Module,
+                                   contextstr: modpath.as_str().unwrap().to_string()
                     });
                 });
             }
@@ -174,7 +184,8 @@ pub fn match_mod(msrc: &str, blobstart: uint, blobend: uint,
                                filepath: filepath.clone(), 
                                point: blobstart + 8,
                                local: false,
-                               mtype: Module
+                               mtype: Module,
+                               contextstr: blob.slice_to(blob.find_str("{").unwrap()).to_string()
                 });
                 
             } else {
@@ -192,7 +203,8 @@ pub fn match_mod(msrc: &str, blobstart: uint, blobend: uint,
                                    filepath: modpath.clone(), 
                                    point: 0,
                                    local: false,
-                                   mtype: Module
+                                   mtype: Module,
+                                   contextstr: modpath.as_str().unwrap().to_string()
                     });
                 });
             }
@@ -215,7 +227,8 @@ pub fn match_struct(msrc: &str, blobstart: uint, blobend: uint,
                            filepath: filepath.clone(), 
                            point: blobstart + start,
                            local: local,
-                           mtype: Struct
+                           mtype: Struct,
+                           contextstr: first_line(blob)
         });
     }
 
@@ -229,7 +242,8 @@ pub fn match_struct(msrc: &str, blobstart: uint, blobend: uint,
                            filepath: filepath.clone(), 
                            point: blobstart + start,
                            local: local,
-                           mtype: Struct
+                           mtype: Struct,
+                           contextstr: first_line(blob)
         });
     }
     return None
@@ -249,7 +263,8 @@ pub fn match_type(msrc: &str, blobstart: uint, blobend: uint,
                            filepath: filepath.clone(), 
                            point: blobstart + start,
                            local: local,
-                           mtype: Type
+                           mtype: Type,
+                           contextstr: first_line(blob)
         });
     }
     
@@ -263,7 +278,8 @@ pub fn match_type(msrc: &str, blobstart: uint, blobend: uint,
                            filepath: filepath.clone(), 
                            point: blobstart + start,
                            local: local,
-                           mtype: Type
+                           mtype: Type,
+                           contextstr: first_line(blob)
         });
     }
     return None;
@@ -283,7 +299,8 @@ pub fn match_trait(msrc: &str, blobstart: uint, blobend: uint,
                            filepath: filepath.clone(), 
                            point: blobstart + start,
                            local: local,
-                           mtype: Trait
+                           mtype: Trait,
+                           contextstr: first_line(blob)
         });
     }
      
@@ -297,7 +314,8 @@ pub fn match_trait(msrc: &str, blobstart: uint, blobend: uint,
                            filepath: filepath.clone(), 
                            point: blobstart + start,
                            local: local,
-                           mtype: Trait
+                           mtype: Trait,
+                           contextstr: first_line(blob)
         });
     }
     return None;
@@ -317,11 +335,13 @@ pub fn match_enum_variants(msrc: &str, blobstart: uint, blobend: uint,
 
             for (name, offset) in parsedEnum.values.move_iter() {
                 if name.as_slice().starts_with(searchstr) {
-                    let m = Match {matchstr: name.into_string(),
+
+                    let m = Match {matchstr: name.clone(),
                                    filepath: filepath.clone(), 
                                    point: blobstart + offset,
                                    local: local,
-                                   mtype: EnumVariant
+                                   mtype: EnumVariant,
+                                   contextstr: first_line(blob.slice_from(offset))
                     };
                     out.push(m);
                 }
@@ -352,7 +372,8 @@ pub fn match_enum(msrc: &str, blobstart: uint, blobend: uint,
                                filepath: filepath.clone(), 
                                point: blobstart + start,
                                local: local,
-                               mtype: Enum
+                               mtype: Enum,
+                               contextstr: first_line(blob)
                 });
             }
         } else if blob.starts_with(format!("enum {}", searchstr).as_slice()) {
@@ -365,7 +386,8 @@ pub fn match_enum(msrc: &str, blobstart: uint, blobend: uint,
                            filepath: filepath.clone(), 
                            point: blobstart + start,
                            local: local,
-                           mtype: Enum
+                           mtype: Enum,
+                           contextstr: first_line(blob)
             });
         }
     }
@@ -425,7 +447,8 @@ pub fn match_fn(msrc: &str, blobstart: uint, blobend: uint,
                        filepath: filepath.clone(), 
                        point: blobstart + start,
                        local: local,
-                       mtype: Function
+                       mtype: Function,
+                       contextstr: first_line(blob)
         });
     } else if local && txt_matches(search_type, format!("fn {}",searchstr).as_slice(), blob) && !typeinf::first_param_is_self(blob) {
         // TODO: parse this properly
@@ -436,7 +459,8 @@ pub fn match_fn(msrc: &str, blobstart: uint, blobend: uint,
                        filepath: filepath.clone(), 
                        point: blobstart + start,
                        local: local,
-                       mtype: Function
+                       mtype: Function,
+                       contextstr: first_line(blob)
         });
     }
     return None;

@@ -50,7 +50,8 @@ pub struct Match {
     pub filepath: Path,
     pub point: uint,
     pub local: bool,
-    pub mtype: MatchType
+    pub mtype: MatchType,
+    pub contextstr: String
 }
 
 pub fn load_file_and_mask_comments(filepath: &Path) -> String {

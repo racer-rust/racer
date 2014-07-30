@@ -14,6 +14,7 @@ pub fn rejustify(src: &str) -> String {
     sb.truncate(newlen);
     return sb;
 }
+
 pub fn slice<'a>(src: &'a str, (begin, end): (uint, uint)) -> &'a str{
     return src.slice(begin, end);
 }
