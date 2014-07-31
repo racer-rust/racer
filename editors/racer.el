@@ -90,7 +90,7 @@
 		 (make-string (max 0 (- 20 (length arg))) ? )
 		 (get-text-property 0 'matchtype arg)
 		 (get-text-property 0 'contextstr arg))))
-      (meta (format "This value is named %s" arg))
+      (meta (format "%s" (get-text-property 0 'contextstr arg)))
 ;      (doc-buffer (company-doc-buffer "PHil hello Yeah"))
       )))
 
