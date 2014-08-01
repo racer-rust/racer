@@ -533,6 +533,26 @@ fn differentiates_type_and_value_namespaces() {
     assert_eq!("new", got.matchstr.as_slice());
 }
 
+#[test]
+fn follows_self_to_method() {
+    let src= "
+    struct Foo;
+    impl Bar for Foo {
+        pub fn method(self) {
+        }
+
+        pub fn another_method(self) {
+            self.method()
+        }
+    }";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 8, 20);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("method", got.matchstr.as_slice());    
+}
+
 // #[test]
 // fn finds_methods_of_string_slice() {
 //     let src = "

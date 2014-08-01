@@ -3,6 +3,7 @@
 use racer::{Match};
 use racer::util::{to_refs};
 use racer::nameres::{do_local_search_with_string};
+use racer::nameres;
 use racer::ast;
 use racer::codeiter;
 use racer::scopes;
@@ -12,7 +13,7 @@ use std::io::File;
 use std::io::BufferedReader;
 use std::str;
 
-use racer::{ExactMatch};
+use racer::{ExactMatch, TypeNamespace};
 use racer::util::txt_matches;
 
 fn find_start_of_function_body(src: &str) -> uint {
@@ -47,8 +48,24 @@ fn generates_skeleton_for_mod() {
     assert_eq!("mod foo {};", out.as_slice());
 }
 
+fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<Match> {
+    return scopes::find_impl_start(msrc, m.point, 0).and_then(|start| {
+        let decl = generate_skeleton_for_parsing(msrc.slice_from(start));
+        let implres = ast::parse_impl_name(decl);
+        return implres.and_then(|name|{
+            return nameres::resolve_name(name.as_slice(), &m.filepath, start, 
+                                         ExactMatch, TypeNamespace).nth(0);
+        });
+    });
+}
+
 fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<Match> {
-    debug!("PHIL get type of fn arg {:?}",m);
+    debug!("PHIL get type of fn arg {:?} {}",m, m.matchstr);
+
+    if m.matchstr.as_slice() == "self" {
+        return get_type_of_self_arg(m, msrc);
+    }
+
     let point = scopes::find_stmt_start(msrc, m.point).unwrap();
     for (start,end) in codeiter::iter_stmts(msrc.slice_from(point)) { 
         let blob = msrc.slice(point+start,point+end);

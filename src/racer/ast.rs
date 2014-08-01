@@ -173,7 +173,7 @@ fn get_type_of_path(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match>
     if om.is_some() {
         let m = om.unwrap();
         let msrc = racer::load_file_and_mask_comments(&m.filepath);
-        return typeinf::get_type_of_match(m, msrc.as_slice())
+        return typeinf::get_type_of_match(m, msrc.as_slice());
     } else {
         return None;
     }
@@ -192,6 +192,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                 self.result = get_type_of_path(&pathvec,
                                                &self.scope.filepath,
                                                self.scope.point);
+
             }
             ast::ExprCall(callee_expression, _/*ref arguments*/) => {
                 self.visit_expr(&*callee_expression, ());
@@ -417,7 +418,9 @@ impl visit::Visitor<()> for FnVisitor {
                     debug!("PHIL arg type is {}", type_);
                     type_
                 }
-                _ => Vec::new()  
+                _ => {
+                    Vec::new()  
+                }
             };
 
             debug!("PHIL typepath {}", typepath);
@@ -571,7 +574,6 @@ pub fn parse_mod(s: String) -> ModVisitor {
         return v;
     }).ok().unwrap();    
 }
-
 
 pub fn parse_enum(s: String) -> EnumVisitor {
     return task::try(proc() {

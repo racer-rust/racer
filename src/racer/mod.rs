@@ -112,6 +112,7 @@ pub fn find_definition_(src: &str, filepath: &Path, pos: uint) -> Option<Match> 
         },
         Field => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
+            debug!("PHIL context is {:?}",context);
 
             return context.and_then(|m| {
                 return nameres::search_for_field(m, searchstr, ExactMatch).nth(0);
