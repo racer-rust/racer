@@ -13,7 +13,7 @@ if !exists('g:racer_cmd')
     let g:racer_cmd = "/home/pld/src/rust/racer/bin/racer"
 endif
 
-if !exists($RUST_SRC_PATH)
+if !exists('$RUST_SRC_PATH')
     let $RUST_SRC_PATH="/usr/local/src/rust/src"
 endif
 
