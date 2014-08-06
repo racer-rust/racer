@@ -30,6 +30,29 @@ function! racer#GetPrefixCol()
     return startcol
 endfunction
 
+function! racer#GetExpCompletions()
+    let col = b:racer_col      " use the column from the previous racer#GetPrefixCol() call, since vim ammends it afterwards
+    let fname = expand("%:p")
+    let tmpfname=fname.".racertmp"
+    let cmd = g:racer_cmd." complete ".line(".")." ".col." ".tmpfname
+    let res = system(cmd)
+    let lines = split(res, "\\n")
+    let out = []
+    for line in lines
+        let completions = matchlist(line, '\v^MATCH ([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),(.+)$')
+        if len(completions) == 0
+            continue
+        endif
+        let completion = {'word' : completions[1], 'kind' :completions[5][0]}
+        if completion.kind == "F"
+            let completion.menu = matchstr(completions[6], '\v(\(.*)([^{])')
+        endif
+        let out = add(out, completion)
+    endfor
+    call delete(tmpfname)
+    return out
+endfunction
+
 function! racer#GetCompletions()
     let col = b:racer_col      " use the column from the previous racer#GetPrefixCol() call, since vim ammends it afterwards
     let fname = expand("%:p")
@@ -78,11 +101,11 @@ function! racer#JumpToLocation(filename, linenum, colnum)
     endif
 endfunction
 
-"   Vec::
-
 function! racer#Complete(findstart, base)
     if a:findstart
         return racer#GetPrefixCol()
+    elseif exists('g:racer_experimental_completer')
+        return racer#GetExpCompletions()
     else
         return racer#GetCompletions()
     endif
