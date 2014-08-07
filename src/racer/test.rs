@@ -553,6 +553,66 @@ fn follows_self_to_method() {
     assert_eq!("method", got.matchstr.as_slice());    
 }
 
+#[test]
+fn follows_self_to_trait_method() {
+    let src= "
+    trait Bar {
+        pub fn method(self) {
+        }
+        pub fn another_method(self) {
+            self.method()
+        }
+    }";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 6, 20);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("method", got.matchstr.as_slice());    
+}
+
+#[test]
+fn finds_trait_method() {
+    let src = "
+    pub trait MyTrait {
+        fn op(self);
+        fn trait_method(self){} 
+    } 
+
+    struct Foo;
+    impl MyTrait for Foo {
+        fn op(self) {
+            self.trait_method();
+        }
+    }";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 10, 22);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("trait_method", got.matchstr.as_slice());
+}
+
+
+#[test]
+fn bug_finds_field_type() {
+    let src = "
+    pub struct Foo {
+        myfield : Vec<String>
+    }
+
+    let f = Foo{ myfield: Vec::new() };
+    f.myfield.len();
+
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 6, 16);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("len", got.matchstr.as_slice());
+}
+
 // #[test]
 // fn finds_methods_of_string_slice() {
 //     let src = "

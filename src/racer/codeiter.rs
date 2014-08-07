@@ -159,6 +159,17 @@ fn iterates_use_stmt_over_two_lines() {
 }
 
 #[test]
+fn iterates_use_stmt_without_the_prefix() {
+    let src = rejustify("
+    use {Foo,
+              Bar}; // this is also legit apparently
+    ");
+    let mut it = iter_stmts(src.as_slice());
+    assert_eq!("use {Foo,
+          Bar};", slice(src.as_slice(), it.next().unwrap()));
+}
+
+#[test]
 fn iterates_while_stmt() {
     let src = rejustify("
     while self.pos < 3 { }

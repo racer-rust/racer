@@ -3,7 +3,6 @@
 use racer::{Match};
 use racer::util::{to_refs};
 use racer::nameres::{do_local_search_with_string};
-use racer::nameres;
 use racer::ast;
 use racer::codeiter;
 use racer::scopes;
@@ -51,11 +50,9 @@ fn generates_skeleton_for_mod() {
 fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<Match> {
     return scopes::find_impl_start(msrc, m.point, 0).and_then(|start| {
         let decl = generate_skeleton_for_parsing(msrc.slice_from(start));
-        let implres = ast::parse_impl_name(decl);
-        return implres.and_then(|name|{
-            return nameres::resolve_name(name.as_slice(), &m.filepath, start, 
-                                         ExactMatch, TypeNamespace).nth(0);
-        });
+        let implres = ast::parse_impl(decl);
+        return do_local_search_with_string(to_refs(&implres.name_path).as_slice(), &m.filepath, start, 
+                                           ExactMatch, TypeNamespace).nth(0);
     });
 }
 
@@ -121,7 +118,7 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<Match> {
 
 
 pub fn get_type_of_match(m: Match, msrc: &str) -> Option<Match> {
-    debug!("PHIL get_type_of match {:?} {} ",m, m.matchstr);
+    debug!("PHIL get_type_of match {} ",m);
 
     return match m.mtype {
         racer::Let => get_type_of_let_expr(&m, msrc),

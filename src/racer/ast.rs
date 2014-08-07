@@ -342,14 +342,15 @@ impl visit::Visitor<()> for StructVisitor {
 }
 
 
-struct ImplVisitor {
-    name_path: Vec<String>
+pub struct ImplVisitor {
+    pub name_path: Vec<String>,
+    pub trait_path: Vec<String>
 }
 
 impl visit::Visitor<()> for ImplVisitor {
     fn visit_item(&mut self, item: &ast::Item, _: ()) { 
         match item.node {
-            ast::ItemImpl(_, _,typ,_) => { 
+            ast::ItemImpl(_,ref otrait, typ,_) => { 
                 match typ.node {
                     ast::TyPath(ref path, _, _) => {
                         self.name_path = path_to_vec(path);
@@ -366,6 +367,10 @@ impl visit::Visitor<()> for ImplVisitor {
                     }
                     _ => {}
                 }
+                otrait.as_ref().map(|ref t|{
+                    self.trait_path = path_to_vec(&t.path);
+                });
+
             },
             _ => {}
         }
@@ -534,18 +539,16 @@ pub fn parse_struct_fields(s: String) -> Vec<(String, uint)> {
     }).ok().unwrap_or(Vec::new());
 }
 
-pub fn parse_impl_name(s: String) -> Option<String> {
+pub fn parse_impl(s: String) -> ImplVisitor {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
-        let mut v = ImplVisitor{ name_path: Vec::new() };
+        let mut v = ImplVisitor { name_path: Vec::new(), trait_path: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt, ());
-        if v.name_path.len() == 1 {
-            return Some(v.name_path.pop().unwrap());
-        } else {
-            return None;
-        }
-    }).ok().unwrap_or(None);
+        return v;
+    }).ok().unwrap();    
 }
+
+
 
 pub fn parse_fn_output(s: String) -> Vec<String> {
     return task::try(proc() {

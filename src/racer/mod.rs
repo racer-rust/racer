@@ -1,6 +1,6 @@
 use std::io::File;
 use std::io::BufferedReader;
-use std::{str,vec};
+use std::{str,vec,fmt};
 
 pub mod scopes;
 pub mod ast;
@@ -14,6 +14,7 @@ pub mod matchers;
 
 #[cfg(test)] pub mod test;
 
+#[deriving(Show)]
 pub enum MatchType {
     Struct,
     Module,
@@ -54,6 +55,14 @@ pub struct Match {
     pub contextstr: String
 }
 
+impl fmt::Show for Match {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Match [ {}, {}, {}, {}, {}, |{}| ]", self.matchstr, self.filepath.as_str(), 
+               self.point, self.local, self.mtype, self.contextstr)
+    }
+}
+
+
 pub fn load_file_and_mask_comments(filepath: &Path) -> String {
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
     let src = str::from_utf8(filetxt.as_slice()).unwrap();
@@ -91,6 +100,7 @@ pub fn complete_from_file(src: &str, filepath: &Path, pos: uint) -> vec::MoveIte
     }
     return out.move_iter();
 }
+
 
 pub fn find_definition(src: &str, filepath: &Path, pos: uint) -> Option<Match> {
     return find_definition_(src, filepath, pos);
