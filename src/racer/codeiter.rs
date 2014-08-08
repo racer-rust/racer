@@ -24,13 +24,17 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
     fn next(&mut self) -> Option<(uint, uint)> {
         let semicolon: u8 = ";".as_bytes()[0];
         let hash: u8 = "#".as_bytes()[0];
-        let colon: u8 = ":".as_bytes()[0];
         let openbrace: u8 = "{".as_bytes()[0];
         let closebrace: u8 = "}".as_bytes()[0];
         let openparen: u8 = "(".as_bytes()[0];
         let closeparen: u8 = ")".as_bytes()[0];
         let closesqbrace: u8 = "]".as_bytes()[0];
         let whitespace = " \t\n".as_bytes();
+
+        let __u: u8 = "u".as_bytes()[0];
+        let __s: u8 = "s".as_bytes()[0];
+        let __e: u8 = "e".as_bytes()[0];
+
 
         let src_bytes = self.src.as_bytes();
 
@@ -88,13 +92,11 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
                     self.parenlevel -= 1;
 
                 } else if src_bytes[self.pos] == openbrace {
-                    // if we are top level and stmt is not a ::{Foo,Bar}; then 
+                    // if we are top level and stmt is not a 'use' then 
                     // closebrace finishes the stmt
                     if self.bracelevel == 0 && 
                         self.parenlevel == 0 &&
-                       !(self.pos > 1 && 
-                         src_bytes[self.pos-1] == colon && 
-                         src_bytes[self.pos-2] == colon) {
+                       !(is_a_use_stmt(self.src, self.start, self.pos)) {
                            self.enddelim = closebrace;
                     }
                     self.bracelevel += 1;
@@ -126,6 +128,15 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
             }
         }
     }
+}
+
+fn is_a_use_stmt(src: &str, start: uint, pos: uint) -> bool {
+    let src_bytes = src.as_bytes();
+    let whitespace = " {\t\n".as_bytes();
+    (pos > 3 && src_bytes.slice(start, start+3) == "use".as_bytes() && 
+     whitespace.contains(&src_bytes[start+3])) || 
+        (pos > 7 && src_bytes.slice(start, start+7) == "pub use".as_bytes() &&
+                      whitespace.contains(&src_bytes[start+7]))
 }
 
 pub fn iter_stmts<'a>(src: &'a str) -> StmtIndicesIter<'a> {
@@ -161,11 +172,11 @@ fn iterates_use_stmt_over_two_lines() {
 #[test]
 fn iterates_use_stmt_without_the_prefix() {
     let src = rejustify("
-    use {Foo,
+    pub use {Foo,
               Bar}; // this is also legit apparently
     ");
     let mut it = iter_stmts(src.as_slice());
-    assert_eq!("use {Foo,
+    assert_eq!("pub use {Foo,
           Bar};", slice(src.as_slice(), it.next().unwrap()));
 }
 
