@@ -40,8 +40,8 @@
 
 5. Load it. E.g. eval the buffer or add this to .emacs:
 
-     ```(add-to-list 'load-path "<path-to-racer>/editors")
-     (require 'racer)'''
+   ```(add-to-list 'load-path "<path-to-racer>/editors")
+     (require 'racer)```
 
 6. Open a rust file and try typing ```use std::io::B``` and press \<tab\>
 
