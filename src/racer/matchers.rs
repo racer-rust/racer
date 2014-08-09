@@ -397,11 +397,25 @@ pub fn match_enum(msrc: &str, blobstart: uint, blobend: uint,
 pub fn match_use(msrc: &str, blobstart: uint, blobend: uint, 
              searchstr: &str, filepath: &Path, search_type: SearchType,
              local: bool) -> Vec<Match> {
-    let blob = msrc.slice(blobstart, blobend);
+
     let mut out = Vec::new();
 
-    if ((local && blob.starts_with("use ")) || blob.starts_with("pub use ")) && txt_matches(search_type, searchstr, blob) {
+    if searchstr.len() == 0 {
+        return out;
+    }
+
+    let blob = msrc.slice(blobstart, blobend);
+
+    if ((local && blob.starts_with("use ")) || blob.starts_with("pub use ")) && txt_matches(search_type, searchstr, blob) {     
+        if blob.match_indices(searchstr).count() == 1 {
+            if blob.find_str((searchstr.to_string() + "::").as_slice()).is_some() {
+                // can't possible match, fail fast!
+                return out;
+            }
+        }
+
         debug!("PHIL found use: {} in |{}|", searchstr, blob);
+
         let t0 = ::time::precise_time_s();
         let view_item = ast::parse_view_item(String::from_str(blob));
         let t1 = ::time::precise_time_s();

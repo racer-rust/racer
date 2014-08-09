@@ -67,8 +67,8 @@ pub fn search_for_impl_methods(implsearchstr: &str,
 
     let mut out = Vec::new();
 
-    for m in search_for_impls(point, implsearchstr, fpath, local) {
-        println!("PHIL found impl!! |{}| looking for methods",m.matchstr);
+    for m in search_for_impls(point, implsearchstr, fpath, local, true) {
+        debug!("PHIL found impl!! |{}| looking for methods",m);
         let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
         let src = str::from_utf8(filetxt.as_slice()).unwrap();
                         
@@ -117,7 +117,7 @@ fn search_scope_for_methods(point: uint, src:&str, searchstr:&str, filepath:&Pat
 }
 
 
-fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool) -> vec::MoveItems<Match> {
+fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool, include_traits: bool) -> vec::MoveItems<Match> {
     debug!("PHIL search_for_impls {}, {}, {}", pos, searchstr, filepath.as_str());
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
     let mut src = str::from_utf8(filetxt.as_slice()).unwrap();
@@ -151,11 +151,17 @@ fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool) ->
                     });
 
                     // // find trait
-                    if implres.trait_path.len() > 0 {
+                    if include_traits && implres.trait_path.len() > 0 {
+                            let t0 = time::precise_time_s();
+                        //println!("PHIL finding trait {} |{}|",
+                        //         t0,
+                        //         &implres.trait_path);
                         let m = resolve_path(util::to_refs(&implres.trait_path).as_slice(), filepath, pos + start, ExactMatch, TypeNamespace).nth(0);
+                        debug!("PHIL found trait {} |{}|",
+                                 time::precise_time_s() - t0,
+                                 &implres.trait_path);
                         m.map(|m| out.push(m));
                     }
-
                     debug!("PHIL ast parse impl {}s",t1-t0);
                 }
             });
@@ -609,7 +615,7 @@ pub fn is_a_repeat_search(new_search: &Search) -> bool {
         Some(v) => {
             for s in v.iter() {
                 if s == new_search {
-                    println!("PHIL is a repeat search {}", new_search);
+                    println!("PHIL is a repeat search {} Stack: {}", new_search, v);
                     return true;
                 }
             }
@@ -729,7 +735,6 @@ pub fn resolve_path(path: &[&str], filepath: &Path, pos: uint,
                                    filepath: filepath.as_str().to_string(),
                                    pos: pos };
     if is_a_repeat_search(&search) {
-        println!("PHIL is a repeat search2");
         let it : option::Item<Match> = None.move_iter();
         return BoxIter {iter: box it as Box<Iterator<Match>> }; 
     }
@@ -743,7 +748,9 @@ pub fn resolve_path(path: &[&str], filepath: &Path, pos: uint,
 
 pub fn resolve_path_(path: &[&str], filepath: &Path, pos: uint, 
                   search_type: SearchType, namespace: Namespace) -> BoxIter<Match> {
-    debug!("PHIL resolve_path {} in {}",path, filepath.as_str());
+    let t0 = time::precise_time_s();
+    debug!("PHIL resolve_path {} {} in {}",t0, path, filepath.as_str());
+
 
     if path.len() == 1 {
         let searchstr = path[0];
@@ -777,8 +784,8 @@ pub fn resolve_path_(path: &[&str], filepath: &Path, pos: uint,
                 }
                 Struct => {
                     debug!("PHIL found a struct. Now need to look for impl");
-                    for m in search_for_impls(m.point, m.matchstr.as_slice(), &m.filepath, m.local) {
-                        debug!("PHIL found impl!! {}",m.matchstr);
+                    for m in search_for_impls(m.point, m.matchstr.as_slice(), &m.filepath, m.local, false) {
+                        debug!("PHIL found impl!! {}",m);
                         let searchstr = path[path.len()-1];
 
                         let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
@@ -836,7 +843,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, search_type
 
                 Struct => {
                     debug!("PHIL found a pub struct. Now need to look for impl");
-                    for m in search_for_impls(m.point, m.matchstr.as_slice(), &m.filepath, m.local) {
+                    for m in search_for_impls(m.point, m.matchstr.as_slice(), &m.filepath, m.local, false) {
                         debug!("PHIL found  impl2!! {}",m.matchstr);
                         let searchstr = path[path.len()-1];
                         debug!("PHIL about to search impl scope...");
