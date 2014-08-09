@@ -157,9 +157,9 @@ fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool, in
                         //         t0,
                         //         &implres.trait_path);
                         let m = resolve_path(util::to_refs(&implres.trait_path).as_slice(), filepath, pos + start, ExactMatch, TypeNamespace).nth(0);
-                        debug!("PHIL found trait {} |{}|",
+                        println!("PHIL found trait {} |{}| {}",
                                  time::precise_time_s() - t0,
-                                 &implres.trait_path);
+                                 &implres.trait_path, m);
                         m.map(|m| out.push(m));
                     }
                     debug!("PHIL ast parse impl {}s",t1-t0);
@@ -304,13 +304,15 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
 
 pub fn search_crate_root(searchstr: &str, modfpath: &Path, 
                          searchtype: SearchType, namespace: Namespace) -> vec::MoveItems<Match> {
+    println!("PHIL search_crate_root |{}| {}", searchstr, modfpath.as_str());
+
     let crateroots = find_possible_crate_root_modules(&modfpath.dir_path());
     let mut out = Vec::new();
     for crateroot in crateroots.iter() {
         if crateroot == modfpath {
             continue;
         }
-        debug!("PHIL going to search for {} in crateroot {}",searchstr, crateroot.as_str());
+        println!("PHIL going to search for {} in crateroot {}",searchstr, crateroot.as_str());
         for m in resolve_name(searchstr, crateroot, 0, searchtype, namespace) {
             out.push(m);
         }
@@ -351,7 +353,6 @@ pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<Path> {
 fn search_next_scope(mut startpoint: uint, searchstr:&str, filepath:&Path, 
                      search_type: SearchType, local: bool, 
                      namespace: Namespace) -> vec::MoveItems<Match> {
-
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
     let filesrc = str::from_utf8(filetxt.as_slice()).unwrap();
     if startpoint != 0 {
@@ -368,12 +369,47 @@ fn search_next_scope(mut startpoint: uint, searchstr:&str, filepath:&Path,
     return search_scope(startpoint, filesrc, searchstr, filepath, search_type, local, namespace);
 }
 
-pub fn get_module_file(name: &str, parentdir: &Path) -> Option<Path> {
+pub fn get_crate_file(name: &str) -> Option<Path> {
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
     let v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
-    let v = v.append_one(parentdir.as_str().unwrap());
+    for srcpath in v.move_iter() {
+        {
+            // try lib<name>/lib.rs, like in the rust source dir
+            let cratelibname = format!("lib{}", name);
+            let filepath = Path::new(srcpath).join_many([Path::new(cratelibname), 
+                                                        Path::new("lib.rs")]);
+            if File::open(&filepath).is_ok() {
+                return Some(filepath);
+            }
+        }
+
+        {
+            // try <name>/lib.rs
+            let filepath = Path::new(srcpath).join_many([Path::new(name),
+                                                     Path::new("lib.rs")]);
+            if File::open(&filepath).is_ok() {
+                return Some(filepath);
+            }
+        }
+    }
+    return None;
+}
+
+pub fn get_module_file(name: &str, parentdir: &Path) -> Option<Path> {
+    let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
+    let mut v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
+    // put the parent dir at the front so that it gets checked first
+    v.insert(0, parentdir.as_str().unwrap());
+    //v.push(parentdir.as_str().unwrap());
     for srcpath in v.move_iter() {
         debug!("PHIL searching srcpath: {} for {}",srcpath, name);
+        {            
+            // try just <name>.rs
+            let filepath = Path::new(srcpath).join_many([Path::new(format!("{}.rs", name))]);
+            if File::open(&filepath).is_ok() {
+                return Some(filepath);
+            }
+        }
         {
             // maybe path is from crate. 
             // try lib<name>/lib.rs, like in the rust source dir
@@ -404,13 +440,6 @@ pub fn get_module_file(name: &str, parentdir: &Path) -> Option<Path> {
             // try <name>/lib.rs
             let filepath = Path::new(srcpath).join_many([Path::new(name),
                                                      Path::new("lib.rs")]);
-            if File::open(&filepath).is_ok() {
-                return Some(filepath);
-            }
-        }
-        {            
-            // try just <name>.rs
-            let filepath = Path::new(srcpath).join_many([Path::new(format!("{}.rs", name))]);
             if File::open(&filepath).is_ok() {
                 return Some(filepath);
             }

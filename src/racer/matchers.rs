@@ -4,7 +4,7 @@ use collections::vec;
 use racer::nameres::resolve_path;
 use racer::scopes;
 use racer::util::{symbol_matches, txt_matches, find_ident_end, to_refs};
-use racer::nameres::get_module_file;
+use racer::nameres::{get_module_file, get_crate_file};
 use racer::typeinf;
 
 use racer::{ast};
@@ -90,7 +90,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: uint, blobend: uint,
         if blob.contains("\"") {
             // Annoyingly the extern crate can use a string literal for the
             // real crate name (e.g. extern crate collections_core = "collections")
-            //so we need to get the source text without scrubbed strings 
+            // so we need to get the source text without scrubbed strings 
             let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
             let rawsrc = str::from_utf8(filetxt.as_slice()).unwrap();
             let rawblob = rawsrc.slice(blobstart,blobend);
@@ -111,7 +111,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: uint, blobend: uint,
             view_item.ident.clone().map(|ident|{
                 if symbol_matches(search_type, searchstr, ident.as_slice()) {
                     let ref real_str = view_item.paths[0][0];
-                    get_module_file(real_str.as_slice(), &filepath.dir_path()).map(|modpath|{
+                    get_crate_file(real_str.as_slice()).map(|modpath|{
                         res = Some(Match {matchstr: ident.to_string(),
                                        filepath: modpath.clone(), 
                                        point: 0,
@@ -157,8 +157,15 @@ pub fn match_mod(msrc: &str, blobstart: uint, blobend: uint,
                 });
                 
             } else {
-                // reference to a local file
-                get_module_file(l, &filepath.dir_path()).map(|modpath|{
+
+                // get internal module nesting  
+                // e.g. is this in an inline submodule?  mod foo{ mod bar; } 
+                // because if it is then we need to search further down the 
+                // directory hierarchy
+                let internalpath = scopes::get_local_module_path(msrc, 
+                                                                 blobstart);
+                let searchdir = filepath.dir_path().join_many(internalpath.as_slice());
+                get_module_file(l, &searchdir).map(|modpath|{
                     res = Some(Match {matchstr: l.to_string(),
                                    filepath: modpath.clone(), 
                                    point: 0,
@@ -415,7 +422,6 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
         }
 
         debug!("PHIL found use: {} in |{}|", searchstr, blob);
-
         let t0 = ::time::precise_time_s();
         let view_item = ast::parse_view_item(String::from_str(blob));
         let t1 = ::time::precise_time_s();
