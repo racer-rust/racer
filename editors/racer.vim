@@ -30,27 +30,56 @@ function! racer#GetPrefixCol()
     return startcol
 endfunction
 
+let s:typeMap = { 'Struct' : 's', 'Module' : 'M', 'Function' : 'f',
+            \ 'Crate' : 'C', 'Let' : 'v', 'StructField' : 'm',
+            \ 'Impl' : 'i', 'Enum' : 'e', 'EnumVariant' : 'E',
+            \ 'Type' : 't', 'FnArg' : 'v', 'Trait' : 'T'
+            \}
+
 function! racer#GetExpCompletions()
+    let candidates = []
     let col = b:racer_col      " use the column from the previous racer#GetPrefixCol() call, since vim ammends it afterwards
     let fname = expand("%:p")
     let tmpfname=fname.".racertmp"
     let cmd = g:racer_cmd." complete ".line(".")." ".col." ".tmpfname
-    let res = system(cmd)
-    let lines = split(res, "\\n")
-    let out = []
-    for line in lines
-        let completions = matchlist(line, '\v^MATCH ([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),(.+)$')
-        if len(completions) == 0
-            continue
-        endif
-        let completion = {'word' : completions[1], 'kind' :completions[5][0]}
-        if completion.kind == "F"
-            let completion.menu = matchstr(completions[6], '\v(\(.*)([^{])')
-        endif
-        let out = add(out, completion)
-    endfor
-    call delete(tmpfname)
-    return out
+    if has('python')
+    python << EOF
+from subprocess import check_output
+import vim
+
+typeMap = vim.eval('s:typeMap')
+lines = [l[6:] for l in check_output(vim.eval('cmd').split()).splitlines() if l.startswith('MATCH')]
+candidates = []
+for line in lines:
+    completions = line.rsplit(',',6)
+    completion = {'kind' : typeMap[completions[4]]}
+    if completions[4] == "Function":
+        completion['abbr'] = completions[5].replace('fn ','').replace('pub ','')
+        completion['word'] = completions[0] + '('
+    else:
+        completion['word'] = completions[0]
+    candidates.append(completion)
+vim.command("let candidates = %s" % candidates)
+
+EOF
+    else
+        let res = system(cmd)
+        let lines = split(res, "\\n")
+        for line in lines
+            let completions = matchlist(line, '\v^MATCH ([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),(.+)$')
+            if len(completions) == 0
+                continue
+            endif
+            let completion = {'word' : completions[1], 'kind' : s:typeMap[completions[5]]}
+            if completion.kind == "f"
+                let completion.abbr = completion.word . matchstr(completions[6], '\v(\(.*)([^{])')
+                let completion.word .= '('
+            endif
+            let candidates = add(candidates, completion)
+        endfor
+    endif
+    echom printf("It took %g seconds", str2float(reltimestr(reltime(rt))))
+    return candidates
 endfunction
 
 function! racer#GetCompletions()
