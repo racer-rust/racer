@@ -78,7 +78,6 @@ EOF
             let candidates = add(candidates, completion)
         endfor
     endif
-    echom printf("It took %g seconds", str2float(reltimestr(reltime(rt))))
     return candidates
 endfunction
 
