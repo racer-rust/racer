@@ -54,7 +54,10 @@ for line in lines:
     completions = line.rsplit(',',6)
     completion = {'kind' : typeMap[completions[4]]}
     if completions[4] == "Function":
-        completion['abbr'] = completions[5].replace('fn ','').replace('pub ','')
+        # TODO: we can't do this because it's bugged and doesn't work for implementations.
+        # completion['abbr'] = completions[5].replace('fn ','').replace('pub ','')
+        completion['abbr'] = completions[0]
+        completion['menu'] = completions[5].replace('fn ','').replace('pub ','')
         completion['word'] = completions[0] + '('
     else:
         completion['word'] = completions[0]
