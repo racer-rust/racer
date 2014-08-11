@@ -595,22 +595,23 @@ fn finds_trait_method() {
 
 
 #[test]
-fn bug_finds_field_type() {
+fn finds_field_type() {
     let src = "
+    pub struct Blah { subfield: uint }
+
     pub struct Foo {
-        myfield : Vec<String>
+        myfield : Blah
     }
 
-    let f = Foo{ myfield: Vec::new() };
-    f.myfield.len();
-
+    let f = Foo{ myfield: Blah { subfield: 3}};
+    f.myfield.subfield
     ";
     let path = tmpname();
     write_file(&path, src);
-    let pos = scopes::coords_to_point(src, 6, 16);
+    let pos = scopes::coords_to_point(src, 9, 16);
     let got = find_definition(src, &path, pos).unwrap();
     remove_file(&path);
-    assert_eq!("len", got.matchstr.as_slice());
+    assert_eq!("subfield", got.matchstr.as_slice());
 }
 
 // #[test]

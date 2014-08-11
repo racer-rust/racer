@@ -229,7 +229,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                 let mut newres: Option<Match> = None;
                 match self.result {
                     Some(ref m) => {
-                        debug!("PHIL obj expr type is {:?}",m);
+                        debug!("PHIL obj expr type is {}",m);
 
                         // locate the method
                         let omethod = nameres::search_for_impl_methods(
@@ -254,7 +254,24 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                 }
                 self.result = newres;
             }
-            _ => {}
+
+            ast::ExprField(subexpression, spannedident, _) => {
+                let fieldname = token::get_ident(spannedident.node).get().to_string();
+                self.visit_expr(&*subexpression, ());
+                
+                // if expr is a field, parent is a struct (at the moment)
+                let m = self.result.clone();
+
+                let newres = m.and_then(|m|{
+                    typeinf::get_struct_field_type(fieldname.as_slice(), &m)
+                });
+
+                self.result = newres;
+            }
+
+            _ => {
+                println!("PHIL - Could not match expr node type: {:?}",expr.node);
+            }
         }
     }
 
@@ -318,26 +335,51 @@ impl visit::Visitor<()> for LetVisitor {
 }
 
 struct StructVisitor {
-    pub fields: Vec<(String, uint)>
+    pub fields: Vec<(String, uint, Vec<String>)>
 }
 
 impl visit::Visitor<()> for StructVisitor {
-    fn visit_struct_def(&mut self, s: &ast::StructDef, _: ast::Ident, _: &ast::Generics, _: ast::NodeId, e: ()) {
-        visit::walk_struct_def(self, s, e)
-    }
-    fn visit_struct_field(&mut self, field: &ast::StructField, _: ()) { 
-        let codemap::BytePos(point) = field.span.lo;
-        match field.node.kind {
-            ast::NamedField(name, _) => {
-                //visitor.visit_ident(struct_field.span, name, env.clone())
-                let n = String::from_str(token::get_ident(name).get());
-                self.fields.push((n, point as uint));
-                    
-            }
-            _ => {}
-        }
+    fn visit_struct_def(&mut self, struct_definition: &ast::StructDef, _: ast::Ident, _: &ast::Generics, _: ast::NodeId, _: ()) {
 
-        //visit::walk_struct_field(self, s, e)
+        for field in struct_definition.fields.iter() {
+            let codemap::BytePos(point) = field.span.lo;
+
+            match field.node.kind {
+                ast::NamedField(name, _) => {
+                    //visitor.visit_ident(struct_field.span, name, env.clone())
+                    let n = String::from_str(token::get_ident(name).get());
+                    
+
+                    // we have the name. Now get the type
+                    let typepath = match field.node.ty.node {
+                        ast::TyRptr(_, ref ty) => {
+                            match ty.ty.node {
+                                ast::TyPath(ref path, _, _) => {
+                                    let type_ = path_to_vec(path);
+                                    debug!("PHIL struct field type is {}", type_);
+                                    type_
+                                }
+                                _ => Vec::new()
+                            }
+                        }
+                        ast::TyPath(ref path, _, _) => {
+                            let type_ = path_to_vec(path);
+                            debug!("PHIL struct field type is {}", type_);
+                            type_
+                        }
+                        _ => {
+                            Vec::new()  
+                        }
+                    };
+
+                    self.fields.push((n, point as uint, typepath));
+                }
+                _ => {}
+            }
+
+
+
+        }
     }
 }
 
@@ -423,9 +465,7 @@ impl visit::Visitor<()> for FnVisitor {
                     debug!("PHIL arg type is {}", type_);
                     type_
                 }
-                _ => {
-                    Vec::new()  
-                }
+                _ => Vec::new()  
             };
 
             debug!("PHIL typepath {}", typepath);
@@ -530,7 +570,7 @@ pub fn parse_let(s: String, fpath: Path, pos: uint, parseinit: bool) -> Option<L
     }
 }
 
-pub fn parse_struct_fields(s: String) -> Vec<(String, uint)> {
+pub fn parse_struct_fields(s: String) -> Vec<(String, uint, Vec<String>)> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = StructVisitor{ fields: Vec::new() };

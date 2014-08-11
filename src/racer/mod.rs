@@ -14,7 +14,7 @@ pub mod matchers;
 
 #[cfg(test)] pub mod test;
 
-#[deriving(Show)]
+#[deriving(Show,Clone,PartialEq)]
 pub enum MatchType {
     Struct,
     Module,
@@ -46,6 +46,7 @@ pub enum CompletionType {
     Path
 }
 
+#[deriving(Clone)]
 pub struct Match {
     pub matchstr: String,
     pub filepath: Path,
@@ -92,7 +93,7 @@ pub fn complete_from_file(src: &str, filepath: &Path, pos: uint) -> vec::MoveIte
         Field => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
             context.map(|m| {
-                for m in nameres::search_for_field(m, searchstr, StartsWith) {
+                for m in nameres::search_for_field_or_method(m, searchstr, StartsWith) {
                     out.push(m)
                 }
             });
@@ -122,10 +123,10 @@ pub fn find_definition_(src: &str, filepath: &Path, pos: uint) -> Option<Match> 
         },
         Field => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
-            debug!("PHIL context is {:?}",context);
+            debug!("PHIL context is {}",context);
 
             return context.and_then(|m| {
-                return nameres::search_for_field(m, searchstr, ExactMatch).nth(0);
+                return nameres::search_for_field_or_method(m, searchstr, ExactMatch).nth(0);
             });
         }
     }

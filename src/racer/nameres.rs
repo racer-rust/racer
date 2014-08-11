@@ -43,7 +43,7 @@ fn search_struct_fields(searchstr: &str, m: &Match,
 
     let mut out = Vec::new();
     
-    for (field, fpos) in fields.move_iter() {
+    for (field, fpos, _) in fields.move_iter() {
 
         if symbol_matches(search_type, searchstr, field.as_slice()) {
             out.push(Match { matchstr: field.to_string(),
@@ -396,55 +396,22 @@ pub fn get_crate_file(name: &str) -> Option<Path> {
 }
 
 pub fn get_module_file(name: &str, parentdir: &Path) -> Option<Path> {
-    let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
-    let mut v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
-    // put the parent dir at the front so that it gets checked first
-    v.insert(0, parentdir.as_str().unwrap());
-    //v.push(parentdir.as_str().unwrap());
-    for srcpath in v.move_iter() {
-        debug!("PHIL searching srcpath: {} for {}",srcpath, name);
-        {            
-            // try just <name>.rs
-            let filepath = Path::new(srcpath).join_many([Path::new(format!("{}.rs", name))]);
-            if File::open(&filepath).is_ok() {
-                return Some(filepath);
-            }
-        }
-        {
-            // maybe path is from crate. 
-            // try lib<name>/lib.rs, like in the rust source dir
-            let cratelibname = format!("lib{}", name);
-            let filepath = Path::new(srcpath).join_many([Path::new(cratelibname), 
-                                                        Path::new("lib.rs")]);
-            if File::open(&filepath).is_ok() {
-                return Some(filepath);
-            }
-        }
-        {
-            // try <name>/<name>.rs, like in the servo codebase
-            let filepath = Path::new(srcpath).join_many([Path::new(name), 
-                                                     Path::new(format!("{}.rs", name))]);
-            if File::open(&filepath).is_ok() {
-                return Some(filepath);
-            }
-        }
-        {
-            // try <name>/mod.rs
-            let filepath = Path::new(srcpath).join_many([Path::new(name),
-                                                     Path::new("mod.rs")]);
-            if File::open(&filepath).is_ok() {
-                return Some(filepath);
-            }
-        }
-        {
-            // try <name>/lib.rs
-            let filepath = Path::new(srcpath).join_many([Path::new(name),
-                                                     Path::new("lib.rs")]);
-            if File::open(&filepath).is_ok() {
-                return Some(filepath);
-            }
+    {            
+        // try just <name>.rs
+        let filepath = parentdir.join_many([Path::new(format!("{}.rs", name))]);
+        if File::open(&filepath).is_ok() {
+            return Some(filepath);
         }
     }
+    {
+        // try <name>/mod.rs
+        let filepath = parentdir.join_many([Path::new(name),
+                                            Path::new("mod.rs")]);
+        if File::open(&filepath).is_ok() {
+            return Some(filepath);
+        }
+    }
+
     return None;
 }
 
@@ -676,6 +643,23 @@ pub fn resolve_name(searchstr: &str, filepath: &Path, pos: uint,
     
     let msrc = racer::load_file_and_mask_comments(filepath);
 
+
+    let is_exact_match = match search_type { ExactMatch => true, StartsWith => false };
+
+    if (is_exact_match && searchstr == "std") || (!is_exact_match && "std".starts_with(searchstr)) {
+        let r = get_crate_file("std").map(|cratepath|{
+            Match { matchstr: "std".to_string(),
+                        filepath: cratepath.clone(), 
+                        point: 0,
+                        local: false,
+                        mtype: Module,
+                        contextstr: cratepath.as_str().unwrap().to_string()
+            }
+        });
+        return BoxIter { iter: box r.move_iter() };
+    }
+
+
     let s = String::from_str(searchstr);
     let p = filepath.clone();
 
@@ -708,29 +692,7 @@ pub fn resolve_name(searchstr: &str, filepath: &Path, pos: uint,
         return it;
     }));
 
-    
-    let s = String::from_str(searchstr);
-    let p = filepath.clone();
-
-    let it = it.chain(util::lazyit(proc() {
-        let searchstr = s.as_slice();
-
-        // don't need to match substrings here because substring matches are done
-        // on the use stmts.
-        let mut out = Vec::new();
-        get_module_file(searchstr, &p.dir_path()).map(|path|{
-                  out.push(Match {matchstr: s.clone(),
-                        filepath: path.clone(), 
-                        point: 0,
-                        local: false,
-                        mtype: Module,
-                        contextstr: path.as_str().unwrap().to_string()
-                  });
-        });
-        return out.move_iter();
-    }));
-
-    // // useful for 'use' searches 
+    // filesearch. Used to complete e.g. extern crate blah or mod foo
     let s = String::from_str(searchstr);
     let p = filepath.clone();
 
@@ -746,8 +708,6 @@ pub fn resolve_name(searchstr: &str, filepath: &Path, pos: uint,
             None
     }.move_iter().flat_map(|p| p()));
 
-    //return it;
-    
     let it = box it as Box<Iterator<Match>>;
     return BoxIter{ iter: it };
 
@@ -888,7 +848,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, search_type
     return out.move_iter();
 }
 
-pub fn search_for_field(context: Match, searchstr: &str, search_type: SearchType) -> vec::MoveItems<Match> {
+pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: SearchType) -> vec::MoveItems<Match> {
     let m = context;
     let mut out = Vec::new();
     match m.mtype {

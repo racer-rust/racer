@@ -3,14 +3,14 @@
 use racer::{Match};
 use racer::util::{to_refs};
 use racer::nameres::{do_local_search_with_string};
-use racer::ast;
-use racer::codeiter;
-use racer::scopes;
+use racer::{ast,codeiter,scopes};
 use racer;
+
+use racer::util;
 
 use std::io::File;
 use std::io::BufferedReader;
-use std::str;
+use std::{str};
 
 use racer::{ExactMatch, TypeNamespace};
 use racer::util::txt_matches;
@@ -116,6 +116,34 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<Match> {
     return None;
 }
 
+
+pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<Match> {
+
+    assert!(structmatch.mtype == racer::Struct);
+
+    let filetxt = BufferedReader::new(File::open(&structmatch.filepath)).read_to_end().unwrap();
+    let src = str::from_utf8(filetxt.as_slice()).unwrap();
+
+    let opoint = scopes::find_stmt_start(src, structmatch.point);
+    let structsrc = scopes::end_of_next_scope(src.slice_from(opoint.unwrap()));
+
+    let fields = ast::parse_struct_fields(String::from_str(structsrc));
+
+    for (field, fpos, typepath) in fields.move_iter() {
+
+        if fieldname == field.as_slice() {
+            let typepath = util::to_refs(&typepath);
+            let type_ = racer::nameres::resolve_path(typepath.as_slice(),
+                                           &structmatch.filepath, 
+                                           fpos + opoint.unwrap(),
+                                           ExactMatch, TypeNamespace).nth(0);
+            if type_.is_some() {
+                return type_;
+            }
+        }
+    }
+    return None
+}
 
 pub fn get_type_of_match(m: Match, msrc: &str) -> Option<Match> {
     debug!("PHIL get_type_of match {} ",m);

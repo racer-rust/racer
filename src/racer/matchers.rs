@@ -59,7 +59,6 @@ pub fn match_let(msrc: &str, blobstart: uint, blobend: uint,
         letres.map(|letresult| {
             
             let name = letresult.name.as_slice();
-
             if (exact_match && name == searchstr) || (!exact_match && name.starts_with(searchstr)) {
                 res = Some(Match { matchstr: letresult.name.to_string(),
                                     filepath: filepath.clone(),
@@ -102,14 +101,25 @@ pub fn match_extern_crate(msrc: &str, blobstart: uint, blobend: uint,
         }
 
         if view_item.paths.is_empty() {
-            // reference to a crate. For now do nothing since will
-            // be picked up by file search. This will change
-            // sometime in the future when racer has more accurate
-            // crate handling
+            // reference to a crate.
+
+            view_item.ident.clone().map(|ident|{
+                println!("PHIL EXTERN CRATE {}",ident.as_slice());
+                get_crate_file(ident.as_slice()).map(|cratepath|{
+                    res = Some(Match {matchstr: ident.to_string(),
+                                      filepath: cratepath.clone(), 
+                                      point: 0,
+                                      local: false,
+                                      mtype: Module,
+                                      contextstr: cratepath.as_str().unwrap().to_string()
+                    });
+                });                
+            });
         } else {
 
             view_item.ident.clone().map(|ident|{
                 if symbol_matches(search_type, searchstr, ident.as_slice()) {
+                    // e.g. extern core_collections = "collections";
                     let ref real_str = view_item.paths[0][0];
                     get_crate_file(real_str.as_slice()).map(|modpath|{
                         res = Some(Match {matchstr: ident.to_string(),
