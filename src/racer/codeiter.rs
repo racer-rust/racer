@@ -29,6 +29,7 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
         let openparen: u8 = "(".as_bytes()[0];
         let closeparen: u8 = ")".as_bytes()[0];
         let closesqbrace: u8 = "]".as_bytes()[0];
+        let bang: u8 = "!".as_bytes()[0];
         let whitespace = " \t\n".as_bytes();
 
         let __u: u8 = "u".as_bytes()[0];
@@ -86,6 +87,14 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
                         self.parenlevel == 0 {
                         self.enddelim = closeparen;
                     }
+                    
+                    // also macro invocations can too
+                    if self.pos > 0 && src_bytes[self.pos-1] == bang &&
+                        self.bracelevel == 0 && 
+                        self.parenlevel == 0 {
+                        self.enddelim = closeparen;
+                    }
+
                     self.parenlevel += 1;
 
                 } else if src_bytes[self.pos] == closeparen {
@@ -100,6 +109,7 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
                            self.enddelim = closebrace;
                     }
                     self.bracelevel += 1;
+
                 } else if src_bytes[self.pos] == closebrace {
                     self.bracelevel -= 1;
                     // have we reached the end of the scope?
@@ -215,6 +225,20 @@ fn iterates_macro() {
     assert_eq!("mod bar;", slice(src.as_slice(), it.next().unwrap()));
 }
 
+#[test]
+fn iterates_macro_invocation() {
+    let src = "
+    mod foo;
+    local_data_key!(local_stdout: Box<Writer + Send>)  // no ';'
+    mod bar;
+    ";
+    let mut it = iter_stmts(src.as_slice());
+    assert_eq!("mod foo;", slice(src.as_slice(), it.next().unwrap()));
+    assert_eq!("local_data_key!(local_stdout: Box<Writer + Send>)", slice(src.as_slice(), it.next().unwrap()));
+    assert_eq!("mod bar;", slice(src.as_slice(), it.next().unwrap()));
+}
+
+
 // #[test]
 // fn iterates_if_else_stmt() {
 //     let src = rejustify("
@@ -262,9 +286,7 @@ fn iterates_module_attribute() {
 //     use std::io::File;
 //     use std::str;
 
-//     //let filetxt = BufferedReader::new(File::open(&Path::new("/usr/local/src/rust/src/libstd/prelude.rs"))).read_to_end().unwrap();
-//     //let filetxt = BufferedReader::new(File::open(&Path::new("/usr/local/src/rust/src/libstd/prelude.rs"))).read_to_end().unwrap();
-//     let filetxt = BufferedReader::new(File::open(&Path::new("/usr/local/src/rust/src/libcollections/str.rs"))).read_to_end().unwrap();
+//     let filetxt = BufferedReader::new(File::open(&Path::new("/usr/local/src/rust/src/libstd/io/stdio.rs"))).read_to_end().unwrap();
 //     let src = str::from_utf8(filetxt.as_slice()).unwrap();
 
 //     for (start,end) in iter_stmts(src) {
