@@ -466,7 +466,7 @@ pub fn match_fn(msrc: &str, blobstart: uint, blobend: uint,
              local: bool) -> Option<Match> {
     let blob = msrc.slice(blobstart, blobend);
 
-    if txt_matches(search_type, format!("pub fn {}", searchstr).as_slice(), blob) && !typeinf::first_param_is_self(blob) {
+    if blob.starts_with("pub fn") && txt_matches(search_type, format!("pub fn {}", searchstr).as_slice(), blob) && !typeinf::first_param_is_self(blob) {
         debug!("PHIL found a pub fn starting {}",searchstr);
         // TODO: parse this properly
         let start = blob.find_str(format!("pub fn {}", searchstr).as_slice()).unwrap() + 7;
@@ -480,7 +480,7 @@ pub fn match_fn(msrc: &str, blobstart: uint, blobend: uint,
                        mtype: Function,
                        contextstr: first_line(blob)
         });
-    } else if local && txt_matches(search_type, format!("fn {}",searchstr).as_slice(), blob) && !typeinf::first_param_is_self(blob) {
+    } else if local && blob.starts_with("pub fn") && txt_matches(search_type, format!("fn {}",searchstr).as_slice(), blob) && !typeinf::first_param_is_self(blob) {
         // TODO: parse this properly
         let start = blob.find_str(format!("fn {}", searchstr).as_slice()).unwrap() + 3;
         let end = find_ident_end(blob, start);
