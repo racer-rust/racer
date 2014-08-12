@@ -75,6 +75,7 @@ EOF
         echoerr("Error, experimental racer completion requires vim compiled
                     \ with python 2.")
     endif
+    call delete(tmpfname)
 endfunction
 
 function! racer#GetCompletions()
