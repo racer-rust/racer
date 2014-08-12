@@ -131,7 +131,7 @@ impl visit::Visitor<()> for ViewItemVisitor {
 
 struct LetVisitor {
     scope: Scope,
-    parseinit: bool,
+    need_type: bool,
     result: Option<LetResult>
 }
 
@@ -277,35 +277,34 @@ impl visit::Visitor<()> for ExprTypeVisitor {
 
 }
 
-impl LetVisitor {
-    fn visit_let_initializer(&mut self, name: &str, point: uint, init: Option<Gc<ast::Expr>> ) {
+// impl LetVisitor {
+//     fn visit_let_initializer(&mut self, name: &str, point: uint, init: Option<Gc<ast::Expr>> ) {
 
-        // chances are we can't parse the init yet, so the default is to leave blank
-        self.result = Some(LetResult{name: name.to_string(),
-                                point: point,
-                                inittype: None});
+//         // chances are we can't parse the init yet, so the default is to leave blank
+//         self.result = Some(LetResult{name: name.to_string(),
+//                                 point: point,
+//                                 inittype: None});
+//         if !self.parseinit {
+//             return;
+//         }
 
-        if !self.parseinit {
-            return;
-        }
+//         debug!("PHIL result before is {:?}",self.result);
+//         // attempt to parse the init
+//         init.map(|initexpr| {
+//             debug!("PHIL init node is {:?}",initexpr.node);
 
-        debug!("PHIL result before is {:?}",self.result);
-        // attempt to parse the init
-        init.map(|initexpr| {
-            debug!("PHIL init node is {:?}",initexpr.node);
+//             let mut v = ExprTypeVisitor{ scope: self.scope.clone(),
+//                                  result: None};
+//             v.visit_expr(&*initexpr, ());
 
-            let mut v = ExprTypeVisitor{ scope: self.scope.clone(),
-                                 result: None};
-            v.visit_expr(&*initexpr, ());
+//             self.result = Some(LetResult{name: name.to_string(), point: point,
+//                                          inittype: v.result});
 
-            self.result = Some(LetResult{name: name.to_string(), point: point,
-                                         inittype: v.result});
+//         });
 
-        });
-
-        debug!("PHIL result is {:?}",self.result);
-    }
-}
+//         debug!("PHIL result is {:?}",self.result);
+//     }
+// }
 
 impl visit::Visitor<()> for LetVisitor {
 
@@ -317,9 +316,65 @@ impl visit::Visitor<()> for LetVisitor {
                     ast::PatIdent(_ , ref spannedident, _) => {
                         let codemap::BytePos(point) = spannedident.span.lo;
                         let name = token::get_ident(spannedident.node).get().to_string();
-                        self.visit_let_initializer(name.as_slice(),
-                                                   point.to_uint().unwrap(),
-                                                   local.init);
+
+
+                        self.result = Some(LetResult{name: name.to_string(),
+                                                     point: point as uint,
+                                                     inittype: None});
+                        if !self.need_type {
+                            // don't need the type. All done
+                            return;
+                        }
+
+
+                        // Parse the type
+                        let typepath = match local.ty.node {
+                            ast::TyRptr(_, ref ty) => {
+                                match ty.ty.node {
+                                    ast::TyPath(ref path, _, _) => {
+                                        let type_ = path_to_vec(path);
+                                        debug!("PHIL struct field type is {}", type_);
+                                        type_
+                                    }
+                                    _ => Vec::new()
+                                }
+                            }
+                            ast::TyPath(ref path, _, _) => {
+                                let type_ = path_to_vec(path);
+                                debug!("PHIL struct field type is {}", type_);
+                                type_
+                            }
+                            _ => {
+                                Vec::new()  
+                            }
+                        };
+                        
+                        if !typepath.is_empty() {
+                            let m = get_type_of_path(&typepath,
+                                                     &self.scope.filepath,
+                                                     self.scope.point);
+                            self.result = Some(LetResult{name: name.to_string(), 
+                                                         point: point as uint,
+                                                         inittype: m});
+                            return;
+                        }
+
+                        debug!("PHIL result before is {:?}",self.result);
+
+                        // That didn't work. Attempt to parse the init
+                        local.init.map(|initexpr| {
+                            debug!("PHIL init node is {:?}",initexpr.node);
+
+                            let mut v = ExprTypeVisitor{ scope: self.scope.clone(),
+                                                         result: None};
+                            v.visit_expr(&*initexpr, ());
+
+                            self.result = Some(LetResult{name: name.to_string(), 
+                                                         point: point as uint,
+                                                         inittype: v.result});
+
+                        });
+
                     },
                     _ => {}
                 }
@@ -564,7 +619,7 @@ pub fn parse_view_item(s: String) -> ViewItemVisitor {
     }
 }
 
-pub fn parse_let(s: String, fpath: Path, pos: uint, parseinit: bool) -> Option<LetResult> {
+pub fn parse_let(s: String, fpath: Path, pos: uint, need_type: bool) -> Option<LetResult> {
 
     let result = task::try(proc() { 
         debug!("PHIL parse_let s=|{}|",s);
@@ -572,7 +627,7 @@ pub fn parse_let(s: String, fpath: Path, pos: uint, parseinit: bool) -> Option<L
         debug!("PHIL parse_let stmt={:?}",stmt);
         let scope = Scope{filepath: fpath, point: pos};
 
-        let mut v = LetVisitor{ scope: scope, result: None, parseinit: parseinit};
+        let mut v = LetVisitor{ scope: scope, result: None, need_type: need_type};
         visit::walk_stmt(&mut v, &*stmt, ());
         return v.result;
     });
@@ -671,10 +726,9 @@ pub fn get_type_of(s: String, fpath: &Path, pos: uint) -> Option<Match> {
 #[test]
 fn ast_sandbox() {
 
-    // let src = "trait foo {}";
+    // let src = "let foo : Bar = blah;";
     // let stmt = string_to_stmt(String::from_str(src));
-    
-    // let mut v = TraitVisitor{ name: None };
+    // let mut v = LetVisitor{ scope: Scope {filepath: Path::new("./foo"), point: 0} , result: None, parseinit: true};
     // visit::walk_stmt(&mut v, &*stmt, ());
 
     // println!("PHIL {:?}", stmt);
