@@ -17,6 +17,14 @@ if !exists('$RUST_SRC_PATH')
     let $RUST_SRC_PATH="/usr/local/src/rust/src"
 endif
 
+if !exists('g:racer_experimental_completer')
+    let g:racer_experimental_completer = 0
+endif
+
+if !exists('g:racer_insert_paren')
+    let g:racer_insert_paren = 1
+endif
+
 function! racer#GetPrefixCol()
     :w! %.racertmp
     let col = col(".")-1
@@ -30,14 +38,7 @@ function! racer#GetPrefixCol()
     return startcol
 endfunction
 
-let s:typeMap = { 'Struct' : 's', 'Module' : 'M', 'Function' : 'f',
-            \ 'Crate' : 'C', 'Let' : 'v', 'StructField' : 'm',
-            \ 'Impl' : 'i', 'Enum' : 'e', 'EnumVariant' : 'E',
-            \ 'Type' : 't', 'FnArg' : 'v', 'Trait' : 'T'
-            \}
-
 function! racer#GetExpCompletions()
-    let candidates = []
     let col = b:racer_col      " use the column from the previous racer#GetPrefixCol() call, since vim ammends it afterwards
     let fname = expand("%:p")
     let tmpfname=fname.".racertmp"
@@ -47,38 +48,33 @@ function! racer#GetExpCompletions()
 from subprocess import check_output
 import vim
 
-typeMap = vim.eval('s:typeMap')
+typeMap = { 'Struct' : 's', 'Module' : 'M', 'Function' : 'f',
+            'Crate' : 'C', 'Let' : 'v', 'StructField' : 'm',
+            'Impl' : 'i', 'Enum' : 'e', 'EnumVariant' : 'E',
+            'Type' : 't', 'FnArg' : 'v', 'Trait' : 'T'
+            }
 lines = [l[6:] for l in check_output(vim.eval('cmd').split()).splitlines() if l.startswith('MATCH')]
 candidates = []
 for line in lines:
-    completions = line.rsplit(',',6)
-    completion = {'kind' : typeMap[completions[4]]}
-    if completions[4] == "Function":
-        completion['abbr'] = completions[5].replace('fn ','').replace('pub ','')
-        completion['word'] = completions[0] + '('
-    else:
-        completion['word'] = completions[0]
+    completions = line.split(',',5)
+    kind = typeMap[completions[4]]
+    completion = {'kind' : kind, 'word' : completions[0]}
+    if kind == 'f': #function
+        completion['abbr'] = completions[5].replace('pub ','').replace('fn ','').rstrip('{')
+        if int(vim.eval('g:racer_insert_paren')):
+            completion['word'] += '('
+        completion['info'] = completions[5]
+    elif kind == 's' : #struct
+        completion['abbr'] = completions[5].replace('pub ','').replace('struct ','').rstrip('{')
     candidates.append(completion)
-vim.command("let candidates = %s" % candidates)
+
+vim.command("return %s" % candidates)
 
 EOF
     else
-        let res = system(cmd)
-        let lines = split(res, "\\n")
-        for line in lines
-            let completions = matchlist(line, '\v^MATCH ([^,]+),([^,]+),([^,]+),([^,]+),([^,]+),(.+)$')
-            if len(completions) == 0
-                continue
-            endif
-            let completion = {'word' : completions[1], 'kind' : s:typeMap[completions[5]]}
-            if completion.kind == "f"
-                let completion.abbr = completion.word . matchstr(completions[6], '\v(\(.*)([^{])')
-                let completion.word .= '('
-            endif
-            let candidates = add(candidates, completion)
-        endfor
+        echoerr("Error, experimental racer completion requires vim compiled
+                    \ with python 2.")
     endif
-    return candidates
 endfunction
 
 function! racer#GetCompletions()
@@ -132,10 +128,11 @@ endfunction
 function! racer#Complete(findstart, base)
     if a:findstart
         return racer#GetPrefixCol()
-    elseif exists('g:racer_experimental_completer')
-        return racer#GetExpCompletions()
     else
-        return racer#GetCompletions()
+        if g:racer_experimental_completer == 1
+            return racer#GetExpCompletions()
+        else
+            return racer#GetCompletions()
     endif
 endfunction
 
