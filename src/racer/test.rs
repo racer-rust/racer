@@ -90,20 +90,20 @@ fn main() {
 #[test]
 fn follows_use() {
     let src2="
-pub fn myfn() {}
-pub fn foo() {}
-";
+    pub fn myfn() {}
+    pub fn foo() {}
+    ";
     let src="
-use src2::{foo,myfn};
-
-fn main() {
-    myfn();
-}
-";
+    use src2::{foo,myfn};
+    mod src2;
+    fn main() {
+        myfn();
+    }
+    ";
     write_file(&Path::new("src2.rs"), src2);
     let path = tmpname();
     write_file(&path, src);
-    let pos = scopes::coords_to_point(src, 5, 6);
+    let pos = scopes::coords_to_point(src, 5, 10);
     let got = find_definition(src, &path, pos).unwrap();
     remove_file(&path);
     assert_eq!(got.matchstr,"myfn".to_string());
@@ -291,6 +291,7 @@ fn finds_inline_fn() {
 fn follows_self_use() {
     let modsrc = "
     pub use self::src2::{Foo,myfn};
+    pub mod src2;
     ";
     let src2 = "
     struct Foo;
@@ -298,6 +299,7 @@ fn follows_self_use() {
     ";
     let src = "
     use mymod::{Foo,myfn};
+    pub mod mymod;
 
     fn main() {
         myfn();
@@ -311,7 +313,7 @@ fn follows_self_use() {
     write_file(&moddir.join("src2.rs"), src2);
     let srcpath = basedir.join("src.rs");
     write_file(&srcpath, src);
-    let pos = scopes::coords_to_point(src, 5, 10);
+    let pos = scopes::coords_to_point(src, 6, 10);
     let got = find_definition(src, &srcpath, pos).unwrap();
     ::std::io::fs::rmdir_recursive(&basedir).unwrap();
     assert_eq!(got.matchstr,"myfn".to_string());
@@ -322,7 +324,7 @@ fn follows_self_use() {
 
 #[test]
 fn finds_nested_submodule_file() {
-    let src = "
+    let rootsrc = "
     pub mod sub1 {
         pub mod sub2 {
             pub mod sub3;
@@ -337,15 +339,15 @@ fn finds_nested_submodule_file() {
 
     let basedir = tmpname();
     let srcpath = basedir.join("root.rs");
-    let sub3dir = basedir.join("sub1").join("sub2").join("sub3");
-    ::std::io::fs::mkdir_recursive(&sub3dir, ::std::io::UserRWX).unwrap();
-    write_file(&srcpath, src);
-    write_file(&sub3dir.join("sub3.rs"), sub3src);
-    let pos = scopes::coords_to_point(src, 7, 23);
-    let got = find_definition(src, &srcpath, pos).unwrap();
+    let sub2dir = basedir.join("sub1").join("sub2");
+    ::std::io::fs::mkdir_recursive(&sub2dir, ::std::io::UserRWX).unwrap();
+    write_file(&srcpath, rootsrc);
+    write_file(&sub2dir.join("sub3.rs"), sub3src);
+    let pos = scopes::coords_to_point(rootsrc, 7, 23);
+    let got = find_definition(rootsrc, &srcpath, pos).unwrap();
     ::std::io::fs::rmdir_recursive(&basedir).unwrap();
     assert_eq!(got.matchstr,"myfn".to_string());
-    assert_eq!(sub3dir.join("sub3.rs").display().to_string(), 
+    assert_eq!(sub2dir.join("sub3.rs").display().to_string(), 
                got.filepath.display().to_string());
 }
 
@@ -362,7 +364,7 @@ fn follows_use_to_impl() {
     ";
     let src = "
     use mymod::{Foo};
-
+    mod mymod;
     fn main() {
         Foo::new();
     }

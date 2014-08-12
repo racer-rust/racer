@@ -87,10 +87,13 @@ fn get_local_module_path_(msrc: &str, point: uint, out: &mut Vec<String>) {
 }
 
 pub fn find_impl_start(msrc: &str, point: uint, scopestart: uint) -> Option<uint> {
+
     for (start, end) in codeiter::iter_stmts(msrc.slice_from(scopestart)) {
         if (scopestart + end) > point {
             let blob = msrc.slice_from(scopestart + start);
-            if blob.starts_with("impl") {
+            // TODO:: the following is a bit weak at matching traits. make this better
+            if blob.starts_with("impl") || 
+                blob.starts_with("trait") || blob.starts_with("pub trait") {
                 return Some(scopestart + start);
             } else {
                 let newstart = blob.find_str("{").unwrap() + 1;

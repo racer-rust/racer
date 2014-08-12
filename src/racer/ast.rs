@@ -192,7 +192,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                 self.result = get_type_of_path(&pathvec,
                                                &self.scope.filepath,
                                                self.scope.point);
-
+                debug!("PHIL exprpath: self.result is {}", self.result);
             }
             ast::ExprCall(callee_expression, _/*ref arguments*/) => {
                 self.visit_expr(&*callee_expression, ());
@@ -383,6 +383,20 @@ impl visit::Visitor<()> for StructVisitor {
     }
 }
 
+pub struct TraitVisitor {
+    pub name: Option<String>
+}
+
+impl visit::Visitor<()> for TraitVisitor {
+    fn visit_item(&mut self, item: &ast::Item, _: ()) { 
+        match item.node {
+            ast::ItemTrait(_, _, _, _) => {
+                self.name = Some(token::get_ident(item.ident).get().to_string());
+            }
+            _ => ()
+        }
+    }
+}
 
 pub struct ImplVisitor {
     pub name_path: Vec<String>,
@@ -588,6 +602,15 @@ pub fn parse_impl(s: String) -> ImplVisitor {
     }).ok().unwrap();    
 }
 
+pub fn parse_trait(s: String) -> TraitVisitor {
+    return task::try(proc() {
+        let stmt = string_to_stmt(s);
+        let mut v = TraitVisitor { name: None };
+        visit::walk_stmt(&mut v, &*stmt, ());
+        return v;
+    }).ok().unwrap();    
+}
+
 
 
 pub fn parse_fn_output(s: String) -> Vec<String> {
@@ -648,12 +671,14 @@ pub fn get_type_of(s: String, fpath: &Path, pos: uint) -> Option<Match> {
 #[test]
 fn ast_sandbox() {
 
-    // let src = "pub mod foo {}";
+    // let src = "trait foo {}";
     // let stmt = string_to_stmt(String::from_str(src));
-    // let mut v = ModVisitor{ name: None };
-    // visit::walk_stmt(&mut v, stmt, ());
+    
+    // let mut v = TraitVisitor{ name: None };
+    // visit::walk_stmt(&mut v, &*stmt, ());
 
     // println!("PHIL {:?}", stmt);
+    // fail!();
     // println!("PHIL {}", v.name);
     // fail!("");
     // let mut v = ExprTypeVisitor{ scope: startscope,

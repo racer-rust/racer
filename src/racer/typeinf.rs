@@ -48,16 +48,33 @@ fn generates_skeleton_for_mod() {
 }
 
 fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<Match> {
+    debug!("PHIL get_type_of_self_arg {}", m)
     return scopes::find_impl_start(msrc, m.point, 0).and_then(|start| {
         let decl = generate_skeleton_for_parsing(msrc.slice_from(start));
-        let implres = ast::parse_impl(decl);
-        return do_local_search_with_string(to_refs(&implres.name_path).as_slice(), &m.filepath, start, 
-                                           ExactMatch, TypeNamespace).nth(0);
+        debug!("PHIL get_type_of_self_arg impl skeleton |{}|", decl)
+        
+        if decl.as_slice().starts_with("impl") {
+            let implres = ast::parse_impl(decl);
+            debug!("PHIL get_type_of_self_arg implres |{:?}|", implres);
+            return do_local_search_with_string(to_refs(&implres.name_path).as_slice(), &m.filepath, start, 
+                                                   ExactMatch, TypeNamespace).nth(0);
+        } else {
+            // // must be a trait
+            return ast::parse_trait(decl).name.and_then(|name| {
+                Some(Match {matchstr: name,
+                           filepath: m.filepath.clone(), 
+                           point: start,
+                           local: m.local,
+                           mtype: racer::Trait,
+                           contextstr: racer::matchers::first_line(msrc.slice_from(start))
+                })
+            });
+        }
     });
 }
 
 fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<Match> {
-    debug!("PHIL get type of fn arg {:?} {}",m, m.matchstr);
+    debug!("PHIL get type of fn arg {}",m);
 
     if m.matchstr.as_slice() == "self" {
         return get_type_of_self_arg(m, msrc);
@@ -107,7 +124,7 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<Match> {
             debug!("PHIL parse let result {:?}", inittype);
 
             inittype.as_ref().map(|m|{
-                debug!("PHIL parse let type is {}",m.matchstr);
+                debug!("PHIL parse let type is {}",m);
             });
 
             return inittype;

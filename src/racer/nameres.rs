@@ -2,7 +2,7 @@
 use racer;
 
 use racer::{SearchType, StartsWith, ExactMatch, Match, Module, 
-            Function, Struct, Enum, FnArg,
+            Function, Struct, Enum, FnArg, Trait,
             StructField, Impl, Namespace, TypeNamespace, 
             ValueNamespace, BothNamespaces};
 
@@ -304,7 +304,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
 
 pub fn search_crate_root(searchstr: &str, modfpath: &Path, 
                          searchtype: SearchType, namespace: Namespace) -> vec::MoveItems<Match> {
-    println!("PHIL search_crate_root |{}| {}", searchstr, modfpath.as_str());
+    debug!("PHIL search_crate_root |{}| {}", searchstr, modfpath.as_str());
 
     let crateroots = find_possible_crate_root_modules(&modfpath.dir_path());
     let mut out = Vec::new();
@@ -312,7 +312,7 @@ pub fn search_crate_root(searchstr: &str, modfpath: &Path,
         if crateroot == modfpath {
             continue;
         }
-        println!("PHIL going to search for {} in crateroot {}",searchstr, crateroot.as_str());
+        debug!("PHIL going to search for {} in crateroot {}",searchstr, crateroot.as_str());
         for m in resolve_name(searchstr, crateroot, 0, searchtype, namespace) {
             out.push(m);
         }
@@ -865,9 +865,9 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
                                     search_type) {
                 out.push(m);
             }
-        }
-
+        },
         Enum => {
+            debug!("PHIL got an enum, looking for impl methods {}",m.matchstr);
             for m in search_for_impl_methods(m.matchstr.as_slice(),
                                     searchstr,
                                     m.point,
@@ -876,6 +876,19 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
                                     search_type) {
                 out.push(m);
             }
+        },
+        Trait => {
+            debug!("PHIL got a trait, looking for methods {}",m.matchstr);
+
+            let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
+            let mut src = str::from_utf8(filetxt.as_slice()).unwrap();
+            src = src.slice_from(m.point);
+            src.slice_from(m.point).find_str("{").map(|n|{
+                let point = m.point + n + 1;
+                for m in search_scope_for_methods(point, src, searchstr, &m.filepath, search_type) {
+                    out.push(m);
+                }
+            });
         }
         _ => ()
     };
