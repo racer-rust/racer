@@ -164,8 +164,31 @@ fn find_match(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
 
 fn find_type_match(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
     let myfqn = util::to_refs(fqn);  
-    return resolve_path(myfqn.as_slice(), fpath, pos,
-        racer::ExactMatch, racer::TypeNamespace).nth(0);
+    return resolve_path(myfqn.as_slice(), fpath, pos, racer::ExactMatch, 
+               racer::TypeNamespace).nth(0).and_then(|m| {
+                   match m.mtype {
+                       racer::Type => get_type_of_typedef(m),
+                       _ => Some(m)
+                   }
+               });
+}
+
+fn get_type_of_typedef(m: Match) -> Option<Match> {
+    debug!("PHIL get_type_of_typedef match is {}",m);
+    let msrc = racer::load_file_and_mask_comments(&m.filepath);
+    let blobstart = m.point - 5;  // - 5 because 'type '
+    let blob = msrc.as_slice().slice_from(blobstart);
+
+    return racer::codeiter::iter_stmts(blob).nth(0).and_then(|(start, end)|{
+        let blob = msrc.as_slice().slice(blobstart + start, blobstart+end).to_string();
+        debug!("PHIL get_type_of_typedef blob string {}",blob);
+        let res = parse_type(blob);
+        debug!("PHIL get_type_of_typedef parsed type {}",res.type_);
+        return Some(res.type_);
+    }).and_then(|fqn|{
+        let fqn = util::to_refs(&fqn);
+        nameres::resolve_path_with_str(fqn.as_slice(), &m.filepath, m.point, racer::ExactMatch, racer::TypeNamespace).nth(0)
+    });
 }
 
 fn get_type_of_path(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
@@ -178,8 +201,6 @@ fn get_type_of_path(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match>
         return None;
     }
 }
-
-
 
 impl visit::Visitor<()> for ExprTypeVisitor {
     fn visit_expr(&mut self, expr: &ast::Expr, _: ()) { 
@@ -203,7 +224,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                         Some(ref m) => {
                             let fqn = racer::typeinf::get_return_type_of_function(m);
                             debug!("PHIL found exprcall return type: {}",fqn);
-                            newres = find_match(&fqn, &m.filepath, m.point);
+                            newres = find_type_match(&fqn, &m.filepath, m.point);
                         },
                         None => {}
                     }
@@ -244,14 +265,15 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                             Some(ref m) => {
                             let fqn = racer::typeinf::get_return_type_of_function(m);
                             debug!("PHIL found exprcall return type: {}",fqn);
-                            newres = find_match(&fqn, &m.filepath, m.point);
-     
+                            newres = find_type_match(&fqn, &m.filepath, m.point);
+                            
                             }
                             None => {}
                         }
                     }
                     None => {}
                 }
+                debug!("PHIL at end of method call, type is {}",newres);
                 self.result = newres;
             }
 
@@ -434,6 +456,45 @@ impl visit::Visitor<()> for StructVisitor {
 
 
 
+        }
+    }
+}
+
+pub struct TypeVisitor {
+    pub name: Option<String>,
+    pub type_: Vec<String>
+}
+
+impl visit::Visitor<()> for TypeVisitor {
+    fn visit_item(&mut self, item: &ast::Item, _: ()) { 
+        match item.node {
+            ast::ItemTy(ty, _) => {
+                self.name = Some(token::get_ident(item.ident).get().to_string());
+
+                let typepath = match ty.node {
+                    ast::TyRptr(_, ref ty) => {
+                        match ty.ty.node {
+                            ast::TyPath(ref path, _, _) => {
+                                let type_ = path_to_vec(path);
+                                debug!("PHIL type type is {}", type_);
+                                type_
+                            }
+                            _ => Vec::new()
+                        }
+                    }
+                    ast::TyPath(ref path, _, _) => {
+                        let type_ = path_to_vec(path);
+                        debug!("PHIL type type is {}", type_);
+                        type_
+                    }
+                    _ => {
+                        Vec::new()  
+                    }
+                };
+                self.type_ = typepath;
+                debug!("PHIL typevisitor type is {}",self.type_);
+            }
+            _ => ()
         }
     }
 }
@@ -666,6 +727,14 @@ pub fn parse_trait(s: String) -> TraitVisitor {
     }).ok().unwrap();    
 }
 
+pub fn parse_type(s: String) -> TypeVisitor {
+    return task::try(proc() {
+        let stmt = string_to_stmt(s);
+        let mut v = TypeVisitor { name: None, type_: Vec::new() };
+        visit::walk_stmt(&mut v, &*stmt, ());
+        return v;
+    }).ok().unwrap();    
+}
 
 
 pub fn parse_fn_output(s: String) -> Vec<String> {

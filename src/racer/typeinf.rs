@@ -2,7 +2,7 @@
 
 use racer::{Match};
 use racer::util::{to_refs};
-use racer::nameres::{do_local_search_with_string};
+use racer::nameres::{resolve_path_with_str};
 use racer::{ast,codeiter,scopes};
 use racer;
 
@@ -56,7 +56,7 @@ fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<Match> {
         if decl.as_slice().starts_with("impl") {
             let implres = ast::parse_impl(decl);
             debug!("PHIL get_type_of_self_arg implres |{:?}|", implres);
-            return do_local_search_with_string(to_refs(&implres.name_path).as_slice(), &m.filepath, start, 
+            return resolve_path_with_str(to_refs(&implres.name_path).as_slice(), &m.filepath, start, 
                                                    ExactMatch, TypeNamespace).nth(0);
         } else {
             // // must be a trait
@@ -96,12 +96,12 @@ fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<Match> {
             if globalpos == m.point && ty_.len() != 0 {
                 let v = to_refs(&ty_);
                 let fqn = v.as_slice();
-                result = do_local_search_with_string(fqn, 
-                                                        &m.filepath, 
-                                                        globalpos, 
-                                                        racer::ExactMatch, 
-                                                        racer::TypeNamespace,  // just the type namespace
-                                                        ).nth(0);
+                result = resolve_path_with_str(fqn, 
+                                               &m.filepath, 
+                                               globalpos, 
+                                               racer::ExactMatch, 
+                                               racer::TypeNamespace,  // just the type namespace
+                                               ).nth(0);
             }
         }
         return result;

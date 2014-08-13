@@ -311,7 +311,7 @@ pub fn match_trait(msrc: &str, blobstart: uint, blobend: uint,
         let start = blob.find_str(format!("trait {}", searchstr).as_slice()).unwrap() + 6;
         let end = find_ident_end(blob, start);
         let l = blob.slice(start, end);
-        debug!("PHIL found!! a type {}", l);
+        debug!("PHIL found!! a trait {}", l);
         return Some(Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: blobstart + start,
@@ -326,7 +326,7 @@ pub fn match_trait(msrc: &str, blobstart: uint, blobend: uint,
         let start = blob.find_str(format!("pub trait {}", searchstr).as_slice()).unwrap() + 10;
         let end = find_ident_end(blob, start);
         let l = blob.slice(start, end);
-        debug!("PHIL found!! a pub type {}", l);
+        debug!("PHIL found!! a pub trait {}", l);
         return Some(Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: blobstart + start,

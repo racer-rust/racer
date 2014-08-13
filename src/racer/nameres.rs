@@ -536,7 +536,7 @@ pub fn search_prelude_file(searchstr: &str, search_type: SearchType,
     return out.move_iter();
 }
 
-pub fn do_local_search_with_string(path: &[&str], filepath: &Path, pos: uint, 
+pub fn resolve_path_with_str(path: &[&str], filepath: &Path, pos: uint, 
                                    search_type: SearchType, namespace: Namespace) -> vec::MoveItems<Match> {
     debug!("PHIL: do_local_search_with_string {}", path);
     
