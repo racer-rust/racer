@@ -12,7 +12,7 @@ use std::task;
 use racer::Match;
 use racer;
 use racer::util;
-use racer::nameres::{resolve_path};
+use racer::nameres::{resolve_path_with_str};
 use racer::typeinf;
 use syntax::visit::Visitor;
 use racer::nameres;
@@ -158,13 +158,13 @@ struct ExprTypeVisitor {
 
 fn find_match(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
     let myfqn = util::to_refs(fqn);  
-    return resolve_path(myfqn.as_slice(), fpath, pos, racer::ExactMatch,
+    return resolve_path_with_str(myfqn.as_slice(), fpath, pos, racer::ExactMatch,
         racer::BothNamespaces).nth(0);
 }
 
 fn find_type_match(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
     let myfqn = util::to_refs(fqn);  
-    return resolve_path(myfqn.as_slice(), fpath, pos, racer::ExactMatch, 
+    return resolve_path_with_str(myfqn.as_slice(), fpath, pos, racer::ExactMatch, 
                racer::TypeNamespace).nth(0).and_then(|m| {
                    match m.mtype {
                        racer::Type => get_type_of_typedef(m),
