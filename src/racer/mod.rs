@@ -84,7 +84,10 @@ pub fn complete_from_file(src: &str, filepath: &Path, pos: uint) -> vec::MoveIte
 
     match completetype {
         Path => {
-            let v : Vec<&str> = expr.split_str("::").collect();
+            let mut v : Vec<&str> = expr.split_str("::").collect();
+            if v[0] == "" {      // i.e. starts with '::' e.g. ::std::io::blah
+                v.remove(0);
+            }
             for m in nameres::resolve_path(v.as_slice(), filepath, pos, 
                                          StartsWith, BothNamespaces) {
                 out.push(m);
@@ -118,7 +121,10 @@ pub fn find_definition_(src: &str, filepath: &Path, pos: uint) -> Option<Match> 
 
     return match completetype {
         Path => {
-            let v : Vec<&str> = expr.split_str("::").collect();
+            let mut v : Vec<&str> = expr.split_str("::").collect();
+            if v[0] == "" {      // i.e. starts with '::' e.g. ::std::io::blah
+                v.remove(0);
+            }
             return nameres::resolve_path(v.as_slice(), filepath, pos, ExactMatch, BothNamespaces).nth(0);
         },
         Field => {
