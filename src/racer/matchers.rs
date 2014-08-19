@@ -476,6 +476,7 @@ pub fn match_fn(msrc: &str, blobstart: uint, blobend: uint,
                        contextstr: first_line(blob)
         });
     } else if local && blob.starts_with("fn") && txt_matches(search_type, format!("fn {}",searchstr).as_slice(), blob) && !typeinf::first_param_is_self(blob) {
+        debug!("PHIL found a fn starting {}",searchstr);
         // TODO: parse this properly
         let start = blob.find_str(format!("fn {}", searchstr).as_slice()).unwrap() + 3;
         let end = find_ident_end(blob, start);

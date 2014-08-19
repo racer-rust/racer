@@ -17,6 +17,8 @@ use racer::typeinf;
 use syntax::visit::Visitor;
 use racer::nameres;
 
+use std::io::{BufferedReader, File};
+
 #[deriving(Clone)]
 struct Scope {
     pub filepath: Path,
@@ -142,6 +144,59 @@ pub struct LetResult {
 }
 
 
+fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: uint) -> Option<Match> {
+    let mut it = path.segments.iter();
+    
+    let seg = it.next().unwrap();
+    
+    let name = token::get_ident(seg.identifier).get().to_string();
+    let mut context = nameres::resolve_name(name.as_slice(), 
+                                            filepath, pos, 
+                                            racer::ExactMatch, 
+                                            racer::BothNamespaces).nth(0);
+    for seg in it {
+
+        let m = match context { Some(ref m) => m.clone(), None => break };
+        match m.mtype {
+            racer::Module => {
+                debug!("PHIL searching a module '{}' (whole path: {})",m.matchstr, path);
+                
+                let name = token::get_ident(seg.identifier).get().to_string();
+                
+
+                // let searchstr = path[path.len()-1];
+                for m in nameres::search_next_scope(m.point, name.as_slice(), &m.filepath, racer::ExactMatch, false, racer::BothNamespaces).nth(0).move_iter() { 
+                    context = Some(m);
+                }
+            }
+            racer::Struct => {
+                debug!("PHIL found a struct. Now need to look for impl");
+                let name = token::get_ident(seg.identifier).get().to_string();
+                for m in nameres::search_for_impls(m.point, m.matchstr.as_slice(), &m.filepath, m.local, false) {
+                    debug!("PHIL found impl!! {}",m);
+
+                    let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
+                    let src = ::std::str::from_utf8(filetxt.as_slice()).unwrap();
+                    
+                    // find the opening brace and skip to it. 
+                    src.slice_from(m.point).find_str("{").map(|n|{
+                        let point = m.point + n + 1;
+                        for m in nameres::search_scope(point, src, name.as_slice(), &m.filepath, racer::ExactMatch, m.local, racer::BothNamespaces).nth(0).move_iter() {
+                            context = Some(m);
+                        }
+                    });
+                    
+                };
+            }
+            _ => {context = None; break}
+        }
+    }
+
+    debug!("PHIL resolve_ast_path returning {}", context);
+    return context;
+
+}
+
 fn path_to_vec(pth: &ast::Path) -> Vec<String> {
     let mut v = Vec::new();
     for seg in pth.segments.iter() {
@@ -209,11 +264,12 @@ impl visit::Visitor<()> for ExprTypeVisitor {
         match expr.node {
             ast::ExprPath(ref path) => {
                 debug!("PHIL expr is a path {}",path_to_vec(path));
-                let pathvec = path_to_vec(path);
-                self.result = get_type_of_path(&pathvec,
-                                               &self.scope.filepath,
-                                               self.scope.point);
-                debug!("PHIL exprpath: self.result is {}", self.result);
+                self.result = resolve_ast_path(path, 
+                                 &self.scope.filepath, 
+                                 self.scope.point).and_then(|m| {
+                   let msrc = racer::load_file_and_mask_comments(&m.filepath);
+                   typeinf::get_type_of_match(m, msrc.as_slice())
+                                 });
             }
             ast::ExprCall(callee_expression, _/*ref arguments*/) => {
                 self.visit_expr(&*callee_expression, ());
@@ -299,43 +355,16 @@ impl visit::Visitor<()> for ExprTypeVisitor {
 
 }
 
-// impl LetVisitor {
-//     fn visit_let_initializer(&mut self, name: &str, point: uint, init: Option<Gc<ast::Expr>> ) {
-
-//         // chances are we can't parse the init yet, so the default is to leave blank
-//         self.result = Some(LetResult{name: name.to_string(),
-//                                 point: point,
-//                                 inittype: None});
-//         if !self.parseinit {
-//             return;
-//         }
-
-//         debug!("PHIL result before is {:?}",self.result);
-//         // attempt to parse the init
-//         init.map(|initexpr| {
-//             debug!("PHIL init node is {:?}",initexpr.node);
-
-//             let mut v = ExprTypeVisitor{ scope: self.scope.clone(),
-//                                  result: None};
-//             v.visit_expr(&*initexpr, ());
-
-//             self.result = Some(LetResult{name: name.to_string(), point: point,
-//                                          inittype: v.result});
-
-//         });
-
-//         debug!("PHIL result is {:?}",self.result);
-//     }
-// }
-
 impl visit::Visitor<()> for LetVisitor {
 
     fn visit_decl(&mut self, decl: &ast::Decl, e: ()) { 
-        debug!("PHIL decl {:?}",decl);
+        debug!("PHIL visit_decl {:?}",decl);
         match decl.node {
             ast::DeclLocal(local) => {
+                debug!("PHIL visit_decl is a DeclLocal {:?}",local);
                 match local.pat.node {
                     ast::PatIdent(_ , ref spannedident, _) => {
+                        debug!("PHIL visit_decl is a patIdent {:?}",local);
                         let codemap::BytePos(point) = spannedident.span.lo;
                         let name = token::get_ident(spannedident.node).get().to_string();
 
@@ -345,11 +374,14 @@ impl visit::Visitor<()> for LetVisitor {
                                                      inittype: None});
                         if !self.need_type {
                             // don't need the type. All done
+                            debug!("PHIL visit_decl don't need the type. returning");
+                            
                             return;
                         }
 
-
                         // Parse the type
+                        debug!("PHIL visit_decl local.ty.node {:?}", local.ty.node);
+
                         let typepath = match local.ty.node {
                             ast::TyRptr(_, ref ty) => {
                                 match ty.ty.node {
@@ -372,9 +404,11 @@ impl visit::Visitor<()> for LetVisitor {
                         };
                         
                         if !typepath.is_empty() {
+                            debug!("PHIL visit_decl typepath is {}", typepath);
                             let m = get_type_of_path(&typepath,
                                                      &self.scope.filepath,
                                                      self.scope.point);
+                            debug!("PHIL visit_decl type of path {}", m);
                             self.result = Some(LetResult{name: name.to_string(), 
                                                          point: point as uint,
                                                          inittype: m});
@@ -403,7 +437,9 @@ impl visit::Visitor<()> for LetVisitor {
 
                 
             }
-            ast::DeclItem(_) => {}
+            ast::DeclItem(_) => {
+                println!("PHIL WARN visit_decl is a DeclItem. Not handled");
+            }
         }
 
         visit::walk_decl(self, decl, e);
@@ -683,7 +719,7 @@ pub fn parse_view_item(s: String) -> ViewItemVisitor {
 pub fn parse_let(s: String, fpath: Path, pos: uint, need_type: bool) -> Option<LetResult> {
 
     let result = task::try(proc() { 
-        debug!("PHIL parse_let s=|{}|",s);
+        debug!("PHIL parse_let s=|{}| need_type={}",s, need_type);
         let stmt = string_to_stmt(s);
         debug!("PHIL parse_let stmt={:?}",stmt);
         let scope = Scope{filepath: fpath, point: pos};
@@ -774,6 +810,7 @@ pub fn parse_enum(s: String) -> EnumVisitor {
     }).ok().unwrap();
 }
 
+
 pub fn get_type_of(s: String, fpath: &Path, pos: uint) -> Option<Match> {
     let myfpath = fpath.clone();
 
@@ -795,7 +832,11 @@ pub fn get_type_of(s: String, fpath: &Path, pos: uint) -> Option<Match> {
 #[test]
 fn ast_sandbox() {
 
-    // let src = "let foo : Bar = blah;";
+    //parse_let("let l : Vec<Blah>;".to_string(), Path::new("./ast.rs"), 0, true);
+    //parse_let("let l = Vec<Blah>::new();".to_string(), Path::new("./ast.rs"), 0, true);
+
+    //get_type_of("let l : Vec<Blah>;".to_string(), &Path::new("./ast.rs"), 0);
+    //fail!();
     // let stmt = string_to_stmt(String::from_str(src));
     // let mut v = LetVisitor{ scope: Scope {filepath: Path::new("./foo"), point: 0} , result: None, parseinit: true};
     // visit::walk_stmt(&mut v, &*stmt, ());

@@ -117,7 +117,7 @@ fn search_scope_for_methods(point: uint, src:&str, searchstr:&str, filepath:&Pat
 }
 
 
-fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool, include_traits: bool) -> vec::MoveItems<Match> {
+pub fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool, include_traits: bool) -> vec::MoveItems<Match> {
     debug!("PHIL search_for_impls {}, {}, {}", pos, searchstr, filepath.as_str());
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
     let mut src = str::from_utf8(filetxt.as_slice()).unwrap();
@@ -350,7 +350,7 @@ pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<Path> {
     return res;
 }
 
-fn search_next_scope(mut startpoint: uint, searchstr:&str, filepath:&Path, 
+pub fn search_next_scope(mut startpoint: uint, searchstr:&str, filepath:&Path, 
                      search_type: SearchType, local: bool, 
                      namespace: Namespace) -> vec::MoveItems<Match> {
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
@@ -416,10 +416,10 @@ pub fn get_module_file(name: &str, parentdir: &Path) -> Option<Path> {
 }
 
 
-fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path, 
+pub fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path, 
                 search_type: SearchType, local: bool,
                 namespace: Namespace) -> vec::MoveItems<Match> {
-    debug!("PHIL searching scope {} {} {}",point, searchstr, filepath.as_str());
+    debug!("PHIL searching scope {} {} {} {}",namespace, point, searchstr, filepath.as_str());
     
     let mut out = Vec::new();
 
@@ -890,7 +890,7 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
                 }
             });
         }
-        _ => ()
+        _ => { debug!("PHIL WARN!! context wasn't a Struct, Enum or Trait {}",m);}
     };
     return out.move_iter();
 }

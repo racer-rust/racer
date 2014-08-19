@@ -30,17 +30,20 @@ pub enum MatchType {
     Trait
 }
 
+#[deriving(Show)]
 pub enum SearchType {
     ExactMatch,
     StartsWith
 }
 
+#[deriving(Show)]
 pub enum Namespace {
     TypeNamespace,
     ValueNamespace,
     BothNamespaces
 }
 
+#[deriving(Show)]
 pub enum CompletionType {
     Field,
     Path
@@ -78,7 +81,8 @@ pub fn complete_from_file(src: &str, filepath: &Path, pos: uint) -> vec::MoveIte
 
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
-    debug!("PHIL contextstr is |{}|, searchstr is |{}|",contextstr, searchstr);
+    debug!("PHIL {}: contextstr is |{}|, searchstr is |{}|",
+           completetype, contextstr, searchstr);
 
     let mut out = Vec::new();
 
@@ -95,6 +99,7 @@ pub fn complete_from_file(src: &str, filepath: &Path, pos: uint) -> vec::MoveIte
         },
         Field => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
+            debug!("PHIL complete_from_file context is {}", context);
             context.map(|m| {
                 for m in nameres::search_for_field_or_method(m, searchstr, StartsWith) {
                     out.push(m)

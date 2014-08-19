@@ -117,7 +117,7 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<Match> {
     let src = msrc.slice_from(point);
     for (start,end) in codeiter::iter_stmts(src) { 
         let blob = src.slice(start,end);
-        
+        debug!("PHIL get_type_of_let_expr calling parse_let");
         return ast::parse_let(String::from_str(blob), m.filepath.clone(), m.point, true).map_or(None, |letres|{
 
             let inittype = letres.inittype;
