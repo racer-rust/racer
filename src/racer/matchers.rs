@@ -65,7 +65,9 @@ pub fn match_let(msrc: &str, blobstart: uint, blobend: uint,
                                     point: blobstart + letresult.point,
                                     local: local,
                                     mtype: Let,
-                                    contextstr: first_line(blob)
+                                    contextstr: first_line(blob),
+                                   generic_args: Vec::new(), 
+                                   generic_types: Vec::new()
                 });
             }
         });
@@ -111,7 +113,9 @@ pub fn match_extern_crate(msrc: &str, blobstart: uint, blobend: uint,
                                       point: 0,
                                       local: false,
                                       mtype: Module,
-                                      contextstr: cratepath.as_str().unwrap().to_string()
+                                      contextstr: cratepath.as_str().unwrap().to_string(),
+                                      generic_args: Vec::new(), 
+                                      generic_types: Vec::new()
                     });
                 });                
             });
@@ -127,7 +131,9 @@ pub fn match_extern_crate(msrc: &str, blobstart: uint, blobend: uint,
                                        point: 0,
                                        local: false,
                                        mtype: Module,
-                                       contextstr: modpath.as_str().unwrap().to_string()
+                                       contextstr: modpath.as_str().unwrap().to_string(),
+                                       generic_args: Vec::new(), 
+                                       generic_types: Vec::new()
                         });
                     });
 
@@ -163,7 +169,8 @@ pub fn match_mod(msrc: &str, blobstart: uint, blobend: uint,
                                point: blobstart + 4, 
                                local: false,
                                mtype: Module,
-                               contextstr: filepath.as_str().unwrap().to_string()
+                               contextstr: filepath.as_str().unwrap().to_string(),
+                                  generic_args: Vec::new(), generic_types: Vec::new()
                 });
                 
             } else {
@@ -181,7 +188,8 @@ pub fn match_mod(msrc: &str, blobstart: uint, blobend: uint,
                                    point: 0,
                                    local: false,
                                    mtype: Module,
-                                   contextstr: modpath.as_str().unwrap().to_string()
+                                   contextstr: modpath.as_str().unwrap().to_string(),
+                                      generic_args: Vec::new(), generic_types: Vec::new()
                     });
                 });
             }
@@ -202,7 +210,8 @@ pub fn match_mod(msrc: &str, blobstart: uint, blobend: uint,
                                point: blobstart + 8,
                                local: false,
                                mtype: Module,
-                               contextstr: blob.slice_to(blob.find_str("{").unwrap()).to_string()
+                               contextstr: blob.slice_to(blob.find_str("{").unwrap()).to_string(),
+                                  generic_args: Vec::new(), generic_types: Vec::new()
                 });
                 
             } else {
@@ -217,11 +226,13 @@ pub fn match_mod(msrc: &str, blobstart: uint, blobend: uint,
                 let searchdir = filepath.dir_path().join_many(internalpath.as_slice());
                 get_module_file(l, &searchdir).map(|modpath|{
                     res = Some(Match {matchstr: l.to_string(),
-                                   filepath: modpath.clone(), 
-                                   point: 0,
-                                   local: false,
-                                   mtype: Module,
-                                   contextstr: modpath.as_str().unwrap().to_string()
+                                      filepath: modpath.clone(), 
+                                      point: 0,
+                                      local: false,
+                                      mtype: Module,
+                                      contextstr: modpath.as_str().unwrap().to_string(),
+                                      generic_args: Vec::new(), 
+                                      generic_types: Vec::new()
                     });
                 });
             }
@@ -245,7 +256,8 @@ pub fn match_struct(msrc: &str, blobstart: uint, blobend: uint,
                            point: blobstart + start,
                            local: local,
                            mtype: Struct,
-                           contextstr: first_line(blob)
+                           contextstr: first_line(blob),
+                           generic_args: Vec::new(), generic_types: Vec::new()
         });
     }
 
@@ -260,7 +272,8 @@ pub fn match_struct(msrc: &str, blobstart: uint, blobend: uint,
                            point: blobstart + start,
                            local: local,
                            mtype: Struct,
-                           contextstr: first_line(blob)
+                           contextstr: first_line(blob),
+                           generic_args: Vec::new(), generic_types: Vec::new()
         });
     }
     return None
@@ -281,7 +294,8 @@ pub fn match_type(msrc: &str, blobstart: uint, blobend: uint,
                            point: blobstart + start,
                            local: local,
                            mtype: Type,
-                           contextstr: first_line(blob)
+                           contextstr: first_line(blob),
+                           generic_args: Vec::new(), generic_types: Vec::new()
         });
     }
     
@@ -296,7 +310,8 @@ pub fn match_type(msrc: &str, blobstart: uint, blobend: uint,
                            point: blobstart + start,
                            local: local,
                            mtype: Type,
-                           contextstr: first_line(blob)
+                           contextstr: first_line(blob),
+                           generic_args: Vec::new(), generic_types: Vec::new()
         });
     }
     return None;
@@ -317,7 +332,8 @@ pub fn match_trait(msrc: &str, blobstart: uint, blobend: uint,
                            point: blobstart + start,
                            local: local,
                            mtype: Trait,
-                           contextstr: first_line(blob)
+                           contextstr: first_line(blob),
+                           generic_args: Vec::new(), generic_types: Vec::new()
         });
     }
      
@@ -332,7 +348,8 @@ pub fn match_trait(msrc: &str, blobstart: uint, blobend: uint,
                            point: blobstart + start,
                            local: local,
                            mtype: Trait,
-                           contextstr: first_line(blob)
+                           contextstr: first_line(blob),
+                           generic_args: Vec::new(), generic_types: Vec::new()
         });
     }
     return None;
@@ -358,7 +375,9 @@ pub fn match_enum_variants(msrc: &str, blobstart: uint, blobend: uint,
                                    point: blobstart + offset,
                                    local: local,
                                    mtype: EnumVariant,
-                                   contextstr: first_line(blob.slice_from(offset))
+                                   contextstr: first_line(blob.slice_from(offset)),
+                                   generic_args: Vec::new(), 
+                                   generic_types: Vec::new()
                     };
                     out.push(m);
                 }
@@ -386,11 +405,13 @@ pub fn match_enum(msrc: &str, blobstart: uint, blobend: uint,
             if !exact_match || l == searchstr {
                 debug!("PHIL found!! a pub enum {}", l);
                 return Some(Match {matchstr: l.to_string(),
-                               filepath: filepath.clone(), 
-                               point: blobstart + start,
-                               local: local,
-                               mtype: Enum,
-                               contextstr: first_line(blob)
+                                   filepath: filepath.clone(), 
+                                   point: blobstart + start,
+                                   local: local,
+                                   mtype: Enum,
+                                   contextstr: first_line(blob),
+                                   generic_args: Vec::new(), 
+                                   generic_types: Vec::new()
                 });
             }
         } else if blob.starts_with(format!("enum {}", searchstr).as_slice()) {
@@ -400,11 +421,13 @@ pub fn match_enum(msrc: &str, blobstart: uint, blobend: uint,
             let l = blob.slice(start, end);
             debug!("PHIL found!! a local enum {}", l);
             return Some(Match {matchstr: l.to_string(),
-                           filepath: filepath.clone(), 
-                           point: blobstart + start,
-                           local: local,
-                           mtype: Enum,
-                           contextstr: first_line(blob)
+                               filepath: filepath.clone(), 
+                               point: blobstart + start,
+                               local: local,
+                               mtype: Enum,
+                               contextstr: first_line(blob),
+                               generic_args: Vec::new(), 
+                               generic_types: Vec::new()
             });
         }
     }
@@ -473,7 +496,9 @@ pub fn match_fn(msrc: &str, blobstart: uint, blobend: uint,
                        point: blobstart + start,
                        local: local,
                        mtype: Function,
-                       contextstr: first_line(blob)
+                       contextstr: first_line(blob),
+                           generic_args: Vec::new(), 
+                           generic_types: Vec::new()
         });
     } else if local && blob.starts_with("fn") && txt_matches(search_type, format!("fn {}",searchstr).as_slice(), blob) && !typeinf::first_param_is_self(blob) {
         debug!("PHIL found a fn starting {}",searchstr);
@@ -486,7 +511,9 @@ pub fn match_fn(msrc: &str, blobstart: uint, blobend: uint,
                        point: blobstart + start,
                        local: local,
                        mtype: Function,
-                       contextstr: first_line(blob)
+                       contextstr: first_line(blob),
+                           generic_args: Vec::new(), 
+                           generic_types: Vec::new()
         });
     }
     return None;

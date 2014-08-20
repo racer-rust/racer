@@ -56,12 +56,14 @@ pub struct Match {
     pub point: uint,
     pub local: bool,
     pub mtype: MatchType,
-    pub contextstr: String
+    pub contextstr: String,
+    pub generic_args: Vec<String>,
+    pub generic_types: Vec<Match>
 }
 
 impl fmt::Show for Match {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Match [ {}, {}, {}, {}, {}, |{}| ]", self.matchstr, self.filepath.as_str(), 
+        write!(f, "Match [{}, {}, {}, {}, {}, |{}|]", self.matchstr, self.filepath.as_str(), 
                self.point, self.local, self.mtype, self.contextstr)
     }
 }

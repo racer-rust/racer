@@ -616,6 +616,25 @@ fn finds_field_type() {
     assert_eq!("subfield", got.matchstr.as_slice());
 }
 
+#[test]
+fn finds_a_generic_retval_from_a_function() {
+    let src="
+    pub struct Blah { subfield: uint }
+    pub struct Foo<T> {
+        myfield: T
+    }
+    fn myfn() -> Foo<Blah> {}
+    myfn().myfield.subfield
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 7, 24);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("subfield", got.matchstr.as_slice());
+}
+
+
 // #[test]
 // fn finds_methods_of_string_slice() {
 //     let src = "

@@ -51,7 +51,8 @@ fn search_struct_fields(searchstr: &str, m: &Match,
                                 point: fpos + opoint.unwrap(),
                                 local: m.local,
                                 mtype: StructField,
-                                contextstr: field.to_string()
+                                contextstr: field.to_string(),
+                                generic_args: Vec::new(), generic_types: Vec::new()
             });
         }
     }
@@ -107,7 +108,8 @@ fn search_scope_for_methods(point: uint, src:&str, searchstr:&str, filepath:&Pat
                            point: point + blobstart + start,
                            local: true,
                            mtype: Function,
-                           contextstr: ctxt.to_string()
+                           contextstr: ctxt.to_string(),
+                           generic_args: Vec::new(), generic_types: Vec::new()
                 };
                 out.push(m);
             });
@@ -145,7 +147,9 @@ pub fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool
                                        point: pos + start + 5,
                                        local: local,
                                        mtype: Impl,
-                                       contextstr: name.to_string()
+                                       contextstr: name.to_string(),
+                                       generic_args: Vec::new(), 
+                                       generic_types: Vec::new()
                         };
                         out.push(m);
                     });
@@ -197,7 +201,8 @@ fn search_fn_args(point: uint, msrc:&str, searchstr:&str, filepath:&Path,
                                         point: n + pos - impl_header,
                                         local: local,
                                         mtype: FnArg,
-                                     contextstr: s.to_string()
+                                     contextstr: s.to_string(),
+                                     generic_args: Vec::new(), generic_types: Vec::new()
                     });
                 };
             }
@@ -210,8 +215,10 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
     debug!("PHIL do_file_search {}",searchstr);
     let mut out = Vec::new();
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
+    debug!("PHIL do_file_search srcpaths {}",srcpaths);
     let v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
     let v = v.append_one(currentdir.as_str().unwrap());
+    debug!("PHIL do_file_search v is {}",v);
     for srcpath in v.move_iter() {
         match std::io::fs::readdir(&Path::new(srcpath)) {
             Ok(v) => {
@@ -227,7 +234,9 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
                                            point: 0,
                                            local: false,
                                            mtype: Module,
-                                           contextstr: fname.slice_from(3).to_string()
+                                           contextstr: fname.slice_from(3).to_string(),
+                                           generic_args: Vec::new(), 
+                                           generic_types: Vec::new()
                             };
                             out.push(m);
                         }
@@ -244,7 +253,9 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
                                                point: 0,
                                                local: false,
                                                mtype: Module,
-                                               contextstr: filepath.as_str().unwrap().to_string()
+                                               contextstr: filepath.as_str().unwrap().to_string(),
+                                               generic_args: Vec::new(), 
+                                               generic_types: Vec::new()
                                 };
                                 out.push(m);
                             }
@@ -258,7 +269,9 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
                                                point: 0,
                                                local: false,
                                                mtype: Module,
-                                               contextstr: filepath.as_str().unwrap().to_string()
+                                               contextstr: filepath.as_str().unwrap().to_string(),
+                                               generic_args: Vec::new(), 
+                                               generic_types: Vec::new()
                                 };
                                 out.push(m);
                             }
@@ -272,7 +285,9 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
                                                point: 0,
                                                local: false,
                                                mtype: Module,
-                                               contextstr: filepath.as_str().unwrap().to_string()
+                                               contextstr: filepath.as_str().unwrap().to_string(),
+                                               generic_args: Vec::new(), 
+                                               generic_types: Vec::new()
                                 };
                                 out.push(m);
                             }
@@ -285,7 +300,9 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
                                                point: 0,
                                                local: false,
                                                mtype: Module,
-                                               contextstr: fpath.as_str().unwrap().to_string()
+                                               contextstr: fpath.as_str().unwrap().to_string(),
+                                               generic_args: Vec::new(), 
+                                               generic_types: Vec::new()
                                 };
                                 out.push(m);
                             }
@@ -475,6 +492,7 @@ pub fn search_scope(point: uint, src:&str, searchstr:&str, filepath:&Path,
             }
         }
     }
+    debug!("PHIL search_scope found matches {}",out);
     return out.move_iter();
 }
 
@@ -555,7 +573,9 @@ pub fn resolve_path_with_str(path: &[&str], filepath: &Path, pos: uint,
                            point: str_match.point,
                            local: false,
                            mtype: Struct,
-                           contextstr: "str".to_string()
+                           contextstr: "str".to_string(),
+                           generic_args: Vec::new(), 
+                           generic_types: Vec::new()
             };
             out.push(m);
         });
@@ -653,7 +673,8 @@ pub fn resolve_name<'a>(searchstr: &str, filepath: &Path, pos: uint,
                         point: 0,
                         local: false,
                         mtype: Module,
-                        contextstr: cratepath.as_str().unwrap().to_string()
+                        contextstr: cratepath.as_str().unwrap().to_string(),
+                        generic_args: Vec::new(), generic_types: Vec::new()
             }
         });
         return BoxIter { iter: box r.move_iter() };
@@ -813,7 +834,9 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, search_type
                            point: 0,
                            local: false,
                            mtype: Module,
-                           contextstr: path.as_str().unwrap().to_string()
+                           contextstr: path.as_str().unwrap().to_string(),
+                           generic_args: Vec::new(),
+                           generic_types: Vec::new()
                            });
         });
 

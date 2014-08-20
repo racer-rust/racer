@@ -9,14 +9,14 @@ use syntax::visit;
 use syntax::codemap;
 use std::gc::Gc;
 use std::task;
+use std::str;
 use racer::Match;
 use racer;
-use racer::util;
+use racer::{util,scopes};
 use racer::nameres::{resolve_path_with_str};
 use racer::typeinf;
 use syntax::visit::Visitor;
 use racer::nameres;
-
 use std::io::{BufferedReader, File};
 
 #[deriving(Clone)]
@@ -143,19 +143,34 @@ pub struct LetResult {
     pub inittype: Option<Match>
 }
 
+// fn resolve_ast_pathsegment(seg: ast::PathSegment, filepath: &Path, pos: uint) -> Option<Match> {
+    
+// }
 
 fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: uint) -> Option<Match> {
     let mut it = path.segments.iter();
-    
+
     let seg = it.next().unwrap();
-    
+   
+ 
     let name = token::get_ident(seg.identifier).get().to_string();
     let mut context = nameres::resolve_name(name.as_slice(), 
                                             filepath, pos, 
                                             racer::ExactMatch, 
-                                            racer::BothNamespaces).nth(0);
-    for seg in it {
+                                            racer::BothNamespaces).nth(0);    
+    for ty in seg.types.iter() {
+        println!("PHIL resolve_ast_path type is {:?}",ty);
 
+        match ty.node {
+            ast::TyPath(ref path, _, _) => {
+                let m = resolve_ast_path(path, filepath, pos);
+                println!("PHIL GENERIC TYPE MATCH WAS {}",m);
+            }
+            _ => ()
+        }
+    }
+
+    for seg in it {
         let m = match context { Some(ref m) => m.clone(), None => break };
         match m.mtype {
             racer::Module => {
@@ -278,9 +293,8 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                     let res = &self.result;
                     match *res {
                         Some(ref m) => {
-                            let fqn = racer::typeinf::get_return_type_of_function(m);
-                            debug!("PHIL found exprcall return type: {}",fqn);
-                            newres = find_type_match(&fqn, &m.filepath, m.point);
+                            newres = get_return_type_of_function(m);
+                            debug!("PHIL found exprcall return type: {}",newres);
                         },
                         None => {}
                     }
@@ -585,6 +599,29 @@ impl visit::Visitor<()> for ImplVisitor {
     }
 }
 
+pub struct FnTypeVisitor {
+    m: Option<Match>,
+    ctx: Match
+}
+
+impl visit::Visitor<String> for FnTypeVisitor {
+    fn visit_fn(&mut self, fk: &visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId, name: String) {
+        println!("PHIL FnTypeVisitor!!");
+        if name.as_slice() == "return_value" {
+            match fd.output.node {
+                ast::TyPath(ref path, _, _) => {
+                    //self.output = path_to_vec(path);
+                    self.m = resolve_ast_path(path, 
+                                              &self.ctx.filepath, 
+                                              self.ctx.point);
+                    debug!("PHIL visit_fn: return type is {}",self.m);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
 pub struct FnVisitor {
     pub name: String,
     pub output: Vec<String>,
@@ -826,6 +863,29 @@ pub fn get_type_of(s: String, fpath: &Path, pos: uint) -> Option<Match> {
         visit::walk_stmt(&mut v, &*stmt, ());
         return v.result;
     }).ok().unwrap();
+}
+
+pub fn get_return_type_of_function(fnmatch: &Match) -> Option<Match> {
+    let filetxt = BufferedReader::new(File::open(&fnmatch.filepath)).read_to_end().unwrap();
+    let src = str::from_utf8(filetxt.as_slice()).unwrap();
+    let point = scopes::find_stmt_start(src, fnmatch.point).unwrap();
+    return src.slice_from(point).find_str("{").and_then(|n|{
+        // wrap in "impl blah { }" so that methods get parsed correctly too
+        let mut decl = String::new();
+        decl.push_str("impl blah {");
+        decl.push_str(src.slice(point, point+n+1));
+        decl.push_str("}}");
+        debug!("PHIL: passing in |{}|",decl);
+        //return ast::(decl);
+
+        let fnmatch = fnmatch.clone();  // copy for the closure
+        return task::try(proc() {
+            let stmt = string_to_stmt(decl);
+            let mut v = FnTypeVisitor { m: None, ctx: fnmatch };
+            visit::walk_stmt(&mut v, &*stmt, "return_value".to_string());
+            return v.m.unwrap(); // if None then will fail and parent will return None
+        }).ok();
+    });
 }
 
 

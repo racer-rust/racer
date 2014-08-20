@@ -66,7 +66,8 @@ fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<Match> {
                            point: start,
                            local: m.local,
                            mtype: racer::Trait,
-                           contextstr: racer::matchers::first_line(msrc.slice_from(start))
+                           contextstr: racer::matchers::first_line(msrc.slice_from(start)),
+                           generic_args: Vec::new(), generic_types: Vec::new()
                 })
             });
         }
@@ -192,6 +193,5 @@ pub fn get_return_type_of_function(fnmatch: &Match) -> Vec<String> {
         debug!("PHIL: passing in |{}|",decl);
         return ast::parse_fn_output(decl);
     }).unwrap_or(Vec::new());
-
     return outputpath;
 }
