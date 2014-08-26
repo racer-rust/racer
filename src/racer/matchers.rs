@@ -417,16 +417,12 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
 
     let mut out = Vec::new();
 
-    if searchstr.len() == 0 {
-        return out;
-    }
-
     let blob = msrc.slice(blobstart, blobend);
 
     if ((local && blob.starts_with("use ")) || blob.starts_with("pub use ")) && txt_matches(search_type, searchstr, blob) {     
-        if blob.match_indices(searchstr).count() == 1 {
+        if searchstr.len() != 0 && blob.match_indices(searchstr).count() == 1 {
             if blob.find_str((searchstr.to_string() + "::").as_slice()).is_some() {
-                // can't possible match, fail fast!
+                // can't possibly match, fail fast!
                 return out;
             }
         }
