@@ -1,6 +1,6 @@
 use std::io::File;
 use std::io::BufferedReader;
-use std::{str,vec,fmt};
+use std::{str,vec,fmt,path};
 
 pub mod scopes;
 pub mod ast;
@@ -52,7 +52,7 @@ pub enum CompletionType {
 #[deriving(Clone)]
 pub struct Match {
     pub matchstr: String,
-    pub filepath: Path,
+    pub filepath: path::Path,
     pub point: uint,
     pub local: bool,
     pub mtype: MatchType,
@@ -61,22 +61,57 @@ pub struct Match {
     pub generic_types: Vec<Match>
 }
 
+// The racer implementation of an ast::Path. Difference is that it is Send-able
+#[deriving(Show,Clone)]
+pub struct Path {
+    global: bool,
+    segments: Vec<PathSegment>
+}
+
+#[deriving(Show,Clone)]
+pub struct PathSegment {
+    pub name: String,
+    pub types: Vec<Path>
+}
+
+impl Match {
+    fn with_generic_types(&self, generic_types: Vec<Match>) -> Match {
+        Match {
+            matchstr: self.matchstr.clone(),
+            filepath: self.filepath.clone(),
+            point: self.point,
+            local: self.local,
+            mtype: self.mtype,
+            contextstr: self.contextstr.clone(),
+            generic_args: self.generic_args.clone(),
+            generic_types: generic_types
+        }
+    }
+}
+
 impl fmt::Show for Match {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Match [{}, {}, {}, {}, {}, |{}|]", self.matchstr, self.filepath.as_str(), 
-               self.point, self.local, self.mtype, self.contextstr)
+        write!(f, "Match [{}, {}, {}, {}, {}, {}, {} |{}|]", 
+               self.matchstr, 
+               self.filepath.as_str(), 
+               self.point, 
+               self.local, 
+               self.mtype, 
+               self.generic_args,
+               self.generic_types,
+               self.contextstr)
     }
 }
 
 
-pub fn load_file_and_mask_comments(filepath: &Path) -> String {
+pub fn load_file_and_mask_comments(filepath: &path::Path) -> String {
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
     let src = str::from_utf8(filetxt.as_slice()).unwrap();
     let msrc = scopes::mask_comments(src);
     return msrc;
 }
 
-pub fn complete_from_file(src: &str, filepath: &Path, pos: uint) -> vec::MoveItems<Match> {
+pub fn complete_from_file(src: &str, filepath: &path::Path, pos: uint) -> vec::MoveItems<Match> {
 
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = src.slice(start,pos);
@@ -91,10 +126,17 @@ pub fn complete_from_file(src: &str, filepath: &Path, pos: uint) -> vec::MoveIte
     match completetype {
         Path => {
             let mut v : Vec<&str> = expr.split_str("::").collect();
+            let mut global = false;
             if v[0] == "" {      // i.e. starts with '::' e.g. ::std::io::blah
                 v.remove(0);
+                global = true;
             }
-            for m in nameres::resolve_path(v.as_slice(), filepath, pos, 
+
+            let mut segs = v.iter().map(|x| PathSegment{name:x.to_string(), types: Vec::new()});
+            let segs : Vec<PathSegment> = segs.collect();
+            let path = Path{ global: global, segments: segs };
+
+            for m in nameres::resolve_path(&path, filepath, pos, 
                                          StartsWith, BothNamespaces) {
                 out.push(m);
             }
@@ -113,11 +155,11 @@ pub fn complete_from_file(src: &str, filepath: &Path, pos: uint) -> vec::MoveIte
 }
 
 
-pub fn find_definition(src: &str, filepath: &Path, pos: uint) -> Option<Match> {
+pub fn find_definition(src: &str, filepath: &path::Path, pos: uint) -> Option<Match> {
     return find_definition_(src, filepath, pos);
 }
 
-pub fn find_definition_(src: &str, filepath: &Path, pos: uint) -> Option<Match> {
+pub fn find_definition_(src: &str, filepath: &path::Path, pos: uint) -> Option<Match> {
 
     let (start, end) = scopes::expand_search_expr(src, pos);
     let expr = src.slice(start,end);
@@ -129,10 +171,19 @@ pub fn find_definition_(src: &str, filepath: &Path, pos: uint) -> Option<Match> 
     return match completetype {
         Path => {
             let mut v : Vec<&str> = expr.split_str("::").collect();
+            let mut global = false;
             if v[0] == "" {      // i.e. starts with '::' e.g. ::std::io::blah
                 v.remove(0);
+                global = true;
             }
-            return nameres::resolve_path(v.as_slice(), filepath, pos, ExactMatch, BothNamespaces).nth(0);
+
+            let mut segs = v.iter().map(|x| 
+                                 PathSegment{name:x.to_string(), types: Vec::new()});
+            let segs : Vec<PathSegment> = segs.collect();
+            let path = Path{ global: global, segments: segs };
+
+            return nameres::resolve_path(&path, filepath, pos, 
+                                         ExactMatch, BothNamespaces).nth(0);
         },
         Field => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);

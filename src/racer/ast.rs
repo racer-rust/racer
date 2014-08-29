@@ -9,10 +9,8 @@ use syntax::visit;
 use syntax::codemap;
 use std::gc::Gc;
 use std::task;
-use std::str;
 use racer::Match;
 use racer;
-use racer::{util,scopes};
 use racer::nameres::{resolve_path_with_str};
 use racer::typeinf;
 use syntax::visit::Visitor;
@@ -75,7 +73,7 @@ pub fn string_to_crate (source_str : String) -> ast::Crate {
 
 pub struct ViewItemVisitor {
     pub ident : Option<String>,
-    pub paths : Vec<Vec<String>>
+    pub paths : Vec<racer::Path>
 }
 
 impl visit::Visitor<()> for ViewItemVisitor {
@@ -84,27 +82,20 @@ impl visit::Visitor<()> for ViewItemVisitor {
             ast::ViewItemUse(ref path) => {
                 match path.node {
                     ast::ViewPathSimple(ident, ref path, _) => {
-                        let mut v = Vec::new();
-                        for seg in path.segments.iter() {
-                            v.push(token::get_ident(seg.identifier).get().to_string())
-                        }
-                        self.paths.push(v);
+                        self.paths.push(to_racer_path(path));
                         self.ident = Some(token::get_ident(ident).get().to_string());
                     },
                     ast::ViewPathList(ref pth, ref paths, _) => {
-                        let mut v = Vec::new();
-
-                        for seg in pth.segments.iter() {
-                            v.push(token::get_ident(seg.identifier).get().to_string())
-                        }
-
+                        let basepath = to_racer_path(pth);
                         for path in paths.iter() {
-                            //debug!("PHIL view path list item {}",token::get_ident(path.node.name));
                             match path.node {
                                 ast::PathListIdent{name, ..} => {
-                                    let mut vv = v.clone();
-                                    vv.push(token::get_ident(name).get().to_string());
-                                    self.paths.push(vv);
+                                    let name = token::get_ident(name).get().to_string();
+                                    let seg = racer::PathSegment{ name: name, types: Vec::new() };
+                                    let mut newpath = basepath.clone();
+
+                                    newpath.segments.push(seg);
+                                    self.paths.push(newpath);
                                 }
                                 ast::PathListMod{..} => (), // TODO
                             }
@@ -120,9 +111,14 @@ impl visit::Visitor<()> for ViewItemVisitor {
 
                 let ll = loc.clone();
                 ll.map(|(ref istr, _ /* str style */)| {
-                    let mut v = Vec::new();
-                    v.push(istr.get().to_string());
-                    self.paths.push(v);
+                    let name = istr.get().to_string();
+
+                    let pathseg = racer::PathSegment{ name: name, 
+                                                      types: Vec::new() };
+
+                    let path = racer::Path{ global: true, 
+                                 segments: vec!(pathseg) };
+                    self.paths.push(path);
                 });
             }
         }
@@ -148,30 +144,43 @@ pub struct LetResult {
 // }
 
 fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: uint) -> Option<Match> {
+
+    debug!("PHIL resolve_ast_path {}",to_racer_path(path));
+
     let mut it = path.segments.iter();
 
     let seg = it.next().unwrap();
    
  
     let name = token::get_ident(seg.identifier).get().to_string();
-    let mut context = nameres::resolve_name(name.as_slice(), 
+
+    let m = nameres::resolve_name(name.as_slice(), 
                                             filepath, pos, 
                                             racer::ExactMatch, 
-                                            racer::BothNamespaces).nth(0);    
+                                            racer::BothNamespaces).nth(0);
+
+    let m : Match = match m { Some(ref m) => m.clone(), None => return None };
+
+    let mut types = Vec::new();
     for ty in seg.types.iter() {
         println!("PHIL resolve_ast_path type is {:?}",ty);
 
         match ty.node {
             ast::TyPath(ref path, _, _) => {
-                let m = resolve_ast_path(path, filepath, pos);
-                println!("PHIL GENERIC TYPE MATCH WAS {}",m);
+                resolve_ast_path(path, filepath, pos).map(|m| {
+                    println!("PHIL GENERIC TYPE MATCH WAS {}",m);
+                    types.push(m);
+                });
             }
             _ => ()
         }
     }
 
+    //m.generic_types = types;
+
+    let mut context = Some(m.with_generic_types(types));
+
     for seg in it {
-        let m = match context { Some(ref m) => m.clone(), None => break };
         match m.mtype {
             racer::Module => {
                 debug!("PHIL searching a module '{}' (whole path: {})",m.matchstr, path);
@@ -212,13 +221,30 @@ fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: uint) -> Option<Matc
 
 }
 
-fn path_to_vec(pth: &ast::Path) -> Vec<String> {
-    let mut v = Vec::new();
+fn to_racer_path(pth: &ast::Path) -> racer::Path {
+
+    let mut v = Vec::new();    
     for seg in pth.segments.iter() {
-        v.push(token::get_ident(seg.identifier).get().to_string());
+        let name = token::get_ident(seg.identifier).get().to_string();
+        let mut types = Vec::new();    
+        for ty in seg.types.iter() {
+            types.push(match ty.node {
+                ast::TyPath(ref path, _, _) => to_racer_path(path),
+                _ => fail!(format!("Cannot handle type {:?}", ty.node))
+            });
+        }
+        v.push(racer::PathSegment{ name: name, types: types}); 
     }
-    return v;
+    return racer::Path{ global: pth.global, segments: v} ;
 }
+
+// fn path_to_vec(pth: &ast::Path) -> Vec<String> {
+//     let mut v = Vec::new();
+//     for seg in pth.segments.iter() {
+//         v.push(token::get_ident(seg.identifier).get().to_string());
+//     }
+//     return v;
+// }
 
 
 struct ExprTypeVisitor {
@@ -226,15 +252,26 @@ struct ExprTypeVisitor {
     result: Option<Match>
 }
 
-fn find_match(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
-    let myfqn = util::to_refs(fqn);  
-    return resolve_path_with_str(myfqn.as_slice(), fpath, pos, racer::ExactMatch,
+fn find_match(path: &racer::Path, fpath: &Path, pos: uint) -> Option<Match> {
+    return resolve_path_with_str(path, fpath, pos, racer::ExactMatch,
         racer::BothNamespaces).nth(0);
 }
 
-fn find_type_match(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
-    let myfqn = util::to_refs(fqn);  
-    return resolve_path_with_str(myfqn.as_slice(), fpath, pos, racer::ExactMatch, 
+// fn find_type_match(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
+//     let myfqn = util::to_refs(fqn);  
+//     return resolve_path_with_str(myfqn.as_slice(), fpath, pos, racer::ExactMatch, 
+//                racer::TypeNamespace).nth(0).and_then(|m| {
+//                    match m.mtype {
+//                        racer::Type => get_type_of_typedef(m),
+//                        _ => Some(m)
+//                    }
+//                });
+// }
+
+fn find_type_match(path: &racer::Path, fpath: &Path, pos: uint) -> Option<Match> {
+    //let myfqn = util::to_refs(fqn);  
+
+    return resolve_path_with_str(path, fpath, pos, racer::ExactMatch, 
                racer::TypeNamespace).nth(0).and_then(|m| {
                    match m.mtype {
                        racer::Type => get_type_of_typedef(m),
@@ -242,6 +279,8 @@ fn find_type_match(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> 
                    }
                });
 }
+
+
 
 fn get_type_of_typedef(m: Match) -> Option<Match> {
     debug!("PHIL get_type_of_typedef match is {}",m);
@@ -254,15 +293,14 @@ fn get_type_of_typedef(m: Match) -> Option<Match> {
         debug!("PHIL get_type_of_typedef blob string {}",blob);
         let res = parse_type(blob);
         debug!("PHIL get_type_of_typedef parsed type {}",res.type_);
-        return Some(res.type_);
-    }).and_then(|fqn|{
-        let fqn = util::to_refs(&fqn);
-        nameres::resolve_path_with_str(fqn.as_slice(), &m.filepath, m.point, racer::ExactMatch, racer::TypeNamespace).nth(0)
+        return res.type_;
+    }).and_then(|type_|{
+        nameres::resolve_path_with_str(&type_, &m.filepath, m.point, racer::ExactMatch, racer::TypeNamespace).nth(0)
     });
 }
 
-fn get_type_of_path(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
-    let om = find_match(fqn, fpath, pos);
+fn get_type_of_path(path: &racer::Path, fpath: &Path, pos: uint) -> Option<Match> {
+    let om = find_match(path, fpath, pos);
     if om.is_some() {
         let m = om.unwrap();
         let msrc = racer::load_file_and_mask_comments(&m.filepath);
@@ -278,7 +316,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
         //walk_expr(self, ex, e) 
         match expr.node {
             ast::ExprPath(ref path) => {
-                debug!("PHIL expr is a path {}",path_to_vec(path));
+                debug!("PHIL expr is a path {}",to_racer_path(path));
                 self.result = resolve_ast_path(path, 
                                  &self.scope.filepath, 
                                  self.scope.point).and_then(|m| {
@@ -293,7 +331,9 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                     let res = &self.result;
                     match *res {
                         Some(ref m) => {
-                            newres = get_return_type_of_function(m);
+                            newres = racer::typeinf::get_return_type_of_function(m)
+                                .and_then(|path| find_type_match(&path, &m.filepath, m.point));
+
                             debug!("PHIL found exprcall return type: {}",newres);
                         },
                         None => {}
@@ -302,7 +342,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                 self.result = newres;
             }
             ast::ExprStruct(ref path, _, _) => {
-                let pathvec = path_to_vec(path);
+                let pathvec = to_racer_path(path);
                 self.result = find_type_match(&pathvec,
                                          &self.scope.filepath,
                                          self.scope.point);
@@ -333,10 +373,11 @@ impl visit::Visitor<()> for ExprTypeVisitor {
 
                         match omethod {
                             Some(ref m) => {
-                            let fqn = racer::typeinf::get_return_type_of_function(m);
-                            debug!("PHIL found exprcall return type: {}",fqn);
-                            newres = find_type_match(&fqn, &m.filepath, m.point);
-                            
+                                let opath = racer::typeinf::get_return_type_of_function(m);
+                                debug!("PHIL found exprcall return type: {}", opath);
+                                opath.map(|path| {
+                                    newres = find_type_match(&path, &m.filepath, m.point);
+                                });
                             }
                             None => {}
                         }
@@ -349,12 +390,18 @@ impl visit::Visitor<()> for ExprTypeVisitor {
 
             ast::ExprField(subexpression, spannedident, _) => {
                 let fieldname = token::get_ident(spannedident.node).get().to_string();
+                debug!("PHIL exprfield {}",fieldname);
                 self.visit_expr(&*subexpression, ());
                 
                 // if expr is a field, parent is a struct (at the moment)
                 let m = self.result.clone();
 
                 let newres = m.and_then(|m|{
+                    debug!("PHIL !!!!! generic args {} {} contains {}",
+                           fieldname,
+                           m.generic_args, 
+                           m.generic_args.contains(&fieldname));
+
                     typeinf::get_struct_field_type(fieldname.as_slice(), &m)
                 });
 
@@ -400,26 +447,26 @@ impl visit::Visitor<()> for LetVisitor {
                             ast::TyRptr(_, ref ty) => {
                                 match ty.ty.node {
                                     ast::TyPath(ref path, _, _) => {
-                                        let type_ = path_to_vec(path);
+                                        let type_ = to_racer_path(path);
                                         debug!("PHIL struct field type is {}", type_);
-                                        type_
+                                        Some(type_)
                                     }
-                                    _ => Vec::new()
+                                    _ => None
                                 }
                             }
                             ast::TyPath(ref path, _, _) => {
-                                let type_ = path_to_vec(path);
+                                let type_ = to_racer_path(path);
                                 debug!("PHIL struct field type is {}", type_);
-                                type_
+                                Some(type_)
                             }
                             _ => {
-                                Vec::new()  
+                                None
                             }
                         };
                         
-                        if !typepath.is_empty() {
+                        if typepath.is_some() {
                             debug!("PHIL visit_decl typepath is {}", typepath);
-                            let m = get_type_of_path(&typepath,
+                            let m = get_type_of_path(&typepath.unwrap(),
                                                      &self.scope.filepath,
                                                      self.scope.point);
                             debug!("PHIL visit_decl type of path {}", m);
@@ -462,7 +509,7 @@ impl visit::Visitor<()> for LetVisitor {
 }
 
 struct StructVisitor {
-    pub fields: Vec<(String, uint, Vec<String>)>
+    pub fields: Vec<(String, uint, Option<racer::Path>)>
 }
 
 impl visit::Visitor<()> for StructVisitor {
@@ -482,23 +529,22 @@ impl visit::Visitor<()> for StructVisitor {
                         ast::TyRptr(_, ref ty) => {
                             match ty.ty.node {
                                 ast::TyPath(ref path, _, _) => {
-                                    let type_ = path_to_vec(path);
+                                    let type_ = to_racer_path(path);
                                     debug!("PHIL struct field type is {}", type_);
-                                    type_
+                                    Some(type_)
                                 }
-                                _ => Vec::new()
+                                _ => None
                             }
                         }
                         ast::TyPath(ref path, _, _) => {
-                            let type_ = path_to_vec(path);
+                            let type_ = to_racer_path(path);
                             debug!("PHIL struct field type is {}", type_);
-                            type_
+                            Some(type_)
                         }
-                        _ => {
-                            Vec::new()  
-                        }
+                        _ => None
                     };
 
+                    
                     self.fields.push((n, point as uint, typepath));
                 }
                 _ => {}
@@ -512,7 +558,7 @@ impl visit::Visitor<()> for StructVisitor {
 
 pub struct TypeVisitor {
     pub name: Option<String>,
-    pub type_: Vec<String>
+    pub type_: Option<racer::Path>
 }
 
 impl visit::Visitor<()> for TypeVisitor {
@@ -525,21 +571,19 @@ impl visit::Visitor<()> for TypeVisitor {
                     ast::TyRptr(_, ref ty) => {
                         match ty.ty.node {
                             ast::TyPath(ref path, _, _) => {
-                                let type_ = path_to_vec(path);
+                                let type_ = to_racer_path(path);
                                 debug!("PHIL type type is {}", type_);
-                                type_
+                                Some(type_)
                             }
-                            _ => Vec::new()
+                            _ => None
                         }
                     }
                     ast::TyPath(ref path, _, _) => {
-                        let type_ = path_to_vec(path);
+                        let type_ = to_racer_path(path);
                         debug!("PHIL type type is {}", type_);
-                        type_
+                        Some(type_)
                     }
-                    _ => {
-                        Vec::new()  
-                    }
+                    _ => None
                 };
                 self.type_ = typepath;
                 debug!("PHIL typevisitor type is {}",self.type_);
@@ -565,8 +609,8 @@ impl visit::Visitor<()> for TraitVisitor {
 }
 
 pub struct ImplVisitor {
-    pub name_path: Vec<String>,
-    pub trait_path: Vec<String>
+    pub name_path: Option<racer::Path>,
+    pub trait_path: Option<racer::Path>,
 }
 
 impl visit::Visitor<()> for ImplVisitor {
@@ -575,14 +619,14 @@ impl visit::Visitor<()> for ImplVisitor {
             ast::ItemImpl(_,ref otrait, typ,_) => { 
                 match typ.node {
                     ast::TyPath(ref path, _, _) => {
-                        self.name_path = path_to_vec(path);
+                        self.name_path = Some(to_racer_path(path));
                     }
                     ast::TyRptr(_, ref ty) => {
                         // HACK for now, treat refs the same as unboxed types 
                         // so that we can match '&str' to 'str'
                         match ty.ty.node {
                             ast::TyPath(ref path, _, _) => {
-                                self.name_path = path_to_vec(path);
+                                self.name_path = Some(to_racer_path(path));
                             }
                             _ => {}
                         }
@@ -590,7 +634,7 @@ impl visit::Visitor<()> for ImplVisitor {
                     _ => {}
                 }
                 otrait.as_ref().map(|ref t|{
-                    self.trait_path = path_to_vec(&t.path);
+                    self.trait_path = Some(to_racer_path(&t.path));
                 });
 
             },
@@ -605,8 +649,7 @@ pub struct FnTypeVisitor {
 }
 
 impl visit::Visitor<String> for FnTypeVisitor {
-    fn visit_fn(&mut self, fk: &visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId, name: String) {
-        println!("PHIL FnTypeVisitor!!");
+    fn visit_fn(&mut self, _: &visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId, name: String) {
         if name.as_slice() == "return_value" {
             match fd.output.node {
                 ast::TyPath(ref path, _, _) => {
@@ -624,8 +667,8 @@ impl visit::Visitor<String> for FnTypeVisitor {
 
 pub struct FnVisitor {
     pub name: String,
-    pub output: Vec<String>,
-    pub args: Vec<(String, uint, Vec<String>)>,
+    pub output: Option<racer::Path>,
+    pub args: Vec<(String, uint, Option<racer::Path>)>,
     pub is_method: bool
 }
 
@@ -656,19 +699,19 @@ impl visit::Visitor<()> for FnVisitor {
                 ast::TyRptr(_, ref ty) => {
                     match ty.ty.node {
                         ast::TyPath(ref path, _, _) => {
-                            let type_ = path_to_vec(path);
+                            let type_ = to_racer_path(path);
                             debug!("PHIL arg type is {}", type_);
-                            type_
+                            Some(type_)
                         }
-                        _ => Vec::new()
+                        _ => None
                     }
                 }
                 ast::TyPath(ref path, _, _) => {
-                    let type_ = path_to_vec(path);
+                    let type_ = to_racer_path(path);
                     debug!("PHIL arg type is {}", type_);
-                    type_
+                    Some(type_)
                 }
-                _ => Vec::new()  
+                _ => None
             };
 
             debug!("PHIL typepath {}", typepath);
@@ -679,7 +722,7 @@ impl visit::Visitor<()> for FnVisitor {
 
         match fd.output.node {
             ast::TyPath(ref path, _, _) => {
-                self.output = path_to_vec(path);
+                self.output = Some(to_racer_path(path));
             }
             _ => {}
         }
@@ -707,6 +750,40 @@ impl visit::Visitor<()> for ModVisitor {
     }
 
 }
+
+pub struct GenericsVisitor {
+    pub generic_args: Vec<String>
+}
+
+impl visit::Visitor<()> for GenericsVisitor {
+    fn visit_generics(&mut self, g: &ast::Generics, _: ()) { 
+        for ty in g.ty_params.iter() {
+            self.generic_args.push(String::from_str(token::get_ident(ty.ident).get()));
+        }
+    }
+}
+
+pub struct StructDefVisitor {
+    pub name: Option<(String,uint)>,
+    pub generic_args: Vec<String>
+}
+
+impl visit::Visitor<()> for StructDefVisitor {
+    fn visit_generics(&mut self, g: &ast::Generics, _: ()) { 
+        for ty in g.ty_params.iter() {
+            self.generic_args.push(String::from_str(token::get_ident(ty.ident).get()));
+        }
+    }
+
+    fn visit_ident(&mut self, _sp: codemap::Span, _ident: ast::Ident, _e: ()) {
+        /*! Visit the idents */
+        let codemap::BytePos(point) = _sp.lo;
+        let name = String::from_str(token::get_ident(_ident).get());
+        self.name = Some((name,point as uint));
+    }
+}
+
+
 
 
 pub struct EnumVisitor {
@@ -773,7 +850,7 @@ pub fn parse_let(s: String, fpath: Path, pos: uint, need_type: bool) -> Option<L
     }
 }
 
-pub fn parse_struct_fields(s: String) -> Vec<(String, uint, Vec<String>)> {
+pub fn parse_struct_fields(s: String) -> Vec<(String, uint, Option<racer::Path>)> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = StructVisitor{ fields: Vec::new() };
@@ -785,7 +862,7 @@ pub fn parse_struct_fields(s: String) -> Vec<(String, uint, Vec<String>)> {
 pub fn parse_impl(s: String) -> ImplVisitor {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
-        let mut v = ImplVisitor { name_path: Vec::new(), trait_path: Vec::new() };
+        let mut v = ImplVisitor { name_path: None, trait_path: None };
         visit::walk_stmt(&mut v, &*stmt, ());
         return v;
     }).ok().unwrap();    
@@ -800,20 +877,39 @@ pub fn parse_trait(s: String) -> TraitVisitor {
     }).ok().unwrap();    
 }
 
+pub fn parse_struct_def(s: String) -> StructDefVisitor {
+    return task::try(proc() {
+        let stmt = string_to_stmt(s);
+        let mut v = StructDefVisitor { name: None, generic_args: Vec::new() };
+        visit::walk_stmt(&mut v, &*stmt, ());
+        return v;
+    }).ok().unwrap();
+}
+
+pub fn parse_generics(s: String) -> GenericsVisitor {
+    return task::try(proc() {
+        let stmt = string_to_stmt(s);
+        let mut v = GenericsVisitor { generic_args: Vec::new() };
+        visit::walk_stmt(&mut v, &*stmt, ());
+        return v;
+    }).ok().unwrap();
+}
+
 pub fn parse_type(s: String) -> TypeVisitor {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
-        let mut v = TypeVisitor { name: None, type_: Vec::new() };
+        let mut v = TypeVisitor { name: None, type_: None };
         visit::walk_stmt(&mut v, &*stmt, ());
         return v;
     }).ok().unwrap();    
 }
 
 
-pub fn parse_fn_output(s: String) -> Vec<String> {
+pub fn parse_fn_output(s: String) -> Option<racer::Path> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
-        let mut v = FnVisitor { name: "".to_string(), args: Vec::new(), output: Vec::new(), is_method: false };
+        let mut v = FnVisitor { name: "".to_string(), args: Vec::new(), 
+                                output: None, is_method: false };
         visit::walk_stmt(&mut v, &*stmt, ());
         return v.output;
     }).ok().unwrap();
@@ -823,7 +919,8 @@ pub fn parse_fn(s: String) -> FnVisitor {
     debug!("PHIL parse_fn |{}|",s);
     return task::try(proc() {
         let stmt = string_to_stmt(s);
-        let mut v = FnVisitor { name: "".to_string(), args: Vec::new(), output: Vec::new(), is_method: false };
+        let mut v = FnVisitor { name: "".to_string(), args: Vec::new(), 
+                                output: None, is_method: false };
         visit::walk_stmt(&mut v, &*stmt, ());
         return v;
     }).ok().unwrap();
@@ -865,28 +962,28 @@ pub fn get_type_of(s: String, fpath: &Path, pos: uint) -> Option<Match> {
     }).ok().unwrap();
 }
 
-pub fn get_return_type_of_function(fnmatch: &Match) -> Option<Match> {
-    let filetxt = BufferedReader::new(File::open(&fnmatch.filepath)).read_to_end().unwrap();
-    let src = str::from_utf8(filetxt.as_slice()).unwrap();
-    let point = scopes::find_stmt_start(src, fnmatch.point).unwrap();
-    return src.slice_from(point).find_str("{").and_then(|n|{
-        // wrap in "impl blah { }" so that methods get parsed correctly too
-        let mut decl = String::new();
-        decl.push_str("impl blah {");
-        decl.push_str(src.slice(point, point+n+1));
-        decl.push_str("}}");
-        debug!("PHIL: passing in |{}|",decl);
-        //return ast::(decl);
+// pub fn get_return_type_of_function(fnmatch: &Match) -> Option<Match> {
+//     let filetxt = BufferedReader::new(File::open(&fnmatch.filepath)).read_to_end().unwrap();
+//     let src = str::from_utf8(filetxt.as_slice()).unwrap();
+//     let point = scopes::find_stmt_start(src, fnmatch.point).unwrap();
+//     return src.slice_from(point).find_str("{").and_then(|n|{
+//         // wrap in "impl blah { }" so that methods get parsed correctly too
+//         let mut decl = String::new();
+//         decl.push_str("impl blah {");
+//         decl.push_str(src.slice(point, point+n+1));
+//         decl.push_str("}}");
+//         debug!("PHIL: passing in |{}|",decl);
+//         //return ast::(decl);
 
-        let fnmatch = fnmatch.clone();  // copy for the closure
-        return task::try(proc() {
-            let stmt = string_to_stmt(decl);
-            let mut v = FnTypeVisitor { m: None, ctx: fnmatch };
-            visit::walk_stmt(&mut v, &*stmt, "return_value".to_string());
-            return v.m.unwrap(); // if None then will fail and parent will return None
-        }).ok();
-    });
-}
+//         let fnmatch = fnmatch.clone();  // copy for the closure
+//         return task::try(proc() {
+//             let stmt = string_to_stmt(decl);
+//             let mut v = FnTypeVisitor { m: None, ctx: fnmatch };
+//             visit::walk_stmt(&mut v, &*stmt, "return_value".to_string());
+//             return v.m.unwrap(); // if None then will fail and parent will return None
+//         }).ok();
+//     });
+// }
 
 
 #[test]
@@ -897,8 +994,16 @@ fn ast_sandbox() {
 
     //get_type_of("let l : Vec<Blah>;".to_string(), &Path::new("./ast.rs"), 0);
     //fail!();
+
+
+    // let src = "pub struct Foo<T>;";
+    // let s = parse_generics(src.to_string());
+    // println!("PHIL out {} ", s.generic_args);
     // let stmt = string_to_stmt(String::from_str(src));
-    // let mut v = LetVisitor{ scope: Scope {filepath: Path::new("./foo"), point: 0} , result: None, parseinit: true};
+    // println!("PHIL stmt is {:?}",stmt);
+    // fail!();
+    // // let mut v = LetVisitor{ scope: Scope {filepath: Path::new("./foo"), point: 0} , result: None, parseinit: true};
+    // let mut v = StructDefVisitor {nam}
     // visit::walk_stmt(&mut v, &*stmt, ());
 
     // println!("PHIL {:?}", stmt);

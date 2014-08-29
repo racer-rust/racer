@@ -521,7 +521,7 @@ fn follows_chained_method_call() {
 fn differentiates_type_and_value_namespaces() {
     let src = "
     enum MyEnum{ Foo }
-    struct Foo {}
+    struct Foo;
     impl Foo { pub fn new() -> Foo {} }
     let l = Foo::new();
     ";

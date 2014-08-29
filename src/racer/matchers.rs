@@ -3,7 +3,7 @@ use std::{iter,option,str};
 use collections::vec;
 use racer::nameres::resolve_path;
 use racer::scopes;
-use racer::util::{symbol_matches, txt_matches, find_ident_end, to_refs};
+use racer::util::{symbol_matches, txt_matches, find_ident_end};
 use racer::nameres::{get_module_file, get_crate_file};
 use racer::typeinf;
 
@@ -124,7 +124,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: uint, blobend: uint,
             view_item.ident.clone().map(|ident|{
                 if symbol_matches(search_type, searchstr, ident.as_slice()) {
                     // e.g. extern core_collections = "collections";
-                    let ref real_str = view_item.paths[0][0];
+                    let ref real_str = view_item.paths[0].segments[0].name;
                     get_crate_file(real_str.as_slice()).map(|modpath|{
                         res = Some(Match {matchstr: ident.to_string(),
                                        filepath: modpath.clone(), 
@@ -245,38 +245,32 @@ pub fn match_struct(msrc: &str, blobstart: uint, blobend: uint,
                 searchstr: &str, filepath: &Path, search_type: SearchType,
                 local: bool) -> Option<Match> {
     let blob = msrc.slice(blobstart, blobend);
-    if local && txt_matches(search_type, format!("struct {}", searchstr).as_slice(), blob) {
+    if (local && txt_matches(search_type, format!("struct {}", searchstr).as_slice(), blob)) || txt_matches(search_type, format!("pub struct {}", searchstr).as_slice(), blob) {
         // TODO: parse this properly
         let start = blob.find_str(format!("struct {}", searchstr).as_slice()).unwrap() + 7;
         let end = find_ident_end(blob, start);
         let l = blob.slice(start, end);
-        debug!("PHIL found!! a local struct |{}|", l);
-        return Some(Match {matchstr: l.to_string(),
-                           filepath: filepath.clone(), 
-                           point: blobstart + start,
-                           local: local,
-                           mtype: Struct,
-                           contextstr: first_line(blob),
-                           generic_args: Vec::new(), generic_types: Vec::new()
-        });
-    }
+        debug!("PHIL found a struct |{}|", l);
 
-    if txt_matches(search_type, format!("pub struct {}", searchstr).as_slice(), blob) {
-        // TODO: parse this properly
-        let start = blob.find_str(format!("pub struct {}", searchstr).as_slice()).unwrap() + 11;
-        let end = find_ident_end(blob, start);
-        let l = blob.slice(start, end);
-        debug!("PHIL found!! a pub struct |{}|", l);
+        // Parse generics
+        let end = blob.find_str("{").or(blob.find_str(";"))
+            .expect("Can't find end of struct decl");
+        // structs with no values need to end in ';', not '{}'
+        let s = blob.slice_to(end).to_string().append(";");
+
+        let generics = ast::parse_generics(s);
+
         return Some(Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: blobstart + start,
                            local: local,
                            mtype: Struct,
                            contextstr: first_line(blob),
-                           generic_args: Vec::new(), generic_types: Vec::new()
+                           generic_args: generics.generic_args, 
+                           generic_types: Vec::new()
         });
     }
-    return None
+    return None;
 }
 
 pub fn match_type(msrc: &str, blobstart: uint, blobend: uint, 
@@ -455,23 +449,20 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
         let view_item = ast::parse_view_item(String::from_str(blob));
         let t1 = ::time::precise_time_s();
         debug!("PHIL ast use parse_view_item time {}",t1-t0);
-        for fqn_ in view_item.paths.iter() {
-            // HACK, convert from &[~str] to &[&str]
-            let mut fqn = to_refs(fqn_);  
-            //let fqn = v.as_slice();
-
+        for mut path in view_item.paths.move_iter() {
+            let len = path.segments.len();
             // if searching for a symbol and the last bit matches the symbol
             // then find the fqn
-            if fqn.len() == 1 && fqn.as_slice()[0] == searchstr {
+            if len == 1 && path.segments[0].name.as_slice() == searchstr {
                 // is an exact match of a single use stmt. 
                 // Do nothing because this will be picked up by the module
                 // search in a bit.
-            } else if fqn.as_slice()[fqn.len()-1].starts_with(searchstr) {
+            } else if path.segments[len-1].name.as_slice().starts_with(searchstr) {
                 // TODO: pretty sure this isn't correct/complete
-                if fqn.as_slice()[0] == "self" {
-                    fqn.remove(0);
+                if path.segments[0].name.as_slice() == "self" {
+                    path.segments.remove(0);
                 }
-                for m in resolve_path(fqn.as_slice(), filepath, 0, ExactMatch, BothNamespaces) {
+                for m in resolve_path(&path, filepath, 0, ExactMatch, BothNamespaces) {
                     out.push(m);
                 }
             }

@@ -1,0 +1,1824 @@
+01234567890123456789012345678901234567890123456789012345678901234567890123456789
+
+20140903
+
+- Still need racer::Path - Need a way to pass an ast::path through try{} blocks and retain the generic information. E.g for get_return_type_of_function()
+    - don't necessarily need the resolve_path() call though. 
+
+- Refactor: Do another generic test, then look for common stuff
+
+pub struct Blah { subfield: uint }
+pub enum MyOption<T> {
+    MySome(T),
+    MyNone
+}
+
+impl MyOption<T> {
+     pub fn unwrap() -> T {}
+}
+
+let s = MySome(Blah { 3 });
+s.unwrap().subfield
+
+Does anybody here run racer on windows? Somebody has an open issue with it regarding Paths, and I'm not sure what's wrong.
+
+
+20140902
+
+
+So Match requires matches for generic types, not type Paths. Types could be added at the name level?
+  - is this what we want, or should the types in matches just be TypePaths?
+      - can't be just type paths because they're not absolute. Need a frame of reference
+          (or a way to make them absolute)
+
+  - advantage of lazy is that don't always need to evaluate them - e.g. vec.<tab>
+
+      - if we do lazy, we must create the type 'Search' at the context
+           (which makes me wonder if we need all the path segment stuff. Gah!!!)
+
+
+
+Can you run 'racer find-definition' with the fully qualified filepath (rather than src/main.rs) and let me know what happens please?
+
+$ racer find-definition 47 17 C:\path\to\my\src\main.rs
+
+
+
+Thanks. Hmmm.. I'm not sure what racer is doing differently here. As far as I can see in the code, all the path construction is done using .join_many(). 
+Is '\Users\Owner\src\rust\src\libstd\os.rs' a legitimate path in windows? (i.e. does it default to C: if there's no drive qualifier)
+
+
+
+
+20140831
+
+Hello,
+
+I'm afraid I don't have a windows box so can't try this to reproduce. Would you mind testing a couple of things please?: 
+
+1. What happens if you make the env variable have the slashes the windows way? e.g. so
+RUST_SRC_PATH=C:\Users\Owner\src\rust\src 
+
+2. Racer uses rust Paths and looking at the code, currently prints them out using path.as_str().unwrap(). Would you mind doing a quick test on your box to see how rust is formatting them in your environment please?  E.g. try 
+
+    fn main() {
+   
+        let p = Path::new("C:/Users/Owner/src/rust/src");
+        println!("1 unix slashes path is {}", p.as_str().unwrap());
+    
+        let p = Path::new("C:\\Users\\Owner\\src\\rust\\src");
+        println!("2 windows backslashes path is {}", p.as_str().unwrap());
+    
+        let p = Path::new("C:/Users/Owner/src/rust/src");
+        p.join_many([Path::new("libstd"), Path::new("os.rs")]);
+    
+        println!("3 constructed path is {}", p.as_str().unwrap());
+    
+    }
+
+
+Thanks,
+
+Phil
+
+- is there a better way to match the generic stuff?
+  - a lot of searches seem to be names - e.g. variables. Do the paths in variables contain types?
+
+Only type paths can contain generic args
+
+
+struct field type matches generic type. 
+ - Struct match needs to contain the contrete type arg. But how?
+     - resolve_name needs to take a generic arg. (PathSegment?)
+        - yes, think it should take PathSegment instead of an extra arg.
+
+ - before refactoring, remove resolve_ast_path
+
+20140830
+
+NEXT: get_struct_field_type needs to return a racer::Path (racer::Type?) rather than a match
+
+
+20140829
+
+NEXT:
+ - rewrite resolve_path to be recursive again. The main reason is that sub searches must be types. Iterative doesn't buy much because it's back-forward loops in code that blow the stack, not decomposing the path into recursive subsearches.
+
+
+Types:  Matches might not cut it for refering to types. e.g. Foo:Bar+Baz. Maybe the match could point to a type expression composed of multiple types
+
+20140827
+NEXT: 
+ - finish converting view_item_visitor to generate racer::Paths
+
+
+20140826
+
+Should I be failing more?  E.g. if I can't find the type because of parsing, is it better to have a None type or to just .expect("can't parse type")?
+
+macros:
+rustc --pretty=expanded
+http://www.reddit.com/r/rust/comments/2e8f3m/the_case_for_rust_ide/cjx85im
+
+So could just handle macros by expanding the macro using rustc.
+
+20140825
+
+
+Now that we have racer::Path, change 'resolve Path' to handle racer::Paths instead of fqns. 
+ - The reason for racer::Paths is that compiler Paths contain a span, which is a GC type and can't be sent over task boundaries.
+
+
+racer::Path + rustc
+
+Hello. 
+
+This is just a quick brain dump: I'm currently adding generic support to racer. 
+
+In rust paths can contain generic arguments. e.g. 'std::vec::Vec::<uint>::new' and 'Vec<uint>'. Up until now I've been ignoring the generic arguments in racer and representing paths as lists of names ([&str]). With generic args I'd like to switch instead to using the libsyntax ast::Path which contains the generic types in each path segment. 
+
+Unfortunately the way rustc is currently implemented ast::Paths are not 'Send'able between threads because internally they have some GC'd fields in them (span contains a GC member). I'd like to reserve the ability to pass paths across threads for two reasons:
+
+ a) The libsyntax parser fails if it can't parse something, and I don't want racer to crash when this happens
+ b) Parsing source code is time consuming and I'd like to reserve the option to run sub-searches concurrently (e.g. for spidering traits)
+
+So instead I'm adding a racer::Path type. 
+
+The reason I mention this is that this kind of thing begs another question: Every so often I wonder if I'm making a mistake building the rust language features into racer, and should instead be trying to rewrite the existing rustc compiler code to operate on a more dynamic model of the resolved ast (rather than the current 'parse and resolve the whole crate' static one). Unfortunately each time I look into doing this it seems like a massive undertaking and I scurry back to the racer codebase. 
+
+Does anybody here have experience working in the rustc code? Is there a shortcut that I might be missing?
+
+Cheers,
+
+Phil
+
+
+
+
+
+
+
+get struct field type needs to pass the structmatch to parse_struct_fields.
+  - or maybe construct generic_args as a hashmap?
+     - needs to pass the str through and return iterator of Matches?
+
+
+- ast::Path doesn't implement 'Send'. Is because Span contains a GC'd type.  
+
+   - Create a new racer::Path type?
+   - Yes! adds optionality for now. Otherwise can't delay fetching a type.
+
+
+
+
+pcwalton
+https://d3fenhwk93s16g.cloudfront.net/6v0w5u/hd_webm.webm
+48:42
+
+20140824
+
+in ast.rs
+            ast::ExprField(subexpression, spannedident, _) => {
+  needs to check if the field type is a generic arg before calling typeinf::get_struct_field_type
+
+
+parse struct doesnt' get the right point for the name (is 0 (i.e. start of 'struct foo', not start of 'foo')
+
+
+
+20140822
+
+TODO:
+ - parse struct to obtain name and generic args
+ - follow wildcard use imports
+       use ast::*;
+
+
+(Racer author here) So you've got racer + emacs running on windows? Yours is the first report I've heard of somebody successfully trying it. Are you able to find-definition into the rust source?
+I'll try and incorporate your comments into the racer README - Thanks!
+
+20140820
+
+TODO:
+ - store generics in a match. Partially eval them? Easier to fully eval them for now?
+    - fully eval them probably simpler for now, do that.
+
+
+ - get_return_type_of_function needs to return a match
+   - parse_fn_output needs to return a match
+     - FnVisitor needs to support getting a type.
+        - maybe pass the arg we want the type of to fnvisitor?
+        - or some way of specifying a path including generic args?
+
+New pattern: Type matching separate to match finding. For type matching, pass the name of the element into the ast function, get a match back.
+
+   - will work for function args and is better for destructuring I think.
+
+
+ separate vec for generic argnames
+ separate vec for concrete arg types (matches)
+
+
+
+20140819
+
+Need to replace all the path fqns with path ast finds. 
+
+ - write a test that uses a generic, then try to complete it
+
+
+20140813
+
+TODO:
+   -  make ::std::io::blah work
+   -  resolve types (write a test).
+   - make let s: &str;  s.<tab>  work
+
+Also: Why does ExprTypeVisitor use find_match instead of find_type_match to find return types?
+
+20140812
+
+TODO:
+
+ make ::std::io::blah work
+
+
+Rename 'type' to 'typedef' or something?
+
+Can we rename the 'type' keyword to something else, maybe 'typedef'? 'type' is such a useful word to use in variable and attribute names.
+
+
+ I just think it would be a shame for rust to hit 1.0 and not allow developers to use it in their variables and attributes. 
+
+Yeah that's what I currently do. libsyntax uses 'ty', I guess for the same reason. Feels like a bit of a sucky workaround 
+
+
+Racer status update
+
+Racer has come on a bit since my last post.
+
+Here's a quick run down of the new stuff
+
+ - Method resolution got better. 
+
+Racer now searches traits for default method implementations. This means that e.g. a completion on a Vec method gives you all the methods available, including 'is_exists()' and other methods implemented in the sub traits. Racer can also resolve the type of 'self' so that it can match methods and fields when you're writing impls.
+
+ - Module searching got better: 
+
+Racer does a more accurate job of following 'extern crate' and nested modules. 
+
+ - Racer now supports explicit types in let expressions 
+
+
+(e.g. let v : Vec<uint> = ...) Racer parses the type after the colon. This gives you a way to 'tell' Racer the type if it isn't smart enough to deduce it.
+
+ - Design is cleaned up a bit
+
+Internally Racer now uses iterators everywhere instead of callback functions. (I mentioned callbacks as something I didn't like about the design in a previous post). I originally thought iterators would solve the 'don't do the whole search if I only need the first match' problem. Unfortunately writing lazy iterators in Rust is non-trivial when the thing you're iterating is nested and recursive (like a code search). Instead I've replaced the callbacks with an eager 'collect the results in a vector and return vec.move_iter()' in most places. This gives the impression of lazyness to the caller but still does the whole search even if all you want is the first match.
+
+I did manage to cobble together a lazy iterator by chaining together a bunch of procs in the central 'resolve_name' function. This speeds up racer a bunch. I
+
+
+Basically Racer is now pretty good at completing anything that does not involve:
+ - destructuring
+ - closures
+ - generics
+
+I'm planning to work on generics next. This means I'll be leaning a lot more heavily on libsyntax for.
+
+
+
+
+
+
+
+
+Unfortunately that's still a lot of code. I'm going to tackle generics first
+
+
+
+Iterators everywhere!
+
+As I mentioned in my <a href="http://phildawes.net/blog/2014/05/10/racer/">first post</a> about racer, one of the things about the implementation I wasn't keen on was the reliance on callback functions: racer would pass a callback arg to search functions, which they would then invoke when they found something. The problem with this was that the whole search happened regardless of whether you wanted just the first match.
+
+Unfortunately writing recursive lazy iterators in rust is a bit of a pain. I ended up making most of the functions return an eager-evaluating iterator (by collecting the results in a Vec and then returning a move_iter()). 
+
+In order to get some of the benefit of a lazy search I made the central 'resolve_name()' function somewhat lazy.  I constructed a lazy iterator by composing the function into a bunch of lazy 'proc's and chained them together into an iterator. This worked ok, but I couldn' ended up having the box the iterator to get it to compile.
+
+
+
+
+
+
+<pre>
+  "Internally the various searching functions should really return iterators so that the calling client can stop consuming whenever it wants. Instead I'm passing a callback arg to the methods which they then invoke when they find something. [...] This means the whole search happens regardless of whether you just want the first match."
+</pre>
+
+It turned out that iterators weren't what I was after 
+
+
+I spent a week converting all the 'found_match' callback arguments into iterators. Racer used to pass a 'found_match' callback to each matcher function which would then get called on each completion match. 
+
+
+
+
+This was ok but as I mentioned in <a href="http://phildawes.net/blog/2014/05/10/racer/">a previous post</a> the problem with this setup is that there's no way for the caller to say 'stop searching now'.
+
+Now when I set out on this big refactoring, I was kinda assuming 
+
+
+
+
+
+
+In search_for_field_or_method, need to handle traits directly
+
+20140811
+
+Hi Dobkeratops,
+
+Yes driving eldoc-style functionality is square in Racer's remit. I need to figure out how racer should best output function argument info so that they can be processed by frontends like eldoc. 
+
+
+
+Thanks for the bug report. This turned out to be a macro invocation confusing racer's statement iteration. In stdio.rs, before 'pub fn stdin()' there's a macro 'local_data_key!(local_stdout: Box<Writer + Send>)' which doesn't terminate with a semicolon.
+I've fixed it in master now.
+
+
+TODO:
+
+fix follows_self_to_trait_method. find_impl_start() doesn't find the impl. Why?
+  ** because the impl is a trait!! **
+
+
+TODO:
+why doesn't this complete?:
+
+std::io::stdin
+
+DONE:
+why does std::io::<tab> include from_errno?  - fixed. 
+
+
+20140809
+
+finds_field_type test:  Need to get the type of the field. At the moment just getting the Match of the field, not the type of the field.  Question: go directly to the type, or match the field first then get the type from the match?
+
+
+need to add std. Actually need to search for all crates, since can't match extern coll<tab>
+
+TODO: handle let mut v: Vec<&str> 
+
+optimisation:   Can we remove all the crate matching stuff in get_module_file()? - is it enough to just get the .rs file in the parent directory?
+optimisation:   When searching for static methods, I think I only need to look in 'impl's.
+
+
+
+'pub mod collections;' in /usr/local/src/rust/src/libcore/lib.rs gets resolved to /usr/local/src/rust/src/libcollections/lib.rs
+   - whereas it should get resolved to /usr/local/src/rust/src/libcore/collections.rs
+
+But then if we switch the order, 
+
+extern crate core_collections = "collections" in libstd gets resolved to '/usr/local/src/rust/src/libcore/collections.rs' where as it should get resolved to '/usr/local/src/rust/src/libcollections/lib.rs'
+
+
+ - Need to write specific searchers for extern crate (don't match a module), and pub mod (don't match a crate).
+
+ 
+
+
+20140808
+
+Cannot find 'use Collection' in covec.rs.
+  need to:
+    locate 
+
+
+
+Need to handle use {Collection}. Also why does searching for Vector take so long?
+ - Need to do module searching properly.
+    - search absolute path?  
+        Find crate root then only search static stuff?
+              - no use decls. Oh actually still need to search pub mod decls.
+
+
+
+
+
+finds traits more than once. Why?
+  first time is vec::new(), second time is v.<tab>.  Need to distinguish between static lookups and method (field) lookups.  Done?
+
+
+      7:PHIL found trait 0.195011 |[Clone]|
+      9:PHIL found trait 0.315356 |[Index]|
+     11:PHIL found trait 0.177915 |[FromIterator]|
+     13:PHIL found trait 0.060784 |[Extendable]|
+     15:PHIL found trait 0.052386 |[PartialEq]|
+     17:PHIL found trait 0.05179 |[PartialOrd]|
+     19:PHIL found trait 0.052383 |[Eq]|
+     21:PHIL found trait 0.055626 |[Equiv]|
+     23:PHIL found trait 0.067082 |[Ord]|
+     28:PHIL found trait 0.121528 |[Collection]|
+     30:PHIL found trait 0.056635 |[CloneableVector]|
+     32:PHIL found trait 0.382249 |[Mutable]|
+     34:PHIL found trait 0.422972 |[Vector]|
+     36:PHIL found trait 0.207163 |[Add]|
+     38:PHIL found trait 0.202414 |[Drop]|
+     40:PHIL found trait 0.230692 |[Default]|
+     42:PHIL found trait 0.216708 |[fmt, Show]|
+     44:PHIL found trait 0.16195 |[MutableSeq]|
+
+
+     46:PHIL found trait 0.198614 |[Clone]|
+     48:PHIL found trait 0.315691 |[Index]|
+     50:PHIL found trait 0.205763 |[FromIterator]|
+     52:PHIL found trait 0.098094 |[Extendable]|
+     54:PHIL found trait 0.19322 |[PartialEq]|
+     56:PHIL found trait 0.197748 |[PartialOrd]|
+     58:PHIL found trait 0.196938 |[Eq]|
+     60:PHIL found trait 0.212443 |[Equiv]|
+     62:PHIL found trait 0.193611 |[Ord]|
+     67:PHIL found trait 0.420978 |[Collection]|
+     69:PHIL found trait 0.213906 |[CloneableVector]|
+     71:PHIL found trait 0.373606 |[Mutable]|
+     73:PHIL found trait 0.426452 |[Vector]|
+     75:PHIL found trait 0.199278 |[Add]|
+     77:PHIL found trait 0.230177 |[Drop]|
+     79:PHIL found trait 0.218782 |[Default]|
+     81:PHIL found trait 0.235489 |[fmt, Show]|
+     83:PHIL found trait 0.161879 |[MutableSeq]|
+
+
+
+1CrFf6f9AjZMYmPnRK3QMQP3P9yfFs4DqV
+
+20140805
+
+Happens because finds Module, then unrolls the stack. resolve_name isn't enough.
+
+
+PHIL searchstack before push [Search { searchstr: Collection, filepath: Some(/usr/local/src/rust/src/libcollections/vec.rs), pos: 15250 }]
+PHIL searchstack after  push [Search { searchstr: Collection, filepath: Some(/usr/local/src/rust/src/libcollections/vec.rs), pos: 15250 }, Search { searchstr: core, filepath: 
+
+vec.rs 15250 is: 
+impl<T> Collection for Vec<T> {
+    #[inline]
+    fn len(&self) -> uint {
+        self.len
+    }
+}
+
+
+20140805
+
+Only need to check at the top of resolve_name. Need to add and remove searches in each thunk though.
+
+20140804
+
+Time for a searchcontext object?
+
+Things that trip racer up:
+
+- in libcollections/lib.rs:
+ pub use core::collections::Collection;
+
+- in vec.rs
+ use {Collection, Mutable, MutableSeq};
+
+
+Solution for now: store the resolve_name args in std::local_data, then check if we've tried to resolve_name in the same file before
+
+  - might break if doing try{} which spawns a new task
+
+
+
+20140801
+
+TODO: 
+trait method resolution. When looking for methods, if an impl references the trait then resolve the trait and look for method implementations in it.
+
+
+Sounds like an awesome e-book; I'd buy it!
+I haven't really looked at cargo yet. It surprised me a bit when they hired a ruby guy to write a (blessed) one even though the library ecosystem was pretty small and people were still figuring it out.
+
+BTW, are you going to the rust london meetup on 14th Aug?
+
+
+
+http://www.meetup.com/Rust-London-User-Group/
+
+
+
+Oh that's cool. My needs are more boring: I'm hoping to use it at work as a c++ replacement for algo trading software. Rust isn't there yet so I'm started racer in my spare time to get familiar with it .
+
+
+Hi Nat,
+
+You might remember me from xp tuesday back in the day. Anyway on rust reddit you mentioned you used racer + emacs a bit. Out of interest, do you run it on a mac?
+
+(The reason I ask is because somebody has reported a segfault bug on mac and I was wondering if it was an isolated thing or affected other people. I only have linux to test on)
+
+Hope you're well,
+
+Phil
+
+
+
+20140731
+
+Resolving 'self'.
+
+resolve_name should return the current possition as a match?
+  - no should resolve to the fnarg. Ast type is TyInfer
+
+  (and then get_type_of_match() does the resolution to the Struct?)
+
+20140728
+
+TODO:
+ - why can't I complete src.<tab> in handles_tricky_bit_from_str_rs() in codecleaner.rs?
+
+DONE:
+ - find String in codecleaner.rs from the function return type - finds the enum variant.
+    - is because searches aren't context sensitive at the moment. Is just searching for 'String'
+
+20140727
+
+Doesn't that just move the long type signature into the Struct?
+
+
+
+
+The error says 'expected no bounds but found `Send`'. I've never had to include 'Send' in the type description before and rustc won't parse e.g. collections::vec::MoveItems<racer::Match>:Send>. How should I include Send in the type signature?
+(Or should I be doing something else?)
+
+Thanks in advance!
+
+../racer/nameres.rs:623:12: 623:14 error: mismatched types: expected `core::iter::Chain<core::iter::Chain<core::iter::Chain<core::iter::Chain<core::iter::FlatMap<'static,proc() -> collections::vec::MoveItems<racer::Match>,core::option::Item<proc() -> collections::vec::MoveItems<racer::Match>>,collections::vec::MoveItems<racer::Match>>,core::iter::FlatMap<'static,proc() -> collections::vec::MoveItems<racer::Match>,core::option::Item<proc() -> collections::vec::MoveItems<racer::Match>>,collections::vec::MoveItems<racer::Match>>>,core::iter::FlatMap<'static,proc() -> collections::vec::MoveItems<racer::Match>,core::option::Item<proc() -> collections::vec::MoveItems<racer::Match>>,collections::vec::MoveItems<racer::Match>>>,core::iter::FlatMap<'static,proc() -> collections::vec::MoveItems<racer::Match>,core::option::Item<proc() -> collections::vec::MoveItems<racer::Match>>,collections::vec::MoveItems<racer::Match>>>,core::iter::FlatMap<'static,proc() -> collections::vec::MoveItems<racer::Match>,core::option::Item<proc() -> collections::vec::MoveItems<racer::Match>>,collections::vec::MoveItems<racer::Match>>>` but found `core::iter::Chain<core::iter::Chain<core::iter::Chain<core::iter::Chain<core::iter::FlatMap<'_,proc() -> collections::vec::MoveItems<racer::Match>,core::option::Item<proc() -> collections::vec::MoveItems<racer::Match>>,collections::vec::MoveItems<racer::Match>>,core::iter::FlatMap<'_,proc() -> collections::vec::MoveItems<racer::Match>,core::option::Item<proc() -> collections::vec::MoveItems<racer::Match>>,collections::vec::MoveItems<racer::Match>>>,core::iter::FlatMap<'_,proc() -> collections::vec::MoveItems<racer::Match>,core::option::Item<proc() -> collections::vec::MoveItems<racer::Match>>,collections::vec::MoveItems<racer::Match>>>,core::iter::FlatMap<'_,proc() -> collections::vec::MoveItems<racer::Match>,core::option::Item<proc() -> collections::vec::MoveItems<racer::Match>>,collections::vec::MoveItems<racer::Match>>>,core::iter::FlatMap<'_,proc() -> collections::vec::MoveItems<racer::Match>:Send,core::option::Item<proc() -> collections::vec::MoveItems<racer::Match>:Send>,collections::vec::MoveItems<racer::Match>>>` (expected no bounds but found `Send`)
+
+
+20140722
+
+TODO:
+
+ - continue resolve_name3 - add the rest of the resolve functions
+
+20140718
+How to make eager enough to get a biggest bang for buck?
+
+Start by making prelude search lazy
+
+
+
+20140716
+
+I think complete_from_file needs to return a trait object iterator
+
+
+20140715
+
+To make it lazier, need to start at the top and work down. 
+
+start with:
+    racer::complete_from_file
+and work down
+
+
+achdrwdrw
+swidrwdrw
+pjadrwdrw
+gstdrwdrw
+
+
+
+gstdrwdrw
+
+20140714
+
+2 problems to solve:
+  - make racer lazy
+        - how to skip a blob in flatmap?  - just return None.move_iter()
+
+      - try this out. create a toy problem.
+        "iterate numbers. Skip 
+
+
+ - write a proper iterator for search_scope. The state isn't that big.
+
+
+
+  - match types vs values namespace
+
+"Modules and types share the same namespace. Declaring a named type that has the same name as a module in scope is forbidden: that is, a type definition, trait, struct, enumeration, or type parameter can't shadow the name of a module in scope, or vice versa."
+
+
+resolving 'str'
+
+Hello!
+
+I'm trying to make racer resolve '&str' types properly. I've read that the separation of type and value namespaces means you can refer both to the 'str' type and the 'str' module[1]. However I would have thought that the 'str' type lives in the type namespace, and according to the reference guide modules and types share the same namespace. How should racer resolve the type?
+
+Thanks v much,
+
+Phil
+
+[1] http://tomlee.co/2014/04/03/a-more-detailed-tour-of-the-rust-compiler/
+
+
+
+
+20140712
+
+Adding lazyness to racer
+
+As I mentioned in my original post about racer, one of the things I wasn't that keen on about the design was the lack of iterators; or rather the lack of lazy evaluation. 
+
+<pre>
+  "Internally the various searching functions should really return iterators so that the calling client can stop consuming whenever it wants. Instead I'm passing a callback arg to the methods which they then invoke when they find something. [...] This means the whole search happens regardless of whether you just want the first match."
+</pre>
+
+Racer's code search used to look something like this: (illustration)
+
+find_completions_in_code(found_callback: |match|) {
+
+    for blob in code_iter(src) {                 // iterates stmts in code
+
+        match_use(blob, found_callback);
+        match_fn(blob, found_callback);
+        match_struct(blob, found_callback);
+
+    }
+
+} 
+
+code_iter returns an iterator that uses text-tricks to break the sourcecode text into statements. This was one of the only proper iterators in racer, and I found it a bit of a struggle to write. There's no 'yield' in racer, so you end up putting all the iteration state in a struct and process each loop at a time.
+
+
+
+
+I've made progress in adding laziness to racer's search, and I thought I'd write about it a bit.
+
+The first step I took was to convert everything to return iterators, albeit eagerly evaluated ones. The simplest way to do this is to do the whole search, putting the results in a vector and then returning the vector's move_iter().
+
+
+
+
+20140710
+
+I can use iter.chain() to chain together the different searches, and somehow magic the composition all together?
+
+composed = matchfoo(blah,blah).chain(
+   matchbar(blah,blah)).chain(
+   matchbaz(blah,blah));
+
+What about flatmap?
+
+
+blobs.flatmap(|start, end| {
+   return matchfoo(start, end, msrc).chain(
+          matchbar(start, end, msrc)).chain(
+          matchbaz(start, end, msrc));
+}
+
+
+20140709
+
+
+
+
+
+
+'str' and the type/value namespaces
+
+I've read that the separation of type and value namespaces means you can refer to the 'str' type and the 'str' module[1]. 
+However I thought that modules live in the 'type' namespace, and I'm guessing that the 'str' type also lives in the type namespace.
+How does rustc resolve the str type?
+(I'm interested because I'd like racer's name resolution to be as close to rusts as possible. Currently I have a couple of flimsy hacks around resolution of &str types)
+
+Thanks,
+
+Phil
+
+
+[1] http://tomlee.co/2014/04/03/a-more-detailed-tour-of-the-rust-compiler/
+
+
+
+
+TODO:
+ - write a function that turns outputfn stuff into an eager iterator
+
+
+
+Racer currently has some hacks to try and resolve the 'str' primative type, and I'd like to make a better job of it.
+
+fn blah(a: &str) {
+   
+}
+
+How should I be resolving 'str'? 
+
+
+I've read that the separation of type and value namespaces means you can refer to the 'str' type and the 'str' module, however I thought that modules lived in the 'type' namespace, and the str type sounds like a type to me. How should I be resolving 'str'?
+
+
+20140708
+
+Path searching is a fundamental thing I need, since ast represents paths directly.
+  - e.g. path parses as 'path', then just gets sent to resolve_path
+  - remove search_for_path and just do the resolve_path search directly
+
+
+For a path, the subpaths can be found in the type namespace. How to factor this?
+
+ - pass an enum down the search hierarchy?
+ - have seperate searches for type and value namespaces?
+      - I'd like to try the latter because it might tease out some abstraction.
+            - however will involve searching the scope twice, iterating the code blocks. Boo!
+               - maybe factor the searches into separate lambdas?
+
+
+20140707
+
+Where does name-resolution end?
+
+Should name resolution just be static? (e.g. functions, structs etc..)
+  - what about let statments? function args?
+  - those are static too!
+What does the compiler do?  Maybe the compiler doesn't need to resolve the position of a definition. For variables there can be multiple definitions. (can there? no)
+
+Maybe differenciate between external searches and internal (internal to function) searches?
+  - latter can maybe be done quickly enough via ast?
+     - can structs, enums etc.. be defined in function bodies?
+
+I now think every static lookup should be done in nameres.rs. 
+
+typeinference and fields can be done in 
+
+
+20140701
+
+Doesn't look the the following codeiters properly:
+
+macro_rules! otry(
+    ($e:expr) => (match $e { Some(e) => e, None => return })
+)
+
+The reason is that the code iterator only terminates a line on ';' or '}'.
+
+We could special case 'macro_rules!'
+
+
+
+
+just written generate_skeleton_for_parsing. Use this to do module parsing to find the local nested module. 
+
+
+So all 'use' paths are absolute from the crate root. Need to figure out the crate root.
+   - does the current file contain 'fn main() {}'?
+   - is there a lib.rs or main.rs in the current directory?
+
+
+20140629
+TODO: why doesn't this work?
+pub fn find_local_module(msrc: &str, point: uint) -> String {
+    let newstart = msrc.slice_from(start).f<tab>
+}
+
+
+20140625
+
+TODO: this doesn't complete unless there is a closing brace:
+fn myfn(s: String) {
+    s.
+
+PHIL box(GC) 
+
+syntax::codemap::Spanned<syntax::ast::Stmt_>{node: 
+StmtDecl(box(GC) syntax::codemap::Spanned<syntax::ast::Decl_>{node: 
+DeclItem(box(GC) syntax::ast::Item{ident: syntax::ast::Ident{name: 54u32, ctxt: 0u32}, attrs: collections::vec::Vec<syntax::codemap::Spanned<syntax::ast::Attribute_>>{len: 0u, cap: 0u, ptr: (0x0 as *mut ())}, id: 4294967295u32, node: ItemMod(syntax::ast::Mod{inner: syntax::codemap::Span{lo: syntax::codemap::BytePos(13u32), hi: syntax::codemap::BytePos(13u32), expn_info: None}, view_items: collections::vec::Vec<syntax::ast::ViewItem>{len: 0u, cap: 0u, ptr: (0x0 as *mut ())}, items: collections::vec::Vec<Gc<syntax::ast::Item>>{len: 0u, cap: 0u, ptr: (0x0 as *mut ())}}), vis: Public, span: syntax::codemap::Span{lo: syntax::codemap::BytePos(0u32), hi: syntax::codemap::BytePos(14u32), expn_info: None}}), span: syntax::codemap::Span{lo: syntax::codemap::BytePos(0u32), hi: syntax::codemap::BytePos(14u32), expn_info: None}}, 4294967295u32), span: syntax::codemap::Span{lo: syntax::codemap::BytePos(0u32), hi: syntax::codemap::BytePos(14u32), expn_info: None}}
+	task 'racer::ast::ast_sandbox' failed at '', ../racer/ast.rs:596
+
+
+TODO:   - rather than find crate root by looking for lib.rs, compare the RUST_SRC_PATH to the current filename, and work up looking for the lib.rs
+
+
+
+Am I doing too much with trying to backtrack into parent scopes using text?
+Should I just parse from the start of the block?
+
+
+Could you do a useful over-estimate of the available methods on local variables based on the traits in the current function arguments;
+That might still be useful enough, and a step forward over simple text-based autocomplete.
+I was worried that 2-way inference might be hard for autocomplete to use i.e. in the general case, you're relying on code you haven't written yet to figure out all the types
+Perhaps adding more search in the compiler errors could help us out too - when you try to call methods that aren't available, it could tell you what traits you might want to reference to get those.
+
+
+What's a 2-way inference?
+
+
+
+Have you tried to do any prior indexing to make it easier?
+I believe rustdoc is a pretty good example of how it is possible to get everything into index (you can even extract it from generated JS source).
+Once you have index you should be able to do really quick lookups as you can get all the imports till the current editor point. Having FQN it should be extremely easy to extract only related to that FQN methods/fields.
+It should work extremely fast and quick for std lib. But it I can't see what may stop from periodically reindexing files of current project too.
+
+I haven't needed to do prior indexing yet because a from-scratch search for each query has been fast enough so far.
+
+I might be missing something, but actually the static name-resolution bit of providing completion that an index would help with is a relatively easy part of the problem. Racer has almost got this licked I think. The trick stuff is in doing type inference of local code expressions - e.g. like inferring the type of 'n' in the following expression
+
+    MyType::new().foo(35, |(m,n)| {
+        n.[complete-here]
+    });
+
+
+
+Separate 'Name resolution' from 'type inference'
+
+resolve_name(path, pos, file) -> match
+
+infer_type(expr, pos, file) -> typematch
+
+list_fields(type) -> 
+
+
+
+
+        mystr.slice_from(m.point).find_str("{").map(|n|{	
+	    n
+        }
+
+
+1. search for n in the enclosing scope. 
+
+
+
+
+Out of interest, do you think the approach I'm persuing is a good one?
+i.e.:
+  - search sourcecode files
+
+Are there any shortcuts I could take? Any parts of the compiler I should be levering?
+
+
+
+
+
+20140623
+
+I've added some vim support for racer, but I'm no vim user so I could do with a little help.
+
+
+
+20140621
+TODO:
+
+ - remove field searches from search_local_text (?)
+   (i.e. non-ast searches just involve finding paths?)
+
+fn search_local_text(searchstr: &str, filepath: &Path, point: uint,
+                     search_type: SearchType, outputfn: &mut |Match|) {
+    let msrc = load_file_and_mask_comments(filepath);
+    let mut l = searchstr.split_str(".");
+
+
+
+Submodules cannot see things in the parent module, unless it uses 'use' or prefixes with :: - e.g. ::rootfn();
+
+
+
+
+20140620
+
+The following causes infinite recursion:
+#[cfg(test)] extern crate realstd = "std";
+- 
+
+N.B.:
+extern crate core_collections = "collections";
+
+make core_collections available locally, but not externally
+
+
+20140619
+
+Search for crate root modules (e.g. lib.rs), and also parse extern crate foo="bar"; statements
+
+ - basically needed to be able to resolve Vec::new() via the prelude
+
+
+
+
+fn main() {
+let v = Vec::new();
+v.pu<TAB>
+}
+
+
+
+- backtrack and pick up 'v.pu'
+- parse 'v' and search the scope
+- find 'let v = vec::new()'. Parse the let expression and identify that v matches 'v'
+- run the parser on 'Vec::new()'
+   - find the type of 'Vec'
+   - search the prelude.rs for "Vec". Find 
+
+
+
+20140617
+
+TODO:
+ - in do_local_search() for single searchstr, find the crate root and search that
+
+
+  - prelude.rs   #[doc(no_inline)] pub use vec::Vec;
+  - lib.rs:   pub use core_collections::vec;
+              extern crate core_collections = "collections";
+
+DONE:
+ - extern crate foo = "bar";
+
+20140609
+
+vim support:
+  - write a function to call a shell script
+http://stackoverflow.com/questions/5326430/vim-how-to-execute-the-contents-of-a-buffer
+
+source the file:
+:so %
+so 
+map <F4> :w<CR>:so %<CR>
+
+
+ - in vim, the first time omnicomplete fn is called I get the proper coords, the second time it gives the ammended coords
+
+
+
+  " Test supertab completion chaining w/ a minimal vim environment:
+vim -u NONE -U NONE \
+     --cmd "set nocp | sy on" \
+     -c "so ~/.vim/plugin/supertab.vim" \
+     -c "let g:SuperTabDefaultCompletionType = '<c-x><c-u>'" \
+     -c "set completefunc=TestSuperTabCodeComplete" \
+     -c "call SuperTabChain(&completefunc, '<c-p>')"
+
+
+20140530
+
+TODO:
+- nested modules have access to private members in parent
+
+20140528
+
+- break into context + complete. Run the expr->type parser on the context, then complete
+
+20140527
+
+- finish ast::ExprMethodCall: Needs to locate the method and then do getReturnType
+   search_for_impl_methods
+
+
+How to parse foo().bar().bazmetho<tab> ?
+
+
+
+20140525
+
+- Need to call 'get_type_of_OLD' instead of find match on paths.
+   - get_type_of_OLD needs to just return Struct/Enum if match is a Struct/Enum,
+
+Should 
+  a) ast::ExprPath evaluation return a type instead of a definition?
+  b) ast::ExprMethodCall etc.. do the getType eval?
+
+What about:
+let a = b;
+
+ - ExprTypeVisitor should return the *type* of b, not the definition of b. 
+
+
+
+20140524
+
+The following puts it in a recursive loop:
+
+
+    struct Point {
+        first: f64,
+        second: f64
+    } 
+
+    let var = Point {first: 35, second: 22};
+    var.f
+
+... because the let line txt matches, and the parser then recurses finding the type of the 'Point' expression. 
+ Either:
+   - (1) have a parse_let that doesn't do the type inference
+   - (2) have the let line txt match just search before the '='
+
+- will prob need to do 1 anyway. 
+
+
+20140522
+
+finish let conversion to use ExprTypeVisitor.  Can we clone Scope?
+
+Hello! Can anybody tell me why this doesn't compile please? https://gist.github.com/phildawes/28aec42710cd6940d3a5
+rustc says:  recreate_trait_issue.rs:15:7: 15:27 error: type `ExprTypeVisitor` does not implement any method in scope named `visit_expr`
+
+$ rustc --version
+rustc 0.11.0-pre-nightly (022a7b3 2014-05-22 01:06:25 -0700)
+host: x86_64-unknown-linux-gnu
+
+
+20140521
+
+TODO:
+ - add code to find the crate root from a module
+   - could make this the default. 
+       - find the crate root, then find the path from there?
+
+DONE:
+ - put all the tests in the main.rs crate
+
+20140520
+
+Hello everyone,
+
+I'm currently trying to attack the problem of locating inherited method implementations.
+In libstd/vec.rs Vec implements the Container trait:
+
+vec.rs:
+impl<T> Container for Vec<T> {
+    #[inline]
+    fn len(&self) -> uint {
+        self.len
+    }
+}
+
+...however I would like some clarification to help me figure out how racer should go about locating the Container trait impl.
+
+vec.rs contains the following use stmt:
+
+vec.rs:
+use container::{Container, Mutable};
+
+However I think I have to look in lib.rs to find that container is actually a module in the core crate:
+
+lib.rs:
+extern crate core;
+pub use core::container;
+
+Does 'pub use' in the root crate export the module such that other modules in the same crate can refer to it without refering to the whole path (i.e. core::container)?
+
+Cheers,
+
+Phil
+
+
+
+
+Should racer always look for lib.rs 
+
+
+
+
+
+in vec.rs:
+
+impl<T> Container for Vec<T> {
+    #[inline]
+    fn len(&self) -> uint {
+        self.len
+    }
+}
+
+How does compiler locate Container from vec.rs?
+ - use container::{Container, Mutable};
+
+How does compiler locate 'container' from vec.rs?
+ - lib.rs says 
+     pub use core::container;
+
+
+
+
+Racer currently works like this:
+
+
+
+
+ - it searches the current scope and parent scopes recursively in the file.
+      - if it encounters a use statement, it searches the path
+
+20140519
+
+Better searches for methods. Also fudge method support for builtin &str
+
+ - remove linetxt in matches
+ - restrict method searches to just methods, and restrict search to just functions otherwise
+ - fudge some support for built in &str
+
+search isn't matching:
+
+    #[inline]
+    fn contains<'a>(&self, needle: &'a str) -> bool {
+        self.find_str(needle).is_some()
+    }
+
+Or maybe it is: added unittest and it works.
+
+- Ah, maybe it's because it isn't pub. How does that work? should non pub methods still get matched?  YES.
+
+
+TODO:
+ - look at 'is_empty()'. How can we match that?
+    - vec.rs has 'use container::{Container, Mutable};', but container is only matched via lib.rs: 
+
+DONE:
+ - write testcase to check that non-pub methods still work
+ - write testcase to check that non-pub methods still work
+ - remove the method search if not
+ - search_local_with_string should also be called from get_type_of_let
+ - write methods only scope search.
+ - fix bug: only looks at first 'let'.  NO it doesnt - code before didn't parse
+
+
+20140516
+
+Emacs point info:  C-x =
+
+
+TODO:
+ - find methods on &str
+    - need to avoid recursive searches for 'str' since is also a top level module
+ - Finds enum impl methods
+ - Distinguish methods and static functions. Only show methods for field accesses
+
+
+DONE
+ - Find trait implementations  (by virtue of parsing impl statements)
+
+
+20140515
+
+ - field search needs 'point'. Finish this off.
+
+   - field point I'm returning is off, because ast parses from start of expression not from m.point
+
+
+20140514
+
+TODO:
+
+ - need a better search to start of function. needs to handle return types:
+
+fn reverse_to_start_of_fn(point: uint, msrc: &str) -> Option<uint> {
+
+- How about: find start of scope, iterate it to find start of statement.
+  - works
+
+
+get_type_of_let now not working: fix failing tests!
+
+  - looks like codeiter is a bit knackered
+
+- getTypeOf should probably be passed defn statement and symbol.
+   - getTypeOfLet
+
+
+Fix: RUST_BACKTRACE=1 ./bin/racer complete 5 6 sandbox/other.rs
+
+
+20140513
+
+TODO:
+ - implement fn args
+     - we have start and end of fn. Create a new string with fn(){} and parse it.
+         - generate fn, args and positions in ast
+              - enum visitor includes positions. Do the same for fn args
+     - what do we do for get_type? do we include the type info in the match? or does get_type re-parse the function to get the type?  Have so far only done the latter.
+
+ - update readme to include find-definition docs
+
+
+ - implement Traits
+
+20140512
+
+TODO:
+ - pub type SpannedIdent = Spanned<Ident>;
+ - methods -  'scope' type should be a struct. Write resolve::find_method(scopeMatch, name)
+                                        ^^ or a trait
+ - Function args.
+   - I think for local searches should do a block search from the top, and return the list of start points   e.g. [0, 12, 35, 55]. 
+       - will this catch closures passed as arguments?
+
+fn foo() {
+    blah(|m| { 
+       do something with m
+    });
+}
+       
+   - depends on how it traverses the graph (find next '{'?)
+        - could it have  1: foo  2:blah 3: |m|
+
+   - is it better to traverse backwards?
+       - yes I think it is. At least is easier to do correctly for the limited fn and closure case.
+           1. mask comments and strings
+           2. scan back to opening scope delimiter
+           3. if next non-whitespace character is a ')', assume is an arg block and scan back to the function
+           4. if next non-whitespace character is a '|', assume is a closure block. Still need to scan back and parse the line somehow.
+
+
+So block splitting could split on commas?   - difficult. Also current block splitter will probably fall down on 'if{}else{}' statements.
+
+20140509
+
+Is there any way to speed up rustc build times? Racer is getting to the size now where it takes 15 seconds to build on my laptop
+
+
+TODO: 
+Why can't I resolve 'slice'?
+
+20140508
+
+getTypeOf("stmt", file, point
+
+
+Can I generalize by saying:  take the text back to the last '.' or '::', and call 'getTypeOf' on the parent?
+
+foo::bar::ba   ->   getTypeOf("foo::bar", point)  -> module.  find ba in module.
+
+blah.foo  -> getTypeOf("blah", point)  -> struct Blah.  find field/method in struct.
+
+blob.find_str(searchstr).is_some() -> getTypeOf("blob.find_str(searchstr)") -> option<uint>. find method in enum
+
+
+What about more elaborate stuff?:
+
+                            src.slice_from(m.point).find_str("{").map(|n|{
+                                let point = m.point + n + 1;
+                                search_scope(point, src, fieldsearchstr, &m.filepath, search_type, m.local, outputfn);
+                            }).to_bl
+
+
+This will work. Is it always decomposition into :: and .? I think so. E.g. (3+2).to_b -> (3+2) 
+
+So should I manually decompose the bits like racer currently does, or have the AST do that naturally?
+
+
+
+20140506
+
+Why does method search for all methods on instance take so long?
+ - because searchstr is '', so everything matches
+
+Also:  searching for Vec:
+   pub use slice::{Vector, VectorVector, CloneableVector, ImmutableVector};
+
+Vector starts with Vec, so then goes off searching for slice::Vector
+
+
+time::precise_time()
+
+- I think there's still a bug in there. Check calls to fns with exact_match in them. Maybe turn exact match into a enum?
+
+
+20140502
+
+ TODO:
+  - add the prelude rust file to the search
+  - add enums
+  - get_type_of() should recursively search until it ends up with a Struct or an Enum
+     - e.g. for let v = Foo::Bar::new();  it should not return Function, but should return whatever new() returns
+
+20140431
+TODO:
+
+ - why cant I find defn on use syntax::visit; in ast.rs  
+      also can't complete visit::name_of_fn
+
+ - parse function expressions to get return type  (in this case, Vec)
+
+ - let v = std::vec::Vec::new();
+   v.<methods>
+
+
+Can't find because first_match doesn't take into account that we are substring matching. 
+ - need a 'first full match'
+
+
+RUST_LOG=debug
+
+
+
+20140429
+
+How to tell if is local or external from the context of the current search?
+  - flag in the match?
+Yes.
+
+
+What to do about 'do_file_search' called out of do_local_search?
+ - currently need this to complete 'st' to 'std'.
+ - currently need this to complete 'foo::bar::mym' to 'foo::bar::mymod'.
+
+How about only do it if pos is 0?     - no, because completing 'st' in a file
+    and is a local search?   - not sure about this
+
+Currently doesn't work because e.g.
+std::str::
+
+For now I settled with 'is a wildcard search then do file search'
+
+TODO: investigate why std::io::B doesn't match anything
+TODO: investigate why code_chunks doesn't get matched
+
+
+Hello,
+
+Could somebody clarify the comments structure in rust please? The manual says 
+'Comments in Rust code follow the general C++ style of line and block-comment forms, with no nesting of block-comment delimiters.'
+http://static.rust-lang.org/doc/master/rust.html#comments
+
+However the grammar looks like it parses nesting of block comment delimiters, and e.g. the following compiles:
+
+fn main() {
+    /* /* */ */ println!("YEAH");
+}
+
+Is the manual wrong or have I mis-understood it? (racer does comment cleaning which is why I'm interested)
+
+Thanks,
+
+Phil
+
+
+
+20140428
+
+check out e.g.: 
+#[cfg(test)] pub use kinds = realstd::kinds;
+
+
+So problem is:
+
+local search src.rs for use
+matches mymod module in separate file,  search_external_scope() called
+
+
+search Foo::new  local
+  -> search_external(Foo), but 'Struct' result will come back 
+
+TODO:
+- I have a feeling the second part of 'do_external_search' and the second part of 'do_local_search' need to be collapsed into one. Maybe need to pass a flag around saying if needs 'pub' or not.
+
+- Can't find impl<T> Vec<T> {
+   - that should be pretty easy to fix for now
+
+
+
+#0  test::racer::search_external_scope (startpoint=0, searchstr=..., filepath=0x7ffff4670440, outputfn=0x7ffff4672008) at racer.rs:628
+#1  0x00000000004cd176 in fn9994 (m=...) at racer.rs:529
+#2  0x00000000004c7512 in option::Option$LT$T$GT$::map::h7865274857158272319::v0.0 () at racer.rs:424
+#3  0x00000000004a20e7 in test::racer::do_local_search (path=..., filepath=0x7ffff4672be8, pos=0, outputfn=0x7ffff4672008) at racer.rs:524
+#4  0x00000000004c19c9 in test::racer::search_local_scope (point=0, src=..., searchstr=..., filepath=0x7ffff4672be8, outputfn=0x7ffff4672008) at racer.rs:374
+#5  0x00000000004c3b64 in test::racer::search_local_scopes (searchstr=..., filepath=0x7ffff4672be8, msrc=..., point=38, outputfn=0x7ffff4672008) at racer.rs:394
+#6  0x00000000004c5164 in test::racer::search_file_text_ (field_expr=..., filepath=0x7ffff4672be8, msrc=..., point=54, outputfn=0x7ffff4672008) at racer.rs:420
+#7  0x00000000004c3f65 in test::racer::search_file_text (searchstr=..., filepath=0x7ffff4672be8, point=54, outputfn=0x7ffff4672008) at racer.rs:412
+#8  0x00000000004a1e86 in test::racer::do_local_search (path=..., filepath=0x7ffff4672be8, pos=54, outputfn=0x7ffff4672008) at racer.rs:504
+#9  0x00000000004cced0 in fn9990 (m=0x7ffff4672008) at racer.rs:523
+#10 0x00000000004a1bb8 in test::racer::first_match (myfn={void (void (*)(struct racer::Match))} 0x7ffff4672070) at racer.rs:456
+#11 0x00000000004a2052 in test::racer::do_local_search (path=..., filepath=0x7ffff4672be8, pos=54, outputfn=0x7ffff46724b8) at racer.rs:523
+#12 0x00000000004c9a1d in test::racer::find_definition_ (src=..., filepath=0x7ffff4672be8, pos=54, outputfn=0x7ffff46726b8) at racer.rs:495
+#13 0x00000000004c96d0 in fn9957 (m=0x7ffff46726b8) at racer.rs:471
+#14 0x00000000004a1bb8 in test::racer::first_match (myfn={void (void (*)(struct racer::Match))} 0x7ffff4672720) at racer.rs:456
+#15 0x00000000004c964a in test::racer::find_definition (src=..., filepath=0x7ffff4672be8, pos=54) at racer.rs:471
+#16 0x00000000004dcce7 in test::follows_use_to_impl () at test.rs:240
+
+Does in need to be 'pub fn' in an impl if it's in the local module?
+(test finds_impl_fn)
+
+
+- search_local_scope should pass the whole file src I think, since it has to pass the point anyway. It can do the slice (this is cheap).
+
+   - but search local scope searches from the point above
+
+
+get_module_file() needs to return a match so that 'st' can be matched to 'std'
+   - but if it does that it needs to return multiple entries
+
+
+Also use foo; is recursive: the match looks up foo and then recurses on itself. 
+
+
+finish do_file_search(). Maybe make path split the path and print out the last component
+
+20140426
+
+I think local scope should find the Struct, and then explicitly look for the impl rather than make impls a first class findable thing. If we do the latter, then find_definition will need to return multiple things (i.e. the struct and the impls).
+Maybe that is the right thing, but I can't think of a reason why right now, so I think I should go with the separate impl search idea.
+
+20140425
+
+locate_abs_path needs to take a single searchstr, find the module and return just that. Not traverse the rest of the fqn
+
+search for baz::blah
+ search for baz (blah)
+ finds 'use foo::bar::baz'
+   search for foo::bar::baz (blah)
+    search for foo::bar (baz, blah)
+      search for foo (bar, baz, blah)
+      finds foo module in absolute path
+        search foo Module for bar, (baz, blah) {
+        finds 'pub mod bar;'
+          search foo::bar Module for baz, (blah) {
+          finds 'pub mod baz;'
+            search foo::bar::baz Module for blah {
+	       finds fn blah
+
+
+for files, get_module_file() will do. There can only be one because we are not pattern matching a string: that got done at the use stmt level
+
+
+Have get_module_file() return a match, then do
+
+ if (fqn.len() == 1) {
+     do the match
+} else {
+    if is a Module then do some shite etc..
+}
+
+Actually, does the above happen automatically? No, becasue would re-search the source file before trying abs path , unless new scope is a directory instead of a file.
+     - should it be searching the file again?  i.e. if mod is inlined in the file?
+
+ use foo::bar
+
+ mod foo {
+   fn bar() {}
+ }
+
+ bar()
+
+
+
+need to implement after "Is an inline module. searching scope". Write a separate 'search external scope function
+
+
+20140424
+
+- Finish the 'use' stuff in search_local_scope, searching for searchstr
+- make ./test follows_use pass
+
+20140423
+
+search for path could be:
+ 1::2::3
+ - search for 1 item,
+   search for 2 item in 1 item scope
+   search for 3 item in 2 item scope
+
+or 
+
+ - search for 3 in [1,2] item scope
+   search for 2 in [1] item scope
+   search for 1 item
+
+2nd way might be better for modules. use statements are not completely nested - i.e. we don't know which one to follow based just on the first item. 
+
+How to do:
+
+  1::2::3.4()
+
+  Foo::new().doit()
+
+  search for 4() in [1::2::3] scope   (context?)
+
+
+- So always pass the whole path[] around, sometimes things will be able to match on multiple bits (e.g. 'use' expressions)
+
+
+How should this work wrt scopes?
+
+  - need to search all (use) and 1. Hmmm. is this true? Do use statements need to match all?
+  - if we do foo::bar::baz inline, then we just need to resolve foo  (assuming foo isn't a crate or local module).
+     - so does that mean we can just search for one at a time (i.e. 1st way? - start at the bottom?)
+
+
+ - So this means: All searches can be single defns
+
+
+
+TODO:
+
+ - search_for_let:  change this to actually scan the scope text for fn, mod, struct etc.. definitions. Should probably collapse the path[0] vs path[n] searching
+use:    for (start,end) in codeiter::iter_stmts(src) { instead of lines
+
+
+20140422
+
+TODO:
+
+ - finish locate_path_in_external_module to pass ./test follows_self_use
+ - then add other use imports
+
+
+So what should the whole search be?
+
+local module:
+ - local scope let etc..
+
+Seperate:
+locate_path_in_local_module
+locate_path_in_external_module
+
+Need to match:
+
+Foo::new       pub use bar::Foo;
+Foo::new       pub use bar::Foo::new;
+Foo::new       pub use self::bar::Foo::new;
+
+
+
+
+currently:
+locate_defn_in_module  searches for a string in module
+locate_path_via_module  searches for a path in a module
+
+I suspect this doesn't work when we need to look for sub-paths in modules (e.g. mod{} and fns in impl blocks)
+  - either search Foo::new for Foo, then search subscope for new or search for Foo::new
+locate_path_via_module should do the whole search I think. locate_path_in_module.
+ - pub use
+ - pub mod
+ - impl ... for path[0]  // can impls be nested? no, so impl resolutions always 2 long
+ - fn                    // always 1 long
+ - struct                // always 1 long
+ - enum fields           // always 1 long? 
+
+
+::foo::bar  is a path
+foo.bar     is a field expr
+
+20140420
+
+Tests don't pass because next statement includes comment before the stmt.
+
+20140417
+
+Write code block iterator, so that multiline use statements can be parsed properly
+
+What I want is a stmt iterator. Each next returns a strslice that contains a block of code with comments and strings masked, so that it can be easily searched.
+Ideally also want subscopes masked too.
+
+Either that, or iterator just returns substrings of real code, with positions. Actually that might make multiline import statements with comments a bit tricky to assemble and parse.
+
+for stmttxt in code.iter() ...
+
+What's the best way to implement this? a bunch of the output slices aren't going to be slices from the original source because code will have been masked.
+
+Does that mean iterator needs to return owned strings?
+
+
+
+If we had a statement iterator that didn't mask strings, that would still be useful yes? Yes. 
+We could then just mask the comments afterwards maybe. Or maybe have a special find_str that only finds in non-comment/string positions. Or maybe that doesn't matter much since we end up parsing anyway.
+
+Ok so instead we layer iterators:
+
+ - \"  escaped_quote iterator
+
+Maybe run a state machine?
+
+state: none
+
+pos = str.findpos_of("\"#")
+
+masking iterator< (from,to)
+
+if str[pos] == '#'
+   pos = pos + find_end_of_line(str.slice_from(pos));
+elif str[pos] == '"'
+   pos = pos + find_end_of_string(str.slice_from(pos));
+   
+
+. start with just a mask strings iterator (which also internally skips comments) Actually no.
+
+- start with a masking iterator that masks both. Then we can just iterate through that, and search the sub-slices for ';' and '}' to get the gyst.
+
+
+- Think it might be better to do a character at a time, otherwise we'll be walking the same text multiple times (and might as well just mask).
+   - that might be fine. Would still be less allocation than a mask, and the memory will maybe still be cached.
+
+   e.g. comment remover:  from:3 to 7:
+        then find string: 
+
+
+
+
+
+
+
+20140416
+
+locate_abs_path needs to take the directory of the file being searched from
+
+20140415
+
+Why can't it find BufferedReader::new()?
+
+ - because locate_path_via_module doesn't parse the 'pub use stmt'
+      - locate_defn_in_module does a better job, but only looks for strings
+
+
+resolving impl functions:
+
+ - currently all :: paths are resolved by looking for use stmts or via 'pub mod'. Need to hook in 'look for impl' in the 'locate_path_via_module'
+
+ - search for impl Foo  or impl bar for Foo
+    - mask comments (and strings)
+    - get the scope
+    - search for the function in the scope
+
+Actually this will work the same for inner modules. Maybe I should do these first? No, do the impl thing first - is more exciting!
+
+
+20140414
+
+Need to write: end_of_next_scope  so that I can slice the src text
+ - google company prefix min size  (after '.')
+
+20140412
+
+ - write 'do_exact_match_search()' and use instead of do_search in get_type_of
+ - Have now got the Point struct. Need to parse it to get the fields.
+    - Match should probably contain type to make parsing for fields easier. (?)
+
+
+If I understand correctly, it is because trim returns a reference to a slice of the same string (i.e. no extra heap memory is allocated)
+The &str type is a so-called fat pointer which points to the start and end of the substring. When you call to_str() on it, it allocates a new copy of the substring.
+
+
+Racer progress update
+
+I've been working on a code autocomplete tool for rust of a few weeks now. I've pretty much nailed down the approach for now so I thought I'd write an update.
+
+Racer is a tool for autocompleting rust code. It works by reading rust source files from the file system and currently doesn't maintain any sort of cache between invocations (i.e. it does each query from scratch). Racer is not tied to any particular editor or IDE, although currently I've only got emacs bindings for it.
+
+In order to be fast enough to perform on-the-fly searches, Racer uses a combination of text search and localized parsing to answer queries. 
+
+E.g. in a typical query:
+
+- Emacs writes a temporary file with the contents of the buffer to disk. It executes the racer binary, passing the filename, line number and character as command line args.
+
+- Racer loads the file and sanitise the code by masking comments, strings and unreachable scopes.
+    - this makes text search possible and less error prone
+
+- It performs a local search on the enclosing scope, looking for variable declarations that match the text being completed
+    - on finding a text match, it pulls out the statement or expression, parses it and checks the parsed code for a match.
+
+- it works its way up through the enclosing scopes, and follows 'use' declarations to other files to track down imports.
+
+
+
+I started building a
+
+
+20140411
+
+Need to make find_definition() take a point instead of a line and char, so it can be called recursively from getType()
+
+20140409
+
+Should I just code it inline, and then break it up afterwards?
+  - yes, don't do getTypeOf separately, just keep coding until done
+
+ - ast parsing should parse whole block or expr. Or maybe should include span?
+
+
+BRM gets the ast node corresponding to the source coords
+
+
+a.b.c
+
+t = getTypeOf('a.b')
+
+getFields("a.b")
+or 
+getFields("foo")
+
+
+
+
+20140404
+
+How to identify an ident to 'get_type_of()'?  
+ An fqn?
+  - can't handle local definitions
+ A point?
+  - hmmmm...
+  - maybe a point and a type? -  a match basically
+  - an fqn and a point?
+
+20140403
+
+- I can't rely on a crate declaration to locate the definition, since a leaf module implicitly has access to all the crates 'externed' by the root crate.
+
+TODO:
+ - append '.' to rust path, search for absolute references directly from a USE. Don't worry about mod and extern crate for now, they are mostly a distraction
+
+
+
+20140402
+
+Can get_type_of search code reuse the find_definition stuff?
+
+ - yes!. Would be better if it were an iterator
+
+Can we do the lisp iterator as closure trick? doesn't look like it: owned closures don't exist any more
+
+Hello! Am I right in thinking rust can no longer return owned closures from a function?  e.g. so I can't write an iterator as a closure
+
+
+
+20140331
+
+Need to code expr evaluator.
+
+let a = Foo {b:35};
+
+  - return 'Foo': Struct  (?)
+
+Is it enough to just return the Path of the type (relative to the file?)
+ - can then find_definition() on it, and parse to get the fields/attributes
+
+ - should maybe start a new 'resolve_types' module that supports the get_type_of function?  will be recursive. 
+
+   to get type of struct:
+    let a = Foo{};
+    1. find defn of 'a'
+    1. parse let statement
+    2. get type of struct initializer -> struct Foo
+    3. find definition of struct Foo
+      - done!
+
+   to get type of function call:
+    let a = foo(blah);
+    1. parse let statement
+    2. get type of struct initializer -> callfunc foo
+    3. find definition of function foo
+    4. get return type of function foo
+    5. find definition of return type
+
+
+
+
+
+20140328
+
+Ast functions: is it better to parse and return some representation, or pass the outputfn into the ast code and have it continue?
+ - ast code can fail!
+ - ast code runs in a separate task. Does this matter? Can we pass the closure across?
+ - if we pass back a representation, it needs to include a 'point' (or at least line and col)
+
+
+find_in_module - looks for defn string in module file
+
+search_f  - searches for path using file as the starting point
+                - does not search 'use' declarations. Only follows 'mod'
+
+
+search_crate_decls - uses 'extern crate' statements to locate path
+
+search_crate  - looks for fully qualified paths using crate roots
+
+search_file_text / search_scope - looks for a search string in increasing scopes
+
+
+
+- I should differentiate between the file I'm finding from, and the point I am in the search. (the former should search 'use' declarations, the latter not - should just follow modules)
+
+
+ - maybe search vs follow?   locate?
+
+
+
+
+
+locate_defn_in_module(file, str)
+
+locate_path_via_module(file, path)
+
+locate_path_from_crate()
+
+
+export MYDATE="Sep 03 20:01:24 BST 2014"
+GIT_COMMITTER_DATE="$MYDATE" git commit --amend --date="$MYDATE"
+
+------------------
+TODO LIST:
+   - type and value namespace. Items preceeding :: in path are in the type namespace
+           - enum members (enum variants) are in the value namespace
+           - modules are in the type namespace
+
+

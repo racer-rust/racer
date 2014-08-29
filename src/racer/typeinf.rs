@@ -1,12 +1,9 @@
 // Type inference
 
 use racer::{Match};
-use racer::util::{to_refs};
 use racer::nameres::{resolve_path_with_str};
 use racer::{ast,codeiter,scopes};
 use racer;
-
-use racer::util;
 
 use std::io::File;
 use std::io::BufferedReader;
@@ -56,8 +53,9 @@ fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<Match> {
         if decl.as_slice().starts_with("impl") {
             let implres = ast::parse_impl(decl);
             debug!("PHIL get_type_of_self_arg implres |{:?}|", implres);
-            return resolve_path_with_str(to_refs(&implres.name_path).as_slice(), &m.filepath, start, 
-                                                   ExactMatch, TypeNamespace).nth(0);
+            return resolve_path_with_str(&implres.name_path.expect("failed parsing impl name"), 
+                                         &m.filepath, start,
+                                         ExactMatch, TypeNamespace).nth(0);
         } else {
             // // must be a trait
             return ast::parse_trait(decl).name.and_then(|name| {
@@ -94,10 +92,8 @@ fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<Match> {
         let mut result = None;
         for (_/*name*/, pos, ty_) in fn_.args.move_iter() {
             let globalpos = pos - impl_header_len + start + point;
-            if globalpos == m.point && ty_.len() != 0 {
-                let v = to_refs(&ty_);
-                let fqn = v.as_slice();
-                result = resolve_path_with_str(fqn, 
+            if globalpos == m.point && ty_.is_some() {
+                result = resolve_path_with_str(&ty_.unwrap(), 
                                                &m.filepath, 
                                                globalpos, 
                                                racer::ExactMatch, 
@@ -150,14 +146,11 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<Mat
     for (field, fpos, typepath) in fields.move_iter() {
 
         if fieldname == field.as_slice() {
-            let typepath = util::to_refs(&typepath);
-            let type_ = racer::nameres::resolve_path(typepath.as_slice(),
-                                           &structmatch.filepath, 
-                                           fpos + opoint.unwrap(),
-                                           ExactMatch, TypeNamespace).nth(0);
-            if type_.is_some() {
-                return type_;
-            }
+            return typepath.and_then(|typepath|
+                racer::nameres::resolve_path(&typepath,
+                                             &structmatch.filepath, 
+                                             fpos + opoint.unwrap(),
+                                             ExactMatch, TypeNamespace).nth(0));
         }
     }
     return None
@@ -177,14 +170,14 @@ pub fn get_type_of_match(m: Match, msrc: &str) -> Option<Match> {
     }
 }
 
-pub fn get_return_type_of_function(fnmatch: &Match) -> Vec<String> {
+pub fn get_return_type_of_function(fnmatch: &Match) -> Option<racer::Path> {
     let filetxt = BufferedReader::new(File::open(&fnmatch.filepath)).read_to_end().unwrap();
     let src = str::from_utf8(filetxt.as_slice()).unwrap();
     let point = scopes::find_stmt_start(src, fnmatch.point).unwrap();
 
     //debug!("get_return_type_of_function |{}|",src.slice_from(point));
     
-    let outputpath = src.slice_from(point).find_str("{").map(|n|{
+    return src.slice_from(point).find_str("{").and_then(|n|{
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut decl = String::new();
         decl.push_str("impl blah {");
@@ -192,6 +185,5 @@ pub fn get_return_type_of_function(fnmatch: &Match) -> Vec<String> {
         decl.push_str("}}");
         debug!("PHIL: passing in |{}|",decl);
         return ast::parse_fn_output(decl);
-    }).unwrap_or(Vec::new());
-    return outputpath;
+    });
 }
