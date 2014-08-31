@@ -346,11 +346,11 @@ pub fn match_enum_variants(msrc: &str, blobstart: uint, blobend: uint,
     if blob.starts_with("pub enum") || (local && blob.starts_with("enum")) {
         if txt_matches(search_type, searchstr, blob) {
             // parse the enum
-            let parsedEnum = ast::parse_enum(String::from_str(blob));
-            if parsedEnum.name.as_slice().starts_with(searchstr) {
+            let parsed_enum = ast::parse_enum(String::from_str(blob));
+            if parsed_enum.name.as_slice().starts_with(searchstr) {
             }
 
-            for (name, offset) in parsedEnum.values.move_iter() {
+            for (name, offset) in parsed_enum.values.move_iter() {
                 if name.as_slice().starts_with(searchstr) {
 
                     let m = Match {matchstr: name.clone(),

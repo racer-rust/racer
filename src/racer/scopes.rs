@@ -32,8 +32,8 @@ pub fn find_closing_paren(src:&str, mut pos:uint) -> uint {
 
 
 pub fn scope_start(src:&str, point:uint) -> uint {
-    let maskedSrc = mask_comments(src);
-    let s = maskedSrc.as_slice().slice(0,point);
+    let masked_src = mask_comments(src);
+    let s = masked_src.as_slice().slice(0,point);
     let mut pt = point;
     let mut levels = 0i;
     for c in s.chars().rev() {
