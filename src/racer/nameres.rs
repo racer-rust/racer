@@ -188,7 +188,8 @@ fn search_fn_args(point: uint, msrc:&str, searchstr:&str, filepath:&Path,
         fndecl.push_str("}}");
         debug!("PHIL found start of fn!! '{}' {} |{}|",searchstr, n, fndecl);
         if txt_matches(search_type, searchstr, fndecl.as_slice()) {
-            let fn_ = ast::parse_fn(fndecl);
+            let fn_ = ast::parse_fn(fndecl, racer::Scope{filepath: filepath.clone(), 
+                                                         point: point});
             debug!("PHIL parsed fn got {}",fn_);
             for (s, pos, _) in fn_.args.into_iter() {
                 if match search_type {

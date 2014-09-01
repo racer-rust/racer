@@ -61,6 +61,7 @@ pub struct Match {
     pub generic_types: Vec<PathSearch>  // generic types are evaluated lazily
 }
 
+
 impl Match {
     fn with_generic_types(&self, generic_types: Vec<PathSearch>) -> Match {
         Match {
@@ -88,6 +89,35 @@ impl fmt::Show for Match {
                self.generic_types,
                self.contextstr)
     }
+}
+
+#[deriving(Clone)]
+pub struct Scope {
+    pub filepath: path::Path,
+    pub point: uint
+}
+
+impl Scope {
+    pub fn from_match(m: &Match) -> Scope {
+        Scope{filepath: m.filepath.clone(), point: m.point}
+    }
+}
+
+impl fmt::Show for Scope {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Scope [{}, {}]", 
+               self.filepath.as_str(), 
+               self.point)
+    }
+}
+
+// Represents a type. Equivilent to rustc's ast::Ty but can be passed across threads
+#[deriving(Show,Clone)]
+pub enum Ty {
+    TyMatch(Match),
+    TyPathSearch(Path, Scope),   // A path + the scope to be able to resolve it
+    TyTuple(Vec<Ty>),
+    TyUnsupported
 }
 
 // The racer implementation of an ast::Path. Difference is that it is Send-able
@@ -167,7 +197,7 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: uint) -> vec::M
             debug!("PHIL complete_from_file context is {}", context);
             context.map(|ty| {
                 match ty {
-                    ast::TyMatch(m) => {
+                    TyMatch(m) => {
                         for m in nameres::search_for_field_or_method(m, searchstr, StartsWith) {
                             out.push(m)
                         }
@@ -217,7 +247,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: uint) -> Option<M
             return context.and_then(|ty| {
                 // for now, just handle matches
                 match ty {
-                    ast::TyMatch(m) => {
+                    TyMatch(m) => {
                         return nameres::search_for_field_or_method(m, searchstr, ExactMatch).nth(0);
                     }
                     _ => None

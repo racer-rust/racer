@@ -12,15 +12,10 @@ use racer::Match;
 use racer;
 use racer::nameres::{resolve_path_with_str};
 use racer::typeinf;
+use racer::{Scope,Ty,TyTuple,TyPathSearch,TyMatch,TyUnsupported};
 use syntax::ptr::P;
 use syntax::visit::Visitor;
 use racer::nameres;
-
-#[deriving(Clone)]
-pub struct Scope {
-    pub filepath: Path,
-    pub point: uint
-}
 
 // This code ripped from libsyntax::util::parser_testing
 pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: String) -> Parser<'a> {
@@ -152,12 +147,12 @@ impl<'v> visit::Visitor<'v> for LetVisitor2 {
     }
 }
 
-fn to_racer_ty(ty: &ast::Ty) -> Option<Ty> {
+fn to_racer_ty(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
     return match ty.node {
         ast::TyTup(ref items) => {
             let mut res = Vec::new();
             for t in items.iter() {
-                res.push(match to_racer_ty(&**t) {
+                res.push(match to_racer_ty(&**t, scope) {
                     Some(t) => t,
                     None => return None
                 });
@@ -165,10 +160,10 @@ fn to_racer_ty(ty: &ast::Ty) -> Option<Ty> {
             Some(TyTuple(res))
         },
         ast::TyRptr(_, ref ty) => {
-            to_racer_ty(&*ty.ty)
+            to_racer_ty(&*ty.ty, scope)
         },
         ast::TyPath(ref path,_,_) => {
-            Some(TyPath(to_racer_path(path)))
+            Some(TyPathSearch(to_racer_path(path), scope.clone()))
         }
         _ => None
     }
@@ -206,6 +201,7 @@ fn match_pattern_to_ty(pat: &ast::Pat, point: uint, ty: &Ty) -> Option<Ty> {
         }
         ast::PatIdent(_ , ref spannedident, _) => {
             if point_is_in_span(point as u32, &spannedident.span) {
+                debug!("PHIL match_pattern_to_ty matched an ident!");
                 return Some(ty.clone());
             } else {
                 panic!("Expecting the point to be in the patident span. pt: {}", point);
@@ -214,16 +210,6 @@ fn match_pattern_to_ty(pat: &ast::Pat, point: uint, ty: &Ty) -> Option<Ty> {
         _ => None
     }
 }
-
-
-fn path_to_match(ty: Ty, scope: &Scope) -> Option<Ty> {
-    return match ty {
-        TyPath(ref path) => 
-            resolve_path_with_str(path, &scope.filepath, scope.point, racer::ExactMatch, racer::BothNamespaces).nth(0).map(|m| TyMatch(m)),
-        _ => Some(ty)
-    };
-}
-
 
 struct LetTypeVisitor {
     scope: Scope,
@@ -234,7 +220,7 @@ struct LetTypeVisitor {
 
 impl<'v> visit::Visitor<'v> for LetTypeVisitor {
     fn visit_local(&mut self, local: &'v ast::Local) {
-        let mut ty = to_racer_ty(&*local.ty);
+        let mut ty = to_racer_ty(&*local.ty, &self.scope);
         
         if ty.is_none() {
             // oh, no type in the let expr. Try evalling the RHS
@@ -250,7 +236,7 @@ impl<'v> visit::Visitor<'v> for LetTypeVisitor {
         debug!("PHIL ty is {}. pos is {}, src is |{}|",ty, self.pos, self.srctxt);
         self.result = ty.and_then(|ty|
               match_pattern_to_ty(&*local.pat, self.pos, &ty)).and_then(|ty|
-                path_to_match(ty, &self.scope));
+                path_to_match(ty));
 
     }
 }
@@ -277,9 +263,12 @@ fn to_racer_path(pth: &ast::Path) -> racer::Path {
     return racer::Path{ global: pth.global, segments: v} ;
 }
 
-struct ExprTypeVisitor {
-    scope: Scope,
-    result: Option<Ty>
+fn path_to_match(ty: Ty) -> Option<Ty> {
+    return match ty {
+        TyPathSearch(ref path, ref scope) => 
+            find_type_match(path, &scope.filepath, scope.point),
+        _ => Some(ty)
+    };
 }
 
 fn find_type_match(path: &racer::Path, fpath: &Path, pos: uint) -> Option<Ty> {
@@ -327,6 +316,12 @@ fn get_type_of_typedef(m: Match) -> Option<Match> {
     });
 }
 
+
+struct ExprTypeVisitor {
+    scope: Scope,
+    result: Option<Ty>
+}
+
 impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
     fn visit_expr(&mut self, expr: &ast::Expr) {
         debug!("PHIL visit_expr {}",expr);
@@ -348,8 +343,8 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                     match m {
                         &TyMatch(ref m) => 
                             racer::typeinf::get_return_type_of_function(m)
-                            .and_then(|path| 
-                                      find_type_match(&path, &m.filepath, m.point)),
+                            .and_then(path_to_match),
+
                         _ => None
                     }
                 );
@@ -375,22 +370,17 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                 self.result = self.result.as_ref().and_then(|contextm|{
                     match contextm {
                         &TyMatch(ref contextm) => {
-
-                    let omethod = nameres::search_for_impl_methods(
-                        contextm.matchstr.as_slice(),
-                        methodname.as_slice(), 
-                        contextm.point, 
-                        &contextm.filepath,
-                        contextm.local,
-                        racer::ExactMatch).nth(0);
-
-                    omethod.and_then(|method| 
-                         racer::typeinf::get_return_type_of_function(&method).and_then(|returntypepath| 
-                                            find_type_match_including_generics(&returntypepath, 
-                                                                               &method.filepath, 
-                                                                               method.point, 
-                                                                               contextm)))
-
+                            let omethod = nameres::search_for_impl_methods(
+                                contextm.matchstr.as_slice(),
+                                methodname.as_slice(), 
+                                contextm.point, 
+                                &contextm.filepath,
+                                contextm.local,
+                                racer::ExactMatch).nth(0);
+                            omethod
+                                .and_then(|method| 
+                                          racer::typeinf::get_return_type_of_function(&method))
+                                .and_then(|ty| path_to_match_including_generics(ty, contextm))
                         }
                         _ => None
                     }
@@ -443,6 +433,33 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
     }
 
 }
+
+// gets generics info from the context match
+fn path_to_match_including_generics(ty: Ty, contextm: &racer::Match) -> Option<Ty> {
+    return match ty {
+        TyPathSearch(ref fieldtypepath, ref scope) => {
+
+            if fieldtypepath.segments.len() == 1 {
+                // could be a generic arg! - try and resolve it
+                let ref typename = fieldtypepath.segments[0].name;
+                let mut it = contextm.generic_args.iter()
+                    .zip(contextm.generic_types.iter());
+                for (name, typesearch) in it {
+                    if name == typename {
+                        // yes! a generic type match!
+                        return find_type_match(&typesearch.path, 
+                                               &typesearch.filepath, 
+                                               typesearch.point);
+                    }
+                }
+            }
+
+            find_type_match(fieldtypepath, &scope.filepath, scope.point)
+        }
+        _ => Some(ty)
+    };
+}
+
 
 fn find_type_match_including_generics(fieldtypepath: &racer::Path,
                                       filepath: &Path,
@@ -630,9 +647,10 @@ impl<'v> visit::Visitor<'v> for ImplVisitor {
 #[deriving(Show)]
 pub struct FnVisitor {
     pub name: String,
-    pub output: Option<racer::Path>,
+    pub output: Option<racer::Ty>,
     pub args: Vec<(String, uint, Option<racer::Path>)>,
-    pub is_method: bool
+    pub is_method: bool,
+    pub scope: Scope
 }
 
 impl<'v> visit::Visitor<'v> for FnVisitor {
@@ -687,12 +705,15 @@ impl<'v> visit::Visitor<'v> for FnVisitor {
 
         debug!("PHIL parsed args: {}", self.args);
 
-        match fd.output.node {
-            ast::TyPath(ref path, _, _) => {
-                self.output = Some(to_racer_path(path));
-            }
-            _ => {}
-        }
+        self.output = to_racer_ty(&*fd.output, &self.scope);
+
+
+        // match fd.output.node {
+        //     ast::TyPath(ref path, _, _) => {
+        //         self.output = Some(to_racer_path(path));
+        //     }
+        //     _ => {}
+        // }
 
         self.is_method = match fk {
             visit::FkMethod(_, _, _) => true,
@@ -877,22 +898,22 @@ pub fn parse_type(s: String) -> TypeVisitor {
 }
 
 
-pub fn parse_fn_output(s: String) -> Option<racer::Path> {
+pub fn parse_fn_output(s: String, scope: Scope) -> Option<racer::Ty> {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = FnVisitor { name: "".to_string(), args: Vec::new(), 
-                                output: None, is_method: false };
+                                output: None, is_method: false, scope: scope};
         visit::walk_stmt(&mut v, &*stmt);
         return v.output;
     }).ok().unwrap();
 }
 
-pub fn parse_fn(s: String) -> FnVisitor {
+pub fn parse_fn(s: String, scope: Scope) -> FnVisitor {
     debug!("PHIL parse_fn |{}|",s);
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = FnVisitor { name: "".to_string(), args: Vec::new(), 
-                                output: None, is_method: false };
+                                output: None, is_method: false, scope: scope};
         visit::walk_stmt(&mut v, &*stmt);
         return v;
     }).ok().unwrap();
@@ -956,39 +977,7 @@ pub fn get_let_type(stmtstr: String, pos: uint, scope: Scope) -> Option<Ty> {
 //     point: uint
 // }
 
-#[deriving(Show,Clone)]
-pub enum Ty {
-    TyMatch(Match),
-    TyPath(racer::Path),
-    TyTuple(Vec<Ty>),
-    TyUnsupported
-}
-
 //------------------------------------------------------------
-
-
-// pub fn get_return_type_of_function(fnmatch: &Match) -> Option<Match> {
-//     let filetxt = BufferedReader::new(File::open(&fnmatch.filepath)).read_to_end().unwrap();
-//     let src = str::from_utf8(filetxt.as_slice()).unwrap();
-//     let point = scopes::find_stmt_start(src, fnmatch.point).unwrap();
-//     return src.slice_from(point).find_str("{").and_then(|n|{
-//         // wrap in "impl blah { }" so that methods get parsed correctly too
-//         let mut decl = String::new();
-//         decl.push_str("impl blah {");
-//         decl.push_str(src.slice(point, point+n+1));
-//         decl.push_str("}}");
-//         debug!("PHIL: passing in |{}|",decl);
-//         //return ast::(decl);
-
-//         let fnmatch = fnmatch.clone();  // copy for the closure
-//         return task::try(proc() {
-//             let stmt = string_to_stmt(decl);
-//             let mut v = FnTypeVisitor { m: None, ctx: fnmatch };
-//             visit::walk_stmt(&mut v, &*stmt, "return_value".to_string());
-//             return v.m.unwrap(); // if None then will fail and parent will return None
-//         }).ok();
-//     });
-// }
 
 
 #[test]

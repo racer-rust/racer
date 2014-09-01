@@ -497,10 +497,10 @@ fn follows_let_method_call() {
     let src="
     struct Foo;
     struct Bar;
-    impl<T> Foo<T> {
+    impl Foo {
         fn mymethod(&self) -> Bar {}
     }
-    impl<T> Bar<T> {
+    impl Bar {
         fn mybarmethod(&self) -> Bar {}
     }
 
@@ -739,6 +739,41 @@ fn finds_type_of_tuple_member_via_let_expr() {
     remove_file(&path);
     assert_eq!("subfield", got.matchstr.as_slice());
 }
+
+
+#[test]
+fn finds_type_of_tuple_member_via_fn_retval() {
+    let src="
+    pub struct Blah { subfield: uint }
+    fn myfn() -> (uint, Blah) {}
+    let (a, b) = myfn();
+    b.subfield
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 5, 11);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("subfield", got.matchstr.as_slice());
+}
+
+
+#[test]
+fn finds_type_of_tuple_member_in_fn_arg() {
+    let src="
+    pub struct Blah { subfield: uint }
+    fn myfn((a: uint, b: uint, c: Blah)) {
+        b.subfield
+    }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 4, 11);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("subfield", got.matchstr.as_slice());
+}
+
 
 
 // #[test]

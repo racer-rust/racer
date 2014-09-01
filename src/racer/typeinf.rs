@@ -44,7 +44,7 @@ fn generates_skeleton_for_mod() {
     assert_eq!("mod foo {};", out.as_slice());
 }
 
-fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<ast::Ty> {
+fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<racer::Ty> {
     debug!("PHIL get_type_of_self_arg {}", m)
     return scopes::find_impl_start(msrc, m.point, 0).and_then(|start| {
         let decl = generate_skeleton_for_parsing(msrc.slice_from(start));
@@ -55,11 +55,11 @@ fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<ast::Ty> {
             debug!("PHIL get_type_of_self_arg implres |{}|", implres);
             return resolve_path_with_str(&implres.name_path.expect("failed parsing impl name"), 
                                          &m.filepath, start,
-                                         ExactMatch, TypeNamespace).nth(0).map(|m| ast::TyMatch(m));
+                                         ExactMatch, TypeNamespace).nth(0).map(|m| racer::TyMatch(m));
         } else {
             // // must be a trait
             return ast::parse_trait(decl).name.and_then(|name| {
-                Some(ast::TyMatch(Match {matchstr: name,
+                Some(racer::TyMatch(Match {matchstr: name,
                            filepath: m.filepath.clone(), 
                            point: start,
                            local: m.local,
@@ -72,7 +72,7 @@ fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<ast::Ty> {
     });
 }
 
-fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<ast::Ty> {
+fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<racer::Ty> {
     debug!("PHIL get type of fn arg {}",m);
 
     if m.matchstr.as_slice() == "self" {
@@ -88,7 +88,7 @@ fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<ast::Ty> {
         let impl_header_len = s.len();
         s.push_str(blob.slice_to(find_start_of_function_body(blob)+1));
         s.push_str("}}");
-        let fn_ = ast::parse_fn(s);
+        let fn_ = ast::parse_fn(s, racer::Scope::from_match(m));
         let mut result = None;
         for (_/*name*/, pos, ty_) in fn_.args.into_iter() {
             let globalpos = pos - impl_header_len + start + point;
@@ -98,7 +98,7 @@ fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<ast::Ty> {
                                                globalpos, 
                                                racer::ExactMatch, 
                                                racer::TypeNamespace,  // just the type namespace
-                                               ).nth(0).map(|m| ast::TyMatch(m));
+                                               ).nth(0).map(|m| racer::TyMatch(m));
             }
         }
         return result;
@@ -106,7 +106,7 @@ fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<ast::Ty> {
     None
 }
 
-fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<ast::Ty> {
+fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<racer::Ty> {
     // ASSUMPTION: this is being called on a let decl
     let point = scopes::find_stmt_start(msrc, m.point).unwrap();
 
@@ -116,7 +116,7 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<ast::Ty> {
         debug!("PHIL get_type_of_let_expr calling parse_let");
 
         let pos = m.point - point - start;
-        let scope = ast::Scope{ filepath: m.filepath.clone(), point: m.point };
+        let scope = racer::Scope{ filepath: m.filepath.clone(), point: m.point };
         return ast::get_let_type(blob.to_string(), pos, scope);
     }
     return None;
@@ -170,21 +170,21 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<rac
 //     return None
 // }
 
-pub fn get_type_of_match(m: Match, msrc: &str) -> Option<ast::Ty> {
+pub fn get_type_of_match(m: Match, msrc: &str) -> Option<racer::Ty> {
     debug!("PHIL get_type_of match {} ",m);
 
     return match m.mtype {
         racer::Let => get_type_of_let_expr(&m, msrc),
         racer::FnArg => get_type_of_fnarg(&m, msrc),
-        racer::Struct => Some(ast::TyMatch(m)),
-        racer::Enum => Some(ast::TyMatch(m)),
-        racer::Function => Some(ast::TyMatch(m)),
-        racer::Module => Some(ast::TyMatch(m)),
+        racer::Struct => Some(racer::TyMatch(m)),
+        racer::Enum => Some(racer::TyMatch(m)),
+        racer::Function => Some(racer::TyMatch(m)),
+        racer::Module => Some(racer::TyMatch(m)),
         _ => { debug!("!!! WARNING !!! Can't get type of {}",m.mtype); None }
     }
 }
 
-pub fn get_return_type_of_function(fnmatch: &Match) -> Option<racer::Path> {
+pub fn get_return_type_of_function(fnmatch: &Match) -> Option<racer::Ty> {
     let filetxt = BufferedReader::new(File::open(&fnmatch.filepath)).read_to_end().unwrap();
     let src = str::from_utf8(filetxt.as_slice()).unwrap();
     let point = scopes::find_stmt_start(src, fnmatch.point).unwrap();
@@ -197,7 +197,7 @@ pub fn get_return_type_of_function(fnmatch: &Match) -> Option<racer::Path> {
         decl.push_str("impl blah {");
         decl.push_str(src.slice(point, point+n+1));
         decl.push_str("}}");
-        debug!("PHIL: passing in |{}|",decl);
-        return ast::parse_fn_output(decl);
+        debug!("PHIL: get_return_type_of_function: passing in |{}|",decl);
+        return ast::parse_fn_output(decl, racer::Scope::from_match(fnmatch));
     });
 }
