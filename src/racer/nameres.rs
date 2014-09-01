@@ -571,18 +571,18 @@ pub fn resolve_path_with_str(path: &[&str], filepath: &Path, pos: uint,
 // HACK: Make box iterator support iterator trait
 //
 // I can't get the type signature to resolve_name to compile, so instead am boxing it into a trait object and then returning it as an iterator
-pub struct BoxIter<T> {
-    iter: Box<Iterator<T>>
+pub struct BoxIter<'a, T> {
+    iter: Box<Iterator<T> + 'a>
 }
 
-impl<T> Iterator<T> for BoxIter<T> {
+impl<'a, T> Iterator<T> for BoxIter<'a, T> {
     #[inline]
     fn next(&mut self) -> Option<T> {
         return self.iter.next();
     }
 }
 
-pub fn wrap_boxed_iter<T>(boxediter: Box<Iterator<T>>) -> BoxIter<T> {
+pub fn wrap_boxed_iter<'a, T>(boxediter: Box<Iterator<T>>) -> BoxIter<'a, T> {
     return BoxIter{ iter: boxediter };
 }
 
@@ -638,8 +638,8 @@ fn pop_searchstack() {
     searchstack.replace(Some(v));
 }
 
-pub fn resolve_name(searchstr: &str, filepath: &Path, pos: uint, 
-                    search_type: SearchType, namespace: Namespace) -> BoxIter<Match> {
+pub fn resolve_name<'a>(searchstr: &str, filepath: &Path, pos: uint, 
+                    search_type: SearchType, namespace: Namespace) -> BoxIter<'a, Match> {
     
     let msrc = racer::load_file_and_mask_comments(filepath);
 
@@ -718,8 +718,8 @@ fn to_strvec(path: &[&str]) -> Vec<String> {
     return v;
 }
 
-pub fn resolve_path(path: &[&str], filepath: &Path, pos: uint, 
-                  search_type: SearchType, namespace: Namespace) -> BoxIter<Match> {
+pub fn resolve_path<'a>(path: &[&str], filepath: &Path, pos: uint, 
+                  search_type: SearchType, namespace: Namespace) -> BoxIter<'a, Match> {
     let search = Search { path: to_strvec(path), 
                                    filepath: filepath.as_str().to_string(),
                                    pos: pos };
@@ -735,8 +735,8 @@ pub fn resolve_path(path: &[&str], filepath: &Path, pos: uint,
     return it;
 }
 
-pub fn resolve_path_(path: &[&str], filepath: &Path, pos: uint, 
-                  search_type: SearchType, namespace: Namespace) -> BoxIter<Match> {
+pub fn resolve_path_<'a>(path: &[&str], filepath: &Path, pos: uint, 
+                  search_type: SearchType, namespace: Namespace) -> BoxIter<'a, Match> {
     let t0 = time::precise_time_s();
     debug!("PHIL resolve_path {} {} in {}",t0, path, filepath.as_str());
 
