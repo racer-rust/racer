@@ -394,15 +394,39 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                 self.visit_expr(&*subexpression, ());
                 
                 // if expr is a field, parent is a struct (at the moment)
-                let m = self.result.clone();
+                let structm = self.result.clone();
 
-                let newres = m.and_then(|m|{
-                    debug!("PHIL !!!!! generic args {} {} contains {}",
-                           fieldname,
-                           m.generic_args, 
-                           m.generic_args.contains(&fieldname));
+                let newres = structm.and_then(|structm|{
+                    let ofieldtypepath = typeinf::get_struct_field_type(fieldname.as_slice(), &structm);
+                    
 
-                    typeinf::get_struct_field_type(fieldname.as_slice(), &m)
+                    ofieldtypepath.and_then(|fieldtypepath| {
+                        if fieldtypepath.segments.len() == 1 {
+                            let ref typename = fieldtypepath.segments[0].name;
+
+                            debug!("PHIL !!!!! generic args {} {} {} contains {}",
+                                   fieldname,
+                                   typename,
+                                   structm.generic_args, 
+                                   structm.generic_args.contains(typename));
+
+                            if structm.generic_args.contains(typename) {
+                                debug!("PHIL !!!!! HERE! {}", structm);
+                                let mut it = structm.generic_args.iter().zip(structm.generic_types.iter());
+                                for (name, typem) in it {
+                                    debug!("PHIL aaa name {}",name);
+                                }
+                            }
+
+                        }
+
+                        return racer::nameres::resolve_path(&fieldtypepath,
+                                             &structm.filepath,
+                                             structm.point,
+                                             racer::ExactMatch, 
+                                             racer::TypeNamespace).nth(0);
+                    })
+
                 });
 
                 self.result = newres;
