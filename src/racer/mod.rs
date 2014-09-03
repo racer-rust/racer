@@ -58,24 +58,11 @@ pub struct Match {
     pub mtype: MatchType,
     pub contextstr: String,
     pub generic_args: Vec<String>,
-    pub generic_types: Vec<Match>
-}
-
-// The racer implementation of an ast::Path. Difference is that it is Send-able
-#[deriving(Show,Clone)]
-pub struct Path {
-    global: bool,
-    segments: Vec<PathSegment>
-}
-
-#[deriving(Show,Clone)]
-pub struct PathSegment {
-    pub name: String,
-    pub types: Vec<Path>
+    pub generic_types: Vec<Search>  // generic types are evaluated lazily
 }
 
 impl Match {
-    fn with_generic_types(&self, generic_types: Vec<Match>) -> Match {
+    fn with_generic_types(&self, generic_types: Vec<Search>) -> Match {
         Match {
             matchstr: self.matchstr.clone(),
             filepath: self.filepath.clone(),
@@ -103,6 +90,40 @@ impl fmt::Show for Match {
     }
 }
 
+// The racer implementation of an ast::Path. Difference is that it is Send-able
+#[deriving(Show,Clone)]
+pub struct Path {
+    global: bool,
+    segments: Vec<PathSegment>
+}
+
+impl Path {
+    pub fn generic_types(&self) -> ::std::slice::Items<Path> {
+        return self.segments[self.segments.len()-1].types.iter();
+    }
+}
+
+#[deriving(Show,Clone)]
+pub struct PathSegment {
+    pub name: String,
+    pub types: Vec<Path>
+}
+
+#[deriving(Clone)]
+pub struct Search {
+    path: Path,
+    filepath: path::Path,
+    point: uint
+}
+
+impl fmt::Show for Search {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Search [{}, {}, {}]", 
+               self.path, 
+               self.filepath.as_str(), 
+               self.point)
+    }
+}
 
 pub fn load_file_and_mask_comments(filepath: &path::Path) -> String {
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
