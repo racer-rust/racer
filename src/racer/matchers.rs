@@ -15,8 +15,9 @@ use racer::util;
 
 // Should I return a boxed trait object to make this signature nicer?
 pub fn match_types(src: &str, blobstart: uint, blobend: uint, 
-                  searchstr: &str, filepath: &Path, search_type: SearchType, 
-                  local: bool) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::Item<Match>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,vec::MoveItems<Match>> {
+                   searchstr: &str, filepath: &Path, 
+                   search_type: SearchType, 
+                   local: bool) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::Item<Match>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,vec::MoveItems<Match>> {
     
     let it = match_extern_crate(src, blobstart, blobend, searchstr, filepath, search_type).move_iter();
     
