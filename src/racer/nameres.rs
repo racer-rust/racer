@@ -641,8 +641,8 @@ pub fn is_a_repeat_search(new_search: &Search) -> bool {
     }
 }
 
-pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: uint, 
-                    search_type: SearchType, namespace: Namespace) -> BoxIter<Match> {
+pub fn resolve_name<'a>(pathseg: &racer::PathSegment, filepath: &Path, pos: uint, 
+                    search_type: SearchType, namespace: Namespace) -> BoxIter<'a, Match> {
     let searchstr = pathseg.name.as_slice();
     
     debug!("PHIL resolve_name {} {} {} {} {}",searchstr, filepath.as_str(), pos, search_type, namespace);
@@ -717,8 +717,8 @@ pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: uint,
 
 }
 
-pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: uint, 
-                  search_type: SearchType, namespace: Namespace) -> BoxIter<Match> {
+pub fn resolve_path<'a>(path: &racer::Path, filepath: &Path, pos: uint, 
+                  search_type: SearchType, namespace: Namespace) -> BoxIter<'a, Match> {
     let len = path.segments.len();
     if len == 1 {
         let ref pathseg = path.segments[0];
