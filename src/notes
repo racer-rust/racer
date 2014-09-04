@@ -2,6 +2,25 @@
 
 20140903
 
+TODO:
+ - refactor ast fieldexpr and methodcall ast functions to be good rust code
+
+DONE:
+ - parse generics out of an enum
+
+ should the exprfield parser be doing 
+                        return racer::nameres::resolve_path(&fieldtypepath,
+                                             &structm.filepath,
+                                             structm.point,
+                                             racer::ExactMatch, 
+                                             racer::TypeNamespace).nth(0);
+
+
+
+Oh wow. I too thought 'type' was like 'typedef' in C. That's really disappointing. After a few years of the lack of this feature in java I was looking forward to using it in rust.
+
+Do you think tuplestructs will disappear at some point?
+
 - Still need racer::Path - Need a way to pass an ast::path through try{} blocks and retain the generic information. E.g for get_return_type_of_function()
     - don't necessarily need the resolve_path() call though. 
 
@@ -12,16 +31,16 @@ pub enum MyOption<T> {
     MySome(T),
     MyNone
 }
-
 impl MyOption<T> {
      pub fn unwrap() -> T {}
 }
-
-let s = MySome(Blah { 3 });
+fn myfn() -> MyOption<Blah> {}
+let s = myfn();
 s.unwrap().subfield
 
-Does anybody here run racer on windows? Somebody has an open issue with it regarding Paths, and I'm not sure what's wrong.
+Does anybody here run racer on windows? Somebody has an open issue with it regarding file Paths[1] and I'm not sure what's wrong.
 
+[1] https://github.com/phildawes/racer/issues/47
 
 20140902
 
@@ -37,6 +56,7 @@ So Match requires matches for generic types, not type Paths. Types could be adde
            (which makes me wonder if we need all the path segment stuff. Gah!!!)
 
 
+racer on windows?
 
 Can you run 'racer find-definition' with the fully qualified filepath (rather than src/main.rs) and let me know what happens please?
 

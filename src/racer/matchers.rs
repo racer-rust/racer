@@ -246,7 +246,8 @@ pub fn match_struct(msrc: &str, blobstart: uint, blobend: uint,
                 searchstr: &str, filepath: &Path, search_type: SearchType,
                 local: bool) -> Option<Match> {
     let blob = msrc.slice(blobstart, blobend);
-    if (local && txt_matches(search_type, format!("struct {}", searchstr).as_slice(), blob)) || txt_matches(search_type, format!("pub struct {}", searchstr).as_slice(), blob) {
+    if (local && txt_matches(search_type, format!("struct {}", searchstr).as_slice(), blob)) || 
+        txt_matches(search_type, format!("pub struct {}", searchstr).as_slice(), blob) {
         // TODO: parse this properly
         let start = blob.find_str(format!("struct {}", searchstr).as_slice()).unwrap() + 7;
         let end = find_ident_end(blob, start);
@@ -255,10 +256,9 @@ pub fn match_struct(msrc: &str, blobstart: uint, blobend: uint,
 
         // Parse generics
         let end = blob.find_str("{").or(blob.find_str(";"))
-            .expect("Can't find end of struct decl");
+            .expect("Can't find end of struct header");
         // structs with no values need to end in ';', not '{}'
         let s = blob.slice_to(end).to_string().append(";");
-
         let generics = ast::parse_generics(s);
 
         return Some(Match {matchstr: l.to_string(),
@@ -267,7 +267,7 @@ pub fn match_struct(msrc: &str, blobstart: uint, blobend: uint,
                            local: local,
                            mtype: Struct,
                            contextstr: first_line(blob),
-                           generic_args: generics.generic_args, 
+                           generic_args: generics.generic_args,
                            generic_types: Vec::new()
         });
     }
@@ -386,45 +386,29 @@ pub fn match_enum(msrc: &str, blobstart: uint, blobend: uint,
              searchstr: &str, filepath: &Path, search_type: SearchType,
              local: bool) -> Option<Match> {
     let blob = msrc.slice(blobstart, blobend);
-    let exact_match = match search_type {
-        ExactMatch => true,
-        StartsWith => false
-    };
-    if blob.starts_with("pub enum") || (local && blob.starts_with("enum")) {
+    if (local && txt_matches(search_type, format!("enum {}", searchstr).as_slice(), blob)) || 
+        txt_matches(search_type, format!("pub enum {}", searchstr).as_slice(), blob) {
+        // TODO: parse this properly
+        let start = blob.find_str(format!("enum {}", searchstr).as_slice()).unwrap() + 5;
+        let end = find_ident_end(blob, start);
+        let l = blob.slice(start, end);
+        debug!("PHIL found!! an enum |{}|", l);
+        // Parse generics
+        let end = blob.find_str("{").or(blob.find_str(";"))
+            .expect("Can't find end of enum header");
+        let s = blob.slice_to(end).to_string().append("{}");
+        let generics = ast::parse_generics(s);
 
-        if blob.starts_with(format!("pub enum {}", searchstr).as_slice()) {
-            // TODO: parse this properly
-            let start = blob.find_str(format!("pub enum {}", searchstr).as_slice()).unwrap() + 9;
-            let end = find_ident_end(blob, start);
-            let l = blob.slice(start, end);
-            if !exact_match || l == searchstr {
-                debug!("PHIL found!! a pub enum {}", l);
-                return Some(Match {matchstr: l.to_string(),
-                                   filepath: filepath.clone(), 
-                                   point: blobstart + start,
-                                   local: local,
-                                   mtype: Enum,
-                                   contextstr: first_line(blob),
-                                   generic_args: Vec::new(), 
-                                   generic_types: Vec::new()
-                });
-            }
-        } else if blob.starts_with(format!("enum {}", searchstr).as_slice()) {
-            // TODO: parse this properly
-            let start = blob.find_str(format!("enum {}", searchstr).as_slice()).unwrap() + 5;
-            let end = find_ident_end(blob, start);
-            let l = blob.slice(start, end);
-            debug!("PHIL found!! a local enum {}", l);
-            return Some(Match {matchstr: l.to_string(),
-                               filepath: filepath.clone(), 
-                               point: blobstart + start,
-                               local: local,
-                               mtype: Enum,
-                               contextstr: first_line(blob),
-                               generic_args: Vec::new(), 
-                               generic_types: Vec::new()
-            });
-        }
+
+        return Some(Match {matchstr: l.to_string(),
+                           filepath: filepath.clone(), 
+                           point: blobstart + start,
+                           local: local,
+                           mtype: Enum,
+                           contextstr: first_line(blob),
+                           generic_args: generics.generic_args,
+                           generic_types: Vec::new()
+        });
     }
     return None;
 }

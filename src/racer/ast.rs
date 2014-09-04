@@ -156,15 +156,6 @@ fn to_racer_path(pth: &ast::Path) -> racer::Path {
     return racer::Path{ global: pth.global, segments: v} ;
 }
 
-// fn path_to_vec(pth: &ast::Path) -> Vec<String> {
-//     let mut v = Vec::new();
-//     for seg in pth.segments.iter() {
-//         v.push(token::get_ident(seg.identifier).get().to_string());
-//     }
-//     return v;
-// }
-
-
 struct ExprTypeVisitor {
     scope: Scope,
     result: Option<Match>
@@ -174,17 +165,6 @@ fn find_match(path: &racer::Path, fpath: &Path, pos: uint) -> Option<Match> {
     return resolve_path_with_str(path, fpath, pos, racer::ExactMatch,
         racer::BothNamespaces).nth(0);
 }
-
-// fn find_type_match(fqn: &Vec<String>, fpath: &Path, pos: uint) -> Option<Match> {
-//     let myfqn = util::to_refs(fqn);  
-//     return resolve_path_with_str(myfqn.as_slice(), fpath, pos, racer::ExactMatch, 
-//                racer::TypeNamespace).nth(0).and_then(|m| {
-//                    match m.mtype {
-//                        racer::Type => get_type_of_typedef(m),
-//                        _ => Some(m)
-//                    }
-//                });
-// }
 
 fn find_type_match(path: &racer::Path, fpath: &Path, pos: uint) -> Option<Match> {
     debug!("PHIL find_type_match {}",path);
@@ -290,76 +270,37 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                 let objexpr = arguments[0];
                 //println!("PHIL obj expr is {:?}",objexpr);
                 self.visit_expr(&*objexpr, ());
-                let mut newres: Option<Match> = None;
-                match self.result {
-                    Some(ref m) => {
-                        debug!("PHIL obj expr type is {}",m);
 
-                        // locate the method
-                        let omethod = nameres::search_for_impl_methods(
-                            m.matchstr.as_slice(),
-                            methodname.as_slice(), 
-                            m.point, 
-                            &m.filepath,
-                            m.local,
-                            racer::ExactMatch).nth(0);
+                self.result = self.result.as_ref().and_then(|contextm|{
+                    let omethod = nameres::search_for_impl_methods(
+                        contextm.matchstr.as_slice(),
+                        methodname.as_slice(), 
+                        contextm.point, 
+                        &contextm.filepath,
+                        contextm.local,
+                        racer::ExactMatch).nth(0);
 
-                        match omethod {
-                            Some(ref method) => {
-                                let opath = racer::typeinf::get_return_type_of_function(method);
-                                debug!("PHIL found exprcall return type: {}", opath);
-                                opath.map(|path| {
-                                    newres = find_type_match(&path, &method.filepath, method.point);
-                                });
-                            }
-                            None => {}
-                        }
-                    }
-                    None => {}
-                }
-                debug!("PHIL at end of method call, type is {}",newres);
-                self.result = newres;
+                    omethod.and_then(|method| 
+                         racer::typeinf::get_return_type_of_function(&method).and_then(|returntypepath| 
+                                            find_type_match_including_generics(&returntypepath, 
+                                                                               &method.filepath, 
+                                                                               method.point, 
+                                                                               contextm)))
+                });
+
             }
 
             ast::ExprField(subexpression, spannedident, _) => {
                 let fieldname = token::get_ident(spannedident.node).get().to_string();
                 debug!("PHIL exprfield {}",fieldname);
                 self.visit_expr(&*subexpression, ());
-                
-                // if expr is a field, parent is a struct (at the moment)
-                let structm = self.result.clone();
-
-                debug!("PHIL ExprField struct is {}", structm);
-
-                let newres = structm.and_then(|structm|{
-                    let ofieldtypepath = typeinf::get_struct_field_type(fieldname.as_slice(), &structm);
-                    ofieldtypepath.and_then(|fieldtypepath| {
-
-                        if fieldtypepath.segments.len() == 1 {
-                            // could be a generic arg! - try and resolve it
-                            let ref typename = fieldtypepath.segments[0].name;
-                            let mut it = structm.generic_args.iter()
-                                .zip(structm.generic_types.iter());
-                            for (name, typesearch) in it {
-                                if name == typename {
-                                    // yes! a generic type match!
-                                    return find_type_match(&typesearch.path, 
-                                                           &typesearch.filepath, 
-                                                           typesearch.point);
-                                }
-                            }
-                        }
-
-                        return racer::nameres::resolve_path(&fieldtypepath,
-                                             &structm.filepath,
-                                             structm.point,
-                                             racer::ExactMatch, 
-                                             racer::TypeNamespace).nth(0);
-                    })
-
-                });
-
-                self.result = newres;
+                self.result = self.result.as_ref()
+                      .and_then(|structm| typeinf::get_struct_field_type(fieldname.as_slice(), structm)
+                                .and_then(|fieldtypepath| 
+                                          find_type_match_including_generics(&fieldtypepath,
+                                                                             &structm.filepath,
+                                                                             structm.point,
+                                                                             structm)))
             }
 
             _ => {
@@ -368,6 +309,30 @@ impl visit::Visitor<()> for ExprTypeVisitor {
         }
     }
 
+}
+
+fn find_type_match_including_generics(fieldtypepath: &racer::Path,
+                                      filepath: &Path,
+                                      pos: uint,
+                                      structm: &racer::Match) -> Option<racer::Match>{
+    if fieldtypepath.segments.len() == 1 {
+        // could be a generic arg! - try and resolve it
+        let ref typename = fieldtypepath.segments[0].name;
+        let mut it = structm.generic_args.iter()
+            .zip(structm.generic_types.iter());
+        for (name, typesearch) in it {
+            if name == typename {
+                // yes! a generic type match!
+                return find_type_match(&typesearch.path, 
+                                       &typesearch.filepath, 
+                                       typesearch.point);
+            }
+        }
+    }
+    
+    return find_type_match(fieldtypepath, 
+                           filepath, 
+                           pos);
 }
 
 impl visit::Visitor<()> for LetVisitor {

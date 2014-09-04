@@ -634,6 +634,29 @@ fn finds_a_generic_retval_from_a_function() {
     assert_eq!("subfield", got.matchstr.as_slice());
 }
 
+#[test]
+fn handles_an_enum_option_style_return_type() {
+    let src="
+    pub struct Blah { subfield: uint }
+    pub enum MyOption<T> {
+        MySome(T),
+        MyNone
+    }
+    impl MyOption<T> {
+         pub fn unwrap(&self) -> T {}
+    }
+    fn myfn() -> MyOption<Blah> {}
+    let s = myfn();
+    s.unwrap().subfield
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 12, 18);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("subfield", got.matchstr.as_slice());
+}
+
 
 // #[test]
 // fn finds_methods_of_string_slice() {
