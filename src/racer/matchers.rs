@@ -85,7 +85,11 @@ pub fn match_extern_crate(msrc: &str, blobstart: uint, blobend: uint,
          searchstr: &str, filepath: &Path, search_type: SearchType) -> Option<Match> {
     let mut res = None;
     let blob = msrc.slice(blobstart, blobend);
-    if blob.starts_with(format!("extern crate {}", searchstr).as_slice()) {
+
+    if blob.starts_with(format!("extern crate {}", searchstr).as_slice()) ||
+         (blob.starts_with("extern crate") && 
+          txt_matches(search_type, format!("as {}",searchstr).as_slice(), blob)) {
+
         debug!("found an extern crate: |{}|",blob);
 
         let view_item;
