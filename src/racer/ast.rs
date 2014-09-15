@@ -71,8 +71,8 @@ pub struct ViewItemVisitor {
     pub paths : Vec<racer::Path>
 }
 
-impl visit::Visitor<()> for ViewItemVisitor {
-    fn visit_view_item(&mut self, i: &ast::ViewItem, e: ()) { 
+impl<'v> visit::Visitor<'v> for ViewItemVisitor {
+    fn visit_view_item(&mut self, i: &ast::ViewItem) {
         match i.node {
             ast::ViewItemUse(ref path) => {
                 match path.node {
@@ -118,7 +118,7 @@ impl visit::Visitor<()> for ViewItemVisitor {
             }
         }
 
-        visit::walk_view_item(self, i, e) 
+        visit::walk_view_item(self, i)
     }
 }
 
@@ -223,8 +223,8 @@ fn get_type_of_path(path: &racer::Path, fpath: &Path, pos: uint) -> Option<Match
     }
 }
 
-impl visit::Visitor<()> for ExprTypeVisitor {
-    fn visit_expr(&mut self, expr: &ast::Expr, _: ()) { 
+impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
+    fn visit_expr(&mut self, expr: &ast::Expr) {
         debug!("PHIL visit_expr {:?}",expr);
         //walk_expr(self, ex, e) 
         match expr.node {
@@ -238,7 +238,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                                  });
             }
             ast::ExprCall(callee_expression, _/*ref arguments*/) => {
-                self.visit_expr(&*callee_expression, ());
+                self.visit_expr(&*callee_expression);
                 let mut newres: Option<Match> = None;
                 {
                     let res = &self.result;
@@ -269,7 +269,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
                 
                 let objexpr = arguments[0];
                 //println!("PHIL obj expr is {:?}",objexpr);
-                self.visit_expr(&*objexpr, ());
+                self.visit_expr(&*objexpr);
 
                 self.result = self.result.as_ref().and_then(|contextm|{
                     let omethod = nameres::search_for_impl_methods(
@@ -293,7 +293,7 @@ impl visit::Visitor<()> for ExprTypeVisitor {
             ast::ExprField(subexpression, spannedident, _) => {
                 let fieldname = token::get_ident(spannedident.node).get().to_string();
                 debug!("PHIL exprfield {}",fieldname);
-                self.visit_expr(&*subexpression, ());
+                self.visit_expr(&*subexpression);
                 self.result = self.result.as_ref()
                       .and_then(|structm| typeinf::get_struct_field_type(fieldname.as_slice(), structm)
                                 .and_then(|fieldtypepath| 
@@ -335,9 +335,9 @@ fn find_type_match_including_generics(fieldtypepath: &racer::Path,
                            pos);
 }
 
-impl visit::Visitor<()> for LetVisitor {
+impl<'v> visit::Visitor<'v> for LetVisitor {
 
-    fn visit_decl(&mut self, decl: &ast::Decl, e: ()) { 
+    fn visit_decl(&mut self, decl: &ast::Decl) {
         debug!("PHIL visit_decl {:?}",decl);
         match decl.node {
             ast::DeclLocal(local) => {
@@ -403,7 +403,7 @@ impl visit::Visitor<()> for LetVisitor {
 
                             let mut v = ExprTypeVisitor{ scope: self.scope.clone(),
                                                          result: None};
-                            v.visit_expr(&*initexpr, ());
+                            v.visit_expr(&*initexpr);
 
                             self.result = Some(LetResult{name: name.to_string(), 
                                                          point: point as uint,
@@ -422,7 +422,7 @@ impl visit::Visitor<()> for LetVisitor {
             }
         }
 
-        visit::walk_decl(self, decl, e);
+        visit::walk_decl(self, decl);
     }
 
 }
@@ -431,8 +431,8 @@ struct StructVisitor {
     pub fields: Vec<(String, uint, Option<racer::Path>)>
 }
 
-impl visit::Visitor<()> for StructVisitor {
-    fn visit_struct_def(&mut self, struct_definition: &ast::StructDef, _: ast::Ident, _: &ast::Generics, _: ast::NodeId, _: ()) {
+impl<'v> visit::Visitor<'v> for StructVisitor {
+    fn visit_struct_def(&mut self, struct_definition: &ast::StructDef, _: ast::Ident, _: &ast::Generics, _: ast::NodeId) {
 
         for field in struct_definition.fields.iter() {
             let codemap::BytePos(point) = field.span.lo;
@@ -480,8 +480,8 @@ pub struct TypeVisitor {
     pub type_: Option<racer::Path>
 }
 
-impl visit::Visitor<()> for TypeVisitor {
-    fn visit_item(&mut self, item: &ast::Item, _: ()) { 
+impl<'v> visit::Visitor<'v> for TypeVisitor {
+    fn visit_item(&mut self, item: &ast::Item) {
         match item.node {
             ast::ItemTy(ty, _) => {
                 self.name = Some(token::get_ident(item.ident).get().to_string());
@@ -516,8 +516,8 @@ pub struct TraitVisitor {
     pub name: Option<String>
 }
 
-impl visit::Visitor<()> for TraitVisitor {
-    fn visit_item(&mut self, item: &ast::Item, _: ()) { 
+impl<'v> visit::Visitor<'v> for TraitVisitor {
+    fn visit_item(&mut self, item: &ast::Item) {
         match item.node {
             ast::ItemTrait(_, _, _, _) => {
                 self.name = Some(token::get_ident(item.ident).get().to_string());
@@ -532,8 +532,8 @@ pub struct ImplVisitor {
     pub trait_path: Option<racer::Path>,
 }
 
-impl visit::Visitor<()> for ImplVisitor {
-    fn visit_item(&mut self, item: &ast::Item, _: ()) { 
+impl<'v> visit::Visitor<'v> for ImplVisitor {
+    fn visit_item(&mut self, item: &ast::Item) {
         match item.node {
             ast::ItemImpl(_,ref otrait, typ,_) => { 
                 match typ.node {
@@ -562,27 +562,27 @@ impl visit::Visitor<()> for ImplVisitor {
     }
 }
 
-pub struct FnTypeVisitor {
-    m: Option<Match>,
-    ctx: Match
-}
-
-impl visit::Visitor<String> for FnTypeVisitor {
-    fn visit_fn(&mut self, _: &visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId, name: String) {
-        if name.as_slice() == "return_value" {
-            match fd.output.node {
-                ast::TyPath(ref path, _, _) => {
-                    //self.output = path_to_vec(path);
-                    self.m = resolve_ast_path(path, 
-                                              &self.ctx.filepath, 
-                                              self.ctx.point);
-                    debug!("PHIL visit_fn: return type is {}",self.m);
-                }
-                _ => {}
-            }
-        }
-    }
-}
+// pub struct FnTypeVisitor {
+//     m: Option<Match>,
+//     ctx: Match
+// }
+//
+// impl visit::Visitor<String> for FnTypeVisitor {
+//     fn visit_fn(&mut self, _: &visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId, name: String) {
+//         if name.as_slice() == "return_value" {
+//             match fd.output.node {
+//                 ast::TyPath(ref path, _, _) => {
+//                     //self.output = path_to_vec(path);
+//                     self.m = resolve_ast_path(path,
+//                                               &self.ctx.filepath,
+//                                               self.ctx.point);
+//                     debug!("PHIL visit_fn: return type is {}",self.m);
+//                 }
+//                 _ => {}
+//             }
+//         }
+//     }
+// }
 
 pub struct FnVisitor {
     pub name: String,
@@ -591,10 +591,14 @@ pub struct FnVisitor {
     pub is_method: bool
 }
 
-impl visit::Visitor<()> for FnVisitor {
-    fn visit_fn(&mut self, fk: &visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId, _: ()) {
+impl<'v> visit::Visitor<'v> for FnVisitor {
+    fn visit_fn(&mut self, fk: visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId) {
 
-        self.name = token::get_ident(visit::name_of_fn(fk)).get().to_string();
+        let name = match fk {
+            visit::FkItemFn(name, _, _, _) | visit::FkMethod(name, _, _) => name,
+            visit::FkFnBlock(..) => syntax::parse::token::special_idents::invalid
+        };
+        self.name = token::get_ident(name).get().to_string();
 
         for arg in fd.inputs.iter() {
             debug!("PHIL fn arg ast is {:?}",arg);
@@ -646,7 +650,7 @@ impl visit::Visitor<()> for FnVisitor {
             _ => {}
         }
 
-        self.is_method = match *fk {
+        self.is_method = match fk {
             visit::FkMethod(_, _, _) => true,
             _ => false
         }
@@ -658,8 +662,8 @@ pub struct ModVisitor {
     pub name: Option<String>
 }
 
-impl visit::Visitor<()> for ModVisitor {
-    fn visit_item(&mut self, item: &ast::Item, _: ()) { 
+impl<'v> visit::Visitor<'v> for ModVisitor {
+    fn visit_item(&mut self, item: &ast::Item) {
         match item.node {
             ast::ItemMod(_) => {
                 self.name = Some(String::from_str(token::get_ident(item.ident).get()));
@@ -674,8 +678,8 @@ pub struct GenericsVisitor {
     pub generic_args: Vec<String>
 }
 
-impl visit::Visitor<()> for GenericsVisitor {
-    fn visit_generics(&mut self, g: &ast::Generics, _: ()) { 
+impl<'v> visit::Visitor<'v> for GenericsVisitor {
+    fn visit_generics(&mut self, g: &ast::Generics) {
         for ty in g.ty_params.iter() {
             self.generic_args.push(String::from_str(token::get_ident(ty.ident).get()));
         }
@@ -687,14 +691,14 @@ pub struct StructDefVisitor {
     pub generic_args: Vec<String>
 }
 
-impl visit::Visitor<()> for StructDefVisitor {
-    fn visit_generics(&mut self, g: &ast::Generics, _: ()) { 
+impl<'v> visit::Visitor<'v> for StructDefVisitor {
+    fn visit_generics(&mut self, g: &ast::Generics) {
         for ty in g.ty_params.iter() {
             self.generic_args.push(String::from_str(token::get_ident(ty.ident).get()));
         }
     }
 
-    fn visit_ident(&mut self, _sp: codemap::Span, _ident: ast::Ident, _e: ()) {
+    fn visit_ident(&mut self, _sp: codemap::Span, _ident: ast::Ident) {
         /*! Visit the idents */
         let codemap::BytePos(point) = _sp.lo;
         let name = String::from_str(token::get_ident(_ident).get());
@@ -710,8 +714,8 @@ pub struct EnumVisitor {
     pub values: Vec<(String, uint)>,
 }
 
-impl visit::Visitor<()> for EnumVisitor {
-    fn visit_item(&mut self, i: &ast::Item, _: ()) { 
+impl<'v> visit::Visitor<'v> for EnumVisitor {
+    fn visit_item(&mut self, i: &ast::Item) {
         match i.node {
             ast::ItemEnum(ref enum_definition, _) => {
                 self.name = String::from_str(token::get_ident(i.ident).get());
@@ -738,7 +742,7 @@ pub fn parse_view_item(s: String) -> ViewItemVisitor {
     let result = task::try(proc() { 
         let cr = string_to_crate(s);
         let mut v = ViewItemVisitor{ident: None, paths: Vec::new()};
-        visit::walk_crate(&mut v, &cr, ());
+        visit::walk_crate(&mut v, &cr);
         return v;
     });
     match result {
@@ -758,7 +762,7 @@ pub fn parse_let(s: String, fpath: Path, pos: uint, need_type: bool) -> Option<L
         let scope = Scope{filepath: fpath, point: pos};
 
         let mut v = LetVisitor{ scope: scope, result: None, need_type: need_type};
-        visit::walk_stmt(&mut v, &*stmt, ());
+        visit::walk_stmt(&mut v, &*stmt);
         return v.result;
     });
     match result {
@@ -773,7 +777,7 @@ pub fn parse_struct_fields(s: String) -> Vec<(String, uint, Option<racer::Path>)
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = StructVisitor{ fields: Vec::new() };
-        visit::walk_stmt(&mut v, &*stmt, ());
+        visit::walk_stmt(&mut v, &*stmt);
         return v.fields;
     }).ok().unwrap_or(Vec::new());
 }
@@ -782,7 +786,7 @@ pub fn parse_impl(s: String) -> ImplVisitor {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = ImplVisitor { name_path: None, trait_path: None };
-        visit::walk_stmt(&mut v, &*stmt, ());
+        visit::walk_stmt(&mut v, &*stmt);
         return v;
     }).ok().unwrap();    
 }
@@ -791,7 +795,7 @@ pub fn parse_trait(s: String) -> TraitVisitor {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = TraitVisitor { name: None };
-        visit::walk_stmt(&mut v, &*stmt, ());
+        visit::walk_stmt(&mut v, &*stmt);
         return v;
     }).ok().unwrap();    
 }
@@ -800,7 +804,7 @@ pub fn parse_struct_def(s: String) -> StructDefVisitor {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = StructDefVisitor { name: None, generic_args: Vec::new() };
-        visit::walk_stmt(&mut v, &*stmt, ());
+        visit::walk_stmt(&mut v, &*stmt);
         return v;
     }).ok().unwrap();
 }
@@ -809,7 +813,7 @@ pub fn parse_generics(s: String) -> GenericsVisitor {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = GenericsVisitor { generic_args: Vec::new() };
-        visit::walk_stmt(&mut v, &*stmt, ());
+        visit::walk_stmt(&mut v, &*stmt);
         return v;
     }).ok().unwrap();
 }
@@ -818,7 +822,7 @@ pub fn parse_type(s: String) -> TypeVisitor {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = TypeVisitor { name: None, type_: None };
-        visit::walk_stmt(&mut v, &*stmt, ());
+        visit::walk_stmt(&mut v, &*stmt);
         return v;
     }).ok().unwrap();    
 }
@@ -829,7 +833,7 @@ pub fn parse_fn_output(s: String) -> Option<racer::Path> {
         let stmt = string_to_stmt(s);
         let mut v = FnVisitor { name: "".to_string(), args: Vec::new(), 
                                 output: None, is_method: false };
-        visit::walk_stmt(&mut v, &*stmt, ());
+        visit::walk_stmt(&mut v, &*stmt);
         return v.output;
     }).ok().unwrap();
 }
@@ -840,7 +844,7 @@ pub fn parse_fn(s: String) -> FnVisitor {
         let stmt = string_to_stmt(s);
         let mut v = FnVisitor { name: "".to_string(), args: Vec::new(), 
                                 output: None, is_method: false };
-        visit::walk_stmt(&mut v, &*stmt, ());
+        visit::walk_stmt(&mut v, &*stmt);
         return v;
     }).ok().unwrap();
 }
@@ -849,7 +853,7 @@ pub fn parse_mod(s: String) -> ModVisitor {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = ModVisitor { name: None };
-        visit::walk_stmt(&mut v, &*stmt, ());
+        visit::walk_stmt(&mut v, &*stmt);
         return v;
     }).ok().unwrap();    
 }
@@ -858,7 +862,7 @@ pub fn parse_enum(s: String) -> EnumVisitor {
     return task::try(proc() {
         let stmt = string_to_stmt(s);
         let mut v = EnumVisitor { name: String::new(), values: Vec::new()};
-        visit::walk_stmt(&mut v, &*stmt, ());
+        visit::walk_stmt(&mut v, &*stmt);
         return v;
     }).ok().unwrap();
 }
@@ -876,7 +880,7 @@ pub fn get_type_of(s: String, fpath: &Path, pos: uint) -> Option<Match> {
 
         let mut v = ExprTypeVisitor{ scope: startscope,
                                      result: None};
-        visit::walk_stmt(&mut v, &*stmt, ());
+        visit::walk_stmt(&mut v, &*stmt);
         return v.result;
     }).ok().unwrap();
 }
