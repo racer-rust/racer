@@ -7,12 +7,12 @@ use syntax::parse::parser::Parser;
 use syntax::parse::token;
 use syntax::visit;
 use syntax::codemap;
-use std::gc::Gc;
 use std::task;
 use racer::Match;
 use racer;
 use racer::nameres::{resolve_path_with_str};
 use racer::typeinf;
+use syntax::ptr::P;
 use syntax::visit::Visitor;
 use racer::nameres;
 
@@ -39,21 +39,21 @@ fn with_error_checking_parse<T>(s: String, f: |&mut Parser| -> T) -> T {
 }
 
 // parse a string, return an expr
-pub fn string_to_expr (source_str : String) -> Gc<ast::Expr> {
+pub fn string_to_expr (source_str : String) -> P<ast::Expr> {
     with_error_checking_parse(source_str, |p| {
         p.parse_expr()
     })
 }
 
 // parse a string, return an item
-pub fn string_to_item (source_str : String) -> Option<Gc<ast::Item>> {
+pub fn string_to_item (source_str : String) -> Option<P<ast::Item>> {
     with_error_checking_parse(source_str, |p| {
         p.parse_item(Vec::new())
     })
 }
 
 // parse a string, return a stmt
-pub fn string_to_stmt(source_str : String) -> Gc<ast::Stmt> {
+pub fn string_to_stmt(source_str : String) -> P<ast::Stmt> {
     with_error_checking_parse(source_str, |p| {
         p.parse_stmt(Vec::new())
     })
@@ -237,8 +237,8 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                    typeinf::get_type_of_match(m, msrc.as_slice())
                                  });
             }
-            ast::ExprCall(callee_expression, _/*ref arguments*/) => {
-                self.visit_expr(&*callee_expression);
+            ast::ExprCall(ref callee_expression, _/*ref arguments*/) => {
+                self.visit_expr(&**callee_expression);
                 let mut newres: Option<Match> = None;
                 {
                     let res = &self.result;
@@ -267,9 +267,9 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                 debug!("PHIL method call ast name {}",methodname);
                 debug!("PHIL method call ast types {:?} {}",types, types.len());
                 
-                let objexpr = arguments[0];
+                let objexpr = &arguments[0];
                 //println!("PHIL obj expr is {:?}",objexpr);
-                self.visit_expr(&*objexpr);
+                self.visit_expr(&**objexpr);
 
                 self.result = self.result.as_ref().and_then(|contextm|{
                     let omethod = nameres::search_for_impl_methods(
@@ -290,10 +290,10 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
 
             }
 
-            ast::ExprField(subexpression, spannedident, _) => {
+            ast::ExprField(ref subexpression, spannedident, _) => {
                 let fieldname = token::get_ident(spannedident.node).get().to_string();
                 debug!("PHIL exprfield {}",fieldname);
-                self.visit_expr(&*subexpression);
+                self.visit_expr(&**subexpression);
                 self.result = self.result.as_ref()
                       .and_then(|structm| typeinf::get_struct_field_type(fieldname.as_slice(), structm)
                                 .and_then(|fieldtypepath| 
@@ -340,7 +340,7 @@ impl<'v> visit::Visitor<'v> for LetVisitor {
     fn visit_decl(&mut self, decl: &ast::Decl) {
         debug!("PHIL visit_decl {:?}",decl);
         match decl.node {
-            ast::DeclLocal(local) => {
+            ast::DeclLocal(ref local) => {
                 debug!("PHIL visit_decl is a DeclLocal {:?}",local);
                 match local.pat.node {
                     ast::PatIdent(_ , ref spannedident, _) => {
@@ -398,12 +398,12 @@ impl<'v> visit::Visitor<'v> for LetVisitor {
                         debug!("PHIL result before is {:?}",self.result);
 
                         // That didn't work. Attempt to parse the init
-                        local.init.map(|initexpr| {
+                        local.init.as_ref().map(|initexpr| {
                             debug!("PHIL init node is {:?}",initexpr.node);
 
                             let mut v = ExprTypeVisitor{ scope: self.scope.clone(),
                                                          result: None};
-                            v.visit_expr(&*initexpr);
+                            v.visit_expr(&**initexpr);
 
                             self.result = Some(LetResult{name: name.to_string(), 
                                                          point: point as uint,
@@ -483,7 +483,7 @@ pub struct TypeVisitor {
 impl<'v> visit::Visitor<'v> for TypeVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         match item.node {
-            ast::ItemTy(ty, _) => {
+            ast::ItemTy(ref ty, _) => {
                 self.name = Some(token::get_ident(item.ident).get().to_string());
 
                 let typepath = match ty.node {
@@ -535,7 +535,7 @@ pub struct ImplVisitor {
 impl<'v> visit::Visitor<'v> for ImplVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         match item.node {
-            ast::ItemImpl(_,ref otrait, typ,_) => { 
+            ast::ItemImpl(_,ref otrait, ref typ,_) => {
                 match typ.node {
                     ast::TyPath(ref path, _, _) => {
                         self.name_path = Some(to_racer_path(path));
@@ -726,7 +726,7 @@ impl<'v> visit::Visitor<'v> for EnumVisitor {
                 let codemap::BytePos(point2) = i.span.hi;
                 debug!("PHIL name point is {} {}",point,point2);
 
-                for &variant in enum_definition.variants.iter() {
+                for variant in enum_definition.variants.iter() {
                     let codemap::BytePos(point) = variant.span.lo;
                     self.values.push((String::from_str(token::get_ident(variant.node.name).get()), point as uint));
                 }
