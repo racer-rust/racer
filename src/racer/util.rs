@@ -160,5 +160,5 @@ pub fn to_refs<'a>(v: &'a Vec<String>) -> Vec<&'a str> {
 
 // Transforms an iterator into an iterator that only evaluates once iterated
 pub fn lazyit<'a,T,I:Iterator<T>>(p: proc():'a -> I) -> iter::FlatMap<'static,proc():'a -> I,option::Item<proc():'a -> I>,I> {
-    return Some(p).move_iter().flat_map(|p| p());
+    return Some(p).into_iter().flat_map(|p| p());
 }
