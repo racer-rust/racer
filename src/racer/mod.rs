@@ -172,7 +172,7 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: uint) -> vec::M
             });
         }
     }
-    return out.move_iter();
+    return out.into_iter();
 }
 
 
