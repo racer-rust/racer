@@ -90,7 +90,7 @@ fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<Match> {
         s.push_str("}}");
         let fn_ = ast::parse_fn(s);
         let mut result = None;
-        for (_/*name*/, pos, ty_) in fn_.args.move_iter() {
+        for (_/*name*/, pos, ty_) in fn_.args.into_iter() {
             let globalpos = pos - impl_header_len + start + point;
             if globalpos == m.point && ty_.is_some() {
                 result = resolve_path_with_str(&ty_.unwrap(), 
@@ -143,7 +143,7 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<rac
 
     let fields = ast::parse_struct_fields(String::from_str(structsrc));
 
-    for (field, fpos, typepath) in fields.move_iter() {
+    for (field, fpos, typepath) in fields.into_iter() {
 
         if fieldname == field.as_slice() {
             return typepath;

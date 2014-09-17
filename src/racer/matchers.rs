@@ -19,19 +19,19 @@ pub fn match_types(src: &str, blobstart: uint, blobend: uint,
                    search_type: SearchType, 
                    local: bool) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::Item<Match>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,vec::MoveItems<Match>> {
     
-    let it = match_extern_crate(src, blobstart, blobend, searchstr, filepath, search_type).move_iter();
+    let it = match_extern_crate(src, blobstart, blobend, searchstr, filepath, search_type).into_iter();
     
-    let it = it.chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local).move_iter());
+    let it = it.chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     
-    let it = it.chain(match_struct(src, blobstart, blobend, searchstr, filepath, search_type, local).move_iter());
+    let it = it.chain(match_struct(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     
-    let it = it.chain(match_type(src, blobstart, blobend, searchstr, filepath, search_type, local).move_iter());
+    let it = it.chain(match_type(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     
-    let it = it.chain(match_trait(src, blobstart, blobend, searchstr, filepath, search_type, local).move_iter());
+    let it = it.chain(match_trait(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     
-    let it = it.chain(match_enum(src, blobstart, blobend, searchstr, filepath, search_type, local).move_iter());
+    let it = it.chain(match_enum(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
         
-    let it = it.chain(match_use(src, blobstart, blobend, searchstr, filepath, search_type, local).move_iter());
+    let it = it.chain(match_use(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
 
     return it;
 }
@@ -39,8 +39,8 @@ pub fn match_types(src: &str, blobstart: uint, blobend: uint,
 pub fn match_values(src: &str, blobstart: uint, blobend: uint, 
                   searchstr: &str, filepath: &Path, search_type: SearchType, 
                   local: bool) -> iter::Chain<iter::Chain<option::Item<Match>,option::Item<Match>>,vec::MoveItems<Match>> {
-    let it = match_let(src, blobstart, blobend, searchstr, filepath, search_type, local).move_iter();
-    let it = it.chain(match_fn(src, blobstart, blobend, searchstr, filepath, search_type, local).move_iter());
+    let it = match_let(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
+    let it = it.chain(match_fn(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_enum_variants(src, blobstart, blobend, searchstr, filepath, search_type, local));
         
     return it;
@@ -366,7 +366,7 @@ pub fn match_enum_variants(msrc: &str, blobstart: uint, blobend: uint,
             if parsed_enum.name.as_slice().starts_with(searchstr) {
             }
 
-            for (name, offset) in parsed_enum.values.move_iter() {
+            for (name, offset) in parsed_enum.values.into_iter() {
                 if name.as_slice().starts_with(searchstr) {
 
                     let m = Match {matchstr: name.clone(),
@@ -383,7 +383,7 @@ pub fn match_enum_variants(msrc: &str, blobstart: uint, blobend: uint,
             }                
         }
     }
-    return out.move_iter();
+    return out.into_iter();
 }
 
 pub fn match_enum(msrc: &str, blobstart: uint, blobend: uint, 
@@ -438,7 +438,8 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
         let view_item = ast::parse_view_item(String::from_str(blob));
         let t1 = ::time::precise_time_s();
         debug!("PHIL ast use parse_view_item time {}",t1-t0);
-        for mut path in view_item.paths.move_iter() {
+        if view_item.ident.is_none() || txt_matches(search_type, searchstr, view_item.ident.unwrap().as_slice()) {
+        for mut path in view_item.paths.into_iter() {
             let len = path.segments.len();
             // if searching for a symbol and the last bit matches the symbol
             // then find the fqn
@@ -455,7 +456,7 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
                     out.push(m);
                 }
             }
-        }
+        }}
     }
     return out;
 }
