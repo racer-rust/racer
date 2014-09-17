@@ -53,9 +53,9 @@ fn complete() {
             let filetxt = BufferedReader::new(File::open(&fpath)).read_to_end().unwrap();
             // print the start-end of the identifier being matched
             let src = str::from_utf8(filetxt.as_slice()).unwrap();
-            // let line = src.lines().nth(linenum - 1).unwrap_or("not_found").to_string();
-            // let (start, pos) = racer::util::expand_ident(line.as_slice(), charnum);
-            // println!("PREFIX {},{},{}", start, pos, line.as_slice().slice(start, pos));
+            let line = getline(&fpath, linenum);
+            let (start, pos) = racer::util::expand_ident(line.as_slice(), charnum);
+            println!("PREFIX {},{},{}", start, pos, line.as_slice().slice(start, pos));
 
             let point = scopes::coords_to_point(src, linenum, charnum);
             for m in racer::complete_from_file(src, &fpath, point) {

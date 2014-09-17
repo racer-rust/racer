@@ -43,7 +43,7 @@ fn search_struct_fields(searchstr: &str, m: &Match,
 
     let mut out = Vec::new();
     
-    for (field, fpos, _) in fields.into_iter() {
+    for (field, fpos, _) in fields.move_iter() {
 
         if symbol_matches(search_type, searchstr, field.as_slice()) {
             out.push(Match { matchstr: field.to_string(),
@@ -56,7 +56,7 @@ fn search_struct_fields(searchstr: &str, m: &Match,
             });
         }
     }
-    return out.into_iter();
+    return out.move_iter();
 }
 
 pub fn search_for_impl_methods(implsearchstr: &str,
@@ -81,7 +81,7 @@ pub fn search_for_impl_methods(implsearchstr: &str,
             }
         });
     };
-    return out.into_iter();
+    return out.move_iter();
 }
 
 fn search_scope_for_methods(point: uint, src:&str, searchstr:&str, filepath:&Path, 
@@ -115,7 +115,7 @@ fn search_scope_for_methods(point: uint, src:&str, searchstr:&str, filepath:&Pat
             });
         }
     }
-    return out.into_iter();
+    return out.move_iter();
 }
 
 
@@ -174,7 +174,7 @@ pub fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool
             });
         }
     }
-    return out.into_iter();
+    return out.move_iter();
 }
 
 fn search_fn_args(point: uint, msrc:&str, searchstr:&str, filepath:&Path, 
@@ -194,7 +194,7 @@ fn search_fn_args(point: uint, msrc:&str, searchstr:&str, filepath:&Path,
         if txt_matches(search_type, searchstr, fndecl.as_slice()) {
             let fn_ = ast::parse_fn(fndecl);
             debug!("PHIL parsed fn got {:?}",fn_);
-            for (s, pos, _) in fn_.args.into_iter() {
+            for (s, pos, _) in fn_.args.move_iter() {
                 if match search_type {
                     ExactMatch => s.as_slice() == searchstr,
                     StartsWith => s.as_slice().starts_with(searchstr)
@@ -211,7 +211,7 @@ fn search_fn_args(point: uint, msrc:&str, searchstr:&str, filepath:&Path,
             }
         }
     });
-    return out.into_iter();
+    return out.move_iter();
 }
 
 pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Match> {
@@ -222,7 +222,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
     let v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
     let v = v.append_one(currentdir.as_str().unwrap());
     debug!("PHIL do_file_search v is {}",v);
-    for srcpath in v.into_iter() {
+    for srcpath in v.move_iter() {
         match std::io::fs::readdir(&Path::new(srcpath)) {
             Ok(v) => {
                 for fpath in v.iter() {
@@ -319,7 +319,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
             Err(_) => ()
         }
     }
-    return out.into_iter();
+    return out.move_iter();
 }
 
 pub fn search_crate_root(pathseg: &racer::PathSegment, modfpath: &Path, 
@@ -338,7 +338,7 @@ pub fn search_crate_root(pathseg: &racer::PathSegment, modfpath: &Path,
         }
         break
     }
-    return out.into_iter();
+    return out.move_iter();
 }
 
 pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<Path> {
@@ -392,7 +392,7 @@ pub fn search_next_scope(mut startpoint: uint, pathseg: &racer::PathSegment,
 pub fn get_crate_file(name: &str) -> Option<Path> {
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
     let v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
-    for srcpath in v.into_iter() {
+    for srcpath in v.move_iter() {
         {
             // try lib<name>/lib.rs, like in the rust source dir
             let cratelibname = format!("lib{}", name);
@@ -499,7 +499,7 @@ pub fn search_scope(point: uint, src: &str, pathseg: &racer::PathSegment,
         }
     }
     debug!("PHIL search_scope found matches {}",out);
-    return out.into_iter();
+    return out.move_iter();
 }
 
 fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path, msrc: &str, mut point:uint,
@@ -530,7 +530,7 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path, msrc: &str
                 out.push(m);
             };
         }
-        return out.into_iter();
+        return out.move_iter();
     }
 
 }
@@ -542,12 +542,12 @@ pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType
     // find the prelude file from the search path and scan it
     let srcpaths = match std::os::getenv("RUST_SRC_PATH") { 
         Some(paths) => paths,
-        None => return out.into_iter()
+        None => return out.move_iter()
     };
 
     let v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
 
-    for srcpath in v.into_iter() {
+    for srcpath in v.move_iter() {
         let filepath = Path::new(srcpath).join_many([Path::new("libstd"), 
                                                      Path::new("prelude.rs")]);
         if File::open(&filepath).is_ok() {
@@ -558,7 +558,7 @@ pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType
             }
         }
     }
-    return out.into_iter();
+    return out.move_iter();
 }
 
 pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: uint, 
@@ -592,7 +592,7 @@ pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: uint,
             out.push(m);
         }
     }
-    return out.into_iter();
+    return out.move_iter();
 }
 
 
@@ -651,7 +651,7 @@ pub fn resolve_name<'a>(pathseg: &racer::PathSegment, filepath: &Path, pos: uint
 
     let is_exact_match = match search_type { ExactMatch => true, StartsWith => false };
 
-    if is_exact_match && searchstr == "std" {
+    if (is_exact_match && searchstr == "std") || (!is_exact_match && "std".starts_with(searchstr)) {
         let r = get_crate_file("std").map(|cratepath|{
             Match { matchstr: "std".to_string(),
                         filepath: cratepath.clone(), 
@@ -662,7 +662,7 @@ pub fn resolve_name<'a>(pathseg: &racer::PathSegment, filepath: &Path, pos: uint
                         generic_args: Vec::new(), generic_types: Vec::new()
             }
         });
-        return BoxIter { iter: box r.into_iter() };
+        return BoxIter { iter: box r.move_iter() };
     }
 
 
@@ -710,7 +710,7 @@ pub fn resolve_name<'a>(pathseg: &racer::PathSegment, filepath: &Path, pos: uint
             }),
         ExactMatch => 
             None
-    }.into_iter().flat_map(|p| p()));
+    }.move_iter().flat_map(|p| p()));
 
     let it = box it as Box<Iterator<Match>>;
     return BoxIter{ iter: it };
@@ -720,9 +720,6 @@ pub fn resolve_name<'a>(pathseg: &racer::PathSegment, filepath: &Path, pos: uint
 pub fn resolve_path<'a>(path: &racer::Path, filepath: &Path, pos: uint, 
                   search_type: SearchType, namespace: Namespace) -> BoxIter<'a, Match> {
     let len = path.segments.len();
-    // if len == 0 {
-    //     return resolve_name("", filepath, pos, search_type, namespace);
-    // } else
     if len == 1 {
         let ref pathseg = path.segments[0];
         return resolve_name(pathseg, filepath, pos, search_type, namespace);
@@ -761,7 +758,7 @@ pub fn resolve_path<'a>(path: &racer::Path, filepath: &Path, pos: uint,
                 _ => () 
             }
         });
-        return BoxIter{iter: box out.into_iter() as Box<Iterator<Match>>};
+        return BoxIter{iter: box out.move_iter() as Box<Iterator<Match>>};        
     }
 }
 
@@ -822,7 +819,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: uint, search_type
             }
         });
     }
-    return out.into_iter();
+    return out.move_iter();
 }
 
 pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: SearchType) -> vec::MoveItems<Match> {
@@ -869,5 +866,5 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
         }
         _ => { debug!("PHIL WARN!! context wasn't a Struct, Enum or Trait {}",m);}
     };
-    return out.into_iter();
+    return out.move_iter();
 }
