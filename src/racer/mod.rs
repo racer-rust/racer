@@ -45,8 +45,8 @@ pub enum Namespace {
 
 #[deriving(Show)]
 pub enum CompletionType {
-    Field,
-    Path
+    CompleteField,
+    CompletePath
 }
 
 #[deriving(Clone)]
@@ -145,7 +145,7 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: uint) -> vec::M
     let mut out = Vec::new();
 
     match completetype {
-        Path => {
+        CompletePath => {
             let mut v : Vec<&str> = expr.split_str("::").collect();
             let mut global = false;
             if v[0] == "" {      // i.e. starts with '::' e.g. ::std::io::blah
@@ -162,7 +162,7 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: uint) -> vec::M
                 out.push(m);
             }
         },
-        Field => {
+        CompleteField => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
             debug!("PHIL complete_from_file context is {}", context);
             context.map(|m| {
@@ -190,7 +190,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: uint) -> Option<M
     debug!("PHIL searching for |{}| |{}| {:?}",contextstr, searchstr, completetype);
 
     return match completetype {
-        Path => {
+        CompletePath => {
             let mut v : Vec<&str> = expr.split_str("::").collect();
             let mut global = false;
             if v[0] == "" {      // i.e. starts with '::' e.g. ::std::io::blah
@@ -206,7 +206,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: uint) -> Option<M
             return nameres::resolve_path(&path, filepath, pos, 
                                          ExactMatch, BothNamespaces).nth(0);
         },
-        Field => {
+        CompleteField => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
             debug!("PHIL context is {}",context);
 

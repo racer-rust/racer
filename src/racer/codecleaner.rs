@@ -20,11 +20,11 @@ pub fn slice<'a>(src: &'a str, (begin, end): (uint, uint)) -> &'a str{
 }
 
 enum State {
-    Code,
-    Comment,
-    CommentBlock,
-    String,
-    Finished
+    StateCode,
+    StateComment,
+    StateCommentBlock,
+    StateString,
+    StateFinished
 }
 
 pub struct CodeIndicesIter<'a> {
@@ -39,11 +39,11 @@ impl<'a> Iterator<(uint, uint)> for CodeIndicesIter<'a> {
     #[inline]
     fn next(&mut self) -> Option<(uint, uint)> {
         return match self.state {
-            Code => code(self),
-            Comment => comment(self),
-            CommentBlock  => comment_block(self),
-            String => string(self),
-            Finished => None
+            StateCode => code(self),
+            StateComment => comment(self),
+            StateCommentBlock  => comment_block(self),
+            StateString => string(self),
+            StateFinished => None
         }
     }
 }
@@ -60,14 +60,14 @@ fn code(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
         if pos > 0 && src_bytes[pos] == slash && src_bytes[pos-1] == slash {
             self_.start = pos+1;
             self_.pos = pos+1;
-            self_.state = Comment;
+            self_.state = StateComment;
             return Some((start, pos-1));
         }
 
         if pos > 0 && src_bytes[pos] == star && src_bytes[pos-1] == slash {
             self_.start = pos+1;
             self_.pos = pos+1;
-            self_.state = CommentBlock;
+            self_.state = StateCommentBlock;
             self_.nesting_level = 0;
             return Some((start, pos-1));
         }
@@ -75,13 +75,13 @@ fn code(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
         if src_bytes[pos] == dblquote {
             self_.start = pos+1;
             self_.pos = pos+1;
-            self_.state = String;
+            self_.state = StateString;
             return Some((start, pos+1)); // include the dblquote in the code
         }
 
         pos += 1;
     }
-    self_.state = Finished;
+    self_.state = StateFinished;
     return Some((start, end));
 }
 
@@ -94,12 +94,12 @@ fn comment(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
         if src_bytes[pos] == newline {
             self_.start = pos+1;
             self_.pos = pos+1;
-            self_.state = Code;
+            self_.state = StateCode;
             return code(self_);
         }
         pos += 1;
     }
-    self_.state = Finished;
+    self_.state = StateFinished;
     return Some((start, end));
 }
 
@@ -118,7 +118,7 @@ fn comment_block(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
             if self_.nesting_level == 0 {
                 self_.start = pos+1;
                 self_.pos = pos+1;
-                self_.state = Code;
+                self_.state = StateCode;
                 return code(self_);
             } else {
                 self_.nesting_level -= 1;
@@ -126,7 +126,7 @@ fn comment_block(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
         }
         pos += 1;
     }
-    self_.state = Finished;
+    self_.state = StateFinished;
     return Some((start, end));
 }
 
@@ -152,18 +152,18 @@ fn string(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
         if src_bytes[pos] == dblquote && !escaped(src_bytes, pos) {
             self_.start = pos;   // include the dblquote as code
             self_.pos = pos+1;
-            self_.state = Code;
+            self_.state = StateCode;
             return code(self_);
         }
         pos += 1;
     }
-    self_.state = Finished;
+    self_.state = StateFinished;
     return Some((start, end));
 }
 
 /// Returns indices of chunks of code (minus comments and string contents)
 pub fn code_chunks<'a>(src: &'a str) -> CodeIndicesIter<'a> {
-    CodeIndicesIter { src: src, start: 0, pos: 0, state: Code, nesting_level: 0 }
+    CodeIndicesIter { src: src, start: 0, pos: 0, state: StateCode, nesting_level: 0 }
 }
 
 #[test]
