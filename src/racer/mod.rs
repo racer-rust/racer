@@ -58,11 +58,11 @@ pub struct Match {
     pub mtype: MatchType,
     pub contextstr: String,
     pub generic_args: Vec<String>,
-    pub generic_types: Vec<Search>  // generic types are evaluated lazily
+    pub generic_types: Vec<PathSearch>  // generic types are evaluated lazily
 }
 
 impl Match {
-    fn with_generic_types(&self, generic_types: Vec<Search>) -> Match {
+    fn with_generic_types(&self, generic_types: Vec<PathSearch>) -> Match {
         Match {
             matchstr: self.matchstr.clone(),
             filepath: self.filepath.clone(),
@@ -110,13 +110,13 @@ pub struct PathSegment {
 }
 
 #[deriving(Clone)]
-pub struct Search {
+pub struct PathSearch {
     path: Path,
     filepath: path::Path,
     point: uint
 }
 
-impl fmt::Show for Search {
+impl fmt::Show for PathSearch {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Search [{}, {}, {}]", 
                self.path, 
@@ -165,9 +165,14 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: uint) -> vec::M
         CompleteField => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
             debug!("PHIL complete_from_file context is {}", context);
-            context.map(|m| {
-                for m in nameres::search_for_field_or_method(m, searchstr, StartsWith) {
-                    out.push(m)
+            context.map(|ty| {
+                match ty {
+                    ast::TyMatch(m) => {
+                        for m in nameres::search_for_field_or_method(m, searchstr, StartsWith) {
+                            out.push(m)
+                        }
+                    }
+                    _ => {}
                 }
             });
         }
@@ -181,7 +186,6 @@ pub fn find_definition(src: &str, filepath: &path::Path, pos: uint) -> Option<Ma
 }
 
 pub fn find_definition_(src: &str, filepath: &path::Path, pos: uint) -> Option<Match> {
-
     let (start, end) = scopes::expand_search_expr(src, pos);
     let expr = src.slice(start,end);
 
@@ -210,8 +214,14 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: uint) -> Option<M
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
             debug!("PHIL context is {}",context);
 
-            return context.and_then(|m| {
-                return nameres::search_for_field_or_method(m, searchstr, ExactMatch).nth(0);
+            return context.and_then(|ty| {
+                // for now, just handle matches
+                match ty {
+                    ast::TyMatch(m) => {
+                        return nameres::search_for_field_or_method(m, searchstr, ExactMatch).nth(0);
+                    }
+                    _ => None
+                }
             });
         }
     }

@@ -56,7 +56,8 @@ pub fn match_let(msrc: &str, blobstart: uint, blobend: uint,
     };
     let blob = msrc.slice(blobstart, blobend);
     if blob.starts_with("let ") && blob.find_str(searchstr).is_some() {
-        let letres = ast::parse_let(String::from_str(blob), filepath.clone(), blobstart, false);
+        let letres = ast::parse_let(String::from_str(blob), filepath.clone(), 
+                                    blobstart, false);
         letres.map(|letresult| {
             
             let name = letresult.name.as_slice();

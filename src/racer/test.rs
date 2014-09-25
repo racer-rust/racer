@@ -657,6 +657,34 @@ fn handles_an_enum_option_style_return_type() {
     assert_eq!("subfield", got.matchstr.as_slice());
 }
 
+#[test]
+fn finds_definition_of_lambda_argument() {
+    let src="
+    fn myfn(&|int|) {}
+    myfn(|a|a+3);
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 3, 12);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("a", got.matchstr.as_slice());
+}
+
+#[test]
+fn finds_definition_of_let_tuple() {
+    let src="
+    let (a, b) = (2,3);
+    a
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 3, 4);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("a", got.matchstr.as_slice());
+}
+
 
 // #[test]
 // fn finds_methods_of_string_slice() {
