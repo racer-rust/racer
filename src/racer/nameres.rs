@@ -132,7 +132,7 @@ pub fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool
         if blob.starts_with("impl") {
             blob.find_str("{").map(|n|{
                 let mut decl = String::from_str(blob.slice_to(n+1));
-                decl = decl.append("}");
+                decl.push_str("}");
                 if txt_matches(ExactMatch, searchstr, decl.as_slice()) {
                     debug!("PHIL impl decl {}",decl);
                     let t0 = time::precise_time_s();
@@ -219,8 +219,8 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
     let mut out = Vec::new();
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap_or("".to_string());
     debug!("PHIL do_file_search srcpaths {}",srcpaths);
-    let v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
-    let v = v.append_one(currentdir.as_str().unwrap());
+    let mut v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
+    v.push(currentdir.as_str().unwrap());
     debug!("PHIL do_file_search v is {}",v);
     for srcpath in v.into_iter() {
         match std::io::fs::readdir(&Path::new(srcpath)) {

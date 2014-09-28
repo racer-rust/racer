@@ -262,7 +262,8 @@ pub fn match_struct(msrc: &str, blobstart: uint, blobend: uint,
         let end = blob.find_str("{").or(blob.find_str(";"))
             .expect("Can't find end of struct header");
         // structs with no values need to end in ';', not '{}'
-        let s = blob.slice_to(end).to_string().append(";");
+        let mut s = blob.slice_to(end).to_string();
+        s.push_str(";");
         let generics = ast::parse_generics(s);
 
         return Some(Match {matchstr: l.to_string(),
@@ -400,7 +401,8 @@ pub fn match_enum(msrc: &str, blobstart: uint, blobend: uint,
         // Parse generics
         let end = blob.find_str("{").or(blob.find_str(";"))
             .expect("Can't find end of enum header");
-        let s = blob.slice_to(end).to_string().append("{}");
+        let mut s = blob.slice_to(end).to_string();
+        s.push_str("{}");
         let generics = ast::parse_generics(s);
 
 
