@@ -108,27 +108,20 @@ fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<ast::Ty> {
 
 fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<ast::Ty> {
     // ASSUMPTION: this is being called on a let decl
-    let opoint = scopes::find_stmt_start(msrc, m.point);
-    let point = opoint.unwrap();
+    let point = scopes::find_stmt_start(msrc, m.point).unwrap();
 
     let src = msrc.slice_from(point);
     for (start,end) in codeiter::iter_stmts(src) { 
         let blob = src.slice(start,end);
         debug!("PHIL get_type_of_let_expr calling parse_let");
-        return ast::parse_let(String::from_str(blob), m.filepath.clone(), m.point, true).map_or(None, |letres|{
 
-            let inittype = letres.inittype;
-            debug!("PHIL parse let result {:?}", inittype);
-
-            inittype.as_ref().map(|m|{
-                debug!("PHIL parse let type is {}",m);
-            });
-
-            return inittype;
-        });
+        let pos = m.point - point - start;
+        let scope = ast::Scope{ filepath: m.filepath.clone(), point: m.point };
+        return ast::get_let_type(blob.to_string(), pos, scope);
     }
     return None;
 }
+
 
 
 pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<racer::Path> {
@@ -143,7 +136,7 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<rac
 
     let fields = ast::parse_struct_fields(String::from_str(structsrc));
 
-    for (field, fpos, typepath) in fields.into_iter() {
+    for (field, _, typepath) in fields.into_iter() {
 
         if fieldname == field.as_slice() {
             return typepath;
@@ -176,7 +169,6 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<rac
 //     }
 //     return None
 // }
-
 
 pub fn get_type_of_match(m: Match, msrc: &str) -> Option<ast::Ty> {
     debug!("PHIL get_type_of match {} ",m);

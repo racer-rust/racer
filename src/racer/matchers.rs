@@ -50,29 +50,23 @@ pub fn match_let(msrc: &str, blobstart: uint, blobend: uint,
                  searchstr: &str, filepath: &Path, search_type: SearchType,
                   local: bool)  -> Option<Match> {
     let mut res = None;
-    let exact_match = match search_type {
-        ExactMatch => true,
-        StartsWith => false
-    };
     let blob = msrc.slice(blobstart, blobend);
-    if blob.starts_with("let ") && blob.find_str(searchstr).is_some() {
-        let letres = ast::parse_let(String::from_str(blob), filepath.clone(), 
-                                    blobstart, false);
-        letres.map(|letresult| {
-            
-            let name = letresult.name.as_slice();
-            if (exact_match && name == searchstr) || (!exact_match && name.starts_with(searchstr)) {
-                res = Some(Match { matchstr: letresult.name.to_string(),
-                                    filepath: filepath.clone(),
-                                    point: blobstart + letresult.point,
-                                    local: local,
-                                    mtype: Let,
-                                    contextstr: first_line(blob),
+    if blob.starts_with("let ") && txt_matches(search_type, searchstr, blob) {
+        let coords = ast::parse_let(String::from_str(blob));
+        for &(start,end) in coords.iter() {
+            let s = blob.slice(start,end);
+            if symbol_matches(search_type, searchstr, s) {
+                res = Some(Match { matchstr: s.to_string(),
+                                   filepath: filepath.clone(),
+                                   point: blobstart + start,
+                                   local: local,
+                                   mtype: Let,
+                                   contextstr: first_line(blob),
                                    generic_args: Vec::new(), 
                                    generic_types: Vec::new()
-                });
+                });                
             }
-        });
+        }
     }
     return res;
 }
@@ -112,7 +106,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: uint, blobend: uint,
             // reference to a crate.
 
             view_item.ident.clone().map(|ident|{
-                println!("PHIL EXTERN CRATE {}",ident.as_slice());
+                debug!("PHIL EXTERN CRATE {}",ident.as_slice());
                 get_crate_file(ident.as_slice()).map(|cratepath|{
                     res = Some(Match {matchstr: ident.to_string(),
                                       filepath: cratepath.clone(), 

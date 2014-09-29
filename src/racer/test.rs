@@ -685,6 +685,37 @@ fn finds_definition_of_let_tuple() {
     assert_eq!("a", got.matchstr.as_slice());
 }
 
+#[test]
+fn finds_type_of_tuple_member_via_let_type() {
+    let src="
+    pub struct Blah { subfield: uint }
+    let (a, b): (uint, Blah);
+    b.subfield
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 4, 11);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("subfield", got.matchstr.as_slice());
+}
+
+
+#[test]
+fn finds_type_of_tuple_member_via_let_expr() {
+    let src="
+    pub struct Blah { subfield: uint }
+    let (a, b) = (3, Blah{subfield:3});
+    b.subfield
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 4, 11);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("subfield", got.matchstr.as_slice());
+}
+
 
 // #[test]
 // fn finds_methods_of_string_slice() {

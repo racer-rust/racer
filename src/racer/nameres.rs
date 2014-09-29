@@ -156,15 +156,11 @@ pub fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool
 
                     // find trait
                     if include_traits && implres.trait_path.is_some() {
-                            let t0 = time::precise_time_s();
-                        //println!("PHIL finding trait {} |{}|",
-                        //         t0,
-                        //         &implres.trait_path);
-                        
+                            let t0 = time::precise_time_s();                        
                         let trait_path = implres.trait_path.unwrap();
                         let m = resolve_path(&trait_path, 
                                              filepath, pos + start, ExactMatch, TypeNamespace).nth(0);
-                        println!("PHIL found trait {} |{}| {}",
+                        debug!("PHIL found trait {} |{}| {}",
                                  time::precise_time_s() - t0,
                                  trait_path, m);
                         m.map(|m| out.push(m));
@@ -629,7 +625,7 @@ pub fn is_a_repeat_search(new_search: &Search) -> bool {
         Some(v) => {
             for s in v.iter() {
                 if s == new_search {
-                    println!("PHIL is a repeat search {} Stack: {}", new_search, v);
+                    debug!("PHIL is a repeat search {} Stack: {}", new_search, v);
                     return true;
                 }
             }
