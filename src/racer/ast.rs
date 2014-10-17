@@ -97,7 +97,7 @@ impl<'v> visit::Visitor<'v> for ViewItemVisitor {
                         }
                     }
                     ast::ViewPathGlob(_, id) => {
-                        debug!("PHIL got glob {:?}",id);
+                        debug!("PHIL got glob {}",id);
                     }
                 }
             },
@@ -179,7 +179,7 @@ fn point_is_in_span(point: u32, span: &codemap::Span) -> bool {
 
 // The point must point to an ident within the pattern, This 
 fn match_pattern_to_ty(pat: &ast::Pat, point: uint, ty: &Ty) -> Option<Ty> {
-    debug!("PHIL match_pattern_to_ty point {} ty {}    ||||||||    pat: {:?}",point, ty, pat);
+    debug!("PHIL match_pattern_to_ty point {} ty {}    ||||||||    pat: {}",point, ty, pat);
     return match pat.node {
         ast::PatTup(ref tuple_elements) => {
             return match ty {
@@ -235,7 +235,7 @@ impl<'v> visit::Visitor<'v> for LetTypeVisitor {
         if ty.is_none() {
             // oh, no type in the let expr. Try evalling the RHS
             ty = local.init.as_ref().and_then(|initexpr| {
-                debug!("PHIL init node is {:?}",initexpr.node);
+                debug!("PHIL init node is {}",initexpr.node);
                 let mut v = ExprTypeVisitor{ scope: self.scope.clone(),
                                              result: None};
                 v.visit_expr(&**initexpr);
@@ -265,7 +265,7 @@ fn to_racer_path(pth: &ast::Path) -> racer::Path {
         for ty in seg.types.iter() {
             types.push(match ty.node {
                 ast::TyPath(ref path, _, _) => to_racer_path(path),
-                _ => fail!(format!("Cannot handle type {:?}", ty.node))
+                _ => fail!(format!("Cannot handle type {}", ty.node))
             });
         }
         v.push(racer::PathSegment{ name: name, types: types}); 
@@ -325,7 +325,7 @@ fn get_type_of_typedef(m: Match) -> Option<Match> {
 
 impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
     fn visit_expr(&mut self, expr: &ast::Expr) {
-        debug!("PHIL visit_expr {:?}",expr);
+        debug!("PHIL visit_expr {}",expr);
         //walk_expr(self, ex, e) 
         match expr.node {
             ast::ExprPath(ref path) => {
@@ -362,7 +362,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                 // spannedident.node is an ident I think
                 let methodname = token::get_ident(spannedident.node).get().to_string();
                 debug!("PHIL method call ast name {}",methodname);
-                debug!("PHIL method call ast types {:?} {}",types, types.len());
+                debug!("PHIL method call ast types {} {}",types, types.len());
                 
                 let objexpr = &arguments[0];
                 //println!("PHIL obj expr is {:?}",objexpr);
@@ -433,7 +433,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
             }
 
             _ => {
-                println!("PHIL - Could not match expr node type: {:?}",expr.node);
+                println!("PHIL - Could not match expr node type: {}",expr.node);
             }
         }
     }
@@ -565,6 +565,7 @@ impl<'v> visit::Visitor<'v> for TraitVisitor {
     }
 }
 
+#[deriving(Show)]
 pub struct ImplVisitor {
     pub name_path: Option<racer::Path>,
     pub trait_path: Option<racer::Path>,
@@ -622,6 +623,7 @@ impl<'v> visit::Visitor<'v> for ImplVisitor {
 //     }
 // }
 
+#[deriving(Show)]
 pub struct FnVisitor {
     pub name: String,
     pub output: Option<racer::Path>,
@@ -639,7 +641,7 @@ impl<'v> visit::Visitor<'v> for FnVisitor {
         self.name = token::get_ident(name).get().to_string();
 
         for arg in fd.inputs.iter() {
-            debug!("PHIL fn arg ast is {:?}",arg);
+            debug!("PHIL fn arg ast is {}",arg);
             let res  = 
                 match arg.pat.node {
                     ast::PatIdent(_ , ref spannedident, _) => {
@@ -799,7 +801,7 @@ pub fn parse_let2(s: String) -> Vec<(uint,uint)> {
 pub fn parse_let(s: String) -> Vec<(uint, uint)> {
     let result = task::try(proc() { 
         let stmt = string_to_stmt(s);
-        debug!("PHIL parse_let stmt={:?}",stmt);
+        debug!("PHIL parse_let stmt={}",stmt);
         let mut v = LetVisitor2{ ident_points: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt);
         return v.ident_points;

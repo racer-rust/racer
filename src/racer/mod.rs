@@ -191,7 +191,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: uint) -> Option<M
 
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
-    debug!("PHIL searching for |{}| |{}| {:?}",contextstr, searchstr, completetype);
+    debug!("PHIL searching for |{}| |{}| {}",contextstr, searchstr, completetype);
 
     return match completetype {
         CompletePath => {
