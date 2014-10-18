@@ -5,7 +5,6 @@
 
 extern crate syntax;
 extern crate time;
-extern crate debug;
 extern crate collections;
 extern crate core;
 
@@ -32,7 +31,7 @@ fn match_fn(m:Match) {
     if m.matchstr.as_slice() == "" {
         fail!("MATCHSTR is empty - waddup?");
     }
-    println!("MATCH {},{},{},{},{:?},{}", m.matchstr,
+    println!("MATCH {},{},{},{},{},{}", m.matchstr,
                                     linenum.to_string(),
                                     charnum.to_string(),
                                     m.filepath.as_str().unwrap(),

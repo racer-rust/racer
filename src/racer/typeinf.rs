@@ -52,7 +52,7 @@ fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<ast::Ty> {
         
         if decl.as_slice().starts_with("impl") {
             let implres = ast::parse_impl(decl);
-            debug!("PHIL get_type_of_self_arg implres |{:?}|", implres);
+            debug!("PHIL get_type_of_self_arg implres |{}|", implres);
             return resolve_path_with_str(&implres.name_path.expect("failed parsing impl name"), 
                                          &m.filepath, start,
                                          ExactMatch, TypeNamespace).nth(0).map(|m| ast::TyMatch(m));
@@ -180,7 +180,7 @@ pub fn get_type_of_match(m: Match, msrc: &str) -> Option<ast::Ty> {
         racer::Enum => Some(ast::TyMatch(m)),
         racer::Function => Some(ast::TyMatch(m)),
         racer::Module => Some(ast::TyMatch(m)),
-        _ => { debug!("!!! WARNING !!! Can't get type of {:?}",m.mtype); None }
+        _ => { debug!("!!! WARNING !!! Can't get type of {}",m.mtype); None }
     }
 }
 

@@ -189,7 +189,7 @@ fn search_fn_args(point: uint, msrc:&str, searchstr:&str, filepath:&Path,
         debug!("PHIL found start of fn!! '{}' {} |{}|",searchstr, n, fndecl);
         if txt_matches(search_type, searchstr, fndecl.as_slice()) {
             let fn_ = ast::parse_fn(fndecl);
-            debug!("PHIL parsed fn got {:?}",fn_);
+            debug!("PHIL parsed fn got {}",fn_);
             for (s, pos, _) in fn_.args.into_iter() {
                 if match search_type {
                     ExactMatch => s.as_slice() == searchstr,
@@ -568,7 +568,7 @@ pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: uint,
         debug!("PHIL {} == {}", path.segments[0], "str");
         let str_pathseg = racer::PathSegment{ name: "Str".to_string(), types: Vec::new() };
         let str_match = resolve_name(&str_pathseg, filepath, pos, ExactMatch, namespace).nth(0);
-        debug!("PHIL: str_match {:?}", str_match);
+        debug!("PHIL: str_match {}", str_match);
         
         str_match.map(|str_match|{
             debug!("PHIL: found Str, converting to str");
