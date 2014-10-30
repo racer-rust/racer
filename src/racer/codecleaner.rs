@@ -263,7 +263,7 @@ fn handles_tricky_bit_from_str_rs() {
     for (start,end) in code_chunks(src) {
         println!("BLOB |{}|",src.slice(start,end));
         if src.slice(start,end).contains("skip me") {
-            fail!("{}", src.slice(start,end));
+            panic!("{}", src.slice(start,end));
         }
     }
 }
