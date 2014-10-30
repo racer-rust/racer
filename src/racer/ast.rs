@@ -196,7 +196,7 @@ fn match_pattern_to_ty(pat: &ast::Pat, point: uint, ty: &Ty) -> Option<Ty> {
                     }
                     res
                 }
-                _ => fail!("Expecting TyTuple")
+                _ => panic!("Expecting TyTuple")
                 
             }
         }
@@ -204,7 +204,7 @@ fn match_pattern_to_ty(pat: &ast::Pat, point: uint, ty: &Ty) -> Option<Ty> {
             if point_is_in_span(point as u32, &spannedident.span) {
                 return Some(ty.clone());
             } else {
-                fail!("Expecting the point to be in the patident span. pt: {}", point);
+                panic!("Expecting the point to be in the patident span. pt: {}", point);
             }
         }
         _ => None
@@ -265,7 +265,7 @@ fn to_racer_path(pth: &ast::Path) -> racer::Path {
         for ty in seg.types.iter() {
             types.push(match ty.node {
                 ast::TyPath(ref path, _, _) => to_racer_path(path),
-                _ => fail!(format!("Cannot handle type {}", ty.node))
+                _ => panic!(format!("Cannot handle type {}", ty.node))
             });
         }
         v.push(racer::PathSegment{ name: name, types: types}); 
@@ -774,7 +774,7 @@ impl<'v> visit::Visitor<'v> for EnumVisitor {
 }
 
 pub fn parse_view_item(s: String) -> ViewItemVisitor {
-    // parser can fail!() so isolate it in another task
+    // parser can panic!() so isolate it in another task
     let result = task::try(proc() { 
         let cr = string_to_crate(s);
         let mut v = ViewItemVisitor{ident: None, paths: Vec::new()};
@@ -1008,7 +1008,7 @@ fn ast_sandbox() {
     };
     visit::walk_stmt(&mut v, &*stmt);
 
-    fail!("BLAH {}",v.result);
+    panic!("BLAH {}",v.result);
     // let out = parse_let2(src.to_string());
 
     // for &(l,h) in out.iter() {
@@ -1023,13 +1023,13 @@ fn ast_sandbox() {
 
 
     //println!("PHIL out {} ", result);
-    //fail!();
+    //panic!();
 
     //parse_let("let l : Vec<Blah>;".to_string(), Path::new("./ast.rs"), 0, true);
     //parse_let("let l = Vec<Blah>::new();".to_string(), Path::new("./ast.rs"), 0, true);
 
     //get_type_of("let l : Vec<Blah>;".to_string(), &Path::new("./ast.rs"), 0);
-    //fail!();
+    //panic!();
 
 
     // let src = "pub struct Foo<T>;";
@@ -1037,15 +1037,15 @@ fn ast_sandbox() {
     // println!("PHIL out {} ", s.generic_args);
     // let stmt = string_to_stmt(String::from_str(src));
     // println!("PHIL stmt is {:?}",stmt);
-    // fail!();
+    // panic!();
     // // let mut v = LetVisitor{ scope: Scope {filepath: Path::new("./foo"), point: 0} , result: None, parseinit: true};
     // let mut v = StructDefVisitor {nam}
     // visit::walk_stmt(&mut v, &*stmt, ());
 
     // println!("PHIL {:?}", stmt);
-    // fail!();
+    // panic!();
     // println!("PHIL {}", v.name);
-    // fail!("");
+    // panic!("");
     // let mut v = ExprTypeVisitor{ scope: startscope,
     //                              result: None};
     
