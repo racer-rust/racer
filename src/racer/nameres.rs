@@ -592,22 +592,28 @@ pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: uint,
 }
 
 
-// HACK: Make box iterator support iterator trait
-//
-// I can't get the type signature to resolve_name to compile, so instead am boxing it into a trait object and then returning it as an iterator
-pub struct BoxIter<'a, T> {
-    iter: Box<Iterator<T> + 'a>
+pub trait MatchIter {
+    fn next_match(&mut self) -> Option<Match>;
 }
 
-impl<'a, T> Iterator<T> for BoxIter<'a, T> {
-    #[inline]
-    fn next(&mut self) -> Option<T> {
-        return self.iter.next();
+impl Iterator<Match> for Box<MatchIter+'static> {
+    fn next(&mut self) -> Option<Match> { (**self).next_match() }
+}
+
+pub struct WrappedIter<T> {
+    iter: T,
+}
+
+impl<T: Iterator<Match>> MatchIter for WrappedIter<T> {
+    fn next_match(&mut self) -> Option<Match> {
+        self.iter.next()
     }
 }
 
-pub fn wrap_boxed_iter<'a, T>(boxediter: Box<Iterator<T>>) -> BoxIter<'a, T> {
-    return BoxIter{ iter: boxediter };
+
+pub fn wrap_match_iter<T: Iterator<Match>+'static>(it: T) -> Box<MatchIter+'static> {
+    let w = WrappedIter{iter: it};
+    box w as Box<MatchIter>
 }
 
 local_data_key!(pub searchstack: Vec<Search>)
@@ -637,8 +643,8 @@ pub fn is_a_repeat_search(new_search: &Search) -> bool {
     }
 }
 
-pub fn resolve_name<'a>(pathseg: &racer::PathSegment, filepath: &Path, pos: uint, 
-                    search_type: SearchType, namespace: Namespace) -> BoxIter<'a, Match> {
+pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: uint, 
+                    search_type: SearchType, namespace: Namespace) -> Box<MatchIter+'static> {
     let searchstr = pathseg.name.as_slice();
     
     debug!("PHIL resolve_name {} {} {} {} {}",searchstr, filepath.as_str(), pos, search_type, namespace);
@@ -658,7 +664,7 @@ pub fn resolve_name<'a>(pathseg: &racer::PathSegment, filepath: &Path, pos: uint
                         generic_args: Vec::new(), generic_types: Vec::new()
             }
         });
-        return BoxIter { iter: box r.into_iter() };
+        return wrap_match_iter(r.into_iter());
     }
 
 
@@ -708,13 +714,11 @@ pub fn resolve_name<'a>(pathseg: &racer::PathSegment, filepath: &Path, pos: uint
             None
     }.into_iter().flat_map(|p| p()));
 
-    let it = box it as Box<Iterator<Match>>;
-    return BoxIter{ iter: it };
-
+    return wrap_match_iter(it);
 }
 
-pub fn resolve_path<'a>(path: &racer::Path, filepath: &Path, pos: uint, 
-                  search_type: SearchType, namespace: Namespace) -> BoxIter<'a, Match> {
+pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: uint, 
+                  search_type: SearchType, namespace: Namespace) -> Box<MatchIter+'static> {
     let len = path.segments.len();
     if len == 1 {
         let ref pathseg = path.segments[0];
@@ -754,7 +758,7 @@ pub fn resolve_path<'a>(path: &racer::Path, filepath: &Path, pos: uint,
                 _ => () 
             }
         });
-        return BoxIter{iter: box out.into_iter() as Box<Iterator<Match>>};
+        return wrap_match_iter(out.into_iter());
     }
 }
 
