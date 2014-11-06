@@ -6,7 +6,9 @@ use racer::scopes;
 
 fn tmpname() -> Path {
     let s = task::name().unwrap();
-    return Path::new(String::from_str("tmpfile.").append(s.as_slice()).as_slice());
+    let mut p = String::from_str("tmpfile.");
+    p.push_str(s.as_slice());
+    Path::new(p)
 }
 
 fn write_file(tmppath:&Path, s : &str) {
@@ -531,7 +533,7 @@ fn differentiates_type_and_value_namespaces() {
     let got = find_definition(src, &path, pos).unwrap();
     remove_file(&path);
     println!("PHIL {}",got.matchstr);
-    println!("PHIL {:?}",got.mtype);
+    println!("PHIL {}",got.mtype);
     assert_eq!("new", got.matchstr.as_slice());
 }
 

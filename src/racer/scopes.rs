@@ -116,12 +116,12 @@ fn finds_subnested_module() {
     }";
     let point = coords_to_point(src, 4, 12);
     let v = get_local_module_path(src, point);
-    assert_eq!("foo", v.get(0).as_slice());
-    assert_eq!("bar", v.get(1).as_slice());
+    assert_eq!("foo", v[0].as_slice());
+    assert_eq!("bar", v[1].as_slice());
 
     let point = coords_to_point(src, 2, 8);
     let v = get_local_module_path(src, point);
-    assert_eq!("foo", v.get(0).as_slice());
+    assert_eq!("foo", v[0].as_slice());
 }
 
 
