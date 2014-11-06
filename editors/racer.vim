@@ -26,11 +26,11 @@ if !exists('g:racer_insert_paren')
 endif
 
 function! racer#GetPrefixCol()
-    :w! %.racertmp
+    :w! %.rtmp.rs
     let col = col(".")-1
     let b:racer_col = col
     let fname = expand("%:p")
-    let tmpfname=fname.".racertmp"
+    let tmpfname=fname.".rtmp.rs"
     let cmd = g:racer_cmd." prefix ".line(".")." ".col." ".tmpfname
     let res = system(cmd)
     let prefixline = split(res, "\\n")[0]
@@ -41,7 +41,7 @@ endfunction
 function! racer#GetExpCompletions()
     let col = b:racer_col      " use the column from the previous racer#GetPrefixCol() call, since vim ammends it afterwards
     let fname = expand("%:p")
-    let tmpfname=fname.".racertmp"
+    let tmpfname=fname.".rtmp.rs"
     let cmd = g:racer_cmd." complete ".line(".")." ".col." ".tmpfname
     if has('python')
     python << EOF
@@ -81,7 +81,7 @@ endfunction
 function! racer#GetCompletions()
     let col = b:racer_col      " use the column from the previous racer#GetPrefixCol() call, since vim ammends it afterwards
     let fname = expand("%:p")
-    let tmpfname=fname.".racertmp"
+    let tmpfname=fname.".rtmp.rs"
     let cmd = g:racer_cmd." complete ".line(".")." ".col." ".tmpfname
     let res = system(cmd)
     let lines = split(res, "\\n")
@@ -97,11 +97,11 @@ function! racer#GetCompletions()
 endfunction
 
 function! racer#GoToDefinition()
-    :w! %.racertmp
+    :w! %.rtmp.rs
     let col = col(".")-1
     let b:racer_col = col
     let fname = expand("%:p")
-    let tmpfname=fname.".racertmp"
+    let tmpfname=fname.".rtmp.rs"
     let cmd = g:racer_cmd." find-definition ".line(".")." ".col." ".tmpfname
     let res = system(cmd)
     let lines = split(res, "\\n")
