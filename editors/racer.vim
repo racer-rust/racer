@@ -110,6 +110,9 @@ function! racer#GoToDefinition()
              let linenum = split(line[6:], ",")[1]
              let colnum = split(line[6:], ",")[2]
              let fname = split(line[6:], ",")[3]
+             if fname =~ ".racertmp$"
+                 let fname = fname[:-10]
+             endif
              call racer#JumpToLocation(fname, linenum, colnum)
              break
         endif
