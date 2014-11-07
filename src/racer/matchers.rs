@@ -6,10 +6,11 @@ use racer::scopes;
 use racer::util::{symbol_matches, txt_matches, find_ident_end};
 use racer::nameres::{get_module_file, get_crate_file};
 use racer::typeinf;
-
+use racer;
 use racer::{ast};
 use racer::{SearchType, StartsWith, ExactMatch, Match, Let, Module, 
-            Function, Struct, Type, Trait, Enum, EnumVariant, BothNamespaces};
+            Function, Struct, Type, Trait, Enum, EnumVariant, BothNamespaces,
+            PathSegment};
 use racer::util;
 
 
@@ -422,7 +423,30 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
 
     let blob = msrc.slice(blobstart, blobend);
 
-    if ((local && blob.starts_with("use ")) || blob.starts_with("pub use ")) && txt_matches(search_type, searchstr, blob) {     
+    if ((local && blob.starts_with("use ")) || blob.starts_with("pub use ")) && blob.contains("*") {
+        // uh oh! a glob. Need to search the module for the searchstr
+        let view_item = ast::parse_view_item(String::from_str(blob));
+        debug!("PHIL found a glob!! {}", view_item);
+
+        if view_item.is_glob {
+            let basepath = view_item.paths.into_iter().nth(0).unwrap();
+            
+            // don't search if searchstr = basepath otherwise will overflow stack
+            if basepath.segments[0].name.as_slice() != searchstr {
+                let seg = PathSegment{ name: searchstr.to_string(), types: Vec::new() };
+                let mut path = basepath.clone();
+                path.segments.push(seg);
+                debug!("PHIL found a glob: now searching for {}", path);
+                // TODO: pretty sure this isn't correct/complete, only works because
+                //  we recurse backwards up modules when searching
+                let path = hack_remove_self_and_super_in_modpaths(path);
+
+                for m in resolve_path(&path, filepath, 0, search_type, BothNamespaces) {
+                    out.push(m);
+                }
+            }
+        }
+    } else if ((local && blob.starts_with("use ")) || blob.starts_with("pub use ")) && txt_matches(search_type, searchstr, blob) {     
         if searchstr.len() != 0 && blob.match_indices(searchstr).count() == 1 {
             if blob.find_str((searchstr.to_string() + "::").as_slice()).is_some() {
                 // can't possibly match, fail fast!
@@ -444,10 +468,10 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
                 // Do nothing because this will be picked up by the module
                 // search in a bit.
             } else if path.segments[len-1].name.as_slice().starts_with(searchstr) {
-                // TODO: pretty sure this isn't correct/complete
-                if path.segments[0].name.as_slice() == "self" {
-                    path.segments.remove(0);
-                }
+                // TODO: pretty sure this isn't correct/complete, only works because
+                //  we recurse backwards up modules when searching
+                let path = hack_remove_self_and_super_in_modpaths(path);
+
                 for m in resolve_path(&path, filepath, 0, ExactMatch, BothNamespaces) {
                     out.push(m);
                 }
@@ -456,6 +480,16 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
     }
     return out;
 }
+
+fn hack_remove_self_and_super_in_modpaths(mut path: racer::Path) -> racer::Path {
+    if path.segments[0].name.as_slice() == "self" {
+        path.segments.remove(0);
+    }
+    if path.segments[0].name.as_slice() == "super" {
+        path.segments.remove(0);
+    }
+    return path;
+} 
 
 pub fn match_fn(msrc: &str, blobstart: uint, blobend: uint, 
              searchstr: &str, filepath: &Path, search_type: SearchType,

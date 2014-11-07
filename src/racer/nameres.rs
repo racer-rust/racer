@@ -719,6 +719,8 @@ pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: uint,
 
 pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: uint, 
                   search_type: SearchType, namespace: Namespace) -> Box<MatchIter+'static> {
+    debug!("PHIL resolve_path {} {} {} {}", path, filepath.as_str(), pos, search_type);
+
     let len = path.segments.len();
     if len == 1 {
         let ref pathseg = path.segments[0];

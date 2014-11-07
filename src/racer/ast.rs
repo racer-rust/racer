@@ -66,9 +66,11 @@ pub fn string_to_crate (source_str : String) -> ast::Crate {
     })
 }
 
+#[deriving(Show)]
 pub struct ViewItemVisitor {
     pub ident : Option<String>,
-    pub paths : Vec<racer::Path>
+    pub paths : Vec<racer::Path>,
+    pub is_glob: bool
 }
 
 impl<'v> visit::Visitor<'v> for ViewItemVisitor {
@@ -96,8 +98,10 @@ impl<'v> visit::Visitor<'v> for ViewItemVisitor {
                             }
                         }
                     }
-                    ast::ViewPathGlob(_, id) => {
-                        debug!("PHIL got glob {}",id);
+                    ast::ViewPathGlob(ref pth, _) => {
+                        let basepath = to_racer_path(pth);
+                        self.paths.push(basepath);
+                        self.is_glob = true;
                     }
                 }
             },
@@ -777,14 +781,18 @@ pub fn parse_view_item(s: String) -> ViewItemVisitor {
     // parser can panic!() so isolate it in another task
     let result = task::try(proc() { 
         let cr = string_to_crate(s);
-        let mut v = ViewItemVisitor{ident: None, paths: Vec::new()};
+        let mut v = ViewItemVisitor{ident: None, 
+                                    paths: Vec::new(),
+                                    is_glob: false};
         visit::walk_crate(&mut v, &cr);
         return v;
     });
     match result {
         Ok(s) => {return s;},
         Err(_) => {
-            return ViewItemVisitor{ident: None, paths: Vec::new()};
+            return ViewItemVisitor{ident: None, 
+                                   paths: Vec::new(),
+                                   is_glob: false};
         }
     }
 }

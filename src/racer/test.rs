@@ -112,6 +112,28 @@ fn follows_use() {
 }
 
 #[test]
+fn follows_use_glob() {
+    let src2="
+    pub fn myfn() {}
+    pub fn foo() {}
+    ";
+    let src="
+    use src2::*;
+    mod src2;
+    fn main() {
+        myfn();
+    }
+    ";
+    write_file(&Path::new("src2.rs"), src2);
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 5, 10);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!(got.matchstr,"myfn".to_string());
+}
+
+#[test]
 fn completes_struct_field_via_assignment() {
     let src="
     struct Point {
