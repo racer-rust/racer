@@ -266,7 +266,7 @@ fn to_racer_path(pth: &ast::Path) -> racer::Path {
     for seg in pth.segments.iter() {
         let name = token::get_ident(seg.identifier).get().to_string();
         let mut types = Vec::new();    
-        for ty in seg.types.iter() {
+        for ty in seg.parameters.types().iter() {
             types.push(match ty.node {
                 ast::TyPath(ref path, _, _) => to_racer_path(path),
                 _ => panic!(format!("Cannot handle type {}", ty.node))
