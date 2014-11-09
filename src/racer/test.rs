@@ -331,7 +331,7 @@ fn follows_self_use() {
     ";
     let basedir = tmpname();
     let moddir = basedir.join("mymod");
-    ::std::io::fs::mkdir_recursive(&moddir, ::std::io::UserRWX).unwrap();
+    ::std::io::fs::mkdir_recursive(&moddir, ::std::io::USER_RWX).unwrap();
 
     write_file(&moddir.join("mod.rs"), modsrc);
     write_file(&moddir.join("src2.rs"), src2);
@@ -364,7 +364,7 @@ fn finds_nested_submodule_file() {
     let basedir = tmpname();
     let srcpath = basedir.join("root.rs");
     let sub2dir = basedir.join("sub1").join("sub2");
-    ::std::io::fs::mkdir_recursive(&sub2dir, ::std::io::UserRWX).unwrap();
+    ::std::io::fs::mkdir_recursive(&sub2dir, ::std::io::USER_RWX).unwrap();
     write_file(&srcpath, rootsrc);
     write_file(&sub2dir.join("sub3.rs"), sub3src);
     let pos = scopes::coords_to_point(rootsrc, 7, 23);
@@ -394,7 +394,7 @@ fn follows_use_to_impl() {
     }
     ";
     let basedir = tmpname();
-    ::std::io::fs::mkdir_recursive(&basedir, ::std::io::UserRWX).unwrap();
+    ::std::io::fs::mkdir_recursive(&basedir, ::std::io::USER_RWX).unwrap();
 
     let modpath = basedir.join("mymod.rs");
     write_file(&modpath, modsrc);
@@ -567,7 +567,7 @@ fn follows_self_to_method() {
         pub fn method(self) {
         }
 
-        pub fn another_method(self) {
+        pub fn another_method(self, feio: uint) {
             self.method()
         }
     }";
@@ -762,8 +762,8 @@ fn finds_type_of_tuple_member_via_fn_retval() {
 fn finds_type_of_tuple_member_in_fn_arg() {
     let src="
     pub struct Blah { subfield: uint }
-    fn myfn((a: uint, b: uint, c: Blah)) {
-        b.subfield
+    fn myfn(a: uint, (b, c): (uint, Blah)) {
+        c.subfield
     }
     ";
     let path = tmpname();

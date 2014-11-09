@@ -122,11 +122,11 @@ impl<'v> visit::Visitor<'v> for ViewItemVisitor {
 }
 
 
-pub struct LetVisitor2 {
+pub struct LetVisitor {
     ident_points: Vec<(uint,uint)>
 }
 
-impl<'v> visit::Visitor<'v> for LetVisitor2 {
+impl<'v> visit::Visitor<'v> for LetVisitor {
 
     fn visit_local(&mut self, local: &'v ast::Local) {  
         // don't visit the RHS (init) side of the let stmt
@@ -146,6 +146,26 @@ impl<'v> visit::Visitor<'v> for LetVisitor2 {
         }
     }
 }
+
+pub struct PatVisitor {
+    ident_points: Vec<(uint,uint)>
+}
+
+impl<'v> visit::Visitor<'v> for PatVisitor {
+    fn visit_pat(&mut self, p: &'v ast::Pat) {
+        match p.node {
+            ast::PatIdent(_ , ref spannedident, _) => {
+                let codemap::BytePos(lo) = spannedident.span.lo;
+                let codemap::BytePos(hi) = spannedident.span.hi;
+                self.ident_points.push((lo as uint, hi as uint));
+            }
+            _ => {
+                visit::walk_pat(self, p);
+            }
+        }
+    }
+}
+
 
 fn to_racer_ty(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
     return match ty.node {
@@ -253,10 +273,12 @@ fn to_racer_path(pth: &ast::Path) -> racer::Path {
         let name = token::get_ident(seg.identifier).get().to_string();
         let mut types = Vec::new();    
         for ty in seg.parameters.types().iter() {
-            types.push(match ty.node {
-                ast::TyPath(ref path, _, _) => to_racer_path(path),
-                _ => panic!(format!("Cannot handle type {}", ty.node))
-            });
+            match ty.node {
+                ast::TyPath(ref path, _, _) => {
+                    types.push(to_racer_path(path));
+                }
+                _ => {}
+            }
         }
         v.push(racer::PathSegment{ name: name, types: types}); 
     }
@@ -680,6 +702,9 @@ impl<'v> visit::Visitor<'v> for FnVisitor {
 
             let (name, pos) = res.unwrap();
 
+            let t = to_racer_ty(&*arg.ty, &self.scope);
+            debug!("PHIL visit_fn arg racer_ty {}",t);
+
             let typepath = match arg.ty.node {
                 ast::TyRptr(_, ref ty) => {
                     match ty.ty.node {
@@ -818,29 +843,13 @@ pub fn parse_view_item(s: String) -> ViewItemVisitor {
     }
 }
 
-pub fn parse_let2(s: String) -> Vec<(uint,uint)> {
-    return task::try(proc() {
-        let stmt = string_to_stmt(s);
-        let mut v = LetVisitor2 { ident_points: Vec::new() };
-        visit::walk_stmt(&mut v, &*stmt);
-        return v;
-    }).ok().unwrap().ident_points;
-}
-
 pub fn parse_let(s: String) -> Vec<(uint, uint)> {
-    let result = task::try(proc() { 
+    return task::try(proc() { 
         let stmt = string_to_stmt(s);
-        debug!("PHIL parse_let stmt={}",stmt);
-        let mut v = LetVisitor2{ ident_points: Vec::new() };
+        let mut v = LetVisitor{ ident_points: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt);
         return v.ident_points;
-    });
-    match result {
-        Ok(s) => {return s;},
-        Err(_) => {
-            return Vec::new();
-        }
-    }    
+    }).unwrap_or(Vec::new());
 }
 
 pub fn parse_struct_fields(s: String) -> Vec<(String, uint, Option<racer::Path>)> {
@@ -897,6 +906,16 @@ pub fn parse_type(s: String) -> TypeVisitor {
     }).ok().unwrap();    
 }
 
+pub fn parse_fn_args(s: String) -> Vec<(uint, uint)> {
+    return task::try(proc() { 
+        let stmt = string_to_stmt(s);
+        debug!("PHIL parse_fn_args stmt is {}",stmt);
+        let mut v = PatVisitor{ ident_points: Vec::new() };
+        visit::walk_stmt(&mut v, &*stmt);
+        debug!("PHIL ident points are {}", v.ident_points);
+        return v.ident_points;
+    }).unwrap_or(Vec::new());
+}
 
 pub fn parse_fn_output(s: String, scope: Scope) -> Option<racer::Ty> {
     return task::try(proc() {
@@ -907,6 +926,7 @@ pub fn parse_fn_output(s: String, scope: Scope) -> Option<racer::Ty> {
         return v.output;
     }).ok().unwrap();
 }
+
 
 pub fn parse_fn(s: String, scope: Scope) -> FnVisitor {
     debug!("PHIL parse_fn |{}|",s);
@@ -969,6 +989,26 @@ pub fn get_let_type(stmtstr: String, pos: uint, scope: Scope) -> Option<Ty> {
     }).ok().unwrap();
 }
 
+
+pub struct FnArgTypeVisitor {
+    point: uint
+    //result: Option<Ty>
+}
+
+impl<'v> visit::Visitor<'v> for FnArgTypeVisitor {
+
+    fn visit_fn(&mut self, _: visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId) {
+        for arg in fd.inputs.iter() {
+            let codemap::BytePos(lo) = arg.pat.span.lo;
+            let codemap::BytePos(hi) = arg.pat.span.hi;
+            if self.point >= (lo as uint) && self.point <= (hi as uint) {
+                debug!("PHIL found type {}",arg.ty);
+            }
+        }
+    }
+}
+
+
 //------------------------------------- SPIKE ----------------
 
 // struct Expr {
@@ -982,7 +1022,7 @@ pub fn get_let_type(stmtstr: String, pos: uint, scope: Scope) -> Option<Ty> {
 
 #[test]
 fn ast_sandbox() {
-    let src = "let (a,b): (Foo,Bar);";
+    //let src = "let (a,b): (Foo,Bar);";
 
     //let src = "let (a,b) = (2,3);";
 
@@ -994,18 +1034,23 @@ fn ast_sandbox() {
 
     // let src = "(myvar, foo) = (3,4);";
 
-    // //let src = "fn myfn((a,b) : (uint, uint)) {}";
+    // let src = "fn myfn((a,b) : (uint, uint)) {}";
+    // //let src = "impl blah {pub fn another_method() {}}";
 
-    let stmt = string_to_stmt(String::from_str(src));
-    println!("PHIL stmt {} ", stmt);
+    // let stmt = string_to_stmt(String::from_str(src));
+    // println!("PHIL stmt {} ", stmt);
 
-    let mut v = LetTypeVisitor { scope: Scope {filepath: Path::new("./foo"), point: 0 },
-                              srctxt: src.to_string(),
-                              pos: 5, result: None
-    };
-    visit::walk_stmt(&mut v, &*stmt);
+    // let mut v = PatVisitor { ident_points: Vec::new() };
+    // visit::walk_stmt(&mut v, &*stmt);
 
-    panic!("BLAH {}",v.result);
+    // panic!("BLAH {}",v.result);
+
+    // let mut v = LetTypeVisitor { scope: Scope {filepath: Path::new("./foo"), point: 0 },
+    //                           srctxt: src.to_string(),
+    //                           pos: 5, result: None
+    // };
+    // visit::walk_stmt(&mut v, &*stmt);
+
     // let out = parse_let2(src.to_string());
 
     // for &(l,h) in out.iter() {

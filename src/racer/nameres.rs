@@ -1,4 +1,8 @@
 // Name resolution
+
+extern crate collections;
+extern crate core;
+
 use racer;
 
 use racer::{SearchType, StartsWith, ExactMatch, Match, Module, 
@@ -15,6 +19,7 @@ use racer::util::{symbol_matches, txt_matches, find_ident_end};
 use racer::scopes;
 use std::io::{BufferedReader, File};
 use std::{str,vec};
+use std::iter::Iterator;
 use std;
 use time;
 
@@ -179,33 +184,65 @@ fn search_fn_args(point: uint, msrc:&str, searchstr:&str, filepath:&Path,
     // 'point' points to the opening brace
     let mut out = Vec::new();
 
-    reverse_to_start_of_fn(point-1, msrc).map(|n| {
+    reverse_to_start_of_fn(point-1, msrc).map(|fnstart| {
         let mut fndecl = String::new();
         // wrap in 'impl blah {}' so that methods get parsed correctly too
         fndecl.push_str("impl blah {");
-        let impl_header = fndecl.len();
-        fndecl.push_str(msrc.slice(n,point+1));
+        let impl_header_len = fndecl.len();
+        fndecl.push_str(msrc.slice(fnstart,point+1));
         fndecl.push_str("}}");
-        debug!("PHIL found start of fn!! '{}' {} |{}|",searchstr, n, fndecl);
+        debug!("PHIL search_fn_args: found start of fn!! {} |{}| {}",fnstart, fndecl, searchstr);
         if txt_matches(search_type, searchstr, fndecl.as_slice()) {
-            let fn_ = ast::parse_fn(fndecl, racer::Scope{filepath: filepath.clone(), 
-                                                         point: point});
-            debug!("PHIL parsed fn got {}",fn_);
-            for (s, pos, _) in fn_.args.into_iter() {
-                if match search_type {
-                    ExactMatch => s.as_slice() == searchstr,
-                    StartsWith => s.as_slice().starts_with(searchstr)
-                    } {
-                    out.push(Match { matchstr: s.to_string(),
-                                        filepath: filepath.clone(),
-                                        point: n + pos - impl_header,
-                                        local: local,
-                                        mtype: FnArg,
-                                     contextstr: s.to_string(),
-                                     generic_args: Vec::new(), generic_types: Vec::new()
-                    });
-                };
+            let coords = ast::parse_fn_args(fndecl.clone());
+
+            for &(start,end) in coords.iter() {
+                let mut s = fndecl.as_slice().slice(start,end);
+                debug!("PHIL search_fn_args: arg str is |{}|", s);
+
+                // This should be 'symbol_matches', but there is a bug in libsyntax
+                // - see below
+                if txt_matches(search_type, searchstr, s) {
+
+                    // Workaround for a bug in libsyntax: currently coords of the 
+                    // 'self' arg are incorrect - they include the comma and 
+                    // potentually the type. 
+                    if searchstr == "self" {
+                        s = "self";
+                    }
+
+                    let m = Match { matchstr: s.to_string(),
+                                       filepath: filepath.clone(),
+                                       point: fnstart + start - impl_header_len,
+                                       local: local,
+                                       mtype: FnArg,
+                                       contextstr: s.to_string(),
+                                       generic_args: Vec::new(), 
+                                       generic_types: Vec::new()
+                    };
+                    debug!("PHIL search_fn_args matched: {}", m);
+                    out.push(m);
+                }
             }
+
+
+            // let fn_ = ast::parse_fn(fndecl, racer::Scope{filepath: filepath.clone(), 
+            //                                              point: point});
+            // debug!("PHIL parsed fn got {:?}",fn_);
+            // for (s, pos, _) in fn_.args.into_iter() {
+            //     if match search_type {
+            //         ExactMatch => s.as_slice() == searchstr,
+            //         StartsWith => s.as_slice().starts_with(searchstr)
+            //         } {
+            //         out.push(Match { matchstr: s.to_string(),
+            //                             filepath: filepath.clone(),
+            //                             point: n + pos - impl_header,
+            //                             local: local,
+            //                             mtype: FnArg,
+            //                          contextstr: s.to_string(),
+            //                          generic_args: Vec::new(), generic_types: Vec::new()
+            //         });
+            //     };
+            // }
         }
     });
     return out.into_iter();
@@ -644,6 +681,7 @@ pub fn is_a_repeat_search(new_search: &Search) -> bool {
     }
 }
 
+
 pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: uint, 
                     search_type: SearchType, namespace: Namespace) -> Box<MatchIter+'static> {
     let searchstr = pathseg.name.as_slice();
@@ -688,8 +726,6 @@ pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: uint,
         return it;
     }));
 
-
-    //let s = String::from_str(searchstr);
     let ps = pathseg.clone();
     let p = filepath.clone();
 

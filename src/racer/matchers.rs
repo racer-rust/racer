@@ -148,8 +148,12 @@ pub fn match_extern_crate(msrc: &str, blobstart: uint, blobend: uint,
 pub fn match_mod(msrc: &str, blobstart: uint, blobend: uint, 
              searchstr: &str, filepath: &Path, search_type: SearchType,
              local: bool) -> Option<Match> {
+
+
     let mut res = None;
     let blob = msrc.slice(blobstart, blobend);
+
+
     let exact_match = match search_type {
         ExactMatch => true,
         StartsWith => false

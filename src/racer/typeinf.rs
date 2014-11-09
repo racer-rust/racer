@@ -145,31 +145,6 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<rac
     return None
 }
 
-// pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<Match> {
-
-//     assert!(structmatch.mtype == racer::Struct);
-
-//     let filetxt = BufferedReader::new(File::open(&structmatch.filepath)).read_to_end().unwrap();
-//     let src = str::from_utf8(filetxt.as_slice()).unwrap();
-
-//     let opoint = scopes::find_stmt_start(src, structmatch.point);
-//     let structsrc = scopes::end_of_next_scope(src.slice_from(opoint.unwrap()));
-
-//     let fields = ast::parse_struct_fields(String::from_str(structsrc));
-
-//     for (field, fpos, typepath) in fields.move_iter() {
-
-//         if fieldname == field.as_slice() {
-//             return typepath.and_then(|typepath|
-//                 racer::nameres::resolve_path(&typepath,
-//                                              &structmatch.filepath, 
-//                                              fpos + opoint.unwrap(),
-//                                              ExactMatch, TypeNamespace).nth(0));
-//         }
-//     }
-//     return None
-// }
-
 pub fn get_type_of_match(m: Match, msrc: &str) -> Option<racer::Ty> {
     debug!("PHIL get_type_of match {} ",m);
 
