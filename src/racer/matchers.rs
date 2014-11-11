@@ -10,7 +10,7 @@ use racer;
 use racer::{ast};
 use racer::{SearchType, StartsWith, ExactMatch, Match, Let, Module, 
             Function, Struct, Type, Trait, Enum, EnumVariant, BothNamespaces,
-            PathSegment};
+            PathSegment, Const, Static};
 use racer::util;
 
 
@@ -39,12 +39,68 @@ pub fn match_types(src: &str, blobstart: uint, blobend: uint,
 
 pub fn match_values(src: &str, blobstart: uint, blobend: uint, 
                   searchstr: &str, filepath: &Path, search_type: SearchType, 
-                  local: bool) -> iter::Chain<iter::Chain<option::Item<Match>,option::Item<Match>>,vec::MoveItems<Match>> {
-    let it = match_let(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
+                  local: bool) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::Item<racer::Match>, option::Item<racer::Match>>, option::Item<racer::Match>>, option::Item<racer::Match>>, vec::MoveItems<racer::Match>> {
+    let it = match_const(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
+    let it = it.chain(match_static(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
+    let it = it.chain(match_let(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_fn(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_enum_variants(src, blobstart, blobend, searchstr, filepath, search_type, local));
         
     return it;
+}
+
+pub fn match_const(msrc: &str, blobstart: uint, blobend: uint, 
+                 searchstr: &str, filepath: &Path, search_type: SearchType,
+                  local: bool)  -> Option<Match> {
+    // ast currently doesn't contain the ident coords, so match them with a hacky
+    // string search
+    let mut res = None;
+    let blob = msrc.slice(blobstart, blobend);
+    let conststr = "const ";
+    if blob.starts_with(conststr) {
+        blob.find_str(":").map(|n|{
+            let s = blob.slice(conststr.len(),n);
+            if symbol_matches(search_type, searchstr, s) {
+                res = Some(Match { matchstr: s.to_string(),
+                                   filepath: filepath.clone(),
+                                   point: blobstart + conststr.len(),
+                                   local: local,
+                                   mtype: Const,
+                                   contextstr: first_line(blob),
+                                   generic_args: Vec::new(), 
+                                   generic_types: Vec::new()
+                });
+            }
+        });
+    }
+    return res;
+}
+
+pub fn match_static(msrc: &str, blobstart: uint, blobend: uint, 
+                 searchstr: &str, filepath: &Path, search_type: SearchType,
+                  local: bool)  -> Option<Match> {
+    // ast currently doesn't contain the ident coords, so match them with a hacky
+    // string search
+    let mut res = None;
+    let blob = msrc.slice(blobstart, blobend);
+    let staticstr = "static ";
+    if blob.starts_with(staticstr) {
+        blob.find_str(":").map(|n|{
+            let s = blob.slice(staticstr.len(),n);
+            if symbol_matches(search_type, searchstr, s) {
+                res = Some(Match { matchstr: s.to_string(),
+                                   filepath: filepath.clone(),
+                                   point: blobstart + staticstr.len(),
+                                   local: local,
+                                   mtype: Static,
+                                   contextstr: first_line(blob),
+                                   generic_args: Vec::new(), 
+                                   generic_types: Vec::new()
+                });
+            }
+        });
+    }
+    return res;
 }
 
 pub fn match_let(msrc: &str, blobstart: uint, blobend: uint, 

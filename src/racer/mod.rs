@@ -27,7 +27,9 @@ pub enum MatchType {
     EnumVariant,
     Type,
     FnArg,
-    Trait
+    Trait,
+    Const,
+    Static
 }
 
 #[deriving(Show)]
