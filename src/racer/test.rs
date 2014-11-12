@@ -554,8 +554,8 @@ fn differentiates_type_and_value_namespaces() {
     let pos = scopes::coords_to_point(src, 5, 18);
     let got = find_definition(src, &path, pos).unwrap();
     remove_file(&path);
-    println!("PHIL {}",got.matchstr);
-    println!("PHIL {}",got.mtype);
+    println!("{}",got.matchstr);
+    println!("{}",got.mtype);
     assert_eq!("new", got.matchstr.as_slice());
 }
 
@@ -712,7 +712,7 @@ fn finds_definition_of_static() {
 #[test]
 fn handles_dotdot_before_searchstr() {
     let src="
-    pub static MYLEN:uint = 30;
+    static MYLEN:uint = 30;
     let f = [0i, ..MYLEN];
     ";
     let path = tmpname();

@@ -175,7 +175,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: uint, blobend: uint,
             // reference to a crate.
 
             view_item.ident.clone().map(|ident|{
-                debug!("PHIL EXTERN CRATE {}",ident.as_slice());
+                debug!("EXTERN CRATE {}",ident.as_slice());
                 get_crate_file(ident.as_slice()).map(|cratepath|{
                     res = Some(Match {matchstr: ident.to_string(),
                                       filepath: cratepath.clone(), 
@@ -235,7 +235,7 @@ pub fn match_mod(msrc: &str, blobstart: uint, blobend: uint,
 
         if (exact_match && l == searchstr) || (!exact_match && l.starts_with(searchstr)) {
             if blob.find_str("{").is_some() {
-                debug!("PHIL found an inline module!");
+                debug!("found an inline module!");
 
                 res = Some(Match {matchstr: l.to_string(),
                                filepath: filepath.clone(), 
@@ -276,7 +276,7 @@ pub fn match_mod(msrc: &str, blobstart: uint, blobend: uint,
 
         if (exact_match && l == searchstr) || (!exact_match && l.starts_with(searchstr)) {
             if blob.find_str("{").is_some() {
-                debug!("PHIL found an inline module!");
+                debug!("found an inline module!");
 
                 res = Some(Match {matchstr: l.to_string(),
                                filepath: filepath.clone(), 
@@ -324,7 +324,7 @@ pub fn match_struct(msrc: &str, blobstart: uint, blobend: uint,
         let start = blob.find_str(format!("struct {}", searchstr).as_slice()).unwrap() + 7;
         let end = find_ident_end(blob, start);
         let l = blob.slice(start, end);
-        debug!("PHIL found a struct |{}|", l);
+        debug!("found a struct |{}|", l);
 
         // Parse generics
         let end = blob.find_str("{").or(blob.find_str(";"))
@@ -356,7 +356,7 @@ pub fn match_type(msrc: &str, blobstart: uint, blobend: uint,
         let start = blob.find_str(format!("type {}", searchstr).as_slice()).unwrap() + 5;
         let end = find_ident_end(blob, start);
         let l = blob.slice(start, end);
-        debug!("PHIL found!! a type {}", l);
+        debug!("found!! a type {}", l);
         return Some(Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: blobstart + start,
@@ -372,7 +372,7 @@ pub fn match_type(msrc: &str, blobstart: uint, blobend: uint,
         let start = blob.find_str(format!("pub type {}", searchstr).as_slice()).unwrap() + 9;
         let end = find_ident_end(blob, start);
         let l = blob.slice(start, end);
-        debug!("PHIL found!! a pub type {}", l);
+        debug!("found!! a pub type {}", l);
         return Some(Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: blobstart + start,
@@ -394,7 +394,7 @@ pub fn match_trait(msrc: &str, blobstart: uint, blobend: uint,
         let start = blob.find_str(format!("trait {}", searchstr).as_slice()).unwrap() + 6;
         let end = find_ident_end(blob, start);
         let l = blob.slice(start, end);
-        debug!("PHIL found!! a trait {}", l);
+        debug!("found!! a trait {}", l);
         return Some(Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: blobstart + start,
@@ -410,7 +410,7 @@ pub fn match_trait(msrc: &str, blobstart: uint, blobend: uint,
         let start = blob.find_str(format!("pub trait {}", searchstr).as_slice()).unwrap() + 10;
         let end = find_ident_end(blob, start);
         let l = blob.slice(start, end);
-        debug!("PHIL found!! a pub trait {}", l);
+        debug!("found!! a pub trait {}", l);
         return Some(Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: blobstart + start,
@@ -465,7 +465,7 @@ pub fn match_enum(msrc: &str, blobstart: uint, blobend: uint,
         let start = blob.find_str(format!("enum {}", searchstr).as_slice()).unwrap() + 5;
         let end = find_ident_end(blob, start);
         let l = blob.slice(start, end);
-        debug!("PHIL found!! an enum |{}|", l);
+        debug!("found!! an enum |{}|", l);
         // Parse generics
         let end = blob.find_str("{").or(blob.find_str(";"))
             .expect("Can't find end of enum header");
@@ -498,7 +498,7 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
     if ((local && blob.starts_with("use ")) || blob.starts_with("pub use ")) && blob.contains("*") {
         // uh oh! a glob. Need to search the module for the searchstr
         let view_item = ast::parse_view_item(String::from_str(blob));
-        debug!("PHIL found a glob!! {}", view_item);
+        debug!("found a glob!! {}", view_item);
 
         if view_item.is_glob {
             let basepath = view_item.paths.into_iter().nth(0).unwrap();
@@ -508,7 +508,7 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
                 let seg = PathSegment{ name: searchstr.to_string(), types: Vec::new() };
                 let mut path = basepath.clone();
                 path.segments.push(seg);
-                debug!("PHIL found a glob: now searching for {}", path);
+                debug!("found a glob: now searching for {}", path);
                 // TODO: pretty sure this isn't correct/complete, only works because
                 //  we recurse backwards up modules when searching
                 let path = hack_remove_self_and_super_in_modpaths(path);
@@ -526,11 +526,11 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
             }
         }
 
-        debug!("PHIL found use: {} in |{}|", searchstr, blob);
+        debug!("found use: {} in |{}|", searchstr, blob);
         let t0 = ::time::precise_time_s();
         let view_item = ast::parse_view_item(String::from_str(blob));
         let t1 = ::time::precise_time_s();
-        debug!("PHIL ast use parse_view_item time {}",t1-t0);
+        debug!("ast use parse_view_item time {}",t1-t0);
         for mut path in view_item.paths.into_iter() {
             let len = path.segments.len();
             // if searching for a symbol and the last bit matches the symbol
@@ -568,12 +568,12 @@ pub fn match_fn(msrc: &str, blobstart: uint, blobend: uint,
              local: bool) -> Option<Match> {
     let blob = msrc.slice(blobstart, blobend);
     if blob.starts_with("pub fn") && txt_matches(search_type, format!("pub fn {}", searchstr).as_slice(), blob) && !typeinf::first_param_is_self(blob) {
-        debug!("PHIL found a pub fn starting {}",searchstr);
+        debug!("found a pub fn starting {}",searchstr);
         // TODO: parse this properly
         let start = blob.find_str(format!("pub fn {}", searchstr).as_slice()).unwrap() + 7;
         let end = util::find_ident_end(blob, start);
         let l = blob.slice(start, end);
-        debug!("PHIL found a pub fn {}",l);
+        debug!("found a pub fn {}",l);
         return Some(Match {matchstr: l.to_string(),
                        filepath: filepath.clone(), 
                        point: blobstart + start,
@@ -584,7 +584,7 @@ pub fn match_fn(msrc: &str, blobstart: uint, blobend: uint,
                            generic_types: Vec::new()
         });
     } else if local && blob.starts_with("fn") && txt_matches(search_type, format!("fn {}",searchstr).as_slice(), blob) && !typeinf::first_param_is_self(blob) {
-        debug!("PHIL found a fn starting {}",searchstr);
+        debug!("found a fn starting {}",searchstr);
         // TODO: parse this properly
         let start = blob.find_str(format!("fn {}", searchstr).as_slice()).unwrap() + 3;
         let end = find_ident_end(blob, start);

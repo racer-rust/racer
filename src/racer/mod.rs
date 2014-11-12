@@ -171,7 +171,7 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: uint) -> vec::M
 
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
-    debug!("PHIL {}: contextstr is |{}|, searchstr is |{}|",
+    debug!("{}: contextstr is |{}|, searchstr is |{}|",
            completetype, contextstr, searchstr);
 
     let mut out = Vec::new();
@@ -196,7 +196,7 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: uint) -> vec::M
         },
         CompleteField => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
-            debug!("PHIL complete_from_file context is {}", context);
+            debug!("complete_from_file context is {}", context);
             context.map(|ty| {
                 match ty {
                     TyMatch(m) => {
@@ -223,7 +223,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: uint) -> Option<M
 
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
-    debug!("PHIL find_definition_ for |{}| |{}| {}",contextstr, searchstr, completetype);
+    debug!("find_definition_ for |{}| |{}| {}",contextstr, searchstr, completetype);
 
     return match completetype {
         CompletePath => {
@@ -244,7 +244,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: uint) -> Option<M
         },
         CompleteField => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
-            debug!("PHIL context is {}",context);
+            debug!("context is {}",context);
 
             return context.and_then(|ty| {
                 // for now, just handle matches

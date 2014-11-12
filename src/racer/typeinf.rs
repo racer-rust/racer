@@ -31,7 +31,7 @@ pub fn generate_skeleton_for_parsing(src: &str) -> String {
 pub fn first_param_is_self(blob: &str) -> bool {
     return blob.find_str("(").map_or(false, |start| {
         let end = scopes::find_closing_paren(blob, start+1);
-        debug!("PHIL searching fn args: |{}| {}",blob.slice(start+1,end), txt_matches(ExactMatch, "self", blob.slice(start+1,end)));
+        debug!("searching fn args: |{}| {}",blob.slice(start+1,end), txt_matches(ExactMatch, "self", blob.slice(start+1,end)));
         return txt_matches(ExactMatch, "self", blob.slice(start+1,end));
     });
 }
@@ -45,14 +45,14 @@ fn generates_skeleton_for_mod() {
 }
 
 fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<racer::Ty> {
-    debug!("PHIL get_type_of_self_arg {}", m)
+    debug!("get_type_of_self_arg {}", m)
     return scopes::find_impl_start(msrc, m.point, 0).and_then(|start| {
         let decl = generate_skeleton_for_parsing(msrc.slice_from(start));
-        debug!("PHIL get_type_of_self_arg impl skeleton |{}|", decl)
+        debug!("get_type_of_self_arg impl skeleton |{}|", decl)
         
         if decl.as_slice().starts_with("impl") {
             let implres = ast::parse_impl(decl);
-            debug!("PHIL get_type_of_self_arg implres |{}|", implres);
+            debug!("get_type_of_self_arg implres |{}|", implres);
             return resolve_path_with_str(&implres.name_path.expect("failed parsing impl name"), 
                                          &m.filepath, start,
                                          ExactMatch, TypeNamespace).nth(0).map(|m| racer::TyMatch(m));
@@ -73,7 +73,7 @@ fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<racer::Ty> {
 }
 
 fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<racer::Ty> {
-    debug!("PHIL get type of fn arg {}",m);
+    debug!("get type of fn arg {}",m);
 
     if m.matchstr.as_slice() == "self" {
         return get_type_of_self_arg(m, msrc);
@@ -113,7 +113,7 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<racer::Ty> {
     let src = msrc.slice_from(point);
     for (start,end) in codeiter::iter_stmts(src) { 
         let blob = src.slice(start,end);
-        debug!("PHIL get_type_of_let_expr calling parse_let");
+        debug!("get_type_of_let_expr calling parse_let");
 
         let pos = m.point - point - start;
         let scope = racer::Scope{ filepath: m.filepath.clone(), point: m.point };
@@ -146,7 +146,7 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<rac
 }
 
 pub fn get_type_of_match(m: Match, msrc: &str) -> Option<racer::Ty> {
-    debug!("PHIL get_type_of match {} ",m);
+    debug!("get_type_of match {} ",m);
 
     return match m.mtype {
         racer::Let => get_type_of_let_expr(&m, msrc),
@@ -172,7 +172,7 @@ pub fn get_return_type_of_function(fnmatch: &Match) -> Option<racer::Ty> {
         decl.push_str("impl blah {");
         decl.push_str(src.slice(point, point+n+1));
         decl.push_str("}}");
-        debug!("PHIL: get_return_type_of_function: passing in |{}|",decl);
+        debug!("get_return_type_of_function: passing in |{}|",decl);
         return ast::parse_fn_output(decl, racer::Scope::from_match(fnmatch));
     });
 }
