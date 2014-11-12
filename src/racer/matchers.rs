@@ -56,16 +56,22 @@ pub fn match_const(msrc: &str, blobstart: uint, blobend: uint,
     // string search
     let mut res = None;
     let blob = msrc.slice(blobstart, blobend);
-    let conststr = "const ";
-    if blob.starts_with(conststr) {
-        blob.find_str(":").map(|n|{
-            let s = blob.slice(conststr.len(),n);
+    let start = if local && blob.starts_with("const ") { 
+        6u 
+    } else if blob.starts_with("pub const ") { 
+        10u
+    } else {
+        0u
+    };
+    if start != 0 {
+        blob.find_str(":").map(|end|{
+            let s = blob.slice(start, end);
             if symbol_matches(search_type, searchstr, s) {
                 res = Some(Match { matchstr: s.to_string(),
                                    filepath: filepath.clone(),
-                                   point: blobstart + conststr.len(),
+                                   point: blobstart + start,
                                    local: local,
-                                   mtype: Const,
+                                   mtype: Static,
                                    contextstr: first_line(blob),
                                    generic_args: Vec::new(), 
                                    generic_types: Vec::new()
@@ -83,16 +89,22 @@ pub fn match_static(msrc: &str, blobstart: uint, blobend: uint,
     // string search
     let mut res = None;
     let blob = msrc.slice(blobstart, blobend);
-    let staticstr = "static ";
-    if blob.starts_with(staticstr) {
-        blob.find_str(":").map(|n|{
-            let s = blob.slice(staticstr.len(),n);
+    let start = if local && blob.starts_with("static ") { 
+        7u 
+    } else if blob.starts_with("pub static ") { 
+        11u
+    } else {
+        0u
+    };
+    if start != 0 {
+        blob.find_str(":").map(|end|{
+            let s = blob.slice(start, end);
             if symbol_matches(search_type, searchstr, s) {
                 res = Some(Match { matchstr: s.to_string(),
                                    filepath: filepath.clone(),
-                                   point: blobstart + staticstr.len(),
+                                   point: blobstart + start,
                                    local: local,
-                                   mtype: Static,
+                                   mtype: Const,
                                    contextstr: first_line(blob),
                                    generic_args: Vec::new(), 
                                    generic_types: Vec::new()

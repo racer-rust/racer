@@ -165,7 +165,8 @@ pub fn get_start_of_search_expr(msrc: &str, point: uint) -> uint {
         if msrc_bytes[i] == closeparen {
             levels += 1;
         }
-        if levels == 0 && !util::is_path_char(msrc.char_at(i)) {
+        if levels == 0 && (!util::is_path_char(msrc.char_at(i)) || 
+                           util::is_double_dot(msrc,i)) {
             i += 1;
             break;
         }

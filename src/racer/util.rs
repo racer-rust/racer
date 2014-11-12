@@ -69,6 +69,9 @@ pub fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bo
     }
 }
 
+pub fn is_double_dot(msrc: &str, i: uint) -> bool {
+    (i > 1) && msrc.slice(i-1, i+1) == ".."
+}
 
 #[test]
 fn txt_matches_matches_stuff() {

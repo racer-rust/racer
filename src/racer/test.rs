@@ -682,6 +682,49 @@ fn handles_an_enum_option_style_return_type() {
 }
 
 #[test]
+fn finds_definition_of_const() {
+    let src="
+    pub const MYCONST:uint = 3;
+    MYCONST
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 3, 7);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("MYCONST", got.matchstr.as_slice());
+}
+
+#[test]
+fn finds_definition_of_static() {
+    let src="
+    pub static MYSTATIC:uint = 3;
+    MYSTATIC
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 3, 7);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("MYSTATIC", got.matchstr.as_slice());
+}
+
+#[test]
+fn handles_dotdot_before_searchstr() {
+    let src="
+    pub static MYLEN:uint = 30;
+    let f = [0i, ..MYLEN];
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 3, 22);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("MYLEN", got.matchstr.as_slice());
+}
+
+
+#[test]
 fn finds_definition_of_lambda_argument() {
     let src="
     fn myfn(&|int|) {}
