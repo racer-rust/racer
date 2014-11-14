@@ -534,10 +534,19 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
         let ident = view_item.ident.unwrap_or("".to_string());
         for mut path in view_item.paths.into_iter() {
             let len = path.segments.len();
+
+            // TODO: simplify this:
             if &*ident == searchstr { // i.e. 'use foo::bar as searchstr'
-                let path = hack_remove_self_and_super_in_modpaths(path);
-                for m in resolve_path(&path, filepath, 0, ExactMatch, BothNamespaces) {
-                    out.push(m);
+
+                if len == 1 && path.segments[0].name.as_slice() == searchstr {
+                    // is an exact match of a single use stmt. 
+                    // Do nothing because this will be picked up by the module
+                    // search in a bit.
+                } else {
+                    let path = hack_remove_self_and_super_in_modpaths(path);
+                    for m in resolve_path(&path, filepath, 0, ExactMatch, BothNamespaces) {
+                        out.push(m);
+                    }
                 }
 
             } else if &*ident == "" {
