@@ -363,6 +363,9 @@ pub fn search_crate_root(pathseg: &racer::PathSegment, modfpath: &Path,
         debug!("going to search for {} in crateroot {}",pathseg, crateroot.as_str());
         for m in resolve_name(pathseg, crateroot, 0, searchtype, namespace) {
             out.push(m);
+            if let ExactMatch = searchtype {
+                break;
+            }
         }
         break
     }
@@ -505,23 +508,36 @@ pub fn search_scope(point: uint, src: &str, pathseg: &racer::PathSegment,
                                        point+blobend, searchstr, 
                                        filepath, search_type, local) {
                     out.push(m);
+                    if let ExactMatch = search_type {
+                        return out.into_iter();
+                    }
                 },
             ValueNamespace => 
                 for m in matchers::match_values(src, point+blobstart, 
                                        point+blobend, searchstr, 
                                        filepath, search_type, local) {
                     out.push(m);
+                    if let ExactMatch = search_type {
+                        return out.into_iter();
+                    }
                 },
             BothNamespaces => {
                 for m in matchers::match_types(src, point+blobstart, 
                                        point+blobend, searchstr, 
                                        filepath, search_type, local) {
                     out.push(m);
+                    if let ExactMatch = search_type {
+                        return out.into_iter();
+                    }
                 }
                 for m in matchers::match_values(src, point+blobstart, 
                                        point+blobend, searchstr, 
                                        filepath, search_type, local) {
                     out.push(m);
+                    if let ExactMatch = search_type {
+                        return out.into_iter();
+                    }
+
                 }
             }
         }
@@ -566,6 +582,8 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path, msrc: &str
 pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType, 
                            namespace: Namespace) -> vec::MoveItems<Match> {
     debug!("search_prelude file {} {} {}", pathseg, search_type, namespace);
+    debug!("PHIL {}",util::get_backtrace());
+
     let mut out : Vec<Match> = Vec::new();
 
     // find the prelude file from the search path and scan it
@@ -592,7 +610,7 @@ pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType
 
 pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: uint, 
                                    search_type: SearchType, namespace: Namespace) -> vec::MoveItems<Match> {
-    debug!("do_local_search_with_string {}", path);
+    debug!("resolve_path_with_str {}", path);
     
     let mut out = Vec::new();
 
@@ -619,6 +637,9 @@ pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: uint,
     } else {
         for m in resolve_path(path, filepath, pos, search_type, namespace) {
             out.push(m);
+            if let ExactMatch = search_type {
+                break;
+            }
         }
     }
     return out.into_iter();
@@ -678,9 +699,11 @@ pub fn is_a_repeat_search(new_search: &Search) -> bool {
 
 pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: uint, 
                     search_type: SearchType, namespace: Namespace) -> Box<MatchIter+'static> {
+
     let searchstr = pathseg.name.as_slice();
     
     debug!("resolve_name {} {} {} {} {}",searchstr, filepath.as_str(), pos, search_type, namespace);
+
     let msrc = racer::load_file_and_mask_comments(filepath);
 
 
@@ -712,20 +735,17 @@ pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: uint,
         return it;
     });
 
-
-    let pseg = pathseg.clone();
-
-    let it = it.chain(util::lazyit(proc() {
-        let it = search_prelude_file(&pseg, search_type, namespace);;
-        return it;
-    }));
-
     let ps = pathseg.clone();
     let p = filepath.clone();
-
     let it = it.chain(util::lazyit(proc() {
         let filepath = &p;        
         let it = search_crate_root(&ps, filepath, search_type, namespace);
+        return it;
+    }));
+
+    let pseg = pathseg.clone();
+    let it = it.chain(util::lazyit(proc() {
+        let it = search_prelude_file(&pseg, search_type, namespace);;
         return it;
     }));
 
