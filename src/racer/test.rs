@@ -112,6 +112,28 @@ fn follows_use() {
 }
 
 #[test]
+fn follows_use_as() {
+    let src2="
+    pub fn myfn() {}
+    pub fn foo() {}
+    ";
+    let src="
+    use src2::myfn as myfoofn;
+    mod src2;
+    fn main() {
+        myfoofn();
+    }
+    ";
+    write_file(&Path::new("src2.rs"), src2);
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 5, 10);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!(got.matchstr,"myfn".to_string());
+}
+
+#[test]
 fn follows_use_glob() {
     let src2="
     pub fn myfn() {}
@@ -817,7 +839,37 @@ fn finds_type_of_tuple_member_in_fn_arg() {
     assert_eq!("subfield", got.matchstr.as_slice());
 }
 
+#[test]
+fn finds_namespaced_enum_variant() {
+    let src="
+    pub enum Blah { MyVariant }
+    Blah::MyVariant
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 3, 14);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("MyVariant", got.matchstr.as_slice());
+}
 
+#[test]
+fn uses_generic_arg_to_resolve_trait_method() {
+    let src="
+    pub trait MyTrait {
+        fn trait_method(self){} 
+    } 
+    pub fn doit<T:MyTrait>(stream: &mut T) {
+        T.trait_method
+    }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 6, 19);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("trait_method", got.matchstr.as_slice());
+}
 
 // #[test]
 // fn finds_methods_of_string_slice() {

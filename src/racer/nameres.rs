@@ -571,6 +571,7 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path, msrc: &str
 
 pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType, 
                            namespace: Namespace) -> vec::MoveItems<Match> {
+    debug!("search_prelude file {} {} {}", pathseg, search_type, namespace);
     let mut out : Vec<Match> = Vec::new();
 
     // find the prelude file from the search path and scan it
@@ -628,7 +629,6 @@ pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: uint,
     }
     return out.into_iter();
 }
-
 
 pub trait MatchIter {
     fn next_match(&mut self) -> Option<Match>;
@@ -757,7 +757,6 @@ pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: uint,
 pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: uint, 
                   search_type: SearchType, namespace: Namespace) -> Box<MatchIter+'static> {
     debug!("resolve_path {} {} {} {}", path, filepath.as_str(), pos, search_type);
-
     let len = path.segments.len();
     if len == 1 {
         let ref pathseg = path.segments[0];

@@ -69,6 +69,14 @@ pub fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bo
     }
 }
 
+pub fn get_backtrace() -> String {
+    let mut m = std::io::MemWriter::new();
+    let s = std::rt::backtrace::write(&mut m)
+        .ok().map_or("NO backtrace".to_string(), 
+                     |_| String::from_utf8_lossy(m.get_ref()).to_string());
+    return s;
+}
+
 pub fn is_double_dot(msrc: &str, i: uint) -> bool {
     (i > 1) && msrc.slice(i-1, i+1) == ".."
 }

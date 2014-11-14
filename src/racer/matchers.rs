@@ -504,7 +504,9 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
             let basepath = view_item.paths.into_iter().nth(0).unwrap();
             
             // don't search if searchstr = basepath otherwise will overflow stack
-            if basepath.segments[0].name.as_slice() != searchstr {
+            if basepath.segments[0].name.as_slice() == searchstr {
+                debug!("Not following glob - searchstr = basepath '{}'", searchstr);
+            } else {
                 let seg = PathSegment{ name: searchstr.to_string(), types: Vec::new() };
                 let mut path = basepath.clone();
                 path.segments.push(seg);
@@ -513,8 +515,8 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
                 //  we recurse backwards up modules when searching
                 let path = hack_remove_self_and_super_in_modpaths(path);
 
-                for m in resolve_path(&path, filepath, 0, search_type, BothNamespaces) {
-                    out.push(m);
+                for m in resolve_path(&path, filepath, 0, search_type, BothNamespaces).nth(0).into_iter() {
+                   out.push(m);
                 }
             }
         }
@@ -531,21 +533,31 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
         let view_item = ast::parse_view_item(String::from_str(blob));
         let t1 = ::time::precise_time_s();
         debug!("ast use parse_view_item time {}",t1-t0);
+
+        let ident = view_item.ident.unwrap_or("".to_string());
         for mut path in view_item.paths.into_iter() {
             let len = path.segments.len();
-            // if searching for a symbol and the last bit matches the symbol
-            // then find the fqn
-            if len == 1 && path.segments[0].name.as_slice() == searchstr {
-                // is an exact match of a single use stmt. 
-                // Do nothing because this will be picked up by the module
-                // search in a bit.
-            } else if path.segments[len-1].name.as_slice().starts_with(searchstr) {
-                // TODO: pretty sure this isn't correct/complete, only works because
-                //  we recurse backwards up modules when searching
+            if &*ident == searchstr { // i.e. 'use foo::bar as searchstr'
                 let path = hack_remove_self_and_super_in_modpaths(path);
-
                 for m in resolve_path(&path, filepath, 0, ExactMatch, BothNamespaces) {
                     out.push(m);
+                }
+
+            } else if &*ident == "" {
+                // if searching for a symbol and the last bit matches the symbol
+                // then find the fqn
+                if len == 1 && path.segments[0].name.as_slice() == searchstr {
+                    // is an exact match of a single use stmt. 
+                    // Do nothing because this will be picked up by the module
+                    // search in a bit.
+                } else if path.segments[len-1].name.as_slice().starts_with(searchstr) {
+                    // TODO: pretty sure this isn't correct/complete, only works because
+                    //  we recurse backwards up modules when searching
+                    let path = hack_remove_self_and_super_in_modpaths(path);
+
+                    for m in resolve_path(&path, filepath, 0, ExactMatch, BothNamespaces) {
+                        out.push(m);
+                    }
                 }
             }
         }
