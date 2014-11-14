@@ -217,26 +217,6 @@ fn search_fn_args(point: uint, msrc:&str, searchstr:&str, filepath:&Path,
                     out.push(m);
                 }
             }
-
-
-            // let fn_ = ast::parse_fn(fndecl, racer::Scope{filepath: filepath.clone(), 
-            //                                              point: point});
-            // debug!("parsed fn got {:?}",fn_);
-            // for (s, pos, _) in fn_.args.into_iter() {
-            //     if match search_type {
-            //         ExactMatch => s.as_slice() == searchstr,
-            //         StartsWith => s.as_slice().starts_with(searchstr)
-            //         } {
-            //         out.push(Match { matchstr: s.to_string(),
-            //                             filepath: filepath.clone(),
-            //                             point: n + pos - impl_header,
-            //                             local: local,
-            //                             mtype: FnArg,
-            //                          contextstr: s.to_string(),
-            //                          generic_args: Vec::new(), generic_types: Vec::new()
-            //         });
-            //     };
-            // }
         }
     });
     return out.into_iter();
