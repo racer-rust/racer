@@ -529,10 +529,7 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
         }
 
         debug!("found use: {} in |{}|", searchstr, blob);
-        let t0 = ::time::precise_time_s();
         let view_item = ast::parse_view_item(String::from_str(blob));
-        let t1 = ::time::precise_time_s();
-        debug!("ast use parse_view_item time {}",t1-t0);
 
         let ident = view_item.ident.unwrap_or("".to_string());
         for mut path in view_item.paths.into_iter() {

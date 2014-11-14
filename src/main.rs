@@ -4,7 +4,6 @@
 
 
 extern crate syntax;
-extern crate time;
 extern crate collections;
 extern crate core;
 

@@ -21,7 +21,6 @@ use std::io::{BufferedReader, File};
 use std::{str,vec};
 use std::iter::Iterator;
 use std;
-use time;
 
 fn reverse_to_start_of_fn(point: uint, msrc: &str) -> Option<uint> {
     debug!("reverse to start of fn. {}", point);
@@ -140,9 +139,7 @@ pub fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool
                 decl.push_str("}");
                 if txt_matches(ExactMatch, searchstr, decl.as_slice()) {
                     debug!("impl decl {}",decl);
-                    let t0 = time::precise_time_s();
                     let implres = ast::parse_impl(decl);
-                    let t1 = time::precise_time_s();
 
                     implres.name_path.map(|name_path| {
                         name_path.segments.last().map(|name| {
@@ -161,16 +158,13 @@ pub fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool
 
                     // find trait
                     if include_traits && implres.trait_path.is_some() {
-                            let t0 = time::precise_time_s();                        
                         let trait_path = implres.trait_path.unwrap();
                         let m = resolve_path(&trait_path, 
                                              filepath, pos + start, ExactMatch, TypeNamespace).nth(0);
-                        debug!("found trait {} |{}| {}",
-                                 time::precise_time_s() - t0,
+                        debug!("found trait |{}| {}",
                                  trait_path, m);
                         m.map(|m| out.push(m));
                     }
-                    debug!("ast parse impl {}s",t1-t0);
                 }
             });
         }
