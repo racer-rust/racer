@@ -42,10 +42,10 @@ fn match_fn(m:Match) {
 #[cfg(not(test))]
 fn complete() {
     let args = std::os::args();
-    match std::from_str::from_str(std::os::args().as_slice()[2].as_slice()) {
+    match std::str::from_str(std::os::args().as_slice()[2].as_slice()) {
         Some(linenum) => { 
             // input: linenum, colnum, fname
-            let charnum = std::from_str::from_str(std::os::args().as_slice()[3].as_slice()).unwrap();
+            let charnum = std::str::from_str(std::os::args().as_slice()[3].as_slice()).unwrap();
             let fname = args.as_slice()[4].as_slice();
             let fpath = Path::new(fname);
             let filetxt = BufferedReader::new(File::open(&fpath)).read_to_end().unwrap();
@@ -83,8 +83,8 @@ fn complete() {
 fn prefix() {
     let args_ = std::os::args();
     let args = args_.as_slice();
-    let linenum = std::from_str::from_str(args[2].as_slice()).unwrap();
-    let charnum = std::from_str::from_str(args[3].as_slice()).unwrap();
+    let linenum = std::str::from_str(args[2].as_slice()).unwrap();
+    let charnum = std::str::from_str(args[3].as_slice()).unwrap();
     let fname = args[4].as_slice();
 
     // print the start, end, and the identifier prefix being matched
@@ -98,8 +98,8 @@ fn prefix() {
 fn find_definition() {
     let args_ = std::os::args();
     let args = args_.as_slice();
-    let linenum = std::from_str::from_str(args[2].as_slice()).unwrap();
-    let charnum = std::from_str::from_str(args[3].as_slice()).unwrap();
+    let linenum = std::str::from_str(args[2].as_slice()).unwrap();
+    let charnum = std::str::from_str(args[3].as_slice()).unwrap();
     let fname = args[4].as_slice();
     let fpath = Path::new(fname);
     let filetxt = BufferedReader::new(File::open(&fpath)).read_to_end().unwrap();

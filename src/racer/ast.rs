@@ -730,8 +730,12 @@ impl<'v> visit::Visitor<'v> for FnVisitor {
 
         debug!("parsed args: {}", self.args);
 
-        self.output = to_racer_ty(&*fd.output, &self.scope);
-
+        self.output = match fd.output {
+            ast::Return(ref ty) =>
+                to_racer_ty(&**ty, &self.scope),
+            ast::NoReturn(_) =>
+                None,
+        };
 
         // match fd.output.node {
         //     ast::TyPath(ref path, _, _) => {
