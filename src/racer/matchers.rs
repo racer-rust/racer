@@ -548,7 +548,11 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
                     let path = hack_remove_self_and_super_in_modpaths(path);
                     for m in resolve_path(&path, filepath, 0, ExactMatch, BothNamespaces) {
                         out.push(m);
-                        return out;
+                        if let ExactMatch = search_type  {
+                            return out;
+                        } else {
+                            break;
+                        }
                     }
                 }
 
@@ -566,7 +570,11 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
 
                     for m in resolve_path(&path, filepath, 0, ExactMatch, BothNamespaces) {
                         out.push(m);
-                        return out;
+                        if let ExactMatch = search_type  {
+                            return out;
+                        } else {
+                            break;
+                        }
                     }
                 }
             }
