@@ -177,7 +177,7 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: uint) -> vec::M
     let mut out = Vec::new();
 
     match completetype {
-        CompletePath => {
+        CompletionType::CompletePath => {
             let mut v : Vec<&str> = expr.split_str("::").collect();
             let mut global = false;
             if v[0] == "" {      // i.e. starts with '::' e.g. ::std::io::blah
@@ -190,17 +190,17 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: uint) -> vec::M
             let path = Path{ global: global, segments: segs };
 
             for m in nameres::resolve_path(&path, filepath, pos, 
-                                         StartsWith, BothNamespaces) {
+                                         SearchType::StartsWith, Namespace::BothNamespaces) {
                 out.push(m);
             }
         },
-        CompleteField => {
+        CompletionType::CompleteField => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
             debug!("complete_from_file context is {}", context);
             context.map(|ty| {
                 match ty {
-                    TyMatch(m) => {
-                        for m in nameres::search_for_field_or_method(m, searchstr, StartsWith) {
+                    Ty::TyMatch(m) => {
+                        for m in nameres::search_for_field_or_method(m, searchstr, SearchType::StartsWith) {
                             out.push(m)
                         }
                     }
@@ -226,7 +226,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: uint) -> Option<M
     debug!("find_definition_ for |{}| |{}| {}",contextstr, searchstr, completetype);
 
     return match completetype {
-        CompletePath => {
+        CompletionType::CompletePath => {
             let mut v : Vec<&str> = expr.split_str("::").collect();
             let mut global = false;
             if v[0] == "" {      // i.e. starts with '::' e.g. ::std::io::blah
@@ -240,17 +240,17 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: uint) -> Option<M
             let path = Path{ global: global, segments: segs };
 
             return nameres::resolve_path(&path, filepath, pos, 
-                                         ExactMatch, BothNamespaces).nth(0);
+                                         SearchType::ExactMatch, Namespace::BothNamespaces).nth(0);
         },
-        CompleteField => {
+        CompletionType::CompleteField => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
             debug!("context is {}",context);
 
             return context.and_then(|ty| {
                 // for now, just handle matches
                 match ty {
-                    TyMatch(m) => {
-                        return nameres::search_for_field_or_method(m, searchstr, ExactMatch).nth(0);
+                    Ty::TyMatch(m) => {
+                        return nameres::search_for_field_or_method(m, searchstr, SearchType::ExactMatch).nth(0);
                     }
                     _ => None
                 }

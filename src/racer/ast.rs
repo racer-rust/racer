@@ -12,7 +12,8 @@ use racer::Match;
 use racer;
 use racer::nameres::{resolve_path_with_str};
 use racer::typeinf;
-use racer::{Scope,Ty,TyTuple,TyPathSearch,TyMatch,TyUnsupported};
+use racer::{Scope,Ty};
+use racer::Ty::{TyTuple, TyPathSearch, TyMatch, TyUnsupported};
 use syntax::ptr::P;
 use syntax::visit::Visitor;
 use racer::nameres;
@@ -263,7 +264,7 @@ impl<'v> visit::Visitor<'v> for LetTypeVisitor {
 
 fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: uint) -> Option<Match> {
     debug!("resolve_ast_path {}",to_racer_path(path));
-    return nameres::resolve_path_with_str(&to_racer_path(path), filepath, pos, racer::ExactMatch, racer::BothNamespaces).nth(0);
+    return nameres::resolve_path_with_str(&to_racer_path(path), filepath, pos, racer::SearchType::ExactMatch, racer::Namespace::BothNamespaces).nth(0);
 }
 
 fn to_racer_path(pth: &ast::Path) -> racer::Path {
@@ -295,10 +296,10 @@ fn path_to_match(ty: Ty) -> Option<Ty> {
 
 fn find_type_match(path: &racer::Path, fpath: &Path, pos: uint) -> Option<Ty> {
     debug!("find_type_match {}",path);
-    let res = resolve_path_with_str(path, fpath, pos, racer::ExactMatch, 
-               racer::TypeNamespace).nth(0).and_then(|m| {
+    let res = resolve_path_with_str(path, fpath, pos, racer::SearchType::ExactMatch,
+               racer::Namespace::TypeNamespace).nth(0).and_then(|m| {
                    match m.mtype {
-                       racer::Type => get_type_of_typedef(m),
+                       racer::MatchType::Type => get_type_of_typedef(m),
                        _ => Some(m)
                    }
                });
@@ -334,7 +335,7 @@ fn get_type_of_typedef(m: Match) -> Option<Match> {
         debug!("get_type_of_typedef parsed type {}",res.type_);
         return res.type_;
     }).and_then(|type_|{
-        nameres::resolve_path_with_str(&type_, &m.filepath, m.point, racer::ExactMatch, racer::TypeNamespace).nth(0)
+        nameres::resolve_path_with_str(&type_, &m.filepath, m.point, racer::SearchType::ExactMatch, racer::Namespace::TypeNamespace).nth(0)
     });
 }
 
@@ -398,7 +399,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                                 contextm.point, 
                                 &contextm.filepath,
                                 contextm.local,
-                                racer::ExactMatch).nth(0);
+                                racer::SearchType::ExactMatch).nth(0);
                             omethod
                                 .and_then(|method| 
                                           racer::typeinf::get_return_type_of_function(&method))

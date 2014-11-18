@@ -9,7 +9,8 @@ use std::io::File;
 use std::io::BufferedReader;
 use std::{str};
 
-use racer::{ExactMatch, TypeNamespace};
+use racer::SearchType::ExactMatch;
+use racer::Namespace::TypeNamespace;
 use racer::util::txt_matches;
 
 fn find_start_of_function_body(src: &str) -> uint {
@@ -55,15 +56,15 @@ fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<racer::Ty> {
             debug!("get_type_of_self_arg implres |{}|", implres);
             return resolve_path_with_str(&implres.name_path.expect("failed parsing impl name"), 
                                          &m.filepath, start,
-                                         ExactMatch, TypeNamespace).nth(0).map(|m| racer::TyMatch(m));
+                                         ExactMatch, TypeNamespace).nth(0).map(|m| racer::Ty::TyMatch(m));
         } else {
             // // must be a trait
             return ast::parse_trait(decl).name.and_then(|name| {
-                Some(racer::TyMatch(Match {matchstr: name,
+                Some(racer::Ty::TyMatch(Match {matchstr: name,
                            filepath: m.filepath.clone(), 
                            point: start,
                            local: m.local,
-                           mtype: racer::Trait,
+                           mtype: racer::MatchType::Trait,
                            contextstr: racer::matchers::first_line(msrc.slice_from(start)),
                            generic_args: Vec::new(), generic_types: Vec::new()
                 }))
@@ -96,9 +97,9 @@ fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<racer::Ty> {
                 result = resolve_path_with_str(&ty_.unwrap(), 
                                                &m.filepath, 
                                                globalpos, 
-                                               racer::ExactMatch, 
-                                               racer::TypeNamespace,  // just the type namespace
-                                               ).nth(0).map(|m| racer::TyMatch(m));
+                                               racer::SearchType::ExactMatch,
+                                               racer::Namespace::TypeNamespace,  // just the type namespace
+                                               ).nth(0).map(|m| racer::Ty::TyMatch(m));
             }
         }
         return result;
@@ -126,7 +127,7 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<racer::Ty> {
 
 pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<racer::Path> {
 
-    assert!(structmatch.mtype == racer::Struct);
+    assert!(structmatch.mtype == racer::MatchType::Struct);
 
     let filetxt = BufferedReader::new(File::open(&structmatch.filepath)).read_to_end().unwrap();
     let src = str::from_utf8(filetxt.as_slice()).unwrap();
@@ -149,12 +150,12 @@ pub fn get_type_of_match(m: Match, msrc: &str) -> Option<racer::Ty> {
     debug!("get_type_of match {} ",m);
 
     return match m.mtype {
-        racer::Let => get_type_of_let_expr(&m, msrc),
-        racer::FnArg => get_type_of_fnarg(&m, msrc),
-        racer::Struct => Some(racer::TyMatch(m)),
-        racer::Enum => Some(racer::TyMatch(m)),
-        racer::Function => Some(racer::TyMatch(m)),
-        racer::Module => Some(racer::TyMatch(m)),
+        racer::MatchType::Let => get_type_of_let_expr(&m, msrc),
+        racer::MatchType::FnArg => get_type_of_fnarg(&m, msrc),
+        racer::MatchType::Struct => Some(racer::Ty::TyMatch(m)),
+        racer::MatchType::Enum => Some(racer::Ty::TyMatch(m)),
+        racer::MatchType::Function => Some(racer::Ty::TyMatch(m)),
+        racer::MatchType::Module => Some(racer::Ty::TyMatch(m)),
         _ => { debug!("!!! WARNING !!! Can't get type of {}",m.mtype); None }
     }
 }

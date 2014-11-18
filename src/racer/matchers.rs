@@ -8,9 +8,11 @@ use racer::nameres::{get_module_file, get_crate_file};
 use racer::typeinf;
 use racer;
 use racer::{ast};
-use racer::{SearchType, StartsWith, ExactMatch, Match, Let, Module, 
-            Function, Struct, Type, Trait, Enum, EnumVariant, BothNamespaces,
-            PathSegment, Const, Static};
+use racer::{SearchType, Match, PathSegment};
+use racer::SearchType::{StartsWith, ExactMatch};
+use racer::MatchType::{Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant, Const, Static};
+use racer::Namespace::BothNamespaces;
+
 use racer::util;
 
 

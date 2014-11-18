@@ -140,14 +140,14 @@ pub fn split_into_context_and_completion<'a>(s: &'a str) -> (&'a str, &'a str, r
     }
 
     if start != 0 && s_bytes[start-1] == dot {    // field completion
-        return (s.slice_to(start-1), s.slice_from(start), racer::CompleteField);
+        return (s.slice_to(start-1), s.slice_from(start), racer::CompletionType::CompleteField);
     }
 
     if start > 0 && s_bytes[start-1] == colon {  // path completion
-        return (s.slice_to(start-2), s.slice_from(start), racer::CompletePath);
+        return (s.slice_to(start-2), s.slice_from(start), racer::CompletionType::CompletePath);
     }
 
-    return (s.slice_to(start), s.slice_from(start), racer::CompletePath);
+    return (s.slice_to(start), s.slice_from(start), racer::CompletionType::CompletePath);
 }
 
 pub fn get_start_of_search_expr(msrc: &str, point: uint) -> uint {
