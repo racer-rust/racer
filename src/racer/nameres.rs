@@ -5,10 +5,10 @@ extern crate core;
 
 use racer;
 
-use racer::{SearchType, StartsWith, ExactMatch, Match, Module, 
-            Function, Struct, Enum, FnArg, Trait,
-            StructField, Impl, Namespace, TypeNamespace, 
-            ValueNamespace, BothNamespaces};
+use racer::{SearchType, Match, Namespace};
+use racer::SearchType::{ExactMatch, StartsWith};
+use racer::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl};
+use racer::Namespace::{TypeNamespace, ValueNamespace, BothNamespaces};
 
 use racer::typeinf;
 use racer::matchers;

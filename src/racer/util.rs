@@ -1,6 +1,7 @@
 // Small functions of utility
 use std::io::{File, BufferedReader};
-use racer::{SearchType, ExactMatch, StartsWith};
+use racer::{SearchType};
+use racer::SearchType::{ExactMatch, StartsWith};
 use std;
 use std::{iter,option};
 

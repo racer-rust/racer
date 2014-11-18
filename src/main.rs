@@ -70,7 +70,7 @@ fn complete() {
                 if p.len() == 1 {
                     match_fn(m);
                 } else {
-                    for m in do_external_search(p.slice_from(1), &m.filepath, m.point, racer::StartsWith, racer::BothNamespaces) {
+                    for m in do_external_search(p.slice_from(1), &m.filepath, m.point, racer::SearchType::StartsWith, racer::Namespace::BothNamespaces) {
                         match_fn(m);
                     }
                 }
