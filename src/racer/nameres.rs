@@ -238,7 +238,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
                     let fname = fpath.str_components().rev().next().unwrap().unwrap();
                     if fname.starts_with(format!("lib{}", searchstr).as_slice()) {
                         //debug!("Yeah found {}",fpath.as_str());
-                        let filepath = Path::new(fpath).join_many([Path::new("lib.rs")]);
+                        let filepath = Path::new(fpath).join_many(&[Path::new("lib.rs")]);
                         if File::open(&filepath).is_ok() {
                             let m = Match {matchstr: fname.slice_from(3).to_string(),
                                            filepath: filepath.clone(), 
@@ -256,7 +256,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
                     if fname.starts_with(searchstr) {
                         {
                             // try <name>/<name>.rs, like in the servo codebase
-                            let filepath = Path::new(fpath).join_many([Path::new(format!("{}.rs", fname))]);
+                            let filepath = Path::new(fpath).join_many(&[Path::new(format!("{}.rs", fname))]);
 
                             if File::open(&filepath).is_ok() {
                                 let m = Match {matchstr: fname.to_string(),
@@ -273,7 +273,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
                         }
                         {
                             // try <name>/mod.rs
-                            let filepath = Path::new(fpath).join_many([Path::new("mod.rs")]);
+                            let filepath = Path::new(fpath).join_many(&[Path::new("mod.rs")]);
                             if File::open(&filepath).is_ok() {
                                 let m = Match {matchstr: fname.to_string(),
                                                filepath: filepath.clone(), 
@@ -289,7 +289,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
                         }
                         {
                             // try <name>/lib.rs
-                            let filepath = Path::new(srcpath).join_many([Path::new("lib.rs")]);
+                            let filepath = Path::new(srcpath).join_many(&[Path::new("lib.rs")]);
                             if File::open(&filepath).is_ok() {
                                 let m = Match {matchstr: fname.to_string(),
                                                filepath: filepath.clone(), 
@@ -356,14 +356,14 @@ pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<Path> {
     let mut res = Vec::new();
     
     {
-        let filepath = currentdir.join_many([Path::new("lib.rs")]);
+        let filepath = currentdir.join_many(&[Path::new("lib.rs")]);
         if File::open(&filepath).is_ok() {
             res.push(filepath);
             return res;   // for now stop at the first match
         }
     }
     {
-        let filepath = currentdir.join_many([Path::new("main.rs")]);
+        let filepath = currentdir.join_many(&[Path::new("main.rs")]);
         if File::open(&filepath).is_ok() {
             res.push(filepath);
             return res;   // for now stop at the first match
@@ -407,7 +407,7 @@ pub fn get_crate_file(name: &str) -> Option<Path> {
         {
             // try lib<name>/lib.rs, like in the rust source dir
             let cratelibname = format!("lib{}", name);
-            let filepath = Path::new(srcpath).join_many([Path::new(cratelibname), 
+            let filepath = Path::new(srcpath).join_many(&[Path::new(cratelibname), 
                                                         Path::new("lib.rs")]);
             if File::open(&filepath).is_ok() {
                 return Some(filepath);
@@ -416,7 +416,7 @@ pub fn get_crate_file(name: &str) -> Option<Path> {
 
         {
             // try <name>/lib.rs
-            let filepath = Path::new(srcpath).join_many([Path::new(name),
+            let filepath = Path::new(srcpath).join_many(&[Path::new(name),
                                                      Path::new("lib.rs")]);
             if File::open(&filepath).is_ok() {
                 return Some(filepath);
@@ -429,14 +429,14 @@ pub fn get_crate_file(name: &str) -> Option<Path> {
 pub fn get_module_file(name: &str, parentdir: &Path) -> Option<Path> {
     {            
         // try just <name>.rs
-        let filepath = parentdir.join_many([Path::new(format!("{}.rs", name))]);
+        let filepath = parentdir.join_many(&[Path::new(format!("{}.rs", name))]);
         if File::open(&filepath).is_ok() {
             return Some(filepath);
         }
     }
     {
         // try <name>/mod.rs
-        let filepath = parentdir.join_many([Path::new(name),
+        let filepath = parentdir.join_many(&[Path::new(name),
                                             Path::new("mod.rs")]);
         if File::open(&filepath).is_ok() {
             return Some(filepath);
@@ -575,7 +575,7 @@ pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType
     let v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
 
     for srcpath in v.into_iter() {
-        let filepath = Path::new(srcpath).join_many([Path::new("libstd"), 
+        let filepath = Path::new(srcpath).join_many(&[Path::new("libstd"), 
                                                      Path::new("prelude.rs")]);
         if File::open(&filepath).is_ok() {
             let msrc = racer::load_file_and_mask_comments(&filepath);
