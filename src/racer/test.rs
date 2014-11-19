@@ -854,6 +854,21 @@ fn finds_namespaced_enum_variant() {
 }
 
 #[test]
+fn finds_glob_imported_enum_variant() {
+    let src="
+    use self::Blah::*;
+    pub enum Blah { MyVariant, MyVariant2 }
+    MyVariant
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 4, 8);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("MyVariant", got.matchstr.as_slice());
+}
+
+#[test]
 fn uses_generic_arg_to_resolve_trait_method() {
     let src="
     pub trait MyTrait {

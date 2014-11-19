@@ -41,12 +41,13 @@ pub fn match_types(src: &str, blobstart: uint, blobend: uint,
 
 pub fn match_values(src: &str, blobstart: uint, blobend: uint, 
                   searchstr: &str, filepath: &Path, search_type: SearchType, 
-                  local: bool) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::Item<racer::Match>, option::Item<racer::Match>>, option::Item<racer::Match>>, option::Item<racer::Match>>, vec::MoveItems<racer::Match>> {
+                  local: bool) -> iter::Chain<iter::Chain<iter::Chain<option::Item<racer::Match>, option::Item<racer::Match>>, option::Item<racer::Match>>, option::Item<racer::Match>> {
     let it = match_const(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
     let it = it.chain(match_static(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_let(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_fn(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    let it = it.chain(match_enum_variants(src, blobstart, blobend, searchstr, filepath, search_type, local));
+    // enum variants no longer in parent scope
+    //let it = it.chain(match_enum_variants(src, blobstart, blobend, searchstr, filepath, search_type, local));
         
     return it;
 }
@@ -475,7 +476,6 @@ pub fn match_enum(msrc: &str, blobstart: uint, blobend: uint,
         s.push_str("{}");
         let generics = ast::parse_generics(s);
 
-
         return Some(Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
                            point: blobstart + start,
@@ -504,9 +504,10 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
 
         if view_item.is_glob {
             let basepath = view_item.paths.into_iter().nth(0).unwrap();
-            
+            debug!("PHIL basepath {} '{}'",basepath, searchstr);
             // don't search if searchstr = basepath otherwise will overflow stack
-            if basepath.segments[0].name.as_slice() == searchstr {
+            if basepath.segments[0].name.as_slice() == searchstr || 
+               (basepath.segments[0].name.as_slice() == "self" && basepath.segments[1].name.as_slice() == searchstr){
                 debug!("Not following glob - searchstr = basepath '{}'", searchstr);
             } else {
                 let seg = PathSegment{ name: searchstr.to_string(), types: Vec::new() };

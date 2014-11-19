@@ -769,6 +769,27 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: uint,
                         out.push(m);
                     }
                 }
+                Enum => {
+                    let ref pathseg = path.segments[len-1];
+                    debug!("searching an enum '{}' (whole path: {})",m.matchstr, path);
+
+                    let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
+                    let filesrc = str::from_utf8(filetxt.as_slice()).unwrap();
+
+                    let scopestart = scopes::find_stmt_start(filesrc, m.point).unwrap();
+                    let scopesrc = filesrc.slice_from(scopestart);
+                    codeiter::iter_stmts(scopesrc).nth(0).map(|(blobstart,blobend)|{
+                        debug!("PHIL: searching enum blob |{}| {}",scopesrc.slice(blobstart, blobend), search_type);
+
+                        for m in matchers::match_enum_variants(filesrc, 
+                                                               scopestart+blobstart,
+                                                               scopestart+ blobend,
+                                                      &*pathseg.name, &m.filepath, search_type, true) {
+                            debug!("PHIL found variant match {} ", m);
+                            out.push(m);
+                        }
+                    });
+                }
                 Struct => {
                     debug!("found a struct. Now need to look for impl");
                     for m in search_for_impls(m.point, m.matchstr.as_slice(), &m.filepath, m.local, false) {
