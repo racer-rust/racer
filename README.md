@@ -1,8 +1,5 @@
 # *Racer* - code completion for [Rust](http://www.rust-lang.org/)
 
-### NOTICE: Racer is mostly broken at the moment. I hope to have it fixed in a couple of days (I've got the flu at the moment so will fix when I'm feeling better enough to code).  Basically the new rust namespaced enum change resulted in a bunch of glob imports being added to the rust standard library, and this confuses racer into getting into recursive loops and overflowing the stack. Sorry for any inconvenience caused! - Phil
-
-
 ![alt text](https://github.com/phildawes/racer/raw/master/images/racer1.png "Racer emacs session")
 
 *RACER* = *R*ust *A*uto-*C*omplete-*er*. A utility intended to provide rust code completion for editors and IDEs. Maybe one day the 'er' bit will be exploring + refactoring or something.
