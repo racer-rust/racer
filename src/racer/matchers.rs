@@ -12,7 +12,6 @@ use racer::{SearchType, Match, PathSegment};
 use racer::SearchType::{StartsWith, ExactMatch};
 use racer::MatchType::{Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant, Const, Static};
 use racer::Namespace::BothNamespaces;
-
 use racer::util;
 
 
@@ -489,6 +488,9 @@ pub fn match_enum(msrc: &str, blobstart: uint, blobend: uint,
     return None;
 }
 
+// HACK: recursion protection. With 'use glob' statements it's easy to get into a recursive loop and exchaust the stack. Currently we avoid this by not following a glob if we're already searching through one.
+local_data_key!(already_globbing: bool)
+
 pub fn match_use(msrc: &str, blobstart: uint, blobend: uint, 
              searchstr: &str, filepath: &Path, search_type: SearchType,
              local: bool) -> Vec<Match> {
@@ -503,13 +505,22 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
         debug!("found a glob!! {}", view_item);
 
         if view_item.is_glob {
+
             let basepath = view_item.paths.into_iter().nth(0).unwrap();
-            debug!("PHIL basepath {} '{}'",basepath, searchstr);
-            // don't search if searchstr = basepath otherwise will overflow stack
-            if basepath.segments[0].name.as_slice() == searchstr || 
-               (basepath.segments[0].name.as_slice() == "self" && basepath.segments[1].name.as_slice() == searchstr){
-                debug!("Not following glob - searchstr = basepath '{}'", searchstr);
-            } else {
+            let mut follow_glob = true;
+            {
+                // don't follow glob if we are already following one otherwise
+                // otherwise we get a recursive mess
+                follow_glob &= already_globbing.get().is_none();
+
+                // don't follow the glob if the path base is the searchstr
+                follow_glob &= !(&*basepath.segments[0].name == searchstr || 
+                    (&*basepath.segments[0].name == "self" && &*basepath.segments[1].name == searchstr));
+            }
+
+            if follow_glob {
+                already_globbing.replace(Some(true));
+
                 let seg = PathSegment{ name: searchstr.to_string(), types: Vec::new() };
                 let mut path = basepath.clone();
                 path.segments.push(seg);
@@ -518,12 +529,15 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
                 //  we recurse backwards up modules when searching
                 let path = hack_remove_self_and_super_in_modpaths(path);
 
-                for m in resolve_path(&path, filepath, 0, search_type, BothNamespaces).nth(0).into_iter() {
+                for m in resolve_path(&path, filepath, 0, search_type, BothNamespaces) {
                     out.push(m);
                     if let ExactMatch = search_type {
                         break;
                     }
                 }
+                already_globbing.replace(None);
+            } else {
+                debug!("not following glob");
             }
         }
     } else if ((local && blob.starts_with("use ")) || blob.starts_with("pub use ")) && txt_matches(search_type, searchstr, blob) {     

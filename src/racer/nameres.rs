@@ -522,7 +522,7 @@ pub fn search_scope(point: uint, src: &str, pathseg: &racer::PathSegment,
             }
         }
     }
-    debug!("search_scope found matches {}",out);
+    debug!("search_scope found matches {} {}",search_type, out);
     return out.into_iter();
 }
 
@@ -771,7 +771,7 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: uint,
                 }
                 Enum => {
                     let ref pathseg = path.segments[len-1];
-                    debug!("searching an enum '{}' (whole path: {})",m.matchstr, path);
+                    debug!("searching an enum '{}' (whole path: {}) searchtype: {}",m.matchstr, path, search_type);
 
                     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
                     let filesrc = str::from_utf8(filetxt.as_slice()).unwrap();
@@ -779,13 +779,11 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: uint,
                     let scopestart = scopes::find_stmt_start(filesrc, m.point).unwrap();
                     let scopesrc = filesrc.slice_from(scopestart);
                     codeiter::iter_stmts(scopesrc).nth(0).map(|(blobstart,blobend)|{
-                        debug!("PHIL: searching enum blob |{}| {}",scopesrc.slice(blobstart, blobend), search_type);
-
                         for m in matchers::match_enum_variants(filesrc, 
                                                                scopestart+blobstart,
                                                                scopestart+ blobend,
                                                       &*pathseg.name, &m.filepath, search_type, true) {
-                            debug!("PHIL found variant match {} ", m);
+                            debug!("Found enum variant: {}", m.matchstr);
                             out.push(m);
                         }
                     });
@@ -811,6 +809,7 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: uint,
                 _ => () 
             }
         });
+        debug!("resolve_path returning {}",out);
         return wrap_match_iter(out.into_iter());
     }
 }

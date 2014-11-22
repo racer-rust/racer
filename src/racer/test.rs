@@ -296,25 +296,6 @@ fn finds_fn_arg() {
     assert_eq!(got.matchstr,"myarg".to_string());
 }
 
-
-#[test]
-fn finds_enum_value() {
-    let src="
-    enum MyEnum {
-        One, Two
-    }
-
-    Two;
-    ";
-    write_file(&Path::new("src.rs"), src);
-    let path = tmpname();
-    write_file(&path, src);
-    let pos = scopes::coords_to_point(src, 6, 6);
-    let got = find_definition(src, &path, pos).unwrap();
-    remove_file(&path);
-    assert_eq!(got.matchstr,"Two".to_string());
-}
-
 #[test]
 fn finds_inline_fn() {
     let src="
