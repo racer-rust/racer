@@ -480,8 +480,13 @@ pub fn search_scope(point: uint, src: &str, pathseg: &racer::PathSegment,
             continue;
         }
 
-        //debug!("search_scope BLOB |{}|",blob);
+        // Optimisation: if the search string is not in the blob and it is not 
+        // a 'use glob', this cannot match so fail fast!
+        if blob.find_str(searchstr).is_none() && !(blob.starts_with("use") && blob.find_str("::*").is_some()){
+            continue;
+        }
 
+        // There's a good chance of a match. Run the matchers
         match namespace {
             TypeNamespace => 
                 for m in matchers::match_types(src, point+blobstart, 
