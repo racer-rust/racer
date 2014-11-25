@@ -410,7 +410,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                 });
             }
 
-            ast::ExprField(ref subexpression, spannedident, _) => {
+            ast::ExprField(ref subexpression, spannedident) => {
                 let fieldname = token::get_ident(spannedident.node).get().to_string();
                 debug!("exprfield {}",fieldname);
                 self.visit_expr(&**subexpression);
