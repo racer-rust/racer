@@ -450,16 +450,18 @@ pub fn get_module_file(name: &str, parentdir: &Path) -> Option<Path> {
 pub fn search_scope(point: uint, src: &str, pathseg: &racer::PathSegment, 
                     filepath:&Path, search_type: SearchType, local: bool,
                     namespace: Namespace) -> vec::MoveItems<Match> {
+
     let searchstr = pathseg.name.as_slice();
+    let mut out = Vec::new();
 
     debug!("searching scope {} {} {} {} {} local: {}",namespace, point, searchstr, 
            filepath.as_str(), search_type, local);
     
-    let mut out = Vec::new();
-
     let scopesrc = src.slice_from(point);
 
     let mut skip_next_block = false;
+
+    let mut delayed_use_globs = Vec::new();
 
     for (blobstart,blobend) in codeiter::iter_stmts(scopesrc) { 
 
@@ -480,55 +482,94 @@ pub fn search_scope(point: uint, src: &str, pathseg: &racer::PathSegment,
             continue;
         }
 
+        let is_a_use_glob = (blob.starts_with("use") || blob.starts_with("pub use")) 
+              && blob.find_str("::*").is_some();
+
+        if is_a_use_glob {
+            // globs are *really* expensive to process. delay them until later
+            delayed_use_globs.push((blobstart, blobend));
+            continue;
+        }
+
         // Optimisation: if the search string is not in the blob and it is not 
         // a 'use glob', this cannot match so fail fast!
-        if blob.find_str(searchstr).is_none() && !(blob.starts_with("use") && blob.find_str("::*").is_some()){
+        if blob.find_str(searchstr).is_none() {
             continue;
         }
 
         // There's a good chance of a match. Run the matchers
-        match namespace {
-            TypeNamespace => 
-                for m in matchers::match_types(src, point+blobstart, 
-                                       point+blobend, searchstr, 
-                                       filepath, search_type, local) {
-                    out.push(m);
-                    if let ExactMatch = search_type {
-                        return out.into_iter();
-                    }
-                },
-            ValueNamespace => 
-                for m in matchers::match_values(src, point+blobstart, 
-                                       point+blobend, searchstr, 
-                                       filepath, search_type, local) {
-                    out.push(m);
-                    if let ExactMatch = search_type {
-                        return out.into_iter();
-                    }
-                },
-            BothNamespaces => {
-                for m in matchers::match_types(src, point+blobstart, 
-                                       point+blobend, searchstr, 
-                                       filepath, search_type, local) {
-                    out.push(m);
-                    if let ExactMatch = search_type {
-                        return out.into_iter();
-                    }
-                }
-                for m in matchers::match_values(src, point+blobstart, 
-                                       point+blobend, searchstr, 
-                                       filepath, search_type, local) {
-                    out.push(m);
-                    if let ExactMatch = search_type {
-                        return out.into_iter();
-                    }
 
-                }
+        out = out + run_matchers_on_blob(src, point+blobstart, point+blobend, 
+                                      searchstr,
+                                      filepath, search_type, local, namespace);
+        if let ExactMatch = search_type {
+            if !out.is_empty() {
+                return out.into_iter();
             }
         }
     }
+
+    // finally process any use-globs that we skipped before
+    for &(blobstart, blobend) in delayed_use_globs.iter() {
+        // There's a good chance of a match. Run the matchers
+        for m in run_matchers_on_blob(src, point+blobstart, point+blobend, 
+                                      searchstr,filepath, search_type, 
+                                      local, namespace).into_iter() {
+            out.push(m);
+            if let ExactMatch = search_type {
+                return out.into_iter();
+            }
+        }
+    }
+
     debug!("search_scope found matches {} {}",search_type, out);
     return out.into_iter();
+}
+
+fn run_matchers_on_blob(src: &str, start: uint, end: uint, searchstr: &str, 
+                         filepath:&Path, search_type: SearchType, local: bool,
+                         namespace: Namespace) -> Vec<Match> {
+    let mut out = Vec::new();
+    match namespace {
+        TypeNamespace => 
+            for m in matchers::match_types(src, start, 
+                                           end, searchstr, 
+                                           filepath, search_type, local) {
+                out.push(m);
+                if let ExactMatch = search_type {
+                    return out;
+                }
+            },
+        ValueNamespace => 
+            for m in matchers::match_values(src, start,
+                                            end, searchstr, 
+                                            filepath, search_type, local) {
+                out.push(m);
+                if let ExactMatch = search_type {
+                    return out;
+                }
+            },
+        BothNamespaces => {
+            for m in matchers::match_types(src, start,
+                                           end, searchstr, 
+                                           filepath, search_type, local) {
+                out.push(m);
+                if let ExactMatch = search_type {
+                    return out;
+                }
+            }
+            for m in matchers::match_values(src, start,
+                                            end, searchstr, 
+                                            filepath, search_type, local) {
+                out.push(m);
+                if let ExactMatch = search_type {
+                    return out;
+                }
+                
+            }
+        }
+    }
+    return out;;
 }
 
 fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path, msrc: &str, mut point:uint,
