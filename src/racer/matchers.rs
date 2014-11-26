@@ -1,3 +1,4 @@
+use std::cell::{Cell};
 use std::io::{File, BufferedReader};
 use std::{iter,option,str};
 use collections::vec;
@@ -488,8 +489,11 @@ pub fn match_enum(msrc: &str, blobstart: uint, blobend: uint,
     return None;
 }
 
-// HACK: recursion protection. With 'use glob' statements it's easy to get into a recursive loop and exchaust the stack. Currently we avoid this by not following a glob if we're already searching through one.
-local_data_key!(already_globbing: bool)
+// HACK: recursion protection. With 'use glob' statements it's easy to
+// get into a recursive loop and exchaust the stack. Currently we
+// avoid this by not following a glob if we're already searching
+// through one.
+thread_local!(static ALREADY_GLOBBING: Cell<Option<bool>> = Cell::new(None))
 
 pub fn match_use(msrc: &str, blobstart: uint, blobend: uint, 
              searchstr: &str, filepath: &Path, search_type: SearchType,
@@ -511,7 +515,7 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
             {
                 // don't follow glob if we are already following one otherwise
                 // otherwise we get a recursive mess
-                follow_glob &= already_globbing.get().is_none();
+                follow_glob &= ALREADY_GLOBBING.with(|c| { c.get().is_none() });
 
                 // don't follow the glob if the path base is the searchstr
                 follow_glob &= !(&*basepath.segments[0].name == searchstr || 
@@ -519,7 +523,7 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
             }
 
             if follow_glob {
-                already_globbing.replace(Some(true));
+                ALREADY_GLOBBING.with(|c| { c.set(Some(true)) });
 
                 let seg = PathSegment{ name: searchstr.to_string(), types: Vec::new() };
                 let mut path = basepath.clone();
@@ -535,7 +539,7 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
                         break;
                     }
                 }
-                already_globbing.replace(None);
+                ALREADY_GLOBBING.with(|c| { c.set(None) });
             } else {
                 debug!("not following glob");
             }
