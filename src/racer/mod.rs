@@ -123,7 +123,7 @@ pub enum Ty {
 }
 
 // The racer implementation of an ast::Path. Difference is that it is Send-able
-#[deriving(Show,Clone)]
+#[deriving(Clone)]
 pub struct Path {
     global: bool,
     segments: Vec<PathSegment>
@@ -132,6 +132,37 @@ pub struct Path {
 impl Path {
     pub fn generic_types(&self) -> ::std::slice::Items<Path> {
         return self.segments[self.segments.len()-1].types.iter();
+    }
+}
+
+impl fmt::Show for Path {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut res = write!(f, "P[");
+        let mut first = true;
+        for seg in self.segments.iter() {
+            if first {
+                res = write!(f, "{}", seg.name);
+                first = false;
+            } else {
+                res = write!(f, "::{}", seg.name);
+            }
+
+            if !seg.types.is_empty() {
+                res = write!(f, "<");
+                let mut tfirst = true;
+                for typath in seg.types.iter() {
+                    if tfirst {
+                        res = write!(f, "{}", typath);
+                        tfirst = false;
+                    } else {
+                        res = write!(f, ",{}", typath);
+                    }
+                }
+                res = write!(f, ">");
+            }
+        }
+        res = write!(f, "]");        
+        return res;
     }
 }
 
