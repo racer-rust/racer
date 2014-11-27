@@ -63,7 +63,7 @@ fn complete() {
         None => {
             // input: a command line string passed in
             let arg = args.as_slice()[2].as_slice();
-            let mut it = arg.split_str("::");
+            let it = arg.split_str("::");
             let p : Vec<&str> = it.collect();
 
             for m in do_file_search(p.as_slice()[0], &Path::new(".")) {

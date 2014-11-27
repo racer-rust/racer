@@ -215,7 +215,7 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: uint) -> vec::M
                 global = true;
             }
 
-            let mut segs = v.iter().map(|x| PathSegment{name:x.to_string(), types: Vec::new()});
+            let segs = v.iter().map(|x| PathSegment{name:x.to_string(), types: Vec::new()});
             let segs : Vec<PathSegment> = segs.collect();
             let path = Path{ global: global, segments: segs };
 
@@ -264,8 +264,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: uint) -> Option<M
                 global = true;
             }
 
-            let mut segs = v.iter().map(|x| 
-                                 PathSegment{name:x.to_string(), types: Vec::new()});
+            let segs = v.iter().map(|x| PathSegment{name:x.to_string(), types: Vec::new()});
             let segs : Vec<PathSegment> = segs.collect();
             let path = Path{ global: global, segments: segs };
 
