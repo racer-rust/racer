@@ -4,8 +4,20 @@
 
 ;;; Code:
 
-(defvar racer-cmd "/home/pld/src/rust/racer/bin/racer")
-(defvar racer-rust-src-path "/usr/local/src/rust/src")
+(defgroup racer nil
+  "Support for Rust completion via racer."
+  :link '(url-link "https://github.com/phildawes/racer/")
+  :group 'rust-mode)
+
+(defcustom racer-cmd "/usr/local/bin/racer"
+  "Path to the racer binary."
+  :type 'file
+  :group 'racer)
+
+(defcustom racer-rust-src-path "/usr/local/src/rust/src"
+  "Path to the rust source tree."
+  :type 'file
+  :group 'racer)
 
 (defvar racer-file-name)
 (defvar racer-tmp-file-name)
