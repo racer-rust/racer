@@ -649,7 +649,7 @@ pub fn wrap_match_iter<T: Iterator<Match>+'static>(it: T) -> Box<MatchIter+'stat
     box w as Box<MatchIter>
 }
 
-local_data_key!(pub searchstack: Vec<Search>)
+thread_local!(pub static SEARCH_STACK: Vec<Search> = Vec::new())
 
 #[deriving(PartialEq,Show)]
 pub struct Search {
@@ -659,21 +659,15 @@ pub struct Search {
 }
 
 pub fn is_a_repeat_search(new_search: &Search) -> bool {
-    let o = searchstack.get();
-    return match o {
-        Some(v) => {
-            for s in v.iter() {
-                if s == new_search {
-                    debug!("is a repeat search {} Stack: {}", new_search, v);
-                    return true;
-                }
+    SEARCH_STACK.with(|v| {
+        for s in v.iter() {
+            if s == new_search {
+                debug!("is a repeat search {} Stack: {}", new_search, v);
+                return true;
             }
-            return false;
         }
-        None => { 
-            return false;
-        }
-    }
+        return false;
+    })
 }
 
 
