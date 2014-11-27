@@ -590,6 +590,9 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path, msrc: &str
             let n = scopes::scope_start(msrc, point);
             for m in search_scope(n, msrc, pathseg, filepath, search_type, is_local, namespace) {
                 out.push(m);
+                if let ExactMatch = search_type {
+                    return out.into_iter();
+                }
             }
             if n == 0 { 
                 break; 
@@ -598,6 +601,9 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path, msrc: &str
             let searchstr = pathseg.name.as_slice();
             for m in search_fn_args(point, msrc, searchstr, filepath, search_type, is_local){
                 out.push(m);
+                if let ExactMatch = search_type {
+                    return out.into_iter();
+                }
             };
         }
         return out.into_iter();
@@ -945,10 +951,8 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
         },
         Trait => {
             debug!("got a trait, looking for methods {}",m.matchstr);
-
             let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
-            let mut src = str::from_utf8(filetxt.as_slice()).unwrap();
-            src = src.slice_from(m.point);
+            let src = str::from_utf8(filetxt.as_slice()).unwrap();
             src.slice_from(m.point).find_str("{").map(|n|{
                 let point = m.point + n + 1;
                 for m in search_scope_for_methods(point, src, searchstr, &m.filepath, search_type) {
