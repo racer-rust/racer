@@ -819,7 +819,7 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: uint,
                     let ref pathseg = path.segments[len-1];
                     debug!("searching an enum '{}' (whole path: {}) searchtype: {}",m.matchstr, path, search_type);
 
-                    let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
+                    let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
                     let filesrc = str::from_utf8(filetxt.as_slice()).unwrap();
 
                     let scopestart = scopes::find_stmt_start(filesrc, m.point).unwrap();
