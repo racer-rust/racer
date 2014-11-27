@@ -227,7 +227,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::MoveItems<Matc
     let mut out = Vec::new();
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap_or("".to_string());
     debug!("do_file_search srcpaths {}",srcpaths);
-    let mut v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
+    let mut v = srcpaths.as_slice().split_str(":").collect::<Vec<_>>();
     v.push(currentdir.as_str().unwrap());
     debug!("do_file_search v is {}",v);
     for srcpath in v.into_iter() {
@@ -402,7 +402,7 @@ pub fn search_next_scope(mut startpoint: uint, pathseg: &racer::PathSegment,
 
 pub fn get_crate_file(name: &str) -> Option<Path> {
     let srcpaths = std::os::getenv("RUST_SRC_PATH").unwrap();
-    let v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
+    let v = srcpaths.as_slice().split_str(":").collect::<Vec<_>>();
     for srcpath in v.into_iter() {
         {
             // try lib<name>/lib.rs, like in the rust source dir
@@ -624,7 +624,7 @@ pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType
         None => return out.into_iter()
     };
 
-    let v: Vec<&str> = srcpaths.as_slice().split_str(":").collect();
+    let v = srcpaths.as_slice().split_str(":").collect::<Vec<_>>();
 
     for srcpath in v.into_iter() {
         let filepath = Path::new(srcpath).join_many(&[Path::new("libstd"), 
