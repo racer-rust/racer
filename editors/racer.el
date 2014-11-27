@@ -1,27 +1,43 @@
+;;; racer.el --- Rust completion via racer
+
+;;; Commentary:
+
+;;; Code:
+
 (defvar racer-cmd "/home/pld/src/rust/racer/bin/racer")
-(defvar rust-srcpath "/usr/local/src/rust/src")
+(defvar racer-rust-src-path "/usr/local/src/rust/src")
 
-; rust-mode no longer requires cl, so am putting it here for now (this file uses 'case')
-(require 'cl)
+(defvar racer-file-name)
+(defvar racer-tmp-file-name)
+(defvar racer-line-number)
+(defvar racer-column-number)
+(defvar racer-completion-results)
+(defvar racer-start-pos)
+(defvar racer-end-pos)
 
-(defun racer--write-tmp-file (tmpfilename) 
+(require 'company)
+
+(defun racer--write-tmp-file (tmp-file-name)
+  "Write the racer temporary file to `TMP-FILE-NAME'."
     (push-mark)
-    (setq filename (buffer-file-name))
-    (setq linenum (count-lines 1 (point)))
-    (setq col (current-column))
-    (setq completion-results `())
-    (write-region nil nil tmpfilename))
+    (setq racer-file-name (buffer-file-name))
+    (setq racer-tmp-file-name tmp-file-name)
+    (setq racer-line-number (count-lines 1 (point)))
+    (setq racer-column-number (current-column))
+    (setq racer-completion-results `())
+    (write-region nil nil tmp-file-name))
 
-(defun racer--candidates () 
-  (setq tmpfilename (concat (buffer-file-name) ".racertmp"))
-  (racer--write-tmp-file tmpfilename)
-  (setenv "RUST_SRC_PATH" rust-srcpath)
-    (let ((lines (process-lines racer-cmd 
+(defun racer--candidates ()
+  "Run the racer complete command and process the results."
+  (setq racer-tmp-file-name (concat (buffer-file-name) ".racertmp"))
+  (racer--write-tmp-file racer-tmp-file-name)
+  (setenv "RUST_SRC_PATH" racer-rust-src-path)
+    (let ((lines (process-lines racer-cmd
 				"complete"
-				(number-to-string linenum)
-				(number-to-string col) 
-				tmpfilename)))
-      (delete-file tmpfilename)
+				(number-to-string racer-line-number)
+				(number-to-string racer-column-number)
+				racer-tmp-file-name)))
+      (delete-file racer-tmp-file-name)
       (dolist (line lines)
 	(when (string-match "^MATCH \\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\(.+\\)$" line)
 	  (let ((completion (match-string 1 line))
@@ -32,59 +48,64 @@
 		(contextstr (match-string 6 line)))
 	    (put-text-property 0 1 'contextstr contextstr completion)
 	    (put-text-property 0 1 'matchtype matchtype completion)
-	    (push completion completion-results))))
-      completion-results))
+	    (push completion racer-completion-results))))
+      racer-completion-results))
 
-(defun racer--prefix () 
-  (setq tmpfilename (concat (buffer-file-name) ".racertmp"))
-  (racer--write-tmp-file tmpfilename)
-  (setenv "RUST_SRC_PATH" rust-srcpath)
-  (let ((lines (process-lines racer-cmd 
+(defun racer--prefix ()
+  "Run the racer prefix command and process the results."
+  (setq racer-tmp-file-name (concat (buffer-file-name) ".racertmp"))
+  (racer--write-tmp-file racer-tmp-file-name)
+  (setenv "RUST_SRC_PATH" racer-rust-src-path)
+  (let ((lines (process-lines racer-cmd
 			      "prefix"
-			      (number-to-string linenum)
-			      (number-to-string col) 
-			      tmpfilename)))
-    (delete-file tmpfilename)
+			      (number-to-string racer-line-number)
+			      (number-to-string racer-column-number)
+			      racer-tmp-file-name)))
+    (delete-file racer-tmp-file-name)
     (when (string-match "^PREFIX \\(.+\\),\\(.+\\),\\(.*\\)$" (nth 0 lines))
       (match-string 3 (nth 0 lines)))))
 
-
 (defun racer--complete-at-point-fn ()
-  (setq tmpfilename (concat (buffer-file-name) ".racertmp"))
-  (racer--write-tmp-file tmpfilename)
-  (setenv "RUST_SRC_PATH" rust-srcpath)
+  "Run the racer complete command and process the results."
+  (setq racer-tmp-file-name (concat (buffer-file-name) ".racertmp"))
+  (racer--write-tmp-file racer-tmp-file-name)
+  (setenv "RUST_SRC_PATH" racer-rust-src-path)
   (save-excursion
-    (let ((lines (process-lines racer-cmd 
+    (let ((lines (process-lines racer-cmd
 				"complete"
-				(number-to-string linenum)
-				(number-to-string col) 
-				tmpfilename)))
-      (delete-file tmpfilename)
+				(number-to-string racer-line-number)
+				(number-to-string racer-column-number)
+				racer-tmp-file-name)))
+      (delete-file racer-tmp-file-name)
       (dolist (line lines)
 	(when (string-match "^MATCH \\([^,]+\\),\\(.+\\)$" line)
 	  (let ((completion (match-string 1 line)))
-	    (push completion completion-results)))
+	    (push completion racer-completion-results)))
 	
 	(when (string-match "^PREFIX \\(.+\\),\\(.+\\),\\(.*\\)$" line)
-	  (setq start (string-to-number (match-string 1 line)))
-	  (setq end (string-to-number (match-string 2 line))))
+	  (setq racer-start-pos (string-to-number (match-string 1 line)))
+	  (setq racer-end-pos (string-to-number (match-string 2 line))))
 	)
       )
     )
   ;(message "start %s end %s" start end)
-  (list (- (point) (- end start)) (point) completion-results)
+  (list (- (point) (- racer-end-pos racer-start-pos))
+        (point)
+        racer-completion-results)
   )
 
 (defun racer-company-complete (command &optional arg &rest ignored)
+  "Run the racer command for `COMMAND' and format using `ARG'.
+`IGNORED' is unused."
   (interactive)
   ;(message "PHIL racer-company-complete %s %s %s" command arg ignored)
   (when (looking-back "[a-zA-z1-9:.]")
-    (case command
+    (cl-case command
       (prefix (racer--prefix))
       (candidates (racer--candidates))
       (duplicates t)
       (sorted nil)
-      (annotation 
+      (annotation
        (progn
 	 (format "%s %10s : %s"
 		 (make-string (max 0 (- 20 (length arg))) ? )
@@ -112,30 +133,32 @@
 ;; (add-hook 'completion-at-point-functions 'racer-complete nil)
 
 (defun racer--complete-or-indent ()
+  "Complete with company-mode or indent."
   (interactive)
   (if (company-manual-begin)
       (company-complete-common)
     (indent-according-to-mode)))
 
 (defun string/ends-with (s ending)
-      "return non-nil if string S ends with ENDING."
-      (cond ((>= (length s) (length ending))
-             (let ((elength (length ending)))
-               (string= (substring s (- 0 elength)) ending)))
-            (t nil)))
+  "Return non-nil if string S ends with ENDING."
+  (cond ((>= (length s) (length ending))
+         (let ((elength (length ending)))
+           (string= (substring s (- 0 elength)) ending)))
+        (t nil)))
 
 (defun racer-find-definition ()
+  "Run the racer find-definition command and process the results."
   (interactive)
-  (setq tmpfilename (concat (buffer-file-name) ".racertmp"))
-  (racer--write-tmp-file tmpfilename)
-  (setenv "RUST_SRC_PATH" rust-srcpath)
+  (setq racer-tmp-file-name (concat (buffer-file-name) ".racertmp"))
+  (racer--write-tmp-file racer-tmp-file-name)
+  (setenv "RUST_SRC_PATH" racer-rust-src-path)
   (push-mark)
-  (let ((lines (process-lines racer-cmd 
+  (let ((lines (process-lines racer-cmd
 			      "find-definition"
-			      (number-to-string linenum)
-			      (number-to-string col) 
-			      tmpfilename)))
-    (delete-file tmpfilename)
+			      (number-to-string racer-line-number)
+			      (number-to-string racer-column-number)
+			      racer-tmp-file-name)))
+    (delete-file racer-tmp-file-name)
     (dolist (line lines)
       (when (string-match "^MATCH \\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\).*$" line)
 	(let ((linenum (match-string 2 line))
@@ -144,7 +167,7 @@
 	  (if (string/ends-with fname ".racertmp")
 	      (find-file (substring fname 0 -9))
 	    (find-file fname))
-	  (goto-line (string-to-number linenum))
+	  (forward-line (string-to-number linenum))
 	  (forward-char (string-to-number charnum))
 	  )))))
 
@@ -155,9 +178,8 @@
 	     (local-set-key "\t" 'racer--complete-or-indent)
 	     (local-set-key "\M-." 'racer-find-definition)
 	     (setq company-idle-delay nil)
-	     ) 
+	     )
 	  nil)
 
-
 (provide 'racer)
-
+;;; racer.el ends here
