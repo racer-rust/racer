@@ -208,15 +208,17 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: uint) -> vec::M
 
     match completetype {
         CompletionType::CompletePath => {
-            let mut v : Vec<&str> = expr.split_str("::").collect();
+            let mut v = expr.split_str("::").collect::<Vec<_>>();
             let mut global = false;
             if v[0] == "" {      // i.e. starts with '::' e.g. ::std::io::blah
                 v.remove(0);
                 global = true;
             }
 
-            let segs = v.iter().map(|x| PathSegment{name:x.to_string(), types: Vec::new()});
-            let segs : Vec<PathSegment> = segs.collect();
+            let segs = v
+                .iter()
+                .map(|x| PathSegment{name:x.to_string(), types: Vec::new()})
+                .collect::<Vec<_>>();
             let path = Path{ global: global, segments: segs };
 
             for m in nameres::resolve_path(&path, filepath, pos, 
@@ -257,15 +259,17 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: uint) -> Option<M
 
     return match completetype {
         CompletionType::CompletePath => {
-            let mut v : Vec<&str> = expr.split_str("::").collect();
+            let mut v = expr.split_str("::").collect::<Vec<_>>();
             let mut global = false;
             if v[0] == "" {      // i.e. starts with '::' e.g. ::std::io::blah
                 v.remove(0);
                 global = true;
             }
 
-            let segs = v.iter().map(|x| PathSegment{name:x.to_string(), types: Vec::new()});
-            let segs : Vec<PathSegment> = segs.collect();
+            let segs = v
+                .iter()
+                .map(|x| PathSegment{ name: x.to_string(), types: Vec::new() })
+                .collect::<Vec<_>>();
             let path = Path{ global: global, segments: segs };
 
             return nameres::resolve_path(&path, filepath, pos, 
