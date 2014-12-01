@@ -29,25 +29,32 @@
 
 1. Install emacs 24
 
-2. Install rust-mode. (e.g. add the following to .emacs:
+2. Install rust-mode. E.g. add the following to .emacs:
 
-   ```(add-to-list 'load-path "<rust-srcdir>/src/etc/emacs/")
-     (require 'rust-mode)```)
+   ```
+   (add-to-list 'load-path "<path-to-rust-srcdir>/src/etc/emacs/")
+   (autoload 'rust-mode "rust-mode" nil t)
+   (add-to-list 'auto-mode-alist '("\\.rs\\'" . rust-mode))
+   ```
 
 3. Install company mode. (e.g. via ELPA: ```M-x list-packages```, select ```'company'```)
 
-4. Edit the first couple of lines of editors/racer.el to reflect your environment
+4. Set some variables and install racer. E.g. add this to .emacs:
 
-5. Load it. E.g. eval the buffer or add this to .emacs:
+   ```
+   (setq racer-rust-src-path "<path-to-rust-srcdir>/src/")
+   (setq racer-cmd "<path-to-racer>/bin/racer")
+   (add-to-list 'load-path "<path-to-racer>/editors")
+   (eval-after-load "rust-mode" '(require 'racer))
+   ```
 
-   ```(add-to-list 'load-path "<path-to-racer>/editors")
-     (require 'racer)```
+(N.B. racer.el currenly relies on 'company'. The reason for all the 'eval-after-load' stuff is to ensure rust-mode and racer evaluate after company has been loaded)
 
-6. Open a rust file and try typing ```use std::io::B``` and press \<tab\>
+5. Open a rust file and try typing ```use std::io::B``` and press \<tab\>
 
-7. Place your cursor over a symbol and hit M-. to jump to the definition
+6. Place your cursor over a symbol and hit M-. to jump to the definition
 
-N.B. So far I've only tested this on ubuntu linux + emacs 24
+
 
 ## Vim integration
 
