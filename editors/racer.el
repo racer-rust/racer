@@ -179,6 +179,7 @@
 	  (if (string/ends-with fname ".racertmp")
 	      (find-file (substring fname 0 -9))
 	    (find-file fname))
+	  (goto-char (point-min))
 	  (forward-line (1- (string-to-number linenum)))
 	  (forward-char (string-to-number charnum))
 	  )))))
