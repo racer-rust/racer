@@ -30,7 +30,7 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
         let closeparen: u8 = ")".as_bytes()[0];
         let closesqbrace: u8 = "]".as_bytes()[0];
         let bang: u8 = "!".as_bytes()[0];
-        let whitespace = " \t\n".as_bytes();
+        let whitespace = " \t\r\n".as_bytes();
 
         let __u: u8 = "u".as_bytes()[0];
         let __s: u8 = "s".as_bytes()[0];
@@ -142,7 +142,7 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
 
 fn is_a_use_stmt(src: &str, start: uint, pos: uint) -> bool {
     let src_bytes = src.as_bytes();
-    let whitespace = " {\t\n".as_bytes();
+    let whitespace = " {\t\r\n".as_bytes();
     (pos > 3 && src_bytes.slice(start, start+3) == "use".as_bytes() && 
      whitespace.contains(&src_bytes[start+3])) || 
         (pos > 7 && src_bytes.slice(start, start+7) == "pub use".as_bytes() &&
