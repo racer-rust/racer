@@ -183,7 +183,7 @@ fn to_racer_ty(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
         ast::TyRptr(_, ref ty) => {
             to_racer_ty(&*ty.ty, scope)
         },
-        ast::TyPath(ref path,_,_) => {
+        ast::TyPath(ref path, _) => {
             Some(TyPathSearch(to_racer_path(path), scope.clone()))
         }
         _ => None
@@ -275,7 +275,7 @@ fn to_racer_path(pth: &ast::Path) -> racer::Path {
         let mut types = Vec::new();    
         for ty in seg.parameters.types().iter() {
             match ty.node {
-                ast::TyPath(ref path, _, _) => {
+                ast::TyPath(ref path, _) => {
                     types.push(to_racer_path(path));
                 }
                 _ => {}
@@ -529,7 +529,7 @@ impl<'v> visit::Visitor<'v> for StructVisitor {
                     let typepath = match field.node.ty.node {
                         ast::TyRptr(_, ref ty) => {
                             match ty.ty.node {
-                                ast::TyPath(ref path, _, _) => {
+                                ast::TyPath(ref path, _) => {
                                     let type_ = to_racer_path(path);
                                     debug!("struct field type is {}", type_);
                                     Some(type_)
@@ -537,7 +537,7 @@ impl<'v> visit::Visitor<'v> for StructVisitor {
                                 _ => None
                             }
                         }
-                        ast::TyPath(ref path, _, _) => {
+                        ast::TyPath(ref path, _) => {
                             let type_ = to_racer_path(path);
                             debug!("struct field type is {}", type_);
                             Some(type_)
@@ -571,7 +571,7 @@ impl<'v> visit::Visitor<'v> for TypeVisitor {
                 let typepath = match ty.node {
                     ast::TyRptr(_, ref ty) => {
                         match ty.ty.node {
-                            ast::TyPath(ref path, _, _) => {
+                            ast::TyPath(ref path, _) => {
                                 let type_ = to_racer_path(path);
                                 debug!("type type is {}", type_);
                                 Some(type_)
@@ -579,7 +579,7 @@ impl<'v> visit::Visitor<'v> for TypeVisitor {
                             _ => None
                         }
                     }
-                    ast::TyPath(ref path, _, _) => {
+                    ast::TyPath(ref path, _) => {
                         let type_ = to_racer_path(path);
                         debug!("type type is {}", type_);
                         Some(type_)
@@ -620,14 +620,14 @@ impl<'v> visit::Visitor<'v> for ImplVisitor {
         match item.node {
             ast::ItemImpl(_,ref otrait, ref typ,_) => {
                 match typ.node {
-                    ast::TyPath(ref path, _, _) => {
+                    ast::TyPath(ref path, _) => {
                         self.name_path = Some(to_racer_path(path));
                     }
                     ast::TyRptr(_, ref ty) => {
                         // HACK for now, treat refs the same as unboxed types 
                         // so that we can match '&str' to 'str'
                         match ty.ty.node {
-                            ast::TyPath(ref path, _, _) => {
+                            ast::TyPath(ref path, _) => {
                                 self.name_path = Some(to_racer_path(path));
                             }
                             _ => {}
@@ -654,7 +654,7 @@ impl<'v> visit::Visitor<'v> for ImplVisitor {
 //     fn visit_fn(&mut self, _: &visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId, name: String) {
 //         if name.as_slice() == "return_value" {
 //             match fd.output.node {
-//                 ast::TyPath(ref path, _, _) => {
+//                 ast::TyPath(ref path, _) => {
 //                     //self.output = path_to_vec(path);
 //                     self.m = resolve_ast_path(path,
 //                                               &self.ctx.filepath,
@@ -709,7 +709,7 @@ impl<'v> visit::Visitor<'v> for FnVisitor {
             let typepath = match arg.ty.node {
                 ast::TyRptr(_, ref ty) => {
                     match ty.ty.node {
-                        ast::TyPath(ref path, _, _) => {
+                        ast::TyPath(ref path, _) => {
                             let type_ = to_racer_path(path);
                             debug!("arg type is {}", type_);
                             Some(type_)
@@ -717,7 +717,7 @@ impl<'v> visit::Visitor<'v> for FnVisitor {
                         _ => None
                     }
                 }
-                ast::TyPath(ref path, _, _) => {
+                ast::TyPath(ref path, _) => {
                     let type_ = to_racer_path(path);
                     debug!("arg type is {}", type_);
                     Some(type_)
@@ -739,7 +739,7 @@ impl<'v> visit::Visitor<'v> for FnVisitor {
         };
 
         // match fd.output.node {
-        //     ast::TyPath(ref path, _, _) => {
+        //     ast::TyPath(ref path, _) => {
         //         self.output = Some(to_racer_path(path));
         //     }
         //     _ => {}
