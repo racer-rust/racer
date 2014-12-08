@@ -1,6 +1,5 @@
 #![feature(macro_rules)]
 #![feature(phase)]
-#![feature(if_let)]
 #[phase(plugin, link)] extern crate log;
 
 extern crate syntax;
