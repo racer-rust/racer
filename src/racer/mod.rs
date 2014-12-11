@@ -32,11 +32,15 @@ pub enum MatchType {
     Static
 }
 
+impl Copy for MatchType {}
+
 #[deriving(Show)]
 pub enum SearchType {
     ExactMatch,
     StartsWith
 }
+
+impl Copy for SearchType {}
 
 #[deriving(Show)]
 pub enum Namespace {
@@ -45,11 +49,15 @@ pub enum Namespace {
     BothNamespaces
 }
 
+impl Copy for Namespace {}
+
 #[deriving(Show)]
 pub enum CompletionType {
     CompleteField,
     CompletePath
 }
+
+impl Copy for CompletionType {}
 
 #[deriving(Clone)]
 pub struct Match {
