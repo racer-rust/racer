@@ -1000,6 +1000,8 @@ pub struct FnArgTypeVisitor {
     //result: Option<Ty>
 }
 
+impl Copy for FnArgTypeVisitor {}
+
 impl<'v> visit::Visitor<'v> for FnArgTypeVisitor {
 
     fn visit_fn(&mut self, _: visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId) {
