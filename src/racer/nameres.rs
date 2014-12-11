@@ -39,16 +39,16 @@ fn reverse_to_start_of_fn(point: uint, msrc: &str) -> Option<uint> {
     })
 }
 
-fn search_struct_fields(searchstr: &str, m: &Match,
+fn search_struct_fields(searchstr: &str, structmatch: &Match,
                         search_type: SearchType) -> vec::MoveItems<Match> {
-    let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
+    let filetxt = BufferedReader::new(File::open(&structmatch.filepath)).read_to_end().unwrap();
     let src = str::from_utf8(filetxt.as_slice()).unwrap();
 
-    let opoint = scopes::find_stmt_start(src, m.point);
+    let opoint = scopes::find_stmt_start(src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(src.slice_from(opoint.unwrap()));
 
-    let fields = ast::parse_struct_fields(String::from_str(structsrc));
-
+    let fields = ast::parse_struct_fields(String::from_str(structsrc), 
+                                          racer::Scope::from_match(structmatch));
 
     let mut out = Vec::new();
     
@@ -56,9 +56,9 @@ fn search_struct_fields(searchstr: &str, m: &Match,
 
         if symbol_matches(search_type, searchstr, field.as_slice()) {
             out.push(Match { matchstr: field.to_string(),
-                                filepath: m.filepath.clone(),
+                                filepath: structmatch.filepath.clone(),
                                 point: fpos + opoint.unwrap(),
-                                local: m.local,
+                                local: structmatch.local,
                                 mtype: StructField,
                                 contextstr: field.to_string(),
                                 generic_args: Vec::new(), generic_types: Vec::new()

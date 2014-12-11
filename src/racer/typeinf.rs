@@ -123,10 +123,7 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<racer::Ty> {
     return None;
 }
 
-
-
-pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<racer::Path> {
-
+pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<racer::Ty> {
     assert!(structmatch.mtype == racer::MatchType::Struct);
 
     let filetxt = BufferedReader::new(File::open(&structmatch.filepath)).read_to_end().unwrap();
@@ -135,15 +132,43 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<rac
     let opoint = scopes::find_stmt_start(src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(src.slice_from(opoint.unwrap()));
 
-    let fields = ast::parse_struct_fields(String::from_str(structsrc));
-
-    for (field, _, typepath) in fields.into_iter() {
+    let fields = ast::parse_struct_fields(String::from_str(structsrc), 
+                                          racer::Scope::from_match(structmatch));
+    for (field, _, ty) in fields.into_iter() {
 
         if fieldname == field.as_slice() {
-            return typepath;
+            return ty;
         }
     }
-    return None
+    return None;
+}
+
+pub fn get_tuplestruct_field_type(fieldnum: uint, structmatch: &Match) -> Option<racer::Ty> {
+    assert!(structmatch.mtype == racer::MatchType::Struct);
+
+    let filetxt = BufferedReader::new(File::open(&structmatch.filepath)).read_to_end().unwrap();
+    let src = str::from_utf8(filetxt.as_slice()).unwrap();
+
+    let opoint = scopes::find_stmt_start(src, structmatch.point);
+    let structsrc = get_first_stmt(src.slice_from(opoint.unwrap()));
+
+    let fields = ast::parse_struct_fields(String::from_str(structsrc), 
+                                          racer::Scope::from_match(structmatch));
+    let mut i = 0u;
+    for (_, _, ty) in fields.into_iter() {
+        if i == fieldnum {
+            return ty;
+        }
+        i+=1;
+    }
+    return None;    
+}
+
+pub fn get_first_stmt(src: &str) -> &str {
+    match codeiter::iter_stmts(src).next() {
+        Some((from, to)) => src.slice(from,to),
+        None => src
+    }    
 }
 
 pub fn get_type_of_match(m: Match, msrc: &str) -> Option<racer::Ty> {

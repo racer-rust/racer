@@ -41,11 +41,12 @@ pub fn match_types(src: &str, blobstart: uint, blobend: uint,
 
 pub fn match_values(src: &str, blobstart: uint, blobend: uint, 
                   searchstr: &str, filepath: &Path, search_type: SearchType, 
-                  local: bool) -> iter::Chain<iter::Chain<iter::Chain<option::Item<racer::Match>, option::Item<racer::Match>>, vec::MoveItems<racer::Match>>, option::Item<racer::Match>> {
+                  local: bool) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::Item<racer::Match>, option::Item<racer::Match>>, vec::MoveItems<racer::Match>>, option::Item<racer::Match>>, vec::MoveItems<racer::Match>> {
     let it = match_const(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
     let it = it.chain(match_static(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_let(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_fn(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
+    let it = it.chain(match_if_let(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     return it;
 }
 
@@ -113,6 +114,34 @@ pub fn match_static(msrc: &str, blobstart: uint, blobend: uint,
         });
     }
     return res;
+}
+
+pub fn match_if_let(msrc: &str, blobstart: uint, blobend: uint, 
+                 searchstr: &str, filepath: &Path, search_type: SearchType,
+                 local: bool)  -> Vec<Match> {
+    let mut out = Vec::new();
+    let blob = msrc.slice(blobstart, blobend);
+    if blob.starts_with("if let ") && txt_matches(search_type, searchstr, blob) {
+        let coords = ast::parse_let(String::from_str(blob));
+        for &(start,end) in coords.iter() {
+            let s = blob.slice(start,end);
+            if symbol_matches(search_type, searchstr, s) {
+                out.push(Match { matchstr: s.to_string(),
+                                   filepath: filepath.clone(),
+                                   point: blobstart + start,
+                                   local: local,
+                                   mtype: Let,
+                                   contextstr: first_line(blob),
+                                   generic_args: Vec::new(), 
+                                   generic_types: Vec::new()
+                         });
+                if let ExactMatch = search_type {
+                    break;
+                }
+            }
+        }
+    }
+    return out;
 }
 
 pub fn match_let(msrc: &str, blobstart: uint, blobend: uint, 

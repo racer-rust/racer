@@ -868,6 +868,60 @@ fn uses_generic_arg_to_resolve_trait_method() {
     assert_eq!("trait_method", got.matchstr.as_slice());
 }
 
+#[test]
+fn destructures_a_tuplestruct() {
+    let src="
+    pub struct Blah { subfield: uint }
+    pub struct TupleStruct(Blah);
+    let TupleStruct(var) = TupleStruct(Blah{subfield:35});
+    var.subfield
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 5, 10);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("subfield", got.matchstr.as_slice());
+}
+
+#[test]
+fn finds_if_let_ident_defn() {
+    let src="
+    if let MyOption(myvar) = myvar {
+        myvar
+    }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 3, 13);
+    let mut it = complete_from_file(src, &path, pos);
+    let got = it.next().unwrap();
+    remove_file(&path);
+    assert_eq!("myvar", &*got.matchstr);
+    assert!(it.next().is_none(), "should only match the first one");
+}
+
+#[test]
+fn handles_if_let() {
+    let src="
+    pub struct Blah { subfield: uint }
+    pub enum MyOption<T> {
+        MySome(T),
+        MyNone
+    }
+    let o: MyOption<Blah>;
+    if let MySome(a) = o {
+        a.subfield
+    }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 9, 13);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("subfield", got.matchstr.as_slice());
+}
+
 // #[test]
 // fn finds_methods_of_string_slice() {
 //     let src = "
