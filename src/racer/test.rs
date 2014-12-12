@@ -885,6 +885,24 @@ fn destructures_a_tuplestruct() {
 }
 
 #[test]
+fn destructures_a_tuplestruct_with_generic_arg() {
+    let src="
+    pub struct Blah { subfield: uint }
+    pub struct TupleStruct<T>(T);
+    let a : TupleStruct<Blah> = TupleStruct(Blah{subfield:35});
+    let TupleStruct(var) = a;
+    var.subfield
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 6, 10);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("subfield", got.matchstr.as_slice());
+}
+
+
+#[test]
 fn finds_if_let_ident_defn() {
     let src="
     if let MyOption(myvar) = myvar {

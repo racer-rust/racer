@@ -247,13 +247,20 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
 
             debug!("PHIL patenum path resolved to {}",m);
 
+            let contextty = path_to_match(ty.clone());
             if let (Some(m), Some(children)) = (m, children.as_ref()) {
                 let mut res = None;
                 for p in children.iter() {
                     if point_is_in_span(point as u32, &p.span) {
                         
                         res = typeinf::get_tuplestruct_field_type(i, &m)
-                            .and_then(|ty| path_to_match(ty))
+                            .and_then(|ty|
+                                // if context ty is a match, use its generics
+                                if let Some(Ty::TyMatch(ref contextmatch)) = contextty {
+                                    path_to_match_including_generics(ty, contextmatch)
+                                } else {
+                                    path_to_match(ty)
+                                })
                             .and_then(|ty| destructure_pattern_to_ty(&**p, point, &ty, scope));
 
                         break;
