@@ -928,7 +928,7 @@ fn handles_if_let() {
         MyNone
     }
     let o: MyOption<Blah>;
-    if let MySome(a) = o {
+    if let MyOption::MySome(a) = o {
         a.subfield
     }
     ";

@@ -37,7 +37,6 @@ pub fn first_param_is_self(blob: &str) -> bool {
     });
 }
 
-
 #[test]
 fn generates_skeleton_for_mod() {
     let src = "mod foo { blah };";
@@ -144,15 +143,24 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<rac
 }
 
 pub fn get_tuplestruct_field_type(fieldnum: uint, structmatch: &Match) -> Option<racer::Ty> {
-    assert!(structmatch.mtype == racer::MatchType::Struct);
-
     let filetxt = BufferedReader::new(File::open(&structmatch.filepath)).read_to_end().unwrap();
     let src = str::from_utf8(filetxt.as_slice()).unwrap();
 
-    let opoint = scopes::find_stmt_start(src, structmatch.point);
-    let structsrc = get_first_stmt(src.slice_from(opoint.unwrap()));
+    let structsrc = if let racer::MatchType::EnumVariant = structmatch.mtype {
+        // decorate the enum variant src to make it look like a tuple struct
+        let to = src.slice_from(structmatch.point).find_str("(")
+            .map(|n| scopes::find_closing_paren(src, structmatch.point + n+1))
+            .unwrap();
+        "struct ".to_string() + src.slice(structmatch.point, to+1) + ";"
+    } else {
+        assert!(structmatch.mtype == racer::MatchType::Struct);
+        let opoint = scopes::find_stmt_start(src, structmatch.point);
+        get_first_stmt(src.slice_from(opoint.unwrap())).to_string()
+    };
 
-    let fields = ast::parse_struct_fields(String::from_str(structsrc), 
+    debug!("get_tuplestruct_field_type structsrc=|{}|",structsrc);
+
+    let fields = ast::parse_struct_fields(structsrc,
                                           racer::Scope::from_match(structmatch));
     let mut i = 0u;
     for (_, _, ty) in fields.into_iter() {

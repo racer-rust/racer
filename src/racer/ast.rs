@@ -287,6 +287,27 @@ struct LetTypeVisitor {
 }
 
 impl<'v> visit::Visitor<'v> for LetTypeVisitor {
+    
+    fn visit_expr(&mut self, ex: &'v ast::Expr) { 
+        if let ast::ExprIfLet(ref pattern, ref expr, _, _) = ex.node {
+            debug!("PHIL lettypevisitor - iflet pattern");
+            let mut v = ExprTypeVisitor{ scope: self.scope.clone(),
+                                         result: None};
+            v.visit_expr(&**expr);
+
+            debug!("PHIL lettypevisitor: expr is {}", v.result);
+
+            self.result = v.result.and_then(|ty|
+                   destructure_pattern_to_ty(&**pattern, self.pos, 
+                                             &ty, &self.scope))
+                .and_then(|ty| path_to_match(ty));
+        } else {
+            visit::walk_expr(self, ex) 
+        }
+    }
+
+
+
     fn visit_local(&mut self, local: &'v ast::Local) {
         let mut ty = to_racer_ty(&*local.ty, &self.scope);
         
@@ -303,9 +324,8 @@ impl<'v> visit::Visitor<'v> for LetTypeVisitor {
 
         debug!("LetTypeVisitor: ty is {}. pos is {}, src is |{}|",ty, self.pos, self.srctxt);
         self.result = ty.and_then(|ty|
-              destructure_pattern_to_ty(&*local.pat, self.pos, &ty, &self.scope)).and_then(|ty|
-                path_to_match(ty));
-
+           destructure_pattern_to_ty(&*local.pat, self.pos, &ty, &self.scope))
+            .and_then(|ty| path_to_match(ty));
     }
 }
 
