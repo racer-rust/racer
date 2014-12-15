@@ -195,6 +195,19 @@ impl fmt::Show for PathSearch {
     }
 }
 
+pub fn load_file(filepath: &path::Path) -> String {
+    let rawbytes = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
+
+    // skip BOF bytes, if present
+    if rawbytes.slice(0,3) == [0xEF, 0xBB, 0xBF] {
+        let mut it = rawbytes.into_iter();
+        it.next(); it.next(); it.next();
+        return String::from_utf8(it.collect::<Vec<_>>()).unwrap();
+    } else {
+        return String::from_utf8(rawbytes).unwrap();
+    }
+}
+
 pub fn load_file_and_mask_comments(filepath: &path::Path) -> String {
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
     let src = str::from_utf8(filetxt.as_slice()).unwrap();

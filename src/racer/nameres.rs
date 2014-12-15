@@ -17,8 +17,8 @@ use racer::ast;
 use racer::util;
 use racer::util::{symbol_matches, txt_matches, find_ident_end};
 use racer::scopes;
-use std::io::{BufferedReader, File};
-use std::{str,vec};
+use std::io::{File};
+use std::{vec};
 use std::iter::Iterator;
 use std;
 
@@ -41,10 +41,8 @@ fn reverse_to_start_of_fn(point: uint, msrc: &str) -> Option<uint> {
 
 fn search_struct_fields(searchstr: &str, structmatch: &Match,
                         search_type: SearchType) -> vec::MoveItems<Match> {
-    let filetxt = BufferedReader::new(File::open(&structmatch.filepath)).read_to_end().unwrap();
-    let src = str::from_utf8(filetxt.as_slice()).unwrap();
-
-    let opoint = scopes::find_stmt_start(src, structmatch.point);
+    let src = racer::load_file(&structmatch.filepath);
+    let opoint = scopes::find_stmt_start(&*src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(src.slice_from(opoint.unwrap()));
 
     let fields = ast::parse_struct_fields(String::from_str(structsrc), 
@@ -79,13 +77,12 @@ pub fn search_for_impl_methods(implsearchstr: &str,
 
     for m in search_for_impls(point, implsearchstr, fpath, local, true) {
         debug!("found impl!! |{}| looking for methods",m);
-        let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
-        let src = str::from_utf8(filetxt.as_slice()).unwrap();
-                        
+        let src = racer::load_file(&m.filepath);
+
         // find the opening brace and skip to it. 
         src.slice_from(m.point).find_str("{").map(|n|{
             let point = m.point + n + 1;
-            for m in search_scope_for_methods(point, src, fieldsearchstr, &m.filepath, search_type) {
+            for m in search_scope_for_methods(point, &*src, fieldsearchstr, &m.filepath, search_type) {
                 out.push(m);
             }
         });
@@ -130,9 +127,8 @@ fn search_scope_for_methods(point: uint, src:&str, searchstr:&str, filepath:&Pat
 
 pub fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool, include_traits: bool) -> vec::MoveItems<Match> {
     debug!("search_for_impls {}, {}, {}", pos, searchstr, filepath.as_str());
-    let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
-    let mut src = str::from_utf8(filetxt.as_slice()).unwrap();
-    src = src.slice_from(pos);
+    let s = racer::load_file(filepath);
+    let src = s.slice_from(pos);
 
     let mut out = Vec::new();
     for (start,end) in codeiter::iter_stmts(src) { 
@@ -389,8 +385,7 @@ pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<Path> {
 pub fn search_next_scope(mut startpoint: uint, pathseg: &racer::PathSegment, 
                          filepath:&Path, search_type: SearchType, local: bool, 
                          namespace: Namespace) -> vec::MoveItems<Match> {
-    let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
-    let filesrc = str::from_utf8(filetxt.as_slice()).unwrap();
+    let filesrc = racer::load_file(filepath);
     if startpoint != 0 {
         // is a scope inside the file. Point should point to the definition 
         // (e.g. mod blah {...}), so the actual scope is past the first open brace.
@@ -402,7 +397,7 @@ pub fn search_next_scope(mut startpoint: uint, pathseg: &racer::PathSegment,
         });
     }
 
-    return search_scope(startpoint, filesrc, pathseg, filepath, search_type, local, namespace);
+    return search_scope(startpoint, &*filesrc, pathseg, filepath, search_type, local, namespace);
 }
 
 pub fn get_crate_file(name: &str) -> Option<Path> {
@@ -824,13 +819,11 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: uint,
                     let ref pathseg = path.segments[len-1];
                     debug!("searching an enum '{}' (whole path: {}) searchtype: {}",m.matchstr, path, search_type);
 
-                    let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
-                    let filesrc = str::from_utf8(filetxt.as_slice()).unwrap();
-
-                    let scopestart = scopes::find_stmt_start(filesrc, m.point).unwrap();
+                    let filesrc = racer::load_file(&m.filepath);
+                    let scopestart = scopes::find_stmt_start(&*filesrc, m.point).unwrap();
                     let scopesrc = filesrc.slice_from(scopestart);
                     codeiter::iter_stmts(scopesrc).nth(0).map(|(blobstart,blobend)|{
-                        for m in matchers::match_enum_variants(filesrc, 
+                        for m in matchers::match_enum_variants(&*filesrc, 
                                                                scopestart+blobstart,
                                                                scopestart+ blobend,
                                                       &*pathseg.name, &m.filepath, search_type, true) {
@@ -844,13 +837,11 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: uint,
                     for m in search_for_impls(m.point, m.matchstr.as_slice(), &m.filepath, m.local, false) {
                         debug!("found impl!! {}",m);
                         let ref pathseg = path.segments[len-1];
-                        let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
-                        let src = str::from_utf8(filetxt.as_slice()).unwrap();
-                        
+                        let src = racer::load_file(&m.filepath);
                         // find the opening brace and skip to it. 
                         src.slice_from(m.point).find_str("{").map(|n|{
                             let point = m.point + n + 1;
-                            for m in search_scope(point, src, pathseg, &m.filepath, search_type, m.local, namespace) {
+                            for m in search_scope(point, &*src, pathseg, &m.filepath, search_type, m.local, namespace) {
                                 out.push(m);
                             }
                         });
@@ -956,11 +947,10 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
         },
         Trait => {
             debug!("got a trait, looking for methods {}",m.matchstr);
-            let filetxt = BufferedReader::new(File::open(&m.filepath)).read_to_end().unwrap();
-            let src = str::from_utf8(filetxt.as_slice()).unwrap();
+            let src = racer::load_file(&m.filepath);
             src.slice_from(m.point).find_str("{").map(|n|{
                 let point = m.point + n + 1;
-                for m in search_scope_for_methods(point, src, searchstr, &m.filepath, search_type) {
+                for m in search_scope_for_methods(point, &*src, searchstr, &m.filepath, search_type) {
                     out.push(m);
                 }
             });

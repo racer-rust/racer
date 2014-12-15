@@ -1,6 +1,5 @@
 use std::cell::{Cell};
-use std::io::{File, BufferedReader};
-use std::{iter,option,str};
+use std::{iter,option};
 use collections::vec;
 use racer::nameres::resolve_path;
 use racer::scopes;
@@ -193,8 +192,8 @@ pub fn match_extern_crate(msrc: &str, blobstart: uint, blobend: uint,
             // Annoyingly the extern crate can use a string literal for the
             // real crate name (e.g. extern crate collections_core = "collections")
             // so we need to get the source text without scrubbed strings 
-            let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
-            let rawsrc = str::from_utf8(filetxt.as_slice()).unwrap();
+
+            let rawsrc = racer::load_file(filepath);
             let rawblob = rawsrc.slice(blobstart,blobend);
             debug!("found an extern crate (unscrubbed): |{}|", rawblob);
             

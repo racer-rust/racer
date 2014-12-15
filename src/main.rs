@@ -13,12 +13,6 @@ use racer::util::getline;
 #[cfg(not(test))]
 use racer::nameres::{do_file_search, do_external_search};
 #[cfg(not(test))]
-use std::io::File;
-#[cfg(not(test))]
-use std::io::BufferedReader;
-#[cfg(not(test))]
-use std::str;
-#[cfg(not(test))]
 use racer::scopes;
 
 pub mod racer;
@@ -47,15 +41,13 @@ fn complete() {
             let charnum = std::str::from_str(std::os::args().as_slice()[3].as_slice()).unwrap();
             let fname = args.as_slice()[4].as_slice();
             let fpath = Path::new(fname);
-            let filetxt = BufferedReader::new(File::open(&fpath)).read_to_end().unwrap();
-            // print the start-end of the identifier being matched
-            let src = str::from_utf8(filetxt.as_slice()).unwrap();
+            let src = racer::load_file(&fpath);
             let line = getline(&fpath, linenum);
             let (start, pos) = racer::util::expand_ident(line.as_slice(), charnum);
             println!("PREFIX {},{},{}", start, pos, line.as_slice().slice(start, pos));
 
-            let point = scopes::coords_to_point(src, linenum, charnum);
-            for m in racer::complete_from_file(src, &fpath, point) {
+            let point = scopes::coords_to_point(&*src, linenum, charnum);
+            for m in racer::complete_from_file(&*src, &fpath, point) {
                 match_fn(m);
             }
         }
@@ -101,11 +93,10 @@ fn find_definition() {
     let charnum = std::str::from_str(args[3].as_slice()).unwrap();
     let fname = args[4].as_slice();
     let fpath = Path::new(fname);
-    let filetxt = BufferedReader::new(File::open(&fpath)).read_to_end().unwrap();
-    let src = str::from_utf8(filetxt.as_slice()).unwrap();
-    let pos = scopes::coords_to_point(src, linenum, charnum);
+    let src = racer::load_file(&fpath);
+    let pos = scopes::coords_to_point(&*src, linenum, charnum);
 
-    racer::find_definition(src, &fpath, pos).map(match_fn);
+    racer::find_definition(&*src, &fpath, pos).map(match_fn);
 }
 
 #[cfg(not(test))]

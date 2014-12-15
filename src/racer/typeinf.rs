@@ -5,10 +5,6 @@ use racer::nameres::{resolve_path_with_str};
 use racer::{ast,codeiter,scopes};
 use racer;
 
-use std::io::File;
-use std::io::BufferedReader;
-use std::{str};
-
 use racer::SearchType::ExactMatch;
 use racer::Namespace::TypeNamespace;
 use racer::util::txt_matches;
@@ -125,10 +121,9 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<racer::Ty> {
 pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<racer::Ty> {
     assert!(structmatch.mtype == racer::MatchType::Struct);
 
-    let filetxt = BufferedReader::new(File::open(&structmatch.filepath)).read_to_end().unwrap();
-    let src = str::from_utf8(filetxt.as_slice()).unwrap();
+    let src = racer::load_file(&structmatch.filepath);
 
-    let opoint = scopes::find_stmt_start(src, structmatch.point);
+    let opoint = scopes::find_stmt_start(&*src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(src.slice_from(opoint.unwrap()));
 
     let fields = ast::parse_struct_fields(String::from_str(structsrc), 
@@ -143,18 +138,17 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<rac
 }
 
 pub fn get_tuplestruct_field_type(fieldnum: uint, structmatch: &Match) -> Option<racer::Ty> {
-    let filetxt = BufferedReader::new(File::open(&structmatch.filepath)).read_to_end().unwrap();
-    let src = str::from_utf8(filetxt.as_slice()).unwrap();
+    let src = racer::load_file(&structmatch.filepath);
 
     let structsrc = if let racer::MatchType::EnumVariant = structmatch.mtype {
         // decorate the enum variant src to make it look like a tuple struct
         let to = src.slice_from(structmatch.point).find_str("(")
-            .map(|n| scopes::find_closing_paren(src, structmatch.point + n+1))
+            .map(|n| scopes::find_closing_paren(&*src, structmatch.point + n+1))
             .unwrap();
         "struct ".to_string() + src.slice(structmatch.point, to+1) + ";"
     } else {
         assert!(structmatch.mtype == racer::MatchType::Struct);
-        let opoint = scopes::find_stmt_start(src, structmatch.point);
+        let opoint = scopes::find_stmt_start(&*src, structmatch.point);
         get_first_stmt(src.slice_from(opoint.unwrap())).to_string()
     };
 
@@ -194,9 +188,8 @@ pub fn get_type_of_match(m: Match, msrc: &str) -> Option<racer::Ty> {
 }
 
 pub fn get_return_type_of_function(fnmatch: &Match) -> Option<racer::Ty> {
-    let filetxt = BufferedReader::new(File::open(&fnmatch.filepath)).read_to_end().unwrap();
-    let src = str::from_utf8(filetxt.as_slice()).unwrap();
-    let point = scopes::find_stmt_start(src, fnmatch.point).unwrap();
+    let src = racer::load_file(&fnmatch.filepath);
+    let point = scopes::find_stmt_start(&*src, fnmatch.point).unwrap();
 
     //debug!("get_return_type_of_function |{}|",src.slice_from(point));
     
