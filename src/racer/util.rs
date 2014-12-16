@@ -3,7 +3,6 @@ use std::io::{File, BufferedReader};
 use racer::{SearchType};
 use racer::SearchType::{ExactMatch, StartsWith};
 use std;
-use std::{iter,option};
 
 pub fn getline(filepath : &Path, linenum : uint) -> String {
     let mut i = 0;
@@ -169,8 +168,3 @@ pub fn to_refs<'a>(v: &'a Vec<String>) -> Vec<&'a str> {
     return out;
 }
 
-
-// Transforms an iterator into an iterator that only evaluates once iterated
-pub fn lazyit<'a,T,I:Iterator<T>>(p: proc():'a -> I) -> iter::FlatMap<'static,proc():'a -> I,option::Item<proc():'a -> I>,I> {
-    return Some(p).into_iter().flat_map(|p| p());
-}

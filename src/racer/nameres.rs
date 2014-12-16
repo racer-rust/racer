@@ -463,8 +463,16 @@ pub fn search_scope(point: uint, src: &str, pathseg: &racer::PathSegment,
 
     let mut delayed_use_globs = Vec::new();
 
-    for (blobstart,blobend) in codeiter::iter_stmts(scopesrc) { 
+    let v = codeiter::iter_stmts(scopesrc).collect::<Vec<_>>();
+    let v = 
+        if point == 0 { 
+            v 
+        } else {
+            // if we're not searching a file from the start, work backwards
+            v.into_iter().rev().collect::<Vec<_>>()
+        };
 
+    for (blobstart,blobend) in v.into_iter() { 
         // sometimes we need to skip blocks of code if the preceeding attribute disables it
         //  (e.g. #[cfg(test)])
         if skip_next_block {
@@ -585,19 +593,20 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path, msrc: &str
 
         let mut out = Vec::new();
 
+
         // search each parent scope in turn
         while point > 0 {
-            let n = scopes::scope_start(msrc, point);
-            for m in search_scope(n, msrc, pathseg, filepath, search_type, is_local, namespace) {
+            let start = scopes::scope_start(msrc, point);
+            for m in search_scope(start, msrc, pathseg, filepath, search_type, is_local, namespace) {
                 out.push(m);
                 if let ExactMatch = search_type {
                     return out.into_iter();
                 }
             }
-            if n == 0 { 
+            if start == 0 { 
                 break; 
             }
-            point = n-1;
+            point = start-1;
             let searchstr = pathseg.name.as_slice();
             for m in search_fn_args(point, msrc, searchstr, filepath, search_type, is_local){
                 out.push(m);
@@ -677,30 +686,6 @@ pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: uint,
     return out.into_iter();
 }
 
-pub trait MatchIter {
-    fn next_match(&mut self) -> Option<Match>;
-}
-
-impl Iterator<Match> for Box<MatchIter+'static> {
-    fn next(&mut self) -> Option<Match> { (**self).next_match() }
-}
-
-pub struct WrappedIter<T> {
-    iter: T,
-}
-
-impl<T: Iterator<Match>> MatchIter for WrappedIter<T> {
-    fn next_match(&mut self) -> Option<Match> {
-        self.iter.next()
-    }
-}
-
-
-pub fn wrap_match_iter<T: Iterator<Match>+'static>(it: T) -> Box<MatchIter+'static> {
-    let w = WrappedIter{iter: it};
-    box w as Box<MatchIter>
-}
-
 thread_local!(pub static SEARCH_STACK: Vec<Search> = Vec::new())
 
 #[deriving(PartialEq,Show)]
@@ -724,8 +709,9 @@ pub fn is_a_repeat_search(new_search: &Search) -> bool {
 
 
 pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: uint, 
-                    search_type: SearchType, namespace: Namespace) -> Box<MatchIter+'static> {
+                    search_type: SearchType, namespace: Namespace) -> vec::MoveItems<Match> {
 
+    let mut out = Vec::new();
     let searchstr = pathseg.name.as_slice();
     
     debug!("resolve_name {} {} {} {} {}",searchstr, filepath.as_str(), pos, search_type, namespace);
@@ -736,66 +722,64 @@ pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: uint,
     let is_exact_match = match search_type { ExactMatch => true, StartsWith => false };
 
     if (is_exact_match && searchstr == "std") || (!is_exact_match && "std".starts_with(searchstr)) {
-        let r = get_crate_file("std").map(|cratepath|{
-            Match { matchstr: "std".to_string(),
+        get_crate_file("std").map(|cratepath|{
+            out.push(Match { matchstr: "std".to_string(),
                         filepath: cratepath.clone(), 
                         point: 0,
                         local: false,
                         mtype: Module,
                         contextstr: cratepath.as_str().unwrap().to_string(),
                         generic_args: Vec::new(), generic_types: Vec::new()
-            }
+            });
         });
-        return wrap_match_iter(r.into_iter());
+        
+        if let ExactMatch = search_type {
+            if !out.is_empty() {
+                return out.into_iter();
+            }
+        }
     }
 
 
-    let pseg = pathseg.clone();
-    let p = filepath.clone();
+    for m in search_local_scopes(pathseg, filepath, msrc.as_slice(), pos,
+                                          search_type, namespace) {
+        out.push(m);
+        if let ExactMatch = search_type {
+            if !out.is_empty() {
+                return out.into_iter();
+            }
+        }
+    }
 
-    let it = util::lazyit(proc() {
-        let filepath = &p;
+    for m in search_crate_root(pathseg, filepath, search_type, namespace) {
+        out.push(m);
+        if let ExactMatch = search_type {
+            if !out.is_empty() {
+                return out.into_iter();
+            }
+        }        
+    }
 
-        let it = search_local_scopes(&pseg, filepath, msrc.as_slice(), pos,
-                                          search_type, namespace);
-        return it;
-    });
-
-    let ps = pathseg.clone();
-    let p = filepath.clone();
-    let it = it.chain(util::lazyit(proc() {
-        let filepath = &p;        
-        let it = search_crate_root(&ps, filepath, search_type, namespace);
-        return it;
-    }));
-
-    let pseg = pathseg.clone();
-    let it = it.chain(util::lazyit(proc() {
-        let it = search_prelude_file(&pseg, search_type, namespace);;
-        return it;
-    }));
-
+    for m in search_prelude_file(pathseg, search_type, namespace) {
+        out.push(m);
+        if let ExactMatch = search_type {
+            if !out.is_empty() {
+                return out.into_iter();
+            }
+        }        
+    }
     // filesearch. Used to complete e.g. extern crate blah or mod foo
-    let s = String::from_str(searchstr);
-    let p = filepath.clone();
+    if let StartsWith = search_type {
+        for m in do_file_search(searchstr, &filepath.dir_path()) {
+            out.push(m);
+        }
+    }
 
-    let it = it.chain(match search_type {
-        StartsWith => 
-            Some(proc() { 
-                let searchstr = s.as_slice();
-                let filepath = p;
-                let it = do_file_search(searchstr, &filepath.dir_path());
-                it
-            }),
-        ExactMatch => 
-            None
-    }.into_iter().flat_map(|p| p()));
-
-    return wrap_match_iter(it);
+    return out.into_iter();
 }
 
 pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: uint, 
-                  search_type: SearchType, namespace: Namespace) -> Box<MatchIter+'static> {
+                  search_type: SearchType, namespace: Namespace) -> vec::MoveItems<Match> {
     debug!("resolve_path {} {} {} {}", path, filepath.as_str(), pos, search_type);
     let len = path.segments.len();
     if len == 1 {
@@ -852,7 +836,7 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: uint,
             }
         });
         debug!("resolve_path returning {}",out);
-        return wrap_match_iter(out.into_iter());
+        return out.into_iter();
     }
 }
 

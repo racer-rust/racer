@@ -664,7 +664,7 @@ pub struct TraitVisitor {
 impl<'v> visit::Visitor<'v> for TraitVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         match item.node {
-            ast::ItemTrait(_, _, _, _) => {
+            ast::ItemTrait(_, _, _, _, _) => {
                 self.name = Some(token::get_ident(item.ident).get().to_string());
             }
             _ => ()
@@ -681,7 +681,7 @@ pub struct ImplVisitor {
 impl<'v> visit::Visitor<'v> for ImplVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         match item.node {
-            ast::ItemImpl(_,ref otrait, ref typ,_) => {
+            ast::ItemImpl(_, _, ref otrait, ref typ, _) => {
                 match typ.node {
                     ast::TyPath(ref path, _) => {
                         self.name_path = Some(to_racer_path(path));
@@ -893,7 +893,7 @@ impl<'v> visit::Visitor<'v> for EnumVisitor {
 
 pub fn parse_view_item(s: String) -> ViewItemVisitor {
     // parser can panic!() so isolate it in another task
-    let result = task::try(proc() { 
+    let result = task::try(move || { 
         let cr = string_to_crate(s);
         let mut v = ViewItemVisitor{ident: None, 
                                     paths: Vec::new(),
@@ -912,7 +912,7 @@ pub fn parse_view_item(s: String) -> ViewItemVisitor {
 }
 
 pub fn parse_let(s: String) -> Vec<(uint, uint)> {
-    return task::try(proc() { 
+    return task::try(move || { 
         let stmt = string_to_stmt(s);
         let mut v = LetVisitor{ ident_points: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt);
@@ -921,7 +921,7 @@ pub fn parse_let(s: String) -> Vec<(uint, uint)> {
 }
 
 pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, uint, Option<racer::Ty>)> {
-    return task::try(proc() {
+    return task::try(move || {
         let stmt = string_to_stmt(s);
         let mut v = StructVisitor{ scope: scope, fields: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt);
@@ -930,7 +930,7 @@ pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, uint, Option
 }
 
 pub fn parse_impl(s: String) -> ImplVisitor {
-    return task::try(proc() {
+    return task::try(move || {
         let stmt = string_to_stmt(s);
         let mut v = ImplVisitor { name_path: None, trait_path: None };
         visit::walk_stmt(&mut v, &*stmt);
@@ -939,7 +939,7 @@ pub fn parse_impl(s: String) -> ImplVisitor {
 }
 
 pub fn parse_trait(s: String) -> TraitVisitor {
-    return task::try(proc() {
+    return task::try(move || {
         let stmt = string_to_stmt(s);
         let mut v = TraitVisitor { name: None };
         visit::walk_stmt(&mut v, &*stmt);
@@ -948,7 +948,7 @@ pub fn parse_trait(s: String) -> TraitVisitor {
 }
 
 pub fn parse_struct_def(s: String) -> StructDefVisitor {
-    return task::try(proc() {
+    return task::try(move || {
         let stmt = string_to_stmt(s);
         let mut v = StructDefVisitor { name: None, generic_args: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt);
@@ -957,7 +957,7 @@ pub fn parse_struct_def(s: String) -> StructDefVisitor {
 }
 
 pub fn parse_generics(s: String) -> GenericsVisitor {
-    return task::try(proc() {
+    return task::try(move || {
         let stmt = string_to_stmt(s);
         let mut v = GenericsVisitor { generic_args: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt);
@@ -966,7 +966,7 @@ pub fn parse_generics(s: String) -> GenericsVisitor {
 }
 
 pub fn parse_type(s: String) -> TypeVisitor {
-    return task::try(proc() {
+    return task::try(move || {
         let stmt = string_to_stmt(s);
         let mut v = TypeVisitor { name: None, type_: None };
         visit::walk_stmt(&mut v, &*stmt);
@@ -975,7 +975,7 @@ pub fn parse_type(s: String) -> TypeVisitor {
 }
 
 pub fn parse_fn_args(s: String) -> Vec<(uint, uint)> {
-    return task::try(proc() { 
+    return task::try(move || { 
         let stmt = string_to_stmt(s);
         debug!("parse_fn_args stmt is {}",stmt);
         let mut v = PatVisitor{ ident_points: Vec::new() };
@@ -986,7 +986,7 @@ pub fn parse_fn_args(s: String) -> Vec<(uint, uint)> {
 }
 
 pub fn parse_fn_output(s: String, scope: Scope) -> Option<racer::Ty> {
-    return task::try(proc() {
+    return task::try(move || {
         let stmt = string_to_stmt(s);
         let mut v = FnVisitor { name: "".to_string(), args: Vec::new(), 
                                 output: None, is_method: false, scope: scope};
@@ -998,7 +998,7 @@ pub fn parse_fn_output(s: String, scope: Scope) -> Option<racer::Ty> {
 
 pub fn parse_fn(s: String, scope: Scope) -> FnVisitor {
     debug!("parse_fn |{}|",s);
-    return task::try(proc() {
+    return task::try(move || {
         let stmt = string_to_stmt(s);
         let mut v = FnVisitor { name: "".to_string(), args: Vec::new(), 
                                 output: None, is_method: false, scope: scope};
@@ -1008,7 +1008,7 @@ pub fn parse_fn(s: String, scope: Scope) -> FnVisitor {
 }
 
 pub fn parse_mod(s: String) -> ModVisitor {
-    return task::try(proc() {
+    return task::try(move || {
         let stmt = string_to_stmt(s);
         let mut v = ModVisitor { name: None };
         visit::walk_stmt(&mut v, &*stmt);
@@ -1017,7 +1017,7 @@ pub fn parse_mod(s: String) -> ModVisitor {
 }
 
 pub fn parse_enum(s: String) -> EnumVisitor {
-    return task::try(proc() {
+    return task::try(move || {
         let stmt = string_to_stmt(s);
         let mut v = EnumVisitor { name: String::new(), values: Vec::new()};
         visit::walk_stmt(&mut v, &*stmt);
@@ -1029,7 +1029,7 @@ pub fn parse_enum(s: String) -> EnumVisitor {
 pub fn get_type_of(exprstr: String, fpath: &Path, pos: uint) -> Option<Ty> {
     let myfpath = fpath.clone();
 
-    return task::try(proc() {
+    return task::try(move || {
         let stmt = string_to_stmt(exprstr);
         let startscope = Scope {
             filepath: myfpath,
@@ -1045,7 +1045,7 @@ pub fn get_type_of(exprstr: String, fpath: &Path, pos: uint) -> Option<Ty> {
 
 // pos points to an ident in the lhs of the stmtstr
 pub fn get_let_type(stmtstr: String, pos: uint, scope: Scope) -> Option<Ty> {
-    return task::try(proc() {
+    return task::try(move || {
         let stmt = string_to_stmt(stmtstr.clone());
         let mut v = LetTypeVisitor {
             scope: scope,
@@ -1092,7 +1092,7 @@ impl<'v> visit::Visitor<'v> for FnArgTypeVisitor {
 
 #[test]
 fn ast_sandbox() {
-    let src = "if let Foo(a) = b {}";
+    //let src = "if let Foo(a) = b {}";
 
     //let src = "let (a,b): (Foo,Bar);";
 
@@ -1109,9 +1109,9 @@ fn ast_sandbox() {
     // let src = "fn myfn((a,b) : (uint, uint)) {}";
     // //let src = "impl blah {pub fn another_method() {}}";
 
-    let stmt = string_to_stmt(String::from_str(src));
-    println!("stmt {} ", stmt);
-    panic!("");
+    // let stmt = string_to_stmt(String::from_str(src));
+    // println!("stmt {} ", stmt);
+    // panic!("");
     // let mut v = PatVisitor { ident_points: Vec::new() };
     // visit::walk_stmt(&mut v, &*stmt);
 
@@ -1131,7 +1131,7 @@ fn ast_sandbox() {
 
     // let src = "let (a,b) : (uint,uint);";
 
-    // let result = task::try(proc() { 
+    // let result = task::try(move || { 
     //     return string_to_stmt(String::from_str(src));
     // });
 

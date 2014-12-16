@@ -914,9 +914,26 @@ fn finds_if_let_ident_defn() {
     let pos = scopes::coords_to_point(src, 3, 13);
     let mut it = complete_from_file(src, &path, pos);
     let got = it.next().unwrap();
+    debug!("PHIL got is {}",got);
     remove_file(&path);
     assert_eq!("myvar", &*got.matchstr);
     assert!(it.next().is_none(), "should only match the first one");
+}
+
+#[test]
+fn finds_rebound_var_in_iflet() {
+    let src="
+    let o: MyOption<Blah>;
+    if let MyOption::MySome(o) = o {
+        o
+    }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 4, 8);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!(62, got.point);
 }
 
 #[test]
