@@ -933,7 +933,7 @@ fn finds_rebound_var_in_iflet() {
     let pos = scopes::coords_to_point(src, 4, 8);
     let got = find_definition(src, &path, pos).unwrap();
     remove_file(&path);
-    assert_eq!(62, got.point);
+    assert_eq!(56, got.point);
 }
 
 #[test]
