@@ -29,12 +29,18 @@
 
 (require 'company)
 
+(defun racer-get-line-number () 
+  ; for some reason if the current-column is 0, then the linenumber is off by 1
+  (if (= (current-column) 0) 
+      (1+ (count-lines 1 (point))) 
+    (count-lines 1 (point))))
+
 (defun racer--write-tmp-file (tmp-file-name)
   "Write the racer temporary file to `TMP-FILE-NAME'."
     (push-mark)
     (setq racer-file-name (buffer-file-name))
     (setq racer-tmp-file-name tmp-file-name)
-    (setq racer-line-number (count-lines 1 (point)))
+    (setq racer-line-number (racer-get-line-number))
     (setq racer-column-number (current-column))
     (setq racer-completion-results `())
     (write-region nil nil tmp-file-name))
