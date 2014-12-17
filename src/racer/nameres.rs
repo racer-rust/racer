@@ -507,9 +507,10 @@ pub fn search_scope(point: uint, src: &str, pathseg: &racer::PathSegment,
 
         // There's a good chance of a match. Run the matchers
 
-        out = out + run_matchers_on_blob(src, point+blobstart, point+blobend, 
+        out.push_all(run_matchers_on_blob(src, point+blobstart, point+blobend, 
                                       searchstr,
-                                      filepath, search_type, local, namespace);
+                                      filepath, search_type, local, namespace).
+                    as_slice());
         if let ExactMatch = search_type {
             if !out.is_empty() {
                 return out.into_iter();
