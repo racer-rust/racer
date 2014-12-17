@@ -397,7 +397,7 @@ pub fn search_next_scope(mut startpoint: uint, pathseg: &racer::PathSegment,
         });
     }
 
-    return search_scope(startpoint, &*filesrc, pathseg, filepath, search_type, local, namespace);
+    return search_scope(startpoint, startpoint, &*filesrc, pathseg, filepath, search_type, local, namespace);
 }
 
 pub fn get_crate_file(name: &str) -> Option<Path> {
@@ -447,32 +447,73 @@ pub fn get_module_file(name: &str, parentdir: &Path) -> Option<Path> {
 }
 
 
-pub fn search_scope(point: uint, src: &str, pathseg: &racer::PathSegment, 
+pub fn search_scope(start: uint, point: uint, src: &str, 
+                    pathseg: &racer::PathSegment, 
                     filepath:&Path, search_type: SearchType, local: bool,
                     namespace: Namespace) -> vec::MoveItems<Match> {
 
     let searchstr = pathseg.name.as_slice();
     let mut out = Vec::new();
 
-    debug!("searching scope {} {} {} {} {} local: {}",namespace, point, searchstr, 
+    debug!("searching scope {} start: {} point: {} '{}' {} {} local: {}",
+           namespace, start, point, searchstr, 
            filepath.as_str(), search_type, local);
     
-    let scopesrc = src.slice_from(point);
+    let scopesrc = src.slice_from(start);
 
     let mut skip_next_block = false;
 
     let mut delayed_use_globs = Vec::new();
 
-    let v = codeiter::iter_stmts(scopesrc).collect::<Vec<_>>();
-    let v = 
-        if point == 0 { 
-            v 
-        } else {
-            // if we're not searching a file from the start, work backwards
-            v.into_iter().rev().collect::<Vec<_>>()
-        };
+    let mut codeit = codeiter::iter_stmts(scopesrc);
+    let mut v = Vec::new();
 
-    for (blobstart,blobend) in v.into_iter() { 
+    // collect up to point so we can search backwards for let bindings
+    //  (these take precidence over local fn declarations etc..
+    for (blobstart, blobend) in codeit {
+        //  (e.g. #[cfg(test)])
+        if skip_next_block {
+            skip_next_block = false;
+            continue;
+        }
+
+        let blob = scopesrc.slice(blobstart,blobend);
+
+        // for now skip stuff that's meant for testing. Often the test
+        // module hierarchy is incompatible with the non-test
+        // hierarchy and we get into recursive loops
+        if blob.starts_with("#[cfg(test)") {
+            skip_next_block = true;
+            continue;
+        }
+
+        v.push((blobstart,blobend));
+
+        if blobstart > point {
+            break;
+        }
+    }
+
+    // search backwards from point for let bindings
+    for &(blobstart, blobend) in v.iter().rev() {
+        if blobstart > point {
+            continue;
+        }
+
+        for m in matchers::match_let_bindings(src, start+blobstart,
+                                              start+blobend, 
+                                              searchstr, 
+                                              filepath, search_type, local) {
+            out.push(m);
+            if let ExactMatch = search_type {
+                return out.into_iter();
+            }
+        }
+    }
+
+    // now search from top of scope for items etc..
+    let mut codeit = v.into_iter().chain(codeit);
+    for (blobstart,blobend) in codeit { 
         // sometimes we need to skip blocks of code if the preceeding attribute disables it
         //  (e.g. #[cfg(test)])
         if skip_next_block {
@@ -507,9 +548,9 @@ pub fn search_scope(point: uint, src: &str, pathseg: &racer::PathSegment,
 
         // There's a good chance of a match. Run the matchers
 
-        out = out + run_matchers_on_blob(src, point+blobstart, point+blobend, 
+        out = out + &*run_matchers_on_blob(src, start+blobstart, start+blobend, 
                                       searchstr,
-                                      filepath, search_type, local, namespace).as_slice();
+                                      filepath, search_type, local, namespace);
         if let ExactMatch = search_type {
             if !out.is_empty() {
                 return out.into_iter();
@@ -520,7 +561,7 @@ pub fn search_scope(point: uint, src: &str, pathseg: &racer::PathSegment,
     // finally process any use-globs that we skipped before
     for &(blobstart, blobend) in delayed_use_globs.iter() {
         // There's a good chance of a match. Run the matchers
-        for m in run_matchers_on_blob(src, point+blobstart, point+blobend, 
+        for m in run_matchers_on_blob(src, start+blobstart, start+blobend, 
                                       searchstr,filepath, search_type, 
                                       local, namespace).into_iter() {
             out.push(m);
@@ -580,24 +621,25 @@ fn run_matchers_on_blob(src: &str, start: uint, end: uint, searchstr: &str,
     return out;
 }
 
-fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path, msrc: &str, mut point:uint,
-                       search_type: SearchType, namespace: Namespace) -> vec::MoveItems<Match> {
+fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path, 
+                       msrc: &str, point: uint, search_type: SearchType, 
+                       namespace: Namespace) -> vec::MoveItems<Match> {
     debug!("search_local_scopes {} {} {} {} {}",pathseg, filepath.as_str(), point, 
            search_type, namespace);
 
     let is_local = true;
     if point == 0 {
         // search the whole file
-        return search_scope(0, msrc, pathseg, filepath, search_type, is_local, namespace);
+        return search_scope(0, 0, msrc, pathseg, filepath, search_type, is_local, namespace);
     } else {
 
         let mut out = Vec::new();
 
-
+        let mut start = point;
         // search each parent scope in turn
-        while point > 0 {
-            let start = scopes::scope_start(msrc, point);
-            for m in search_scope(start, msrc, pathseg, filepath, search_type, is_local, namespace) {
+        while start > 0 {
+            start = scopes::scope_start(msrc, start);
+            for m in search_scope(start, point, msrc, pathseg, filepath, search_type, is_local, namespace) {
                 out.push(m);
                 if let ExactMatch = search_type {
                     return out.into_iter();
@@ -606,9 +648,9 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path, msrc: &str
             if start == 0 { 
                 break; 
             }
-            point = start-1;
+            start = start-1;
             let searchstr = pathseg.name.as_slice();
-            for m in search_fn_args(point, msrc, searchstr, filepath, search_type, is_local){
+            for m in search_fn_args(start, msrc, searchstr, filepath, search_type, is_local){
                 out.push(m);
                 if let ExactMatch = search_type {
                     return out.into_iter();
@@ -617,7 +659,6 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path, msrc: &str
         }
         return out.into_iter();
     }
-
 }
 
 pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType, 
@@ -641,7 +682,7 @@ pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType
         if File::open(&filepath).is_ok() {
             let msrc = racer::load_file_and_mask_comments(&filepath);
             let is_local = true;
-            for m in search_scope(0, msrc.as_slice(), pathseg, &filepath, search_type, is_local, namespace){
+            for m in search_scope(0, 0, msrc.as_slice(), pathseg, &filepath, search_type, is_local, namespace){
                 out.push(m);
             }
         }
@@ -825,7 +866,7 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: uint,
                         // find the opening brace and skip to it. 
                         src.slice_from(m.point).find_str("{").map(|n|{
                             let point = m.point + n + 1;
-                            for m in search_scope(point, &*src, pathseg, &m.filepath, search_type, m.local, namespace) {
+                            for m in search_scope(point, point, &*src, pathseg, &m.filepath, search_type, m.local, namespace) {
                                 out.push(m);
                             }
                         });

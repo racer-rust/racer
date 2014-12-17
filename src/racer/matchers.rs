@@ -40,11 +40,18 @@ pub fn match_types(src: &str, blobstart: uint, blobend: uint,
 
 pub fn match_values(src: &str, blobstart: uint, blobend: uint, 
                   searchstr: &str, filepath: &Path, search_type: SearchType, 
-                  local: bool) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::Item<racer::Match>, option::Item<racer::Match>>, vec::MoveItems<racer::Match>>, option::Item<racer::Match>>, vec::MoveItems<racer::Match>> {
+                  local: bool) -> iter::Chain<iter::Chain<option::Item<racer::Match>, option::Item<racer::Match>>, option::Item<racer::Match>> {
     let it = match_const(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
     let it = it.chain(match_static(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    let it = it.chain(match_let(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_fn(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
+    return it;
+}
+
+
+pub fn match_let_bindings(src: &str, blobstart: uint, blobend: uint, 
+                  searchstr: &str, filepath: &Path, search_type: SearchType, 
+                  local: bool) -> iter::Chain<vec::MoveItems<racer::Match>, vec::MoveItems<racer::Match>> {
+    let it = match_let(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
     let it = it.chain(match_if_let(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     return it;
 }
