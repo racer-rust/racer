@@ -577,7 +577,7 @@ fn run_matchers_on_blob(src: &str, start: uint, end: uint, searchstr: &str,
             }
         }
     }
-    return out;;
+    return out;
 }
 
 fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path, msrc: &str, mut point:uint,
