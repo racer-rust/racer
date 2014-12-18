@@ -914,10 +914,27 @@ fn finds_if_let_ident_defn() {
     let pos = scopes::coords_to_point(src, 3, 13);
     let mut it = complete_from_file(src, &path, pos);
     let got = it.next().unwrap();
-    debug!("PHIL got is {}",got);
     remove_file(&path);
     assert_eq!("myvar", &*got.matchstr);
     assert!(it.next().is_none(), "should only match the first one");
+}
+
+#[test]
+fn doesnt_find_if_let_if_not_in_the_subscope() {
+    let src="
+    let myvar = 3u;
+    if let MyOption(myvar) = myvar {
+        myvar
+    }
+    myvar
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 6, 6);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("myvar", &*got.matchstr);
+    assert_eq!(10, got.point);
 }
 
 #[test]
@@ -956,6 +973,8 @@ fn handles_if_let() {
     remove_file(&path);
     assert_eq!("subfield", got.matchstr.as_slice());
 }
+
+
 
 // #[test]
 // fn finds_methods_of_string_slice() {
