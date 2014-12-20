@@ -686,7 +686,7 @@ pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: uint,
     return out.into_iter();
 }
 
-thread_local!(pub static SEARCH_STACK: Vec<Search> = Vec::new())
+thread_local!(pub static SEARCH_STACK: Vec<Search> = Vec::new());
 
 #[deriving(PartialEq,Show)]
 pub struct Search {

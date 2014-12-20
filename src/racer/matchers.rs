@@ -19,7 +19,7 @@ use racer::util;
 pub fn match_types(src: &str, blobstart: uint, blobend: uint, 
                    searchstr: &str, filepath: &Path, 
                    search_type: SearchType, 
-                   local: bool) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::Item<Match>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,option::Item<Match>>,vec::MoveItems<Match>> {
+                   local: bool) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::IntoIter<Match>,option::IntoIter<Match>>,option::IntoIter<Match>>,option::IntoIter<Match>>,option::IntoIter<Match>>,option::IntoIter<Match>>,vec::MoveItems<Match>> {
     
     let it = match_extern_crate(src, blobstart, blobend, searchstr, filepath, search_type).into_iter();
     
@@ -40,7 +40,7 @@ pub fn match_types(src: &str, blobstart: uint, blobend: uint,
 
 pub fn match_values(src: &str, blobstart: uint, blobend: uint, 
                   searchstr: &str, filepath: &Path, search_type: SearchType, 
-                  local: bool) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::Item<racer::Match>, option::Item<racer::Match>>, vec::MoveItems<racer::Match>>, option::Item<racer::Match>>, vec::MoveItems<racer::Match>> {
+                  local: bool) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::IntoIter<racer::Match>, option::IntoIter<racer::Match>>, vec::MoveItems<racer::Match>>, option::IntoIter<racer::Match>>, vec::MoveItems<racer::Match>> {
     let it = match_const(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
     let it = it.chain(match_static(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_let(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
@@ -521,7 +521,7 @@ pub fn match_enum(msrc: &str, blobstart: uint, blobend: uint,
 // get into a recursive loop and exchaust the stack. Currently we
 // avoid this by not following a glob if we're already searching
 // through one.
-thread_local!(static ALREADY_GLOBBING: Cell<Option<bool>> = Cell::new(None))
+thread_local!(static ALREADY_GLOBBING: Cell<Option<bool>> = Cell::new(None));
 
 pub fn match_use(msrc: &str, blobstart: uint, blobend: uint, 
              searchstr: &str, filepath: &Path, search_type: SearchType,

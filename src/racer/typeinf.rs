@@ -41,10 +41,10 @@ fn generates_skeleton_for_mod() {
 }
 
 fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<racer::Ty> {
-    debug!("get_type_of_self_arg {}", m)
+    debug!("get_type_of_self_arg {}", m);
     return scopes::find_impl_start(msrc, m.point, 0).and_then(|start| {
         let decl = generate_skeleton_for_parsing(msrc.slice_from(start));
-        debug!("get_type_of_self_arg impl skeleton |{}|", decl)
+        debug!("get_type_of_self_arg impl skeleton |{}|", decl);
         
         if decl.as_slice().starts_with("impl") {
             let implres = ast::parse_impl(decl);
