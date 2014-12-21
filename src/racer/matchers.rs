@@ -10,7 +10,7 @@ use racer;
 use racer::{ast};
 use racer::{SearchType, Match, PathSegment};
 use racer::SearchType::{StartsWith, ExactMatch};
-use racer::MatchType::{Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant, Const, Static};
+use racer::MatchType::{Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant, Const, Static, IfLet};
 use racer::Namespace::BothNamespaces;
 use racer::util;
 
@@ -44,15 +44,6 @@ pub fn match_values(src: &str, blobstart: uint, blobend: uint,
     let it = match_const(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
     let it = it.chain(match_static(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_fn(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    return it;
-}
-
-
-pub fn match_let_bindings(src: &str, blobstart: uint, blobend: uint, 
-                  searchstr: &str, filepath: &Path, search_type: SearchType, 
-                  local: bool) -> iter::Chain<vec::MoveItems<racer::Match>, vec::MoveItems<racer::Match>> {
-    let it = match_let(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
-    let it = it.chain(match_if_let(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     return it;
 }
 
@@ -136,7 +127,7 @@ pub fn match_if_let(msrc: &str, blobstart: uint, blobend: uint,
                                    filepath: filepath.clone(),
                                    point: blobstart + start,
                                    local: local,
-                                   mtype: Let,
+                                   mtype: IfLet,
                                    contextstr: first_line(blob),
                                    generic_args: Vec::new(), 
                                    generic_types: Vec::new()

@@ -934,7 +934,7 @@ fn doesnt_find_if_let_if_not_in_the_subscope() {
     let got = find_definition(src, &path, pos).unwrap();
     remove_file(&path);
     assert_eq!("myvar", &*got.matchstr);
-    assert_eq!(10, got.point);
+    assert_eq!(9, got.point);
 }
 
 #[test]

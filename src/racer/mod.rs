@@ -21,6 +21,7 @@ pub enum MatchType {
     Function,
     Crate,
     Let,
+    IfLet,
     StructField,
     Impl,
     Enum,

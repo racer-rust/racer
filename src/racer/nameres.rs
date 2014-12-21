@@ -27,19 +27,7 @@ const PATH_SEP: &'static str = ":";
 #[cfg(windows)]
 const PATH_SEP: &'static str = ";";
 
-fn reverse_to_start_of_fn(point: uint, msrc: &str) -> Option<uint> {
-    debug!("reverse to start of fn. {}", point);
-    scopes::find_stmt_start(msrc, point).map_or(None, |n| {
-        let block = msrc.slice_from(n);
-        if block.starts_with("fn") || block.starts_with("pub fn") {
-            return Some(n);
-        } else {
-            return None;
-        }
-    })
-}
-
-fn search_struct_fields(searchstr: &str, structmatch: &Match,
+ fn search_struct_fields(searchstr: &str, structmatch: &Match,
                         search_type: SearchType) -> vec::MoveItems<Match> {
     let src = racer::load_file(&structmatch.filepath);
     let opoint = scopes::find_stmt_start(&*src, structmatch.point);
@@ -173,53 +161,75 @@ pub fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool
     return out.into_iter();
 }
 
-fn search_fn_args(point: uint, msrc:&str, searchstr:&str, filepath:&Path, 
-                      search_type: SearchType, local: bool) -> vec::MoveItems<Match> {
-    debug!("search_fn_args for |{}| pt: {}",searchstr, point);
-    // 'point' points to the opening brace
-    let mut out = Vec::new();
-
-    reverse_to_start_of_fn(point-1, msrc).map(|fnstart| {
-        let mut fndecl = String::new();
-        // wrap in 'impl blah {}' so that methods get parsed correctly too
-        fndecl.push_str("impl blah {");
-        let impl_header_len = fndecl.len();
-        fndecl.push_str(msrc.slice(fnstart,point+1));
-        fndecl.push_str("}}");
-        debug!("search_fn_args: found start of fn!! {} |{}| {}",fnstart, fndecl, searchstr);
-        if txt_matches(search_type, searchstr, fndecl.as_slice()) {
-            let coords = ast::parse_fn_args(fndecl.clone());
-
-            for &(start,end) in coords.iter() {
-                let mut s = fndecl.as_slice().slice(start,end);
-                debug!("search_fn_args: arg str is |{}|", s);
-
-                // This should be 'symbol_matches', but there is a bug in libsyntax
-                // - see below
-                if txt_matches(search_type, searchstr, s) {
-
-                    // Workaround for a bug in libsyntax: currently coords of the 
-                    // 'self' arg are incorrect - they include the comma and 
-                    // potentually the type. 
-                    if searchstr == "self" {
-                        s = "self";
-                    }
-
-                    let m = Match { matchstr: s.to_string(),
-                                       filepath: filepath.clone(),
-                                       point: fnstart + start - impl_header_len,
-                                       local: local,
-                                       mtype: FnArg,
-                                       contextstr: s.to_string(),
-                                       generic_args: Vec::new(), 
-                                       generic_types: Vec::new()
-                    };
-                    debug!("search_fn_args matched: {}", m);
-                    out.push(m);
+// scope headers include fn decls, if let, while let etc..
+fn search_scope_headers(point: uint, msrc:&str, searchstr:&str, filepath:&Path, 
+                        search_type: SearchType, local: bool) -> vec::MoveItems<Match> {
+    debug!("search_scope_headers for |{}| pt: {}",searchstr, point);
+    if let Some(stmtstart) = scopes::find_stmt_start(msrc, point) { 
+        let block = msrc.slice_from(stmtstart);
+        if block.starts_with("fn") || block.starts_with("pub fn") {
+            return search_fn_args(stmtstart, point, msrc, searchstr, filepath, search_type, local);
+        } else if block.starts_with("if let") {
+            let s = msrc.slice(stmtstart, point+1).to_string() + "}";
+            if txt_matches(search_type, searchstr, &*s) {
+                let mut out = matchers::match_if_let(&*s, 0, s.len(), searchstr, 
+                                                     filepath, search_type, local);
+                for m in out.iter_mut() {
+                    m.point += stmtstart;
                 }
+                return out.into_iter();
             }
         }
-    });
+    }
+
+    let out = Vec::new();
+    return out.into_iter();
+}
+
+
+fn search_fn_args(fnstart: uint, open_brace_pos: uint, msrc:&str, searchstr:&str, 
+                   filepath:&Path, 
+                   search_type: SearchType, local: bool) -> vec::MoveItems<Match> {
+    let mut out = Vec::new();
+    let mut fndecl = String::new();
+    // wrap in 'impl blah {}' so that methods get parsed correctly too
+    fndecl.push_str("impl blah {");
+    let impl_header_len = fndecl.len();
+    fndecl.push_str(msrc.slice(fnstart,open_brace_pos+1));
+    fndecl.push_str("}}");
+    debug!("search_fn_args: found start of fn!! {} |{}| {}",fnstart, fndecl, searchstr);
+    if txt_matches(search_type, searchstr, fndecl.as_slice()) {
+        let coords = ast::parse_fn_args(fndecl.clone());
+        
+        for &(start,end) in coords.iter() {
+            let mut s = fndecl.as_slice().slice(start,end);
+            debug!("search_fn_args: arg str is |{}|", s);
+            
+            // This should be 'symbol_matches', but there is a bug in libsyntax
+            // - see below
+            if txt_matches(search_type, searchstr, s) {
+                
+                // Workaround for a bug in libsyntax: currently coords of the 
+                // 'self' arg are incorrect - they include the comma and 
+                // potentually the type. 
+                if searchstr == "self" {
+                    s = "self";
+                }
+
+                let m = Match { matchstr: s.to_string(),
+                                filepath: filepath.clone(),
+                                point: fnstart + start - impl_header_len,
+                                local: local,
+                                mtype: FnArg,
+                                contextstr: s.to_string(),
+                                generic_args: Vec::new(), 
+                                generic_types: Vec::new()
+                };
+                debug!("search_fn_args matched: {}", m);
+                out.push(m);
+            }
+        }
+    }
     return out.into_iter();
 }
 
@@ -500,10 +510,14 @@ pub fn search_scope(start: uint, point: uint, src: &str,
             continue;
         }
 
-        for m in matchers::match_let_bindings(src, start+blobstart,
-                                              start+blobend, 
-                                              searchstr, 
-                                              filepath, search_type, local) {
+        // for m in matchers::match_let_bindings(src, start+blobstart,
+        //                                       start+blobend, 
+        //                                       searchstr, 
+        //                                       filepath, search_type, local) {
+        for m in matchers::match_let(src, start+blobstart,
+                                     start+blobend, 
+                                     searchstr, 
+                                     filepath, search_type, local).into_iter() {
             out.push(m);
             if let ExactMatch = search_type {
                 return out.into_iter();
@@ -650,7 +664,9 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path,
             }
             start = start-1;
             let searchstr = pathseg.name.as_slice();
-            for m in search_fn_args(start, msrc, searchstr, filepath, search_type, is_local){
+
+            // scope headers = fn decls, if let, etc..
+            for m in search_scope_headers(start, msrc, searchstr, filepath, search_type, is_local){
                 out.push(m);
                 if let ExactMatch = search_type {
                     return out.into_iter();

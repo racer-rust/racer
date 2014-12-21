@@ -76,7 +76,8 @@ fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<racer::Ty> {
     }
 
     let point = scopes::find_stmt_start(msrc, m.point).unwrap();
-    for (start,end) in codeiter::iter_stmts(msrc.slice_from(point)) { 
+
+    if let Some((start,end)) = codeiter::iter_stmts(msrc.slice_from(point)).next() {
         let blob = msrc.slice(point+start,point+end);
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut s = String::new();
@@ -98,8 +99,9 @@ fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<racer::Ty> {
             }
         }
         return result;
+    } else {
+        return None;
     }
-    None
 }
 
 fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<racer::Ty> {
@@ -107,16 +109,38 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<racer::Ty> {
     let point = scopes::find_stmt_start(msrc, m.point).unwrap();
 
     let src = msrc.slice_from(point);
-    for (start,end) in codeiter::iter_stmts(src) { 
+    if let Some((start,end)) = codeiter::iter_stmts(src).next() { 
         let blob = src.slice(start,end);
-        debug!("get_type_of_let_expr calling parse_let");
+        debug!("get_type_of_let_expr calling parse_let |{}|",blob);
 
         let pos = m.point - point - start;
         let scope = racer::Scope{ filepath: m.filepath.clone(), point: m.point };
         return ast::get_let_type(blob.to_string(), pos, scope);
+    } else {
+        return None;
     }
-    return None;
 }
+
+fn get_type_of_if_let_expr(m: &Match, msrc: &str) -> Option<racer::Ty> {
+    // ASSUMPTION: this is being called on an if let decl
+    let point = scopes::find_stmt_start(msrc, m.point).unwrap();
+
+    let src = msrc.slice_from(point);
+
+    let src = generate_skeleton_for_parsing(src);
+
+    if let Some((start, end)) = codeiter::iter_stmts(&*src).next() {
+        let blob = src.slice(start,end);
+        debug!("get_type_of_let_expr calling parse_if_let |{}|",blob);
+
+        let pos = m.point - point - start;
+        let scope = racer::Scope{ filepath: m.filepath.clone(), point: m.point };
+        return ast::get_let_type(blob.to_string(), pos, scope);
+    } else {
+        return None;
+    }
+}
+
 
 pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<racer::Ty> {
     assert!(structmatch.mtype == racer::MatchType::Struct);
@@ -178,6 +202,7 @@ pub fn get_type_of_match(m: Match, msrc: &str) -> Option<racer::Ty> {
 
     return match m.mtype {
         racer::MatchType::Let => get_type_of_let_expr(&m, msrc),
+        racer::MatchType::IfLet => get_type_of_if_let_expr(&m, msrc),
         racer::MatchType::FnArg => get_type_of_fnarg(&m, msrc),
         racer::MatchType::Struct => Some(racer::Ty::TyMatch(m)),
         racer::MatchType::Enum => Some(racer::Ty::TyMatch(m)),
