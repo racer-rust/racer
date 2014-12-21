@@ -1,7 +1,10 @@
-[project]
+[package]
+
 name = "racer"
-version = "0.0.0"
-authors = []
+version = "0.0.1"
+license = "MIT"
+description = "Code completion for Rust"
+authors = ["Phil Dawes <phil@phildawes.net>"]
 
 [[bin]]
 name = "racer"
