@@ -41,6 +41,7 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
 
         loop {
 
+            // do we need the next chunk?
             if self.end <= self.pos {
                 // get the next chunk of code
                 match self.it.next() {
@@ -52,7 +53,15 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
                         self.pos = start;
                     }
                     None => {
-                        return None
+                        // no more chunks. finished
+                        if self.start < self.end {
+                            let start = self.start;
+                            self.start = self.end;
+                            return Some((start, self.end));
+                        } else {
+                            return None
+                        }
+
                     }
                 }
             }
@@ -136,6 +145,7 @@ impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
 
                 self.pos += 1;
             }
+            
         }
     }
 }
@@ -261,7 +271,6 @@ fn iterates_inner_scope() {
     ";
 
     let scope = src.as_slice().slice_from(25);
-    //println!("blah{}",scope);
     let mut it = iter_stmts(scope);
 
     assert_eq!("let a = 35;", slice(scope, it.next().unwrap()));
@@ -279,6 +288,24 @@ fn iterates_module_attribute() {
     let mut it = iter_stmts(src.as_slice());
     assert_eq!("#![license = \"BSD\"]", slice(src.as_slice(), it.next().unwrap()));
     assert_eq!("#[test]", slice(src.as_slice(), it.next().unwrap()));
+}
+
+#[test]
+fn iterates_half_open_subscope_if_is_the_last_thing() {
+    let src = "
+    let something = 35;
+    while self.pos < 3 {
+       let a = 35;
+       return a + 35;  // should iterate this
+    ";
+
+    let scope = src;
+    let mut it = iter_stmts(scope);
+    assert_eq!("let something = 35;", slice(scope, it.next().unwrap()));
+    assert_eq!("while self.pos < 3 {
+       let a = 35;
+       return a + 35;  // should iterate this
+    ", slice(scope, it.next().unwrap()));
 }
 
 // fn main() {

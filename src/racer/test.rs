@@ -298,6 +298,22 @@ fn finds_fn_arg() {
 }
 
 #[test]
+fn finds_fn_arg_in_incomplete_fn() {
+    let src="
+    fn myfn(myarg: &str) {
+         myarg
+    ";
+    write_file(&Path::new("src.rs"), src);
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 3, 10);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!(got.matchstr,"myarg".to_string());
+}
+
+
+#[test]
 fn finds_inline_fn() {
     let src="
     #[inline]
