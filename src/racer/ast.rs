@@ -708,114 +708,6 @@ impl<'v> visit::Visitor<'v> for ImplVisitor {
     }
 }
 
-// pub struct FnTypeVisitor {
-//     m: Option<Match>,
-//     ctx: Match
-// }
-//
-// impl visit::Visitor<String> for FnTypeVisitor {
-//     fn visit_fn(&mut self, _: &visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId, name: String) {
-//         if name.as_slice() == "return_value" {
-//             match fd.output.node {
-//                 ast::TyPath(ref path, _) => {
-//                     //self.output = path_to_vec(path);
-//                     self.m = resolve_ast_path(path,
-//                                               &self.ctx.filepath,
-//                                               self.ctx.point);
-//                     debug!("visit_fn: return type is {}",self.m);
-//                 }
-//                 _ => {}
-//             }
-//         }
-//     }
-// }
-
-#[deriving(Show)]
-pub struct FnVisitor {
-    pub name: String,
-    pub output: Option<racer::Ty>,
-    pub args: Vec<(String, uint, Option<racer::Path>)>,
-    pub is_method: bool,
-    pub scope: Scope
-}
-
-impl<'v> visit::Visitor<'v> for FnVisitor {
-    fn visit_fn(&mut self, fk: visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId) {
-
-        let name = match fk {
-            visit::FkItemFn(name, _, _, _) | visit::FkMethod(name, _, _) => name,
-            visit::FkFnBlock(..) => syntax::parse::token::special_idents::invalid
-        };
-        self.name = token::get_ident(name).get().to_string();
-
-        for arg in fd.inputs.iter() {
-            debug!("fn arg ast is {}",arg);
-            let res  = 
-                match arg.pat.node {
-                    ast::PatIdent(_ , ref spannedident, _) => {
-                        let codemap::BytePos(point) = spannedident.span.lo;
-                        let argname = token::get_ident(spannedident.node).get().to_string();
-                        Some((String::from_str(argname.as_slice()), point as uint))
-                    }
-                    _ => None
-                };
-
-            if res.is_none() {
-                return;
-            }
-
-            let (name, pos) = res.unwrap();
-
-            let t = to_racer_ty(&*arg.ty, &self.scope);
-            debug!("visit_fn arg racer_ty {}",t);
-
-            let typepath = match arg.ty.node {
-                ast::TyRptr(_, ref ty) => {
-                    match ty.ty.node {
-                        ast::TyPath(ref path, _) => {
-                            let type_ = to_racer_path(path);
-                            debug!("arg type is {}", type_);
-                            Some(type_)
-                        }
-                        _ => None
-                    }
-                }
-                ast::TyPath(ref path, _) => {
-                    let type_ = to_racer_path(path);
-                    debug!("arg type is {}", type_);
-                    Some(type_)
-                }
-                _ => None
-            };
-
-            debug!("typepath {}", typepath);
-            self.args.push((name, pos, typepath))
-        }
-
-        debug!("parsed args: {}", self.args);
-
-        self.output = match fd.output {
-            ast::Return(ref ty) =>
-                to_racer_ty(&**ty, &self.scope),
-            ast::NoReturn(_) =>
-                None,
-        };
-
-        // match fd.output.node {
-        //     ast::TyPath(ref path, _) => {
-        //         self.output = Some(to_racer_path(path));
-        //     }
-        //     _ => {}
-        // }
-
-        self.is_method = match fk {
-            visit::FkMethod(_, _, _) => true,
-            _ => false
-        }
-    }
-
-}
-
 pub struct ModVisitor {
     pub name: Option<String>
 }
@@ -988,22 +880,19 @@ pub fn parse_fn_args(s: String) -> Vec<(uint, uint)> {
 pub fn parse_fn_output(s: String, scope: Scope) -> Option<racer::Ty> {
     return task::try(move || {
         let stmt = string_to_stmt(s);
-        let mut v = FnVisitor { name: "".to_string(), args: Vec::new(), 
-                                output: None, is_method: false, scope: scope};
+        let mut v = FnOutputVisitor { result: None, scope: scope};
         visit::walk_stmt(&mut v, &*stmt);
-        return v.output;
+        return v.result;
     }).ok().unwrap();
 }
 
-
-pub fn parse_fn(s: String, scope: Scope) -> FnVisitor {
-    debug!("parse_fn |{}|",s);
+pub fn parse_fn_arg_type(s: String, argpos: uint, scope: Scope) -> Option<racer::Ty> {
+    debug!("parse_fn_arg {} |{}|",argpos, s);
     return task::try(move || {
         let stmt = string_to_stmt(s);
-        let mut v = FnVisitor { name: "".to_string(), args: Vec::new(), 
-                                output: None, is_method: false, scope: scope};
+        let mut v = FnArgTypeVisitor { argpos: argpos, scope: scope, result: None};
         visit::walk_stmt(&mut v, &*stmt);
-        return v;
+        return v.result;
     }).ok().unwrap();
 }
 
@@ -1058,36 +947,49 @@ pub fn get_let_type(stmtstr: String, pos: uint, scope: Scope) -> Option<Ty> {
 }
 
 
-pub struct FnArgTypeVisitor {
-    point: uint
-    //result: Option<Ty>
+pub struct FnOutputVisitor {
+    scope: Scope,
+    pub result: Option<Ty>
 }
 
-impl Copy for FnArgTypeVisitor {}
+impl<'v> visit::Visitor<'v> for FnOutputVisitor {
+    fn visit_fn(&mut self, 
+                _: visit::FnKind, 
+                fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId) {
 
-impl<'v> visit::Visitor<'v> for FnArgTypeVisitor {
-
-    fn visit_fn(&mut self, _: visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId) {
-        for arg in fd.inputs.iter() {
-            let codemap::BytePos(lo) = arg.pat.span.lo;
-            let codemap::BytePos(hi) = arg.pat.span.hi;
-            if self.point >= (lo as uint) && self.point <= (hi as uint) {
-                debug!("found type {}",arg.ty);
-            }
-        }
+        self.result = match fd.output {
+            ast::Return(ref ty) =>
+                to_racer_ty(&**ty, &self.scope),
+            ast::NoReturn(_) =>
+                None,
+        };
     }
 }
 
+pub struct FnArgTypeVisitor {
+    argpos: uint,
+    scope: Scope,
+    pub result: Option<Ty>
+}
 
-//------------------------------------- SPIKE ----------------
-
-// struct Expr {
-//     expr: String,
-//     fpath: Path,
-//     point: uint
-// }
-
-//------------------------------------------------------------
+impl<'v> visit::Visitor<'v> for FnArgTypeVisitor {
+    fn visit_fn(&mut self, 
+                _: visit::FnKind, 
+                fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId) {
+        for arg in fd.inputs.iter() {
+            let codemap::BytePos(lo) = arg.pat.span.lo;
+            let codemap::BytePos(hi) = arg.pat.span.hi;
+            if self.argpos >= (lo as uint) && self.argpos <= (hi as uint) {
+                debug!("fn arg visitor found type {}",arg.ty);
+                self.result = to_racer_ty(&*arg.ty, &self.scope)
+                    .and_then(|ty| destructure_pattern_to_ty(&*arg.pat, self.argpos, 
+                                                   &ty, &self.scope))
+                    .and_then(|ty| path_to_match(ty));
+                break;
+            }
+        }        
+    }
+}
 
 
 #[test]

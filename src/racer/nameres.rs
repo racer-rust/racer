@@ -167,6 +167,7 @@ fn search_scope_headers(point: uint, msrc:&str, searchstr:&str, filepath:&Path,
     debug!("search_scope_headers for |{}| pt: {}",searchstr, point);
     if let Some(stmtstart) = scopes::find_stmt_start(msrc, point) { 
         let block = msrc.slice_from(stmtstart);
+        debug!("PHIL block is {}",block);
         if block.starts_with("fn") || block.starts_with("pub fn") {
             return search_fn_args(stmtstart, point, msrc, searchstr, filepath, search_type, local);
         } else if block.starts_with("if let") {
@@ -202,20 +203,10 @@ fn search_fn_args(fnstart: uint, open_brace_pos: uint, msrc:&str, searchstr:&str
         let coords = ast::parse_fn_args(fndecl.clone());
         
         for &(start,end) in coords.iter() {
-            let mut s = fndecl.as_slice().slice(start,end);
+            let s = fndecl.as_slice().slice(start,end);
             debug!("search_fn_args: arg str is |{}|", s);
             
-            // This should be 'symbol_matches', but there is a bug in libsyntax
-            // - see below
-            if txt_matches(search_type, searchstr, s) {
-                
-                // Workaround for a bug in libsyntax: currently coords of the 
-                // 'self' arg are incorrect - they include the comma and 
-                // potentually the type. 
-                if searchstr == "self" {
-                    s = "self";
-                }
-
+            if symbol_matches(search_type, searchstr, s) {                
                 let m = Match { matchstr: s.to_string(),
                                 filepath: filepath.clone(),
                                 point: fnstart + start - impl_header_len,

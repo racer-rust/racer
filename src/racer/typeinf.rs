@@ -69,39 +69,25 @@ fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<racer::Ty> {
 }
 
 fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<racer::Ty> {
-    debug!("get type of fn arg {}",m);
-
+    
     if m.matchstr.as_slice() == "self" {
         return get_type_of_self_arg(m, msrc);
     }
 
-    let point = scopes::find_stmt_start(msrc, m.point).unwrap();
-
-    if let Some((start,end)) = codeiter::iter_stmts(msrc.slice_from(point)).next() {
-        let blob = msrc.slice(point+start,point+end);
+    let stmtstart = scopes::find_stmt_start(msrc, m.point).unwrap();
+    let block = msrc.slice_from(stmtstart);
+    if let Some((start,end)) = codeiter::iter_stmts(block).next() {
+        let blob = msrc.slice(stmtstart+start, stmtstart+end);
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut s = String::new();
         s.push_str("impl blah {");
         let impl_header_len = s.len();
         s.push_str(blob.slice_to(find_start_of_function_body(blob)+1));
         s.push_str("}}");
-        let fn_ = ast::parse_fn(s, racer::Scope::from_match(m));
-        let mut result = None;
-        for (_/*name*/, pos, ty_) in fn_.args.into_iter() {
-            let globalpos = pos - impl_header_len + start + point;
-            if globalpos == m.point && ty_.is_some() {
-                result = resolve_path_with_str(&ty_.unwrap(), 
-                                               &m.filepath, 
-                                               globalpos, 
-                                               racer::SearchType::ExactMatch,
-                                               racer::Namespace::TypeNamespace,  // just the type namespace
-                                               ).nth(0).map(|m| racer::Ty::TyMatch(m));
-            }
-        }
-        return result;
-    } else {
-        return None;
+        let argpos = m.point - (stmtstart+start) + impl_header_len;
+        return ast::parse_fn_arg_type(s, argpos, racer::Scope::from_match(m));
     }
+    return None;
 }
 
 fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<racer::Ty> {
@@ -215,9 +201,6 @@ pub fn get_type_of_match(m: Match, msrc: &str) -> Option<racer::Ty> {
 pub fn get_return_type_of_function(fnmatch: &Match) -> Option<racer::Ty> {
     let src = racer::load_file(&fnmatch.filepath);
     let point = scopes::find_stmt_start(&*src, fnmatch.point).unwrap();
-
-    //debug!("get_return_type_of_function |{}|",src.slice_from(point));
-    
     return src.slice_from(point).find_str("{").and_then(|n|{
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut decl = String::new();
