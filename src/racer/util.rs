@@ -61,7 +61,7 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
 pub fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bool {
    return match stype {
         ExactMatch => {
-            return std::str::eq_slice(searchstr, candidate);
+            return searchstr==candidate;
         },
         StartsWith => {
             return candidate.starts_with(searchstr);
