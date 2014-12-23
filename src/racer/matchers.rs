@@ -19,7 +19,7 @@ use racer::util;
 pub fn match_types(src: &str, blobstart: uint, blobend: uint, 
                    searchstr: &str, filepath: &Path, 
                    search_type: SearchType, 
-                   local: bool) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::IntoIter<Match>,option::IntoIter<Match>>,option::IntoIter<Match>>,option::IntoIter<Match>>,option::IntoIter<Match>>,option::IntoIter<Match>>,vec::MoveItems<Match>> {
+                   local: bool) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::IntoIter<Match>,option::IntoIter<Match>>,option::IntoIter<Match>>,option::IntoIter<Match>>,option::IntoIter<Match>>,option::IntoIter<Match>>,vec::IntoIter<Match>> {
     
     let it = match_extern_crate(src, blobstart, blobend, searchstr, filepath, search_type).into_iter();
     
@@ -454,7 +454,7 @@ pub fn match_trait(msrc: &str, blobstart: uint, blobend: uint,
 
 pub fn match_enum_variants(msrc: &str, blobstart: uint, blobend: uint, 
              searchstr: &str, filepath: &Path, search_type: SearchType,
-             local: bool) -> vec::MoveItems<Match> {
+             local: bool) -> vec::IntoIter<Match> {
     let blob = msrc.slice(blobstart, blobend);
     let mut out = Vec::new();
     if blob.starts_with("pub enum") || (local && blob.starts_with("enum")) {

@@ -139,8 +139,8 @@ pub struct Path {
 }
 
 impl Path {
-    pub fn generic_types(&self) -> ::std::slice::Items<Path> {
-        return self.segments[self.segments.len()-1].types.iter();
+    pub fn generic_types(&self) -> vec::IntoIter<Path>{
+        return self.segments[self.segments.len()-1].types.clone().into_iter();
     }
 }
 
@@ -216,7 +216,7 @@ pub fn load_file_and_mask_comments(filepath: &path::Path) -> String {
     return msrc;
 }
 
-pub fn complete_from_file(src: &str, filepath: &path::Path, pos: uint) -> vec::MoveItems<Match> {
+pub fn complete_from_file(src: &str, filepath: &path::Path, pos: uint) -> vec::IntoIter<Match> {
 
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = src.slice(start,pos);
