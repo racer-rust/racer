@@ -7,7 +7,6 @@ use syntax::parse::parser::Parser;
 use syntax::parse::token;
 use syntax::visit;
 use syntax::codemap;
-use std::task;
 use racer::Match;
 use racer;
 use racer::nameres::{resolve_path_with_str};
@@ -17,6 +16,8 @@ use racer::Ty::{TyTuple, TyPathSearch, TyMatch, TyUnsupported};
 use syntax::ptr::P;
 use syntax::visit::Visitor;
 use racer::nameres;
+use std::thread::Thread;
+
 
 // This code ripped from libsyntax::util::parser_testing
 pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: String) -> Parser<'a> {
@@ -785,7 +786,8 @@ impl<'v> visit::Visitor<'v> for EnumVisitor {
 
 pub fn parse_view_item(s: String) -> ViewItemVisitor {
     // parser can panic!() so isolate it in another task
-    let result = task::try(move || { 
+
+    let thread = Thread::spawn(move || { 
         let cr = string_to_crate(s);
         let mut v = ViewItemVisitor{ident: None, 
                                     paths: Vec::new(),
@@ -793,6 +795,7 @@ pub fn parse_view_item(s: String) -> ViewItemVisitor {
         visit::walk_crate(&mut v, &cr);
         return v;
     });
+    let result = thread.join();
     match result {
         Ok(s) => {return s;},
         Err(_) => {
@@ -804,121 +807,133 @@ pub fn parse_view_item(s: String) -> ViewItemVisitor {
 }
 
 pub fn parse_let(s: String) -> Vec<(uint, uint)> {
-    return task::try(move || { 
+    let thread = Thread::spawn(move || { 
         let stmt = string_to_stmt(s);
         let mut v = LetVisitor{ ident_points: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt);
         return v.ident_points;
-    }).unwrap_or(Vec::new());
+    });
+    return thread.join().unwrap_or(Vec::new());
 }
 
 pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, uint, Option<racer::Ty>)> {
-    return task::try(move || {
+    let thread = Thread::spawn(move || {
         let stmt = string_to_stmt(s);
         let mut v = StructVisitor{ scope: scope, fields: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt);
         return v.fields;
-    }).ok().unwrap_or(Vec::new());
+    });
+    return thread.join().ok().unwrap_or(Vec::new());
 }
 
 pub fn parse_impl(s: String) -> ImplVisitor {
-    return task::try(move || {
+    let thread = Thread::spawn(move || {
         let stmt = string_to_stmt(s);
         let mut v = ImplVisitor { name_path: None, trait_path: None };
         visit::walk_stmt(&mut v, &*stmt);
         return v;
-    }).ok().unwrap();    
+    });
+    return thread.join().ok().unwrap();    
 }
 
 pub fn parse_trait(s: String) -> TraitVisitor {
-    return task::try(move || {
+    let thread = Thread::spawn(move || {
         let stmt = string_to_stmt(s);
         let mut v = TraitVisitor { name: None };
         visit::walk_stmt(&mut v, &*stmt);
         return v;
-    }).ok().unwrap();    
+    });
+    return thread.join().ok().unwrap();    
 }
 
 pub fn parse_struct_def(s: String) -> StructDefVisitor {
-    return task::try(move || {
+    let thread = Thread::spawn(move || {
         let stmt = string_to_stmt(s);
         let mut v = StructDefVisitor { name: None, generic_args: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt);
         return v;
-    }).ok().unwrap();
+    });
+    return thread.join().ok().unwrap();
 }
 
 pub fn parse_generics(s: String) -> GenericsVisitor {
-    return task::try(move || {
+    let thread = Thread::spawn(move || {
         let stmt = string_to_stmt(s);
         let mut v = GenericsVisitor { generic_args: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt);
         return v;
-    }).ok().unwrap();
+    });
+    return thread.join().ok().unwrap();
 }
 
 pub fn parse_type(s: String) -> TypeVisitor {
-    return task::try(move || {
+    let thread = Thread::spawn(move || {
         let stmt = string_to_stmt(s);
         let mut v = TypeVisitor { name: None, type_: None };
         visit::walk_stmt(&mut v, &*stmt);
         return v;
-    }).ok().unwrap();    
+    });
+    return thread.join().ok().unwrap();    
 }
 
 pub fn parse_fn_args(s: String) -> Vec<(uint, uint)> {
-    return task::try(move || { 
+    let thread = Thread::spawn(move || { 
         let stmt = string_to_stmt(s);
         debug!("parse_fn_args stmt is {}",stmt);
         let mut v = PatVisitor{ ident_points: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt);
         debug!("ident points are {}", v.ident_points);
         return v.ident_points;
-    }).unwrap_or(Vec::new());
+    });
+    return thread.join().unwrap_or(Vec::new());
 }
 
 pub fn parse_fn_output(s: String, scope: Scope) -> Option<racer::Ty> {
-    return task::try(move || {
+    let thread = Thread::spawn(move || {
         let stmt = string_to_stmt(s);
         let mut v = FnOutputVisitor { result: None, scope: scope};
         visit::walk_stmt(&mut v, &*stmt);
         return v.result;
-    }).ok().unwrap();
+    });
+    return thread.join().ok().unwrap();
 }
 
 pub fn parse_fn_arg_type(s: String, argpos: uint, scope: Scope) -> Option<racer::Ty> {
     debug!("parse_fn_arg {} |{}|",argpos, s);
-    return task::try(move || {
+    let thread = Thread::spawn(move || {
         let stmt = string_to_stmt(s);
         let mut v = FnArgTypeVisitor { argpos: argpos, scope: scope, result: None};
         visit::walk_stmt(&mut v, &*stmt);
         return v.result;
-    }).ok().unwrap();
+    });
+    return thread.join().ok().unwrap();
 }
 
 pub fn parse_mod(s: String) -> ModVisitor {
-    return task::try(move || {
+    let thread = Thread::spawn(move || {
         let stmt = string_to_stmt(s);
         let mut v = ModVisitor { name: None };
         visit::walk_stmt(&mut v, &*stmt);
         return v;
-    }).ok().unwrap();    
+    });
+    return thread.join().ok().unwrap();    
 }
 
 pub fn parse_enum(s: String) -> EnumVisitor {
-    return task::try(move || {
+    let thread = Thread::spawn(move || {
         let stmt = string_to_stmt(s);
         let mut v = EnumVisitor { name: String::new(), values: Vec::new()};
         visit::walk_stmt(&mut v, &*stmt);
         return v;
-    }).ok().unwrap();
+    });
+    return thread.join().ok().unwrap();
 }
 
 
 pub fn get_type_of(exprstr: String, fpath: &Path, pos: uint) -> Option<Ty> {
     let myfpath = fpath.clone();
 
-    return task::try(move || {
+    let thread = Thread::spawn(move || {
         let stmt = string_to_stmt(exprstr);
         let startscope = Scope {
             filepath: myfpath,
@@ -929,12 +944,13 @@ pub fn get_type_of(exprstr: String, fpath: &Path, pos: uint) -> Option<Ty> {
                                      result: None};
         visit::walk_stmt(&mut v, &*stmt);
         return v.result;
-    }).ok().unwrap();
+    });
+    return thread.join().ok().unwrap();
 }
 
 // pos points to an ident in the lhs of the stmtstr
 pub fn get_let_type(stmtstr: String, pos: uint, scope: Scope) -> Option<Ty> {
-    return task::try(move || {
+    let thread = Thread::spawn(move || {
         let stmt = string_to_stmt(stmtstr.clone());
         let mut v = LetTypeVisitor {
             scope: scope,
@@ -943,7 +959,8 @@ pub fn get_let_type(stmtstr: String, pos: uint, scope: Scope) -> Option<Ty> {
         };
         visit::walk_stmt(&mut v, &*stmt);
         return v.result;
-    }).ok().unwrap();
+    });
+    return thread.join().ok().unwrap();
 }
 
 

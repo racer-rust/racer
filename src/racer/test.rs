@@ -1,11 +1,12 @@
 use racer::complete_from_file;
 use racer::find_definition;
 use std::io::File;
-use std::task;
+use std::thread;
 use racer::scopes;
 
 fn tmpname() -> Path {
-    let taskname = task::name().unwrap();
+    let thread = thread::Thread::current();
+    let taskname = thread.name().unwrap();
     let s = taskname.replace("::","_"); 
     let mut p = String::from_str("tmpfile.");
     p.push_str(s.as_slice());
