@@ -36,21 +36,21 @@ fn match_fn(m:Match) {
 fn complete() {
     let args = std::os::args();
     if args.len() < 3 {
-        println!("Provide more arguments!"); 
-        print_usage(); 
+        println!("Provide more arguments!");
+        print_usage();
         std::os::set_exit_status(1);
         return;
     }
-    match std::str::from_str(std::os::args().as_slice()[2].as_slice()) {
-        Some(linenum) => { 
+    match std::os::args().as_slice()[2].as_slice().parse::<uint>() {
+        Some(linenum) => {
             // input: linenum, colnum, fname
             if args.len() < 5 {
-                println!("Provide more arguments!"); 
-                print_usage(); 
+                println!("Provide more arguments!");
+                print_usage();
                 std::os::set_exit_status(1);
                 return;
             }
-            let charnum = std::str::from_str(std::os::args().as_slice()[3].as_slice()).unwrap();
+            let charnum = std::os::args().as_slice()[3].as_slice().parse::<uint>().unwrap();
             let fname = args.as_slice()[4].as_slice();
             let fpath = Path::new(fname);
             let src = racer::load_file(&fpath);
@@ -87,13 +87,13 @@ fn prefix() {
     let args_ = std::os::args();
     let args = args_.as_slice();
     if args.len() < 5 {
-        println!("Provide more arguments!"); 
-        print_usage(); 
+        println!("Provide more arguments!");
+        print_usage();
         std::os::set_exit_status(1);
         return;
     }
-    let linenum = std::str::from_str(args[2].as_slice()).unwrap();
-    let charnum = std::str::from_str(args[3].as_slice()).unwrap();
+    let linenum = args[2].as_slice().parse::<uint>().unwrap();
+    let charnum = args[3].as_slice().parse::<uint>().unwrap();
     let fname = args[4].as_slice();
 
     // print the start, end, and the identifier prefix being matched
@@ -108,13 +108,13 @@ fn find_definition() {
     let args_ = std::os::args();
     let args = args_.as_slice();
     if args.len() < 5 {
-        println!("Provide more arguments!"); 
-        print_usage(); 
+        println!("Provide more arguments!");
+        print_usage();
         std::os::set_exit_status(1);
         return;
     }
-    let linenum = std::str::from_str(args[2].as_slice()).unwrap();
-    let charnum = std::str::from_str(args[3].as_slice()).unwrap();
+    let linenum = args[2].as_slice().parse::<uint>().unwrap();
+    let charnum = args[3].as_slice().parse::<uint>().unwrap();
     let fname = args[4].as_slice();
     let fpath = Path::new(fname);
     let src = racer::load_file(&fpath);
@@ -156,9 +156,9 @@ fn main() {
         "complete" => complete(),
         "find-definition" => find_definition(),
         "help" => print_usage(),
-        _ => { 
-            println!("Sorry, I didn't understand command {}", command ); 
-            print_usage(); 
+        _ => {
+            println!("Sorry, I didn't understand command {}", command );
+            print_usage();
             std::os::set_exit_status(1);
             return;
         }
