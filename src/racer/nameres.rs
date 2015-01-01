@@ -166,17 +166,19 @@ fn search_scope_headers(point: uint, msrc:&str, searchstr:&str, filepath:&Path,
                         search_type: SearchType, local: bool) -> vec::IntoIter<Match> {
     debug!("search_scope_headers for |{}| pt: {}",searchstr, point);
     if let Some(stmtstart) = scopes::find_stmt_start(msrc, point) { 
-        let block = msrc.slice_from(stmtstart);
-        debug!("PHIL block is {}",block);
-        if block.starts_with("fn") || block.starts_with("pub fn") {
+        let preblock = msrc.slice(stmtstart, point);
+        if preblock.starts_with("fn") || preblock.starts_with("pub fn") {
             return search_fn_args(stmtstart, point, msrc, searchstr, filepath, search_type, local);
-        } else if block.starts_with("if let") {
-            let s = msrc.slice(stmtstart, point+1).to_string() + "}";
+
+        // 'if let' can be an expression, so might not be at the start of the stmt
+        } else if let Some(n) = preblock.find_str("if let") {
+            let ifletstart = stmtstart + n;
+            let s = msrc.slice(ifletstart, point+1).to_string() + "}";
             if txt_matches(search_type, searchstr, &*s) {
                 let mut out = matchers::match_if_let(&*s, 0, s.len(), searchstr, 
                                                      filepath, search_type, local);
                 for m in out.iter_mut() {
-                    m.point += stmtstart;
+                    m.point += ifletstart;
                 }
                 return out.into_iter();
             }
@@ -671,7 +673,7 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path,
 pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType, 
                            namespace: Namespace) -> vec::IntoIter<Match> {
     debug!("search_prelude file {} {} {}", pathseg, search_type, namespace);
-    debug!("PHIL {}",util::get_backtrace());
+    debug!("PHIL searching prelude file, backtrace: {}",util::get_backtrace());
 
     let mut out : Vec<Match> = Vec::new();
 

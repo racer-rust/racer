@@ -991,6 +991,41 @@ fn handles_if_let() {
     assert_eq!("subfield", got.matchstr.as_slice());
 }
 
+#[test]
+fn handles_if_let_as_expression() {
+    let src="
+    pub struct Blah { subfield: uint }
+    pub enum MyOption<T> {
+        MySome(T),
+        MyNone
+    }
+    let o: MyOption<Blah>;
+    let foo = if let MyOption::MySome(a) = o { // iflet is an expression
+        a.subfield
+    };
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 9, 13);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("subfield", got.matchstr.as_slice());
+}
+
+
+#[test]
+fn finds_match_arm_var() {
+    let src="
+    match foo {
+       Some(a) => a
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 3, 18);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("a", got.matchstr.as_slice());
+}
 
 
 // #[test]

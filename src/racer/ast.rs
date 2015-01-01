@@ -245,9 +245,6 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
             let mut i = 0u;
 
             let m = resolve_ast_path(path, &scope.filepath, scope.point);
-
-            debug!("PHIL patenum path resolved to {}",m);
-
             let contextty = path_to_match(ty.clone());
             if let (Some(m), Some(children)) = (m, children.as_ref()) {
                 let mut res = None;
@@ -291,13 +288,9 @@ impl<'v> visit::Visitor<'v> for LetTypeVisitor {
     
     fn visit_expr(&mut self, ex: &'v ast::Expr) { 
         if let ast::ExprIfLet(ref pattern, ref expr, _, _) = ex.node {
-            debug!("PHIL lettypevisitor - iflet pattern");
             let mut v = ExprTypeVisitor{ scope: self.scope.clone(),
                                          result: None};
             v.visit_expr(&**expr);
-
-            debug!("PHIL lettypevisitor: expr is {}", v.result);
-
             self.result = v.result.and_then(|ty|
                    destructure_pattern_to_ty(&**pattern, self.pos, 
                                              &ty, &self.scope))
@@ -1011,6 +1004,11 @@ impl<'v> visit::Visitor<'v> for FnArgTypeVisitor {
 
 #[test]
 fn ast_sandbox() {
+    let src = "let a = match foo { Some(a) => a. }";
+    let stmt = string_to_stmt(String::from_str(src));
+    println!("stmt {} ", stmt);
+    panic!("");
+
     //let src = "if let Foo(a) = b {}";
 
     //let src = "let (a,b): (Foo,Bar);";

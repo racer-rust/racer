@@ -109,17 +109,17 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<racer::Ty> {
 
 fn get_type_of_if_let_expr(m: &Match, msrc: &str) -> Option<racer::Ty> {
     // ASSUMPTION: this is being called on an if let decl
-    let point = scopes::find_stmt_start(msrc, m.point).unwrap();
-
-    let src = msrc.slice_from(point);
-
+    let stmtstart = scopes::find_stmt_start(msrc, m.point).unwrap();
+    let stmt = msrc.slice_from(stmtstart);
+    let point = stmt.find_str("if let").unwrap();
+    let src = stmt.slice_from(point);
     let src = generate_skeleton_for_parsing(src);
 
     if let Some((start, end)) = codeiter::iter_stmts(&*src).next() {
         let blob = src.slice(start,end);
-        debug!("get_type_of_let_expr calling parse_if_let |{}|",blob);
+        debug!("get_type_of_if_let_expr calling parse_if_let |{}|",blob);
 
-        let pos = m.point - point - start;
+        let pos = m.point - stmtstart - point - start;
         let scope = racer::Scope{ filepath: m.filepath.clone(), point: m.point };
         return ast::get_let_type(blob.to_string(), pos, scope);
     } else {
