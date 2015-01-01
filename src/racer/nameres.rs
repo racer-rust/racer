@@ -7,7 +7,7 @@ use racer;
 
 use racer::{SearchType, Match, Namespace};
 use racer::SearchType::{ExactMatch, StartsWith};
-use racer::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl};
+use racer::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, MatchArm};
 use racer::Namespace::{TypeNamespace, ValueNamespace, BothNamespaces};
 
 use racer::typeinf;
@@ -162,18 +162,21 @@ pub fn search_for_impls(pos: uint, searchstr: &str, filepath: &Path, local: bool
 }
 
 // scope headers include fn decls, if let, while let etc..
-fn search_scope_headers(point: uint, msrc:&str, searchstr:&str, filepath:&Path, 
-                        search_type: SearchType, local: bool) -> vec::IntoIter<Match> {
-    debug!("search_scope_headers for |{}| pt: {}",searchstr, point);
-    if let Some(stmtstart) = scopes::find_stmt_start(msrc, point) { 
-        let preblock = msrc.slice(stmtstart, point);
+fn search_scope_headers(point: uint, scopestart: uint, msrc:&str, searchstr:&str, 
+                        filepath:&Path, search_type: SearchType, 
+                        local: bool) -> vec::IntoIter<Match> {
+    debug!("search_scope_headers for |{}| pt: {}",searchstr, scopestart);
+    if let Some(stmtstart) = scopes::find_stmt_start(msrc, scopestart) { 
+        let preblock = msrc.slice(stmtstart, scopestart);
+        debug!("PHIL search_scope_headers preblock is |{}|",preblock);
+
         if preblock.starts_with("fn") || preblock.starts_with("pub fn") {
-            return search_fn_args(stmtstart, point, msrc, searchstr, filepath, search_type, local);
+            return search_fn_args(stmtstart, scopestart, msrc, searchstr, filepath, search_type, local);
 
         // 'if let' can be an expression, so might not be at the start of the stmt
         } else if let Some(n) = preblock.find_str("if let") {
             let ifletstart = stmtstart + n;
-            let s = msrc.slice(ifletstart, point+1).to_string() + "}";
+            let s = msrc.slice(ifletstart, scopestart+1).to_string() + "}";
             if txt_matches(search_type, searchstr, &*s) {
                 let mut out = matchers::match_if_let(&*s, 0, s.len(), searchstr, 
                                                      filepath, search_type, local);
@@ -182,6 +185,64 @@ fn search_scope_headers(point: uint, msrc:&str, searchstr:&str, filepath:&Path,
                 }
                 return out.into_iter();
             }
+
+        } else if let Some(n) = preblock.find_str("match ") {
+            // TODO refactor me!
+            let matchstart = stmtstart + n;
+            let matchstmt = typeinf::get_first_stmt(msrc.slice_from(matchstart));
+            // The definition could be in the match LHS arms. Try to find this
+            debug!("PHIL found a match statement, examining match arms |{}|", matchstmt);
+            
+            let masked_matchstmt = mask_matchstmt(matchstmt, 
+                                                  scopestart+1 - matchstart);
+            debug!("PHIL masked match stmt is |{}|", masked_matchstmt);
+            let mut blah = &*masked_matchstmt;
+            let mut arm = 0;
+            while let Some(n) = blah.find_str("=>") {
+                debug!("PHIL match arm n is {}, {}, {}, {}", arm, n, matchstart, point);
+                if arm + n + matchstart > point {
+                    break;
+                } else {
+                    arm += n + 2;
+                    blah = blah.slice_from(n+2);
+                }
+            }
+            debug!("PHIL matched arm blah is |{}|", masked_matchstmt.slice_from(arm-2));
+
+            let lhs_start = scopes::get_start_of_pattern(msrc, matchstart + arm -2);
+
+            let lhs = msrc.slice(lhs_start, matchstart + arm - 2);
+
+            let mut fauxmatchstmt = msrc.slice(matchstart, scopestart).to_string();
+            fauxmatchstmt = fauxmatchstmt + "{";
+            let faux_prefix_size = fauxmatchstmt.len();
+            fauxmatchstmt = fauxmatchstmt + lhs + " => () };";
+
+            debug!("PHIL arm lhs is |{}|", lhs);
+            debug!("PHIL arm fauxmatchstmt is |{}|, {}", fauxmatchstmt, faux_prefix_size);
+            let mut out = Vec::new();
+            for &(start,end) in ast::parse_pat_idents(fauxmatchstmt).iter() {
+                let (start,end) = (lhs_start + start - faux_prefix_size, 
+                                   lhs_start + end - faux_prefix_size);
+                let s = msrc.slice(start,end);
+
+                if symbol_matches(search_type, searchstr, s) {
+
+                    out.push(Match {matchstr: s.to_string(),
+                                    filepath: filepath.clone(), 
+                                    point: start, 
+                                    local: local,
+                                    mtype: MatchArm,
+                                    contextstr: lhs.trim().to_string(),
+                                    generic_args: Vec::new(), 
+                                    generic_types: Vec::new()
+                    });
+                    if let SearchType::ExactMatch = search_type {
+                        break;
+                    }
+                }
+            }
+            return out.into_iter();
         }
     }
 
@@ -189,6 +250,20 @@ fn search_scope_headers(point: uint, msrc:&str, searchstr:&str, filepath:&Path,
     return out.into_iter();
 }
 
+fn mask_matchstmt(matchstmt_src: &str, innerscope_start: uint) -> String {
+    let s = scopes::mask_sub_scopes(matchstmt_src.slice_from(innerscope_start));
+    return matchstmt_src.slice_to(innerscope_start).to_string() + &*s;
+}
+
+#[test]
+fn does_it() {
+    let src : &str = "
+    match foo {
+        Some(a) => { something }
+    }";
+    let res = mask_matchstmt(src, src.find('{').unwrap()+1);
+    debug!("PHIL res is |{}|",res);
+}
 
 fn search_fn_args(fnstart: uint, open_brace_pos: uint, msrc:&str, searchstr:&str, 
                    filepath:&Path, 
@@ -659,7 +734,7 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path,
             let searchstr = pathseg.name.as_slice();
 
             // scope headers = fn decls, if let, etc..
-            for m in search_scope_headers(start, msrc, searchstr, filepath, search_type, is_local){
+            for m in search_scope_headers(point, start, msrc, searchstr, filepath, search_type, is_local){
                 out.push(m);
                 if let ExactMatch = search_type {
                     return out.into_iter();

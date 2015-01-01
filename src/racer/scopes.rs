@@ -165,7 +165,7 @@ pub fn get_start_of_search_expr(msrc: &str, point: uint) -> uint {
         if msrc_bytes[i] == closeparen {
             levels += 1;
         }
-        if levels == 0 && (!util::is_path_char(msrc.char_at(i)) || 
+        if levels == 0 && (!util::is_search_expr_char(msrc.char_at(i)) || 
                            util::is_double_dot(msrc,i)) {
             i += 1;
             break;
@@ -177,6 +177,44 @@ pub fn get_start_of_search_expr(msrc: &str, point: uint) -> uint {
         i -= 1;
     }
     return i;
+}
+
+pub fn get_start_of_pattern(msrc: &str, point: uint) -> uint {
+    let openparen: u8 = "(".as_bytes()[0];
+    let closeparen: u8 = ")".as_bytes()[0];
+    let msrc_bytes = msrc.as_bytes();
+    let mut levels = 0i;
+    let mut i = point-1;
+    loop {
+        if i == -1 {
+            i = 0;
+            break;
+        }
+
+        if msrc_bytes[i] == closeparen {
+            levels += 1;
+        }
+        if levels == 0 && !util::is_pattern_char(msrc.char_at(i)) {
+            i += 1;
+            break;
+        }
+        if msrc_bytes[i] == openparen && levels > 0 {
+            levels -= 1;
+        }
+
+        i -= 1;
+    }
+    return i;
+}
+
+#[test]
+fn get_start_of_pattern_handles_variant() {
+    assert_eq!(4, get_start_of_pattern("foo, Some(a) =>",13));
+}
+
+#[test]
+fn get_start_of_pattern_handles_variant2() {
+    assert_eq!(4, get_start_of_pattern("bla, ast::PatTup(ref tuple_elements) => {",36));
 }
 
 pub fn expand_search_expr(msrc: &str, point: uint) -> (uint,uint) {
@@ -222,6 +260,63 @@ pub fn mask_comments(src: &str) -> String {
     }
     return result;
 }
+
+pub fn mask_sub_scopes(src:&str) -> String {
+    let mut result = String::new();
+    let mut levels = 0i;
+    
+    for c in src.chars() {
+        if c == '}' {
+            levels -= 1;
+        }
+ 
+        if c == '\n' {
+            result.push(c);
+        } else if levels > 0 {
+            result.push(' ');
+        } else {
+            result.push(c);
+        }
+
+        if c == '{' {
+            levels += 1;
+        } 
+    }    
+    return result;
+}
+ 
+// pub fn mask_sub_scopes(src: &str) -> String {
+//     let mut result = String::new();
+//     let space = " ";
+//     let openbrace: u8 = "{".as_bytes()[0];
+//     let closebrace: u8 = "}".as_bytes()[0];
+    
+//     let srcbytes = src.as_bytes();
+
+//     let mut start = 0u;
+//     let mut level = 0u;
+    
+//     for i in range(0,src.len()) {
+//         if srcbytes[i] == openbrace {
+//             if level == 0 {
+//                 result.push_str(src.slice(start, i+1));
+//             }
+//             start = i+1;
+//             level += 1;
+//         } else if srcbytes[i] == closebrace {
+//             level -= 1;
+//             result.push_str(src.slice(start, i+1));
+//             if level == 0 {
+//                 start = i+1;
+//             }
+            
+//         }
+//     }
+//     if level == 0 {
+//         result.push_str(src.slice(start, src.len()));
+//     }
+//     return result;
+// }
 
 pub fn end_of_next_scope<'a>(src: &'a str) -> &'a str {
     let mut level = 0i;

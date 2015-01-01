@@ -17,9 +17,14 @@ pub fn getline(filepath : &Path, linenum : uint) -> String {
     return "not found".to_string();
 }
 
-pub fn is_path_char(c : char) -> bool {
+pub fn is_pattern_char(c : char) -> bool {
+    c.is_alphanumeric() || c.is_whitespace() || (c == '_') || (c == ':') || (c == '.')
+}
+
+pub fn is_search_expr_char(c : char) -> bool {
     c.is_alphanumeric() || (c == '_') || (c == ':') || (c == '.')
 }
+
 
 pub fn is_ident_char(c : char) -> bool {
     c.is_alphanumeric() || (c == '_')
@@ -104,47 +109,6 @@ pub fn expand_ident(s : &str, pos : uint) -> (uint,uint) {
         start = i;
     }
     return (start, pos);
-}
-
-pub fn expand_fqn(s: &str, pos: uint) -> (uint,uint) {
-    let sb = s.slice_to(pos);
-    let mut start = pos;
-
-    // backtrack to find start of word
-    for (i, c) in sb.char_indices().rev() {
-        if !is_path_char(c) {
-            break;
-        }
-        start = i;
-    }
-    return (start, find_ident_end(s, pos));
-}
-
-pub fn expand_searchstr(s : &str, pos : uint) -> String {
-    let sb = s.slice_to(pos);
-    let mut start = pos;
-
-    // backtrack to find start of word
-    for (i, c) in sb.char_indices().rev() {
-        if !is_path_char(c) {
-            break;
-        }
-        start = i;
-    }
-    return s.slice(start,pos).to_string();
-}
-
-pub fn find_path_end(s : &str, pos : uint) -> uint {
-    // find end of word
-    let sa = s.slice_from(pos);
-    let mut end = pos;
-    for (i, c) in sa.char_indices() {
-        if !is_path_char(c) {
-            break;
-        }
-        end = pos + i + 1;
-    }
-    return end;
 }
 
 pub fn find_ident_end(s : &str, pos : uint) -> uint {

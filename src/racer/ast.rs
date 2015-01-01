@@ -870,9 +870,13 @@ pub fn parse_type(s: String) -> TypeVisitor {
 }
 
 pub fn parse_fn_args(s: String) -> Vec<(uint, uint)> {
+    return parse_pat_idents(s);
+}
+
+pub fn parse_pat_idents(s: String) -> Vec<(uint, uint)> {
     let thread = Thread::spawn(move || { 
         let stmt = string_to_stmt(s);
-        debug!("parse_fn_args stmt is {}",stmt);
+        debug!("parse_pat_idents stmt is {}",stmt);
         let mut v = PatVisitor{ ident_points: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt);
         debug!("ident points are {}", v.ident_points);
@@ -880,6 +884,7 @@ pub fn parse_fn_args(s: String) -> Vec<(uint, uint)> {
     });
     return thread.join().unwrap_or(Vec::new());
 }
+
 
 pub fn parse_fn_output(s: String, scope: Scope) -> Option<racer::Ty> {
     let thread = Thread::spawn(move || {

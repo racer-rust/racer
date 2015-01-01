@@ -278,7 +278,6 @@ fn iterates_inner_scope() {
     assert_eq!(None, it.next());
 }
 
-
 #[test]
 fn iterates_module_attribute() {
     let src = rejustify("

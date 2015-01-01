@@ -1027,6 +1027,41 @@ fn finds_match_arm_var() {
     assert_eq!("a", got.matchstr.as_slice());
 }
 
+#[test]
+fn finds_match_arm_var_in_scope() {
+    let src="
+    match foo {
+       Some(a) => { a }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 3, 20);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("a", got.matchstr.as_slice());
+}
+
+#[test]
+fn finds_match_arm_var_with_nested_match() {
+    let src="
+    match foo {
+       bar => {something}
+       Some(a) => { 
+               let b = match blah {  
+                           None => () 
+               }
+               a
+       }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 8, 15);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("a", got.matchstr.as_slice());
+}
+
+
 
 // #[test]
 // fn finds_methods_of_string_slice() {

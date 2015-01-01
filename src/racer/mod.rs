@@ -18,6 +18,7 @@ pub mod matchers;
 pub enum MatchType {
     Struct,
     Module,
+    MatchArm,
     Function,
     Crate,
     Let,
