@@ -665,7 +665,7 @@ pub struct TraitVisitor {
 impl<'v> visit::Visitor<'v> for TraitVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         match item.node {
-            ast::ItemTrait(_, _, _, _, _) => {
+            ast::ItemTrait(_, _, _, _) => {
                 self.name = Some(token::get_ident(item.ident).get().to_string());
             }
             _ => ()
