@@ -63,7 +63,7 @@ pub fn string_to_crate (source_str : String) -> ast::Crate {
     })
 }
 
-#[deriving(Show)]
+#[derive(Show)]
 pub struct ViewItemVisitor {
     pub ident : Option<String>,
     pub paths : Vec<racer::Path>,
@@ -303,7 +303,10 @@ impl<'v> visit::Visitor<'v> for LetTypeVisitor {
 
 
     fn visit_local(&mut self, local: &'v ast::Local) {
-        let mut ty = to_racer_ty(&*local.ty, &self.scope);
+        let mut ty = None;
+        if let Some(ref local_ty) = local.ty {
+            ty = to_racer_ty(&**local_ty, &self.scope);
+        } 
         
         if ty.is_none() {
             // oh, no type in the let expr. Try evalling the RHS
@@ -666,7 +669,7 @@ impl<'v> visit::Visitor<'v> for TraitVisitor {
     }
 }
 
-#[deriving(Show)]
+#[derive(Show)]
 pub struct ImplVisitor {
     pub name_path: Option<racer::Path>,
     pub trait_path: Option<racer::Path>,

@@ -813,7 +813,7 @@ pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: uint,
 
 thread_local!(pub static SEARCH_STACK: Vec<Search> = Vec::new());
 
-#[deriving(PartialEq,Show)]
+#[derive(PartialEq,Show)]
 pub struct Search {
     path: Vec<String>,
     filepath: String,

@@ -14,7 +14,7 @@ pub mod matchers;
 
 #[cfg(test)] pub mod test;
 
-#[deriving(Show,Clone,PartialEq)]
+#[derive(Show,Clone,PartialEq)]
 pub enum MatchType {
     Struct,
     Module,
@@ -36,7 +36,7 @@ pub enum MatchType {
 
 impl Copy for MatchType {}
 
-#[deriving(Show)]
+#[derive(Show)]
 pub enum SearchType {
     ExactMatch,
     StartsWith
@@ -44,7 +44,7 @@ pub enum SearchType {
 
 impl Copy for SearchType {}
 
-#[deriving(Show)]
+#[derive(Show)]
 pub enum Namespace {
     TypeNamespace,
     ValueNamespace,
@@ -53,7 +53,7 @@ pub enum Namespace {
 
 impl Copy for Namespace {}
 
-#[deriving(Show)]
+#[derive(Show)]
 pub enum CompletionType {
     CompleteField,
     CompletePath
@@ -61,7 +61,7 @@ pub enum CompletionType {
 
 impl Copy for CompletionType {}
 
-#[deriving(Clone)]
+#[derive(Clone)]
 pub struct Match {
     pub matchstr: String,
     pub filepath: path::Path,
@@ -103,7 +103,7 @@ impl fmt::Show for Match {
     }
 }
 
-#[deriving(Clone)]
+#[derive(Clone)]
 pub struct Scope {
     pub filepath: path::Path,
     pub point: uint
@@ -124,7 +124,7 @@ impl fmt::Show for Scope {
 }
 
 // Represents a type. Equivilent to rustc's ast::Ty but can be passed across threads
-#[deriving(Show,Clone)]
+#[derive(Show,Clone)]
 pub enum Ty {
     TyMatch(Match),
     TyPathSearch(Path, Scope),   // A path + the scope to be able to resolve it
@@ -133,7 +133,7 @@ pub enum Ty {
 }
 
 // The racer implementation of an ast::Path. Difference is that it is Send-able
-#[deriving(Clone)]
+#[derive(Clone)]
 pub struct Path {
     global: bool,
     segments: Vec<PathSegment>
@@ -175,13 +175,13 @@ impl fmt::Show for Path {
     }
 }
 
-#[deriving(Show,Clone)]
+#[derive(Show,Clone)]
 pub struct PathSegment {
     pub name: String,
     pub types: Vec<Path>
 }
 
-#[deriving(Clone)]
+#[derive(Clone)]
 pub struct PathSearch {
     path: Path,
     filepath: path::Path,
