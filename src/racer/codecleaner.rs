@@ -35,7 +35,9 @@ pub struct CodeIndicesIter<'a> {
     state: State
 }
 
-impl<'a> Iterator<(uint, uint)> for CodeIndicesIter<'a> {
+impl<'a> Iterator for CodeIndicesIter<'a> {
+    type Item = (uint, uint);
+
     #[inline]
     fn next(&mut self) -> Option<(uint, uint)> {
         return match self.state {
