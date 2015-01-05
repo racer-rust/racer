@@ -19,7 +19,9 @@ pub struct StmtIndicesIter<'a> {
     enddelim: u8
 }
 
-impl<'a> Iterator<(uint, uint)> for StmtIndicesIter<'a> {
+impl<'a> Iterator for StmtIndicesIter<'a> {
+    type Item = (uint, uint);
+
     #[inline]
     fn next(&mut self) -> Option<(uint, uint)> {
         let semicolon: u8 = ";".as_bytes()[0];
