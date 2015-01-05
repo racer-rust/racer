@@ -58,7 +58,22 @@
 
 ## Vim integration
 
-1. Copy racer/editors/racer.vim into your .vim/plugin directory
+1. Install using Pathogen, Vundle or NeoBundle. Or, copy racer/plugin/racer.vim into your .vim/plugin directory.
+
+  Vundle users:
+  ```
+  Vundle 'phildawes/racer'
+  ```
+
+  NeoBundle users:
+  ```
+  NeoBundle 'phildawes/racer', {
+  \   'build' : {
+  \     'mac': 'make',
+  \     'unix': 'make',
+  \   }
+  \ }
+  ```
 
 2. Add g:racer_cmd and $RUST_SRC_PATH variables to your .vimrc. Also it's worth turning on 'hidden' mode for buffers otherwise you need to save the current buffer every time you do a goto-definition. E.g.:
 

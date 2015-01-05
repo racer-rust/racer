@@ -10,7 +10,11 @@
 
 
 if !exists('g:racer_cmd')
-    let g:racer_cmd = "/home/pld/src/rust/racer/bin/racer"
+    let g:racer_cmd = escape(expand('<sfile>:p:h'), '\') . '/../bin/racer'
+
+    if !(filereadable(g:racer_cmd))
+      echohl WarningMsg | echomsg "No racer executable present in " . g:racer_cmd
+    endif
 endif
 
 if !exists('$RUST_SRC_PATH')
