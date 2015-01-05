@@ -189,6 +189,7 @@ fn search_scope_headers(point: uint, scopestart: uint, msrc:&str, searchstr:&str
         } else if let Some(n) = preblock.find_str("match ") {
             // TODO refactor me!
             let matchstart = stmtstart + n;
+
             let matchstmt = typeinf::get_first_stmt(msrc.slice_from(matchstart));
             // The definition could be in the match LHS arms. Try to find this
             debug!("PHIL found a match statement, examining match arms |{}|", matchstmt);
@@ -762,7 +763,8 @@ pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType
 
     for srcpath in v.into_iter() {
         let filepath = Path::new(srcpath).join_many(&[Path::new("libstd"), 
-                                                     Path::new("prelude.rs")]);
+                                                      Path::new("prelude"),
+                                                      Path::new("v1.rs")]);
         if File::open(&filepath).is_ok() {
             let msrc = racer::load_file_and_mask_comments(&filepath);
             let is_local = true;
