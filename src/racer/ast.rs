@@ -678,7 +678,7 @@ pub struct ImplVisitor {
 impl<'v> visit::Visitor<'v> for ImplVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         match item.node {
-            ast::ItemImpl(_, _, ref otrait, ref typ, _) => {
+            ast::ItemImpl(_, _, _, ref otrait, ref typ, _) => {
                 match typ.node {
                     ast::TyPath(ref path, _) => {
                         self.name_path = Some(to_racer_path(path));
