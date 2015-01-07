@@ -186,8 +186,8 @@ fn search_scope_headers(point: uint, scopestart: uint, msrc:&str, searchstr:&str
                 return out.into_iter();
             }
 
-        } else if let Some(n) = preblock.find_str("match ") {
-            // TODO refactor me!
+        } else if let Some(n) = util::find_last_str("match ", preblock) {
+            // TODO: this code is crufty. refactor me!
             let matchstart = stmtstart + n;
 
             let matchstmt = typeinf::get_first_stmt(msrc.slice_from(matchstart));
@@ -197,23 +197,27 @@ fn search_scope_headers(point: uint, scopestart: uint, msrc:&str, searchstr:&str
             let masked_matchstmt = mask_matchstmt(matchstmt, 
                                                   scopestart+1 - matchstart);
             debug!("PHIL masked match stmt is |{}|", masked_matchstmt);
-            let mut blah = &*masked_matchstmt;
+
+
+            // Locate the match arm LHS by finding the => just before point and then backtracking
+            let mut rhs = &*masked_matchstmt;
             let mut arm = 0;
-            while let Some(n) = blah.find_str("=>") {
+            while let Some(n) = rhs.find_str("=>") {
                 debug!("PHIL match arm n is {}, {}, {}, {}", arm, n, matchstart, point);
                 if arm + n + matchstart > point {
                     break;
                 } else {
                     arm += n + 2;
-                    blah = blah.slice_from(n+2);
+                    rhs = rhs.slice_from(n+2);
                 }
             }
-            debug!("PHIL matched arm blah is |{}|", masked_matchstmt.slice_from(arm-2));
+            debug!("PHIL matched arm rhs is |{}|", masked_matchstmt.slice_from(arm-2));
 
             let lhs_start = scopes::get_start_of_pattern(msrc, matchstart + arm -2);
 
             let lhs = msrc.slice(lhs_start, matchstart + arm - 2);
 
+            // Now create a pretend match expression with just the one match arm in it
             let mut fauxmatchstmt = msrc.slice(matchstart, scopestart).to_string();
             fauxmatchstmt = fauxmatchstmt + "{";
             let faux_prefix_size = fauxmatchstmt.len();
@@ -734,7 +738,7 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path,
             start = start-1;
             let searchstr = pathseg.name.as_slice();
 
-            // scope headers = fn decls, if let, etc..
+            // scope headers = fn decls, if let, match, etc..
             for m in search_scope_headers(point, start, msrc, searchstr, filepath, search_type, is_local){
                 out.push(m);
                 if let ExactMatch = search_type {

@@ -132,3 +132,11 @@ pub fn to_refs<'a>(v: &'a Vec<String>) -> Vec<&'a str> {
     return out;
 }
 
+pub fn find_last_str(needle: &str, mut haystack: &str) -> Option<uint> {
+    let mut res = None;
+    while let Some(n) = haystack.find_str(needle) {
+        res = Some(n);
+        haystack = haystack.slice_from(n+1);
+    }
+    return res;
+}

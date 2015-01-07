@@ -326,6 +326,41 @@ impl<'v> visit::Visitor<'v> for LetTypeVisitor {
     }
 }
 
+struct MatchTypeVisitor {
+    scope: Scope,
+    srctxt: String,
+    pos: uint,        // pos is relative to the srctxt, scope is global
+    result: Option<Ty>
+}
+
+impl<'v> visit::Visitor<'v> for MatchTypeVisitor {
+    
+    fn visit_expr(&mut self, ex: &'v ast::Expr) { 
+        if let ast::ExprMatch(ref subexpression, ref arms, _) = ex.node {
+            debug!("PHIL sub expr is {}",subexpression);
+
+            let mut v = ExprTypeVisitor{ scope: self.scope.clone(),
+                                         result: None};
+            v.visit_expr(&**subexpression);
+           
+            debug!("PHIL sub type is {}",v.result);
+            
+            for arm in arms.iter() {
+                for pattern in arm.pats.iter() {
+                    if point_is_in_span(self.pos as u32, &pattern.span) {
+                        debug!("PHIL point is in pattern |{}|",pattern);
+                        self.result = v.result.as_ref().and_then(|ty|
+                               destructure_pattern_to_ty(&**pattern, self.pos, 
+                                                         ty, &self.scope))
+                            .and_then(|ty| path_to_match(ty));
+                    }
+                }
+
+            }
+        }
+    }
+}
+
 fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: uint) -> Option<Match> {
     debug!("resolve_ast_path {}",to_racer_path(path));
     return nameres::resolve_path_with_str(&to_racer_path(path), filepath, pos, racer::SearchType::ExactMatch, racer::Namespace::BothNamespaces).nth(0);
@@ -964,6 +999,19 @@ pub fn get_let_type(stmtstr: String, pos: uint, scope: Scope) -> Option<Ty> {
     return thread.join().ok().unwrap();
 }
 
+pub fn get_match_arm_type(stmtstr: String, pos: uint, scope: Scope) -> Option<Ty> {
+    let thread = Thread::spawn(move || {
+        let stmt = string_to_stmt(stmtstr.clone());
+        let mut v = MatchTypeVisitor {
+            scope: scope,
+            srctxt: stmtstr,
+            pos: pos, result: None
+        };
+        visit::walk_stmt(&mut v, &*stmt);
+        return v.result;
+    });
+    return thread.join().ok().unwrap();
+}
 
 pub struct FnOutputVisitor {
     scope: Scope,
@@ -1012,9 +1060,10 @@ impl<'v> visit::Visitor<'v> for FnArgTypeVisitor {
 
 #[test]
 fn ast_sandbox() {
-    let src = "let a = match foo { Some(a) => a. }";
-    let stmt = string_to_stmt(String::from_str(src));
-    println!("stmt {} ", stmt);
+    let src = "match foo { Some(a) => () }";
+    //let stmt = string_to_stmt(String::from_str(src));
+    //println!("stmt {} ", stmt);
+    get_match_arm_type(src.to_string(), 17, Scope {filepath: Path::new("./foo"), point: 0});
     panic!("");
 
     //let src = "if let Foo(a) = b {}";

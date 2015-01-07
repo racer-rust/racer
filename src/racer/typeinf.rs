@@ -2,7 +2,7 @@
 
 use racer::{Match};
 use racer::nameres::{resolve_path_with_str};
-use racer::{ast,codeiter,scopes};
+use racer::{ast,codeiter,scopes,util};
 use racer;
 
 use racer::SearchType::ExactMatch;
@@ -190,12 +190,49 @@ pub fn get_type_of_match(m: Match, msrc: &str) -> Option<racer::Ty> {
         racer::MatchType::Let => get_type_of_let_expr(&m, msrc),
         racer::MatchType::IfLet => get_type_of_if_let_expr(&m, msrc),
         racer::MatchType::FnArg => get_type_of_fnarg(&m, msrc),
+        racer::MatchType::MatchArm => get_type_from_match_arm(&m, msrc),
         racer::MatchType::Struct => Some(racer::Ty::TyMatch(m)),
         racer::MatchType::Enum => Some(racer::Ty::TyMatch(m)),
         racer::MatchType::Function => Some(racer::Ty::TyMatch(m)),
         racer::MatchType::Module => Some(racer::Ty::TyMatch(m)),
         _ => { debug!("!!! WARNING !!! Can't get type of {}",m.mtype); None }
     }
+}
+
+macro_rules! otry {
+    ($e:expr) => (match $e { Some(e) => e, None => return None})
+}
+
+pub fn get_type_from_match_arm(m: &Match, msrc: &str) -> Option<racer::Ty> {
+    // We construct a faux match stmt and then parse it. This is because the
+    // match stmt may be incomplete (half written) in the real code
+
+    // skip to end of match arm pattern so we can search backwards
+    let arm = otry!(msrc.slice_from(m.point).find_str("=>")) + m.point;
+    let scopestart = scopes::scope_start(msrc, arm);
+
+    let stmtstart = otry!(scopes::find_stmt_start(msrc, scopestart-1));
+    debug!("PHIL preblock is {} {}", stmtstart, scopestart);
+    let preblock = msrc.slice(stmtstart, scopestart);
+    let matchstart = otry!(util::find_last_str("match ", preblock)) + stmtstart;
+
+    let lhs_start = scopes::get_start_of_pattern(msrc, arm);
+    let lhs = msrc.slice(lhs_start, arm);
+    // construct faux match statement and recreate point
+    let mut fauxmatchstmt = msrc.slice(matchstart, scopestart).to_string();
+    let faux_prefix_size = fauxmatchstmt.len();
+    fauxmatchstmt = fauxmatchstmt + lhs + " => () };";
+    let faux_point = faux_prefix_size + (m.point - lhs_start);
+    
+    debug!("fauxmatchstmt for parsing is pt:{} src:|{}|", faux_point, fauxmatchstmt);
+
+    return ast::get_match_arm_type(fauxmatchstmt, faux_point, 
+                                   // scope is used to locate expression, so send
+                                   // it the start of the match expr
+                                   racer::Scope {
+                                       filepath: m.filepath.clone(),
+                                       point: matchstart
+                                   });
 }
 
 pub fn get_return_type_of_function(fnmatch: &Match) -> Option<racer::Ty> {

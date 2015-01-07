@@ -601,6 +601,28 @@ fn follows_self_to_method() {
 }
 
 #[test]
+fn follows_self_to_method_when_call_on_new_line() {
+    let src= "
+    struct Foo;
+    impl Bar for Foo {
+        pub fn method(self) -> Foo {
+        }
+
+        pub fn another_method(self, feio: uint) {
+            self.method()
+                .method()
+        }
+    }";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 9, 20);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("method", got.matchstr.as_slice());    
+}
+
+
+#[test]
 fn follows_self_to_trait_method() {
     let src= "
     trait Bar {
@@ -1061,6 +1083,25 @@ fn finds_match_arm_var_with_nested_match() {
     assert_eq!("a", got.matchstr.as_slice());
 }
 
+#[test]
+fn gets_type_via_match_arm() {
+    let src="
+    pub struct Blah { subfield: uint }
+    pub enum MyOption<T> {
+        MySome(T),
+        MyNone
+    }
+    let o: MyOption<Blah>;
+    match o {
+        MyOption::MySome(a) => a.subfield
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 9, 38);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("subfield", got.matchstr.as_slice());
+}
 
 
 // #[test]

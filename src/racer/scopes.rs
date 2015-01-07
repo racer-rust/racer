@@ -285,39 +285,6 @@ pub fn mask_sub_scopes(src:&str) -> String {
     return result;
 }
  
-// pub fn mask_sub_scopes(src: &str) -> String {
-//     let mut result = String::new();
-//     let space = " ";
-//     let openbrace: u8 = "{".as_bytes()[0];
-//     let closebrace: u8 = "}".as_bytes()[0];
-    
-//     let srcbytes = src.as_bytes();
-
-//     let mut start = 0u;
-//     let mut level = 0u;
-    
-//     for i in range(0,src.len()) {
-//         if srcbytes[i] == openbrace {
-//             if level == 0 {
-//                 result.push_str(src.slice(start, i+1));
-//             }
-//             start = i+1;
-//             level += 1;
-//         } else if srcbytes[i] == closebrace {
-//             level -= 1;
-//             result.push_str(src.slice(start, i+1));
-//             if level == 0 {
-//                 start = i+1;
-//             }
-            
-//         }
-//     }
-//     if level == 0 {
-//         result.push_str(src.slice(start, src.len()));
-//     }
-//     return result;
-// }
-
 pub fn end_of_next_scope<'a>(src: &'a str) -> &'a str {
     let mut level = 0i;
     let mut end = 0;
