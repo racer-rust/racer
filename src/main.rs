@@ -1,7 +1,4 @@
-#![feature(macro_rules)]
-#![feature(phase)]
-#![feature(associated_types)]
-#[phase(plugin, link)] extern crate log;
+#[macro_use] extern crate log;
 
 extern crate syntax;
 extern crate collections;
