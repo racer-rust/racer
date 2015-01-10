@@ -15,7 +15,7 @@ pub fn rejustify(src: &str) -> String {
     return sb;
 }
 
-pub fn slice<'a>(src: &'a str, (begin, end): (uint, uint)) -> &'a str{
+pub fn slice<'a>(src: &'a str, (begin, end): (usize, usize)) -> &'a str{
     return src.slice(begin, end);
 }
 
@@ -29,17 +29,17 @@ enum State {
 
 pub struct CodeIndicesIter<'a> {
     src: &'a str,
-    start: uint,
-    pos: uint,
-    nesting_level: uint,
+    start: usize,
+    pos: usize,
+    nesting_level: usize,
     state: State
 }
 
 impl<'a> Iterator for CodeIndicesIter<'a> {
-    type Item = (uint, uint);
+    type Item = (usize, usize);
 
     #[inline]
-    fn next(&mut self) -> Option<(uint, uint)> {
+    fn next(&mut self) -> Option<(usize, usize)> {
         return match self.state {
             State::StateCode => code(self),
             State::StateComment => comment(self),
@@ -50,7 +50,7 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
     }
 }
 
-fn code(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
+fn code(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
     let slash: u8 = "/".as_bytes()[0] as u8;
     let star: u8 = "*".as_bytes()[0] as u8;
     let dblquote: u8 = "\"".as_bytes()[0] as u8;
@@ -87,7 +87,7 @@ fn code(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
     return Some((start, end));
 }
 
-fn comment(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
+fn comment(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
     let newline: u8 = "\n".as_bytes()[0] as u8;
     let (mut pos, src, end) = (self_.pos, self_.src, self_.src.len());
     let src_bytes = src.as_bytes();
@@ -105,7 +105,7 @@ fn comment(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
     return Some((start, end));
 }
 
-fn comment_block(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
+fn comment_block(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
     let slash: u8 = "/".as_bytes()[0] as u8;
     let star: u8 = "*".as_bytes()[0] as u8;
     let (mut pos, src, end) = (self_.pos, self_.src, self_.src.len());
@@ -134,8 +134,8 @@ fn comment_block(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
 
 
 // returns true if char at position is escaped
-fn escaped(src_bytes: &[u8], mut pos: uint) -> bool {
-    let mut num_backslashes = 0u;
+fn escaped(src_bytes: &[u8], mut pos: usize) -> bool {
+    let mut num_backslashes = 0u32;
     let backslash: u8 = "\\".as_bytes()[0] as u8;
     while pos > 0 && src_bytes[pos-1] == backslash {
         num_backslashes += 1;
@@ -144,7 +144,7 @@ fn escaped(src_bytes: &[u8], mut pos: uint) -> bool {
     return num_backslashes % 2 == 1;
 }
 
-fn string(self_: &mut CodeIndicesIter) -> Option<(uint,uint)> {
+fn string(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
     let dblquote: u8 = "\"".as_bytes()[0] as u8;
 
     let (mut pos, src, end) = (self_.pos, self_.src, self_.src.len());

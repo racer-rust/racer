@@ -125,7 +125,7 @@ impl<'v> visit::Visitor<'v> for ViewItemVisitor {
 
 
 pub struct LetVisitor {
-    ident_points: Vec<(uint,uint)>
+    ident_points: Vec<(usize,usize)>
 }
 
 impl<'v> visit::Visitor<'v> for LetVisitor {
@@ -149,7 +149,7 @@ impl<'v> visit::Visitor<'v> for LetVisitor {
             ast::PatIdent(_ , ref spannedident, _) => {
                 let codemap::BytePos(lo) = spannedident.span.lo;
                 let codemap::BytePos(hi) = spannedident.span.hi;
-                self.ident_points.push((lo as uint, hi as uint));
+                self.ident_points.push((lo as usize, hi as usize));
             }
             _ => {
                 visit::walk_pat(self, p);
@@ -159,7 +159,7 @@ impl<'v> visit::Visitor<'v> for LetVisitor {
 }
 
 pub struct PatVisitor {
-    ident_points: Vec<(uint,uint)>
+    ident_points: Vec<(usize,usize)>
 }
 
 impl<'v> visit::Visitor<'v> for PatVisitor {
@@ -168,7 +168,7 @@ impl<'v> visit::Visitor<'v> for PatVisitor {
             ast::PatIdent(_ , ref spannedident, _) => {
                 let codemap::BytePos(lo) = spannedident.span.lo;
                 let codemap::BytePos(hi) = spannedident.span.hi;
-                self.ident_points.push((lo as uint, hi as uint));
+                self.ident_points.push((lo as usize, hi as usize));
             }
             _ => {
                 visit::walk_pat(self, p);
@@ -209,10 +209,10 @@ fn point_is_in_span(point: u32, span: &codemap::Span) -> bool {
 
 // The point must point to an ident within the pattern.
 fn destructure_pattern_to_ty(pat: &ast::Pat, 
-                             point: uint, 
+                             point: usize, 
                              ty: &Ty, 
                              scope: &Scope) -> Option<Ty> {
-    debug!("destructure_pattern_to_ty point {} ty {}    ||||||||    pat: {}",point, ty, pat);
+    debug!("destructure_pattern_to_ty point {} ty {:?}    ||||||||    pat: {:?}",point, ty, pat);
     return match pat.node {
         ast::PatIdent(_ , ref spannedident, _) => {
             if point_is_in_span(point as u32, &spannedident.span) {
@@ -225,7 +225,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
         ast::PatTup(ref tuple_elements) => {
             return match ty {
                 &TyTuple(ref typeelems) => {
-                    let mut i = 0u;
+                    let mut i = 0us;
                     let mut res = None;
                     for p in tuple_elements.iter() {
                         if point_is_in_span(point as u32, &p.span) {
@@ -242,7 +242,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
             }
         }
         ast::PatEnum(ref path, ref children) => {
-            let mut i = 0u;
+            let mut i = 0u32;
 
             let m = resolve_ast_path(path, &scope.filepath, scope.point);
             let contextty = path_to_match(ty.clone());
@@ -271,7 +271,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
             }
         }
         _ => {
-            debug!("Could not destructure pattern {}", pat);
+            debug!("Could not destructure pattern {:?}", pat);
             None
         }
     }
@@ -280,7 +280,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
 struct LetTypeVisitor {
     scope: Scope,
     srctxt: String,
-    pos: uint,        // pos is relative to the srctxt, scope is global
+    pos: usize,        // pos is relative to the srctxt, scope is global
     result: Option<Ty>
 }
 
@@ -311,7 +311,7 @@ impl<'v> visit::Visitor<'v> for LetTypeVisitor {
         if ty.is_none() {
             // oh, no type in the let expr. Try evalling the RHS
             ty = local.init.as_ref().and_then(|initexpr| {
-                debug!("init node is {}",initexpr.node);
+                debug!("init node is {:?}",initexpr.node);
                 let mut v = ExprTypeVisitor{ scope: self.scope.clone(),
                                              result: None};
                 v.visit_expr(&**initexpr);
@@ -319,7 +319,7 @@ impl<'v> visit::Visitor<'v> for LetTypeVisitor {
             });
         }
 
-        debug!("LetTypeVisitor: ty is {}. pos is {}, src is |{}|",ty, self.pos, self.srctxt);
+        debug!("LetTypeVisitor: ty is {:?}. pos is {}, src is |{}|",ty, self.pos, self.srctxt);
         self.result = ty.and_then(|ty|
            destructure_pattern_to_ty(&*local.pat, self.pos, &ty, &self.scope))
             .and_then(|ty| path_to_match(ty));
@@ -329,7 +329,7 @@ impl<'v> visit::Visitor<'v> for LetTypeVisitor {
 struct MatchTypeVisitor {
     scope: Scope,
     srctxt: String,
-    pos: uint,        // pos is relative to the srctxt, scope is global
+    pos: usize,        // pos is relative to the srctxt, scope is global
     result: Option<Ty>
 }
 
@@ -337,18 +337,18 @@ impl<'v> visit::Visitor<'v> for MatchTypeVisitor {
     
     fn visit_expr(&mut self, ex: &'v ast::Expr) { 
         if let ast::ExprMatch(ref subexpression, ref arms, _) = ex.node {
-            debug!("PHIL sub expr is {}",subexpression);
+            debug!("PHIL sub expr is {:?}",subexpression);
 
             let mut v = ExprTypeVisitor{ scope: self.scope.clone(),
                                          result: None};
             v.visit_expr(&**subexpression);
            
-            debug!("PHIL sub type is {}",v.result);
+            debug!("PHIL sub type is {:?}",v.result);
             
             for arm in arms.iter() {
                 for pattern in arm.pats.iter() {
                     if point_is_in_span(self.pos as u32, &pattern.span) {
-                        debug!("PHIL point is in pattern |{}|",pattern);
+                        debug!("PHIL point is in pattern |{:?}|",pattern);
                         self.result = v.result.as_ref().and_then(|ty|
                                destructure_pattern_to_ty(&**pattern, self.pos, 
                                                          ty, &self.scope))
@@ -361,8 +361,8 @@ impl<'v> visit::Visitor<'v> for MatchTypeVisitor {
     }
 }
 
-fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: uint) -> Option<Match> {
-    debug!("resolve_ast_path {}",to_racer_path(path));
+fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: usize) -> Option<Match> {
+    debug!("resolve_ast_path {:?}",to_racer_path(path));
     return nameres::resolve_path_with_str(&to_racer_path(path), filepath, pos, racer::SearchType::ExactMatch, racer::Namespace::BothNamespaces).nth(0);
 }
 
@@ -393,8 +393,8 @@ fn path_to_match(ty: Ty) -> Option<Ty> {
     };
 }
 
-fn find_type_match(path: &racer::Path, fpath: &Path, pos: uint) -> Option<Ty> {
-    debug!("find_type_match {}",path);
+fn find_type_match(path: &racer::Path, fpath: &Path, pos: usize) -> Option<Ty> {
+    debug!("find_type_match {:?}",path);
     let res = resolve_path_with_str(path, fpath, pos, racer::SearchType::ExactMatch,
                racer::Namespace::TypeNamespace).nth(0).and_then(|m| {
                    match m.mtype {
@@ -422,7 +422,7 @@ fn find_type_match(path: &racer::Path, fpath: &Path, pos: uint) -> Option<Ty> {
 }
 
 fn get_type_of_typedef(m: Match) -> Option<Match> {
-    debug!("get_type_of_typedef match is {}",m);
+    debug!("get_type_of_typedef match is {:?}",m);
     let msrc = racer::load_file_and_mask_comments(&m.filepath);
     let blobstart = m.point - 5;  // - 5 because 'type '
     let blob = msrc.as_slice().slice_from(blobstart);
@@ -431,7 +431,7 @@ fn get_type_of_typedef(m: Match) -> Option<Match> {
         let blob = msrc.as_slice().slice(blobstart + start, blobstart+end).to_string();
         debug!("get_type_of_typedef blob string {}",blob);
         let res = parse_type(blob);
-        debug!("get_type_of_typedef parsed type {}",res.type_);
+        debug!("get_type_of_typedef parsed type {:?}",res.type_);
         return res.type_;
     }).and_then(|type_|{
         nameres::resolve_path_with_str(&type_, &m.filepath, m.point, racer::SearchType::ExactMatch, racer::Namespace::TypeNamespace).nth(0)
@@ -446,11 +446,11 @@ struct ExprTypeVisitor {
 
 impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
     fn visit_expr(&mut self, expr: &ast::Expr) {
-        debug!("visit_expr {}",expr);
+        debug!("visit_expr {:?}",expr);
         //walk_expr(self, ex, e) 
         match expr.node {
             ast::ExprPath(ref path) => {
-                debug!("expr is a path {}",to_racer_path(path));
+                debug!("expr is a path {:?}",to_racer_path(path));
                 self.result = resolve_ast_path(path, 
                                  &self.scope.filepath, 
                                  self.scope.point).and_then(|m| {
@@ -470,7 +470,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                                     .and_then(path_to_match),
                                 MatchType::Struct => Some(TyMatch(m.clone())),
                                 _ => {
-                                    debug!("ExprTypeVisitor: Cannot handle ExprCall of {} type", m.mtype);
+                                    debug!("ExprTypeVisitor: Cannot handle ExprCall of {:?} type", m.mtype);
                                     None
                                 }
                             }
@@ -491,7 +491,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                 // spannedident.node is an ident I think
                 let methodname = token::get_ident(spannedident.node).get().to_string();
                 debug!("method call ast name {}",methodname);
-                debug!("method call ast types {} {}",types, types.len());
+                debug!("method call ast types {:?} {}",types, types.len());
                 
                 let objexpr = &arguments[0];
                 //println!("obj expr is {:?}",objexpr);
@@ -557,7 +557,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
             }
 
             _ => {
-                println!("- Could not match expr node type: {}",expr.node);
+                println!("- Could not match expr node type: {:?}",expr.node);
             }
         }
     }
@@ -593,13 +593,13 @@ fn path_to_match_including_generics(ty: Ty, contextm: &racer::Match) -> Option<T
 
 fn find_type_match_including_generics(fieldtype: &racer::Ty,
                                       filepath: &Path,
-                                      pos: uint,
+                                      pos: usize,
                                       structm: &racer::Match) -> Option<Ty>{
 
     let fieldtypepath = match fieldtype {
         &TyPathSearch(ref path, _) => path,
         _ => {
-            debug!("EXPECTING A PATH!! Cannot handle other types yet. {}", fieldtype);
+            debug!("EXPECTING A PATH!! Cannot handle other types yet. {:?}", fieldtype);
             return None
         }
     };
@@ -628,7 +628,7 @@ fn find_type_match_including_generics(fieldtype: &racer::Ty,
 
 struct StructVisitor {
     pub scope: Scope,
-    pub fields: Vec<(String, uint, Option<racer::Ty>)>
+    pub fields: Vec<(String, usize, Option<racer::Ty>)>
 }
 
 impl<'v> visit::Visitor<'v> for StructVisitor {
@@ -641,11 +641,11 @@ impl<'v> visit::Visitor<'v> for StructVisitor {
                 ast::NamedField(name, _) => {
                     let name = String::from_str(token::get_ident(name).get());
                     let ty = to_racer_ty(&*field.node.ty, &self.scope);
-                    self.fields.push((name, point as uint, ty));
+                    self.fields.push((name, point as usize, ty));
                 }
                 ast::UnnamedField(_) => {
                     let ty = to_racer_ty(&*field.node.ty, &self.scope);
-                    self.fields.push(("".to_string(), point as uint, ty));
+                    self.fields.push(("".to_string(), point as usize, ty));
                 }
             }
         }
@@ -668,7 +668,7 @@ impl<'v> visit::Visitor<'v> for TypeVisitor {
                         match ty.ty.node {
                             ast::TyPath(ref path, _) => {
                                 let type_ = to_racer_path(path);
-                                debug!("type type is {}", type_);
+                                debug!("type type is {:?}", type_);
                                 Some(type_)
                             }
                             _ => None
@@ -676,13 +676,13 @@ impl<'v> visit::Visitor<'v> for TypeVisitor {
                     }
                     ast::TyPath(ref path, _) => {
                         let type_ = to_racer_path(path);
-                        debug!("type type is {}", type_);
+                        debug!("type type is {:?}", type_);
                         Some(type_)
                     }
                     _ => None
                 };
                 self.type_ = typepath;
-                debug!("typevisitor type is {}",self.type_);
+                debug!("typevisitor type is {:?}",self.type_);
             }
             _ => ()
         }
@@ -769,7 +769,7 @@ impl<'v> visit::Visitor<'v> for GenericsVisitor {
 }
 
 pub struct StructDefVisitor {
-    pub name: Option<(String,uint)>,
+    pub name: Option<(String,usize)>,
     pub generic_args: Vec<String>
 }
 
@@ -784,13 +784,13 @@ impl<'v> visit::Visitor<'v> for StructDefVisitor {
         /*! Visit the idents */
         let codemap::BytePos(point) = _sp.lo;
         let name = String::from_str(token::get_ident(_ident).get());
-        self.name = Some((name,point as uint));
+        self.name = Some((name,point as usize));
     }
 }
 
 pub struct EnumVisitor {
     pub name: String,
-    pub values: Vec<(String, uint)>,
+    pub values: Vec<(String, usize)>,
 }
 
 impl<'v> visit::Visitor<'v> for EnumVisitor {
@@ -807,7 +807,7 @@ impl<'v> visit::Visitor<'v> for EnumVisitor {
 
                 for variant in enum_definition.variants.iter() {
                     let codemap::BytePos(point) = variant.span.lo;
-                    self.values.push((String::from_str(token::get_ident(variant.node.name).get()), point as uint));
+                    self.values.push((String::from_str(token::get_ident(variant.node.name).get()), point as usize));
                 }
             },
             _ => {}
@@ -818,7 +818,7 @@ impl<'v> visit::Visitor<'v> for EnumVisitor {
 pub fn parse_view_item(s: String) -> ViewItemVisitor {
     // parser can panic!() so isolate it in another task
 
-    let thread = Thread::spawn(move || { 
+    let thread = Thread::scoped(move || { 
         let cr = string_to_crate(s);
         let mut v = ViewItemVisitor{ident: None, 
                                     paths: Vec::new(),
@@ -837,8 +837,8 @@ pub fn parse_view_item(s: String) -> ViewItemVisitor {
     }
 }
 
-pub fn parse_let(s: String) -> Vec<(uint, uint)> {
-    let thread = Thread::spawn(move || { 
+pub fn parse_let(s: String) -> Vec<(usize, usize)> {
+    let thread = Thread::scoped(move || { 
         let stmt = string_to_stmt(s);
         let mut v = LetVisitor{ ident_points: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt);
@@ -847,8 +847,8 @@ pub fn parse_let(s: String) -> Vec<(uint, uint)> {
     return thread.join().unwrap_or(Vec::new());
 }
 
-pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, uint, Option<racer::Ty>)> {
-    let thread = Thread::spawn(move || {
+pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, usize, Option<racer::Ty>)> {
+    let thread = Thread::scoped(move || {
         let stmt = string_to_stmt(s);
         let mut v = StructVisitor{ scope: scope, fields: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt);
@@ -858,7 +858,7 @@ pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, uint, Option
 }
 
 pub fn parse_impl(s: String) -> ImplVisitor {
-    let thread = Thread::spawn(move || {
+    let thread = Thread::scoped(move || {
         let stmt = string_to_stmt(s);
         let mut v = ImplVisitor { name_path: None, trait_path: None };
         visit::walk_stmt(&mut v, &*stmt);
@@ -868,7 +868,7 @@ pub fn parse_impl(s: String) -> ImplVisitor {
 }
 
 pub fn parse_trait(s: String) -> TraitVisitor {
-    let thread = Thread::spawn(move || {
+    let thread = Thread::scoped(move || {
         let stmt = string_to_stmt(s);
         let mut v = TraitVisitor { name: None };
         visit::walk_stmt(&mut v, &*stmt);
@@ -878,7 +878,7 @@ pub fn parse_trait(s: String) -> TraitVisitor {
 }
 
 pub fn parse_struct_def(s: String) -> StructDefVisitor {
-    let thread = Thread::spawn(move || {
+    let thread = Thread::scoped(move || {
         let stmt = string_to_stmt(s);
         let mut v = StructDefVisitor { name: None, generic_args: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt);
@@ -888,7 +888,7 @@ pub fn parse_struct_def(s: String) -> StructDefVisitor {
 }
 
 pub fn parse_generics(s: String) -> GenericsVisitor {
-    let thread = Thread::spawn(move || {
+    let thread = Thread::scoped(move || {
         let stmt = string_to_stmt(s);
         let mut v = GenericsVisitor { generic_args: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt);
@@ -898,7 +898,7 @@ pub fn parse_generics(s: String) -> GenericsVisitor {
 }
 
 pub fn parse_type(s: String) -> TypeVisitor {
-    let thread = Thread::spawn(move || {
+    let thread = Thread::scoped(move || {
         let stmt = string_to_stmt(s);
         let mut v = TypeVisitor { name: None, type_: None };
         visit::walk_stmt(&mut v, &*stmt);
@@ -907,17 +907,17 @@ pub fn parse_type(s: String) -> TypeVisitor {
     return thread.join().ok().unwrap();    
 }
 
-pub fn parse_fn_args(s: String) -> Vec<(uint, uint)> {
+pub fn parse_fn_args(s: String) -> Vec<(usize, usize)> {
     return parse_pat_idents(s);
 }
 
-pub fn parse_pat_idents(s: String) -> Vec<(uint, uint)> {
-    let thread = Thread::spawn(move || { 
+pub fn parse_pat_idents(s: String) -> Vec<(usize, usize)> {
+    let thread = Thread::scoped(move || { 
         let stmt = string_to_stmt(s);
-        debug!("parse_pat_idents stmt is {}",stmt);
+        debug!("parse_pat_idents stmt is {:?}",stmt);
         let mut v = PatVisitor{ ident_points: Vec::new() };
         visit::walk_stmt(&mut v, &*stmt);
-        debug!("ident points are {}", v.ident_points);
+        debug!("ident points are {:?}", v.ident_points);
         return v.ident_points;
     });
     return thread.join().unwrap_or(Vec::new());
@@ -925,7 +925,7 @@ pub fn parse_pat_idents(s: String) -> Vec<(uint, uint)> {
 
 
 pub fn parse_fn_output(s: String, scope: Scope) -> Option<racer::Ty> {
-    let thread = Thread::spawn(move || {
+    let thread = Thread::scoped(move || {
         let stmt = string_to_stmt(s);
         let mut v = FnOutputVisitor { result: None, scope: scope};
         visit::walk_stmt(&mut v, &*stmt);
@@ -934,9 +934,9 @@ pub fn parse_fn_output(s: String, scope: Scope) -> Option<racer::Ty> {
     return thread.join().ok().unwrap();
 }
 
-pub fn parse_fn_arg_type(s: String, argpos: uint, scope: Scope) -> Option<racer::Ty> {
+pub fn parse_fn_arg_type(s: String, argpos: usize, scope: Scope) -> Option<racer::Ty> {
     debug!("parse_fn_arg {} |{}|",argpos, s);
-    let thread = Thread::spawn(move || {
+    let thread = Thread::scoped(move || {
         let stmt = string_to_stmt(s);
         let mut v = FnArgTypeVisitor { argpos: argpos, scope: scope, result: None};
         visit::walk_stmt(&mut v, &*stmt);
@@ -946,7 +946,7 @@ pub fn parse_fn_arg_type(s: String, argpos: uint, scope: Scope) -> Option<racer:
 }
 
 pub fn parse_mod(s: String) -> ModVisitor {
-    let thread = Thread::spawn(move || {
+    let thread = Thread::scoped(move || {
         let stmt = string_to_stmt(s);
         let mut v = ModVisitor { name: None };
         visit::walk_stmt(&mut v, &*stmt);
@@ -956,7 +956,7 @@ pub fn parse_mod(s: String) -> ModVisitor {
 }
 
 pub fn parse_enum(s: String) -> EnumVisitor {
-    let thread = Thread::spawn(move || {
+    let thread = Thread::scoped(move || {
         let stmt = string_to_stmt(s);
         let mut v = EnumVisitor { name: String::new(), values: Vec::new()};
         visit::walk_stmt(&mut v, &*stmt);
@@ -966,10 +966,10 @@ pub fn parse_enum(s: String) -> EnumVisitor {
 }
 
 
-pub fn get_type_of(exprstr: String, fpath: &Path, pos: uint) -> Option<Ty> {
+pub fn get_type_of(exprstr: String, fpath: &Path, pos: usize) -> Option<Ty> {
     let myfpath = fpath.clone();
 
-    let thread = Thread::spawn(move || {
+    let thread = Thread::scoped(move || {
         let stmt = string_to_stmt(exprstr);
         let startscope = Scope {
             filepath: myfpath,
@@ -985,8 +985,8 @@ pub fn get_type_of(exprstr: String, fpath: &Path, pos: uint) -> Option<Ty> {
 }
 
 // pos points to an ident in the lhs of the stmtstr
-pub fn get_let_type(stmtstr: String, pos: uint, scope: Scope) -> Option<Ty> {
-    let thread = Thread::spawn(move || {
+pub fn get_let_type(stmtstr: String, pos: usize, scope: Scope) -> Option<Ty> {
+    let thread = Thread::scoped(move || {
         let stmt = string_to_stmt(stmtstr.clone());
         let mut v = LetTypeVisitor {
             scope: scope,
@@ -999,8 +999,8 @@ pub fn get_let_type(stmtstr: String, pos: uint, scope: Scope) -> Option<Ty> {
     return thread.join().ok().unwrap();
 }
 
-pub fn get_match_arm_type(stmtstr: String, pos: uint, scope: Scope) -> Option<Ty> {
-    let thread = Thread::spawn(move || {
+pub fn get_match_arm_type(stmtstr: String, pos: usize, scope: Scope) -> Option<Ty> {
+    let thread = Thread::scoped(move || {
         let stmt = string_to_stmt(stmtstr.clone());
         let mut v = MatchTypeVisitor {
             scope: scope,
@@ -1033,7 +1033,7 @@ impl<'v> visit::Visitor<'v> for FnOutputVisitor {
 }
 
 pub struct FnArgTypeVisitor {
-    argpos: uint,
+    argpos: usize,
     scope: Scope,
     pub result: Option<Ty>
 }
@@ -1045,8 +1045,8 @@ impl<'v> visit::Visitor<'v> for FnArgTypeVisitor {
         for arg in fd.inputs.iter() {
             let codemap::BytePos(lo) = arg.pat.span.lo;
             let codemap::BytePos(hi) = arg.pat.span.hi;
-            if self.argpos >= (lo as uint) && self.argpos <= (hi as uint) {
-                debug!("fn arg visitor found type {}",arg.ty);
+            if self.argpos >= (lo as usize) && self.argpos <= (hi as usize) {
+                debug!("fn arg visitor found type {:?}",arg.ty);
                 self.result = to_racer_ty(&*arg.ty, &self.scope)
                     .and_then(|ty| destructure_pattern_to_ty(&*arg.pat, self.argpos, 
                                                    &ty, &self.scope))
@@ -1072,7 +1072,7 @@ fn ast_sandbox() {
 
     //let src = "let (a,b) = (2,3);";
 
-    // let src = "let (a,b) : (uint,uint);";
+    // let src = "let (a,b) : (usize,usize);";
 
     // //let src = "fn foo(a: int, b: |int|->int) {};";
 
@@ -1080,7 +1080,7 @@ fn ast_sandbox() {
 
     // let src = "(myvar, foo) = (3,4);";
 
-    // let src = "fn myfn((a,b) : (uint, uint)) {}";
+    // let src = "fn myfn((a,b) : (usize, usize)) {}";
     // //let src = "impl blah {pub fn another_method() {}}";
 
     // let stmt = string_to_stmt(String::from_str(src));
@@ -1103,7 +1103,7 @@ fn ast_sandbox() {
     //     println!("{}",src.slice(l,h));
     // }
 
-    // let src = "let (a,b) : (uint,uint);";
+    // let src = "let (a,b) : (usize,usize);";
 
     // let result = task::try(move || { 
     //     return string_to_stmt(String::from_str(src));
@@ -1138,7 +1138,7 @@ fn ast_sandbox() {
     //                              result: None};
     
 
-    // let src = ~"fn myfn(a: uint) -> Foo {}";
+    // let src = ~"fn myfn(a: usize) -> Foo {}";
     // let src = ~"impl blah{    fn visit_item(&mut self, item: &ast::Item, _: ()) {} }";
 
     // let src = "Foo::Bar().baz(32)";
@@ -1178,7 +1178,7 @@ fn ast_sandbox() {
 // pub struct Match {
 //     pub matchstr: ~str,
 //     pub filepath: Path,
-//     pub point: uint,
+//     pub point: usize,
 //     pub linetxt: ~str,
 //     pub local: bool,
 //     pub mtype: MatchType

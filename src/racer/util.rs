@@ -4,7 +4,7 @@ use racer::{SearchType};
 use racer::SearchType::{ExactMatch, StartsWith};
 use std;
 
-pub fn getline(filepath : &Path, linenum : uint) -> String {
+pub fn getline(filepath : &Path, linenum : usize) -> String {
     let mut i = 0;
     let mut file = BufferedReader::new(File::open(filepath));
     for line in file.lines() {
@@ -82,7 +82,7 @@ pub fn get_backtrace() -> String {
     return s;
 }
 
-pub fn is_double_dot(msrc: &str, i: uint) -> bool {
+pub fn is_double_dot(msrc: &str, i: usize) -> bool {
     (i > 1) && msrc.slice(i-1, i+1) == ".."
 }
 
@@ -97,7 +97,7 @@ fn txt_matches_matches_stuff() {
 }
 
 
-pub fn expand_ident(s : &str, pos : uint) -> (uint,uint) {
+pub fn expand_ident(s : &str, pos : usize) -> (usize,usize) {
     let sb = s.slice_to(pos);
     let mut start = pos;
 
@@ -111,7 +111,7 @@ pub fn expand_ident(s : &str, pos : uint) -> (uint,uint) {
     return (start, pos);
 }
 
-pub fn find_ident_end(s : &str, pos : uint) -> uint {
+pub fn find_ident_end(s : &str, pos : usize) -> usize {
     // find end of word
     let sa = s.slice_from(pos);
     let mut end = pos;
@@ -132,7 +132,7 @@ pub fn to_refs<'a>(v: &'a Vec<String>) -> Vec<&'a str> {
     return out;
 }
 
-pub fn find_last_str(needle: &str, mut haystack: &str) -> Option<uint> {
+pub fn find_last_str(needle: &str, mut haystack: &str) -> Option<usize> {
     let mut res = None;
     while let Some(n) = haystack.find_str(needle) {
         res = Some(n);

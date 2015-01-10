@@ -576,7 +576,7 @@ fn differentiates_type_and_value_namespaces() {
     let got = find_definition(src, &path, pos).unwrap();
     remove_file(&path);
     println!("{}",got.matchstr);
-    println!("{}",got.mtype);
+    println!("{:?}",got.mtype);
     assert_eq!("new", got.matchstr.as_slice());
 }
 

@@ -8,12 +8,12 @@ use racer::codeiter;
 use racer::typeinf;
 use racer::ast;
 
-pub fn find_closing_paren(src:&str, mut pos:uint) -> uint {
+pub fn find_closing_paren(src:&str, mut pos:usize) -> usize {
     let openparen: u8 = "(".as_bytes()[0] as u8;
     let closeparen: u8 = ")".as_bytes()[0] as u8;
     let src_bytes = src.as_bytes();
 
-    let mut levels = 0i;
+    let mut levels = 0i32;
     loop {
         if src_bytes[pos] == closeparen {
             if levels == 0 {
@@ -31,11 +31,11 @@ pub fn find_closing_paren(src:&str, mut pos:uint) -> uint {
 }
 
 
-pub fn scope_start(src:&str, point:uint) -> uint {
+pub fn scope_start(src:&str, point:usize) -> usize {
     let masked_src = mask_comments(src);
     let s = masked_src.as_slice().slice(0,point);
     let mut pt = point;
-    let mut levels = 0i;
+    let mut levels = 0i32;
     for c in s.chars().rev() {
         if c == '{' {
             if levels == 0 {
@@ -52,7 +52,7 @@ pub fn scope_start(src:&str, point:uint) -> uint {
     return pt;
 }
 
-pub fn find_stmt_start(msrc: &str, point: uint) -> Option<uint> {
+pub fn find_stmt_start(msrc: &str, point: usize) -> Option<usize> {
     // iterate the scope to find the start of the statement
     let scopestart = scope_start(msrc, point);
     for (start, end) in codeiter::iter_stmts(msrc.slice_from(scopestart)) {
@@ -63,13 +63,13 @@ pub fn find_stmt_start(msrc: &str, point: uint) -> Option<uint> {
     return None;
 }
 
-pub fn get_local_module_path(msrc: &str, point: uint) -> Vec<String> {
+pub fn get_local_module_path(msrc: &str, point: usize) -> Vec<String> {
     let mut v = Vec::new();
     get_local_module_path_(msrc, point, &mut v);
     return v;
 }
 
-fn get_local_module_path_(msrc: &str, point: uint, out: &mut Vec<String>) {
+fn get_local_module_path_(msrc: &str, point: usize, out: &mut Vec<String>) {
     for (start, end) in codeiter::iter_stmts(msrc) {
         if start < point && end > point {
             let blob = msrc.slice(start, end);
@@ -87,7 +87,7 @@ fn get_local_module_path_(msrc: &str, point: uint, out: &mut Vec<String>) {
     }
 }
 
-pub fn find_impl_start(msrc: &str, point: uint, scopestart: uint) -> Option<uint> {
+pub fn find_impl_start(msrc: &str, point: usize, scopestart: usize) -> Option<usize> {
 
     for (start, end) in codeiter::iter_stmts(msrc.slice_from(scopestart)) {
         if (scopestart + end) > point {
@@ -150,11 +150,11 @@ pub fn split_into_context_and_completion<'a>(s: &'a str) -> (&'a str, &'a str, r
     return (s.slice_to(start), s.slice_from(start), racer::CompletionType::CompletePath);
 }
 
-pub fn get_start_of_search_expr(msrc: &str, point: uint) -> uint {
+pub fn get_start_of_search_expr(msrc: &str, point: usize) -> usize {
     let openparen: u8 = "(".as_bytes()[0];
     let closeparen: u8 = ")".as_bytes()[0];
     let msrc_bytes = msrc.as_bytes();
-    let mut levels = 0i;
+    let mut levels = 0i32;
     let mut i = point-1;
     loop {
         if i == -1 {
@@ -179,11 +179,11 @@ pub fn get_start_of_search_expr(msrc: &str, point: uint) -> uint {
     return i;
 }
 
-pub fn get_start_of_pattern(msrc: &str, point: uint) -> uint {
+pub fn get_start_of_pattern(msrc: &str, point: usize) -> usize {
     let openparen: u8 = "(".as_bytes()[0];
     let closeparen: u8 = ")".as_bytes()[0];
     let msrc_bytes = msrc.as_bytes();
-    let mut levels = 0i;
+    let mut levels = 0i32;
     let mut i = point-1;
     loop {
         if i == -1 {
@@ -217,7 +217,7 @@ fn get_start_of_pattern_handles_variant2() {
     assert_eq!(4, get_start_of_pattern("bla, ast::PatTup(ref tuple_elements) => {",36));
 }
 
-pub fn expand_search_expr(msrc: &str, point: uint) -> (uint,uint) {
+pub fn expand_search_expr(msrc: &str, point: usize) -> (usize,usize) {
     let start = get_start_of_search_expr(msrc, point);
     return (start, util::find_ident_end(msrc, point));
 }
@@ -250,7 +250,7 @@ pub fn mask_comments(src: &str) -> String {
     let mut result = String::new();
     let space = " ";
 
-    let mut prev: uint = 0;
+    let mut prev: usize = 0;
     for (start, end) in codecleaner::code_chunks(src) {
         for _ in ::std::iter::range(prev, start) {
             result.push_str(space);
@@ -263,7 +263,7 @@ pub fn mask_comments(src: &str) -> String {
 
 pub fn mask_sub_scopes(src:&str) -> String {
     let mut result = String::new();
-    let mut levels = 0i;
+    let mut levels = 0i32;
     
     for c in src.chars() {
         if c == '}' {
@@ -286,7 +286,7 @@ pub fn mask_sub_scopes(src:&str) -> String {
 }
  
 pub fn end_of_next_scope<'a>(src: &'a str) -> &'a str {
-    let mut level = 0i;
+    let mut level = 0i32;
     let mut end = 0;
     for (i,c) in src.char_indices() {
         if c == '}' {
@@ -302,7 +302,7 @@ pub fn end_of_next_scope<'a>(src: &'a str) -> &'a str {
     return src.slice_to(end);
 }
 
-pub fn coords_to_point(src: &str, mut linenum: uint, col: uint) -> uint {
+pub fn coords_to_point(src: &str, mut linenum: usize, col: usize) -> usize {
     let mut point=0;
     for line in src.lines() {
         linenum -= 1;
@@ -312,7 +312,7 @@ pub fn coords_to_point(src: &str, mut linenum: uint, col: uint) -> uint {
     return point + col;
 }
 
-pub fn point_to_coords(src:&str, point:uint) -> (uint, uint) {
+pub fn point_to_coords(src:&str, point:usize) -> (usize, usize) {
     let mut i = 0;
     let mut linestart = 0;
     let mut nlines = 1;  // lines start at 1
@@ -326,7 +326,7 @@ pub fn point_to_coords(src:&str, point:uint) -> (uint, uint) {
     return (nlines, point - linestart);
 }
 
-pub fn point_to_coords2(path: &Path, point:uint) -> Option<(uint, uint)> {
+pub fn point_to_coords2(path: &Path, point:usize) -> Option<(usize, usize)> {
     let mut lineno = 0;
     let mut file = BufferedReader::new(File::open(path));
     let mut p = 0;
@@ -406,7 +406,7 @@ some more
 #[test]
 fn test_point_to_coords() {
     let src = "
-fn myfn(b:uint) {
+fn myfn(b:usize) {
    let a = 3;
    if b == 12 {
        let a = 24;
@@ -418,7 +418,7 @@ fn myfn(b:uint) {
     round_trip_point_and_coords(src, 4, 5);
 }
 
-pub fn round_trip_point_and_coords(src:&str, lineno:uint, charno:uint) {
+pub fn round_trip_point_and_coords(src:&str, lineno:usize, charno:usize) {
     let (a,b) = point_to_coords(src, coords_to_point(src, lineno, charno));
      assert_eq!((a,b),(lineno,charno));
 }
@@ -427,14 +427,14 @@ pub fn round_trip_point_and_coords(src:&str, lineno:uint, charno:uint) {
 fn finds_end_of_struct_scope() {
     let src="
 struct foo {
-   a: uint,
+   a: usize,
    blah: ~str
 }
 Some other junk";
 
     let expected="
 struct foo {
-   a: uint,
+   a: usize,
    blah: ~str
 }";
     let s = end_of_next_scope(src);

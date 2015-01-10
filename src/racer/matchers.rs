@@ -16,7 +16,7 @@ use racer::util;
 
 
 // Should I return a boxed trait object to make this signature nicer?
-pub fn match_types(src: &str, blobstart: uint, blobend: uint, 
+pub fn match_types(src: &str, blobstart: usize, blobend: usize, 
                    searchstr: &str, filepath: &Path, 
                    search_type: SearchType, 
                    local: bool) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::IntoIter<Match>,option::IntoIter<Match>>,option::IntoIter<Match>>,option::IntoIter<Match>>,option::IntoIter<Match>>,option::IntoIter<Match>>,vec::IntoIter<Match>> {
@@ -38,7 +38,7 @@ pub fn match_types(src: &str, blobstart: uint, blobend: uint,
     return it;
 }
 
-pub fn match_values(src: &str, blobstart: uint, blobend: uint, 
+pub fn match_values(src: &str, blobstart: usize, blobend: usize, 
                   searchstr: &str, filepath: &Path, search_type: SearchType, 
                   local: bool) -> iter::Chain<iter::Chain<option::IntoIter<racer::Match>, option::IntoIter<racer::Match>>, option::IntoIter<racer::Match>> {
     let it = match_const(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
@@ -47,7 +47,7 @@ pub fn match_values(src: &str, blobstart: uint, blobend: uint,
     return it;
 }
 
-pub fn match_const(msrc: &str, blobstart: uint, blobend: uint, 
+pub fn match_const(msrc: &str, blobstart: usize, blobend: usize, 
                  searchstr: &str, filepath: &Path, search_type: SearchType,
                   local: bool)  -> Option<Match> {
     // ast currently doesn't contain the ident coords, so match them with a hacky
@@ -55,11 +55,11 @@ pub fn match_const(msrc: &str, blobstart: uint, blobend: uint,
     let mut res = None;
     let blob = msrc.slice(blobstart, blobend);
     let start = if local && blob.starts_with("const ") { 
-        6u 
+        6us
     } else if blob.starts_with("pub const ") { 
-        10u
+        10us
     } else {
-        0u
+        0us
     };
     if start != 0 {
         blob.find_str(":").map(|end|{
@@ -80,7 +80,7 @@ pub fn match_const(msrc: &str, blobstart: uint, blobend: uint,
     return res;
 }
 
-pub fn match_static(msrc: &str, blobstart: uint, blobend: uint, 
+pub fn match_static(msrc: &str, blobstart: usize, blobend: usize, 
                  searchstr: &str, filepath: &Path, search_type: SearchType,
                   local: bool)  -> Option<Match> {
     // ast currently doesn't contain the ident coords, so match them with a hacky
@@ -88,11 +88,11 @@ pub fn match_static(msrc: &str, blobstart: uint, blobend: uint,
     let mut res = None;
     let blob = msrc.slice(blobstart, blobend);
     let start = if local && blob.starts_with("static ") { 
-        7u 
+        7us
     } else if blob.starts_with("pub static ") { 
-        11u
+        11us
     } else {
-        0u
+        0us
     };
     if start != 0 {
         blob.find_str(":").map(|end|{
@@ -113,7 +113,7 @@ pub fn match_static(msrc: &str, blobstart: uint, blobend: uint,
     return res;
 }
 
-pub fn match_if_let(msrc: &str, blobstart: uint, blobend: uint, 
+pub fn match_if_let(msrc: &str, blobstart: usize, blobend: usize, 
                  searchstr: &str, filepath: &Path, search_type: SearchType,
                  local: bool)  -> Vec<Match> {
     let mut out = Vec::new();
@@ -141,7 +141,7 @@ pub fn match_if_let(msrc: &str, blobstart: uint, blobend: uint,
     return out;
 }
 
-pub fn match_let(msrc: &str, blobstart: uint, blobend: uint, 
+pub fn match_let(msrc: &str, blobstart: usize, blobend: usize, 
                  searchstr: &str, filepath: &Path, search_type: SearchType,
                  local: bool)  -> Vec<Match> {
     let mut out = Vec::new();
@@ -174,7 +174,7 @@ pub fn first_line(blob: &str) -> String {
     return blob.slice_to(blob.find_str("\n").unwrap_or(blob.len())).to_string();
 }
 
-pub fn match_extern_crate(msrc: &str, blobstart: uint, blobend: uint, 
+pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize, 
          searchstr: &str, filepath: &Path, search_type: SearchType) -> Option<Match> {
     let mut res = None;
     let blob = msrc.slice(blobstart, blobend);
@@ -242,7 +242,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: uint, blobend: uint,
     return res;
 }
 
-pub fn match_mod(msrc: &str, blobstart: uint, blobend: uint, 
+pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize, 
              searchstr: &str, filepath: &Path, search_type: SearchType,
              local: bool) -> Option<Match> {
 
@@ -343,7 +343,7 @@ pub fn match_mod(msrc: &str, blobstart: uint, blobend: uint,
     return res;
 }
 
-pub fn match_struct(msrc: &str, blobstart: uint, blobend: uint, 
+pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize, 
                 searchstr: &str, filepath: &Path, search_type: SearchType,
                 local: bool) -> Option<Match> {
     let blob = msrc.slice(blobstart, blobend);
@@ -376,7 +376,7 @@ pub fn match_struct(msrc: &str, blobstart: uint, blobend: uint,
     return None;
 }
 
-pub fn match_type(msrc: &str, blobstart: uint, blobend: uint, 
+pub fn match_type(msrc: &str, blobstart: usize, blobend: usize, 
              searchstr: &str, filepath: &Path, search_type: SearchType,
              local: bool) -> Option<Match> {
     let blob = msrc.slice(blobstart, blobend);
@@ -414,7 +414,7 @@ pub fn match_type(msrc: &str, blobstart: uint, blobend: uint,
     return None;
 }
 
-pub fn match_trait(msrc: &str, blobstart: uint, blobend: uint, 
+pub fn match_trait(msrc: &str, blobstart: usize, blobend: usize, 
              searchstr: &str, filepath: &Path, search_type: SearchType,
              local: bool) -> Option<Match> {
     let blob = msrc.slice(blobstart, blobend);
@@ -452,7 +452,7 @@ pub fn match_trait(msrc: &str, blobstart: uint, blobend: uint,
     return None;
 }
 
-pub fn match_enum_variants(msrc: &str, blobstart: uint, blobend: uint, 
+pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize, 
              searchstr: &str, filepath: &Path, search_type: SearchType,
              local: bool) -> vec::IntoIter<Match> {
     let blob = msrc.slice(blobstart, blobend);
@@ -484,7 +484,7 @@ pub fn match_enum_variants(msrc: &str, blobstart: uint, blobend: uint,
     return out.into_iter();
 }
 
-pub fn match_enum(msrc: &str, blobstart: uint, blobend: uint, 
+pub fn match_enum(msrc: &str, blobstart: usize, blobend: usize, 
              searchstr: &str, filepath: &Path, search_type: SearchType,
              local: bool) -> Option<Match> {
     let blob = msrc.slice(blobstart, blobend);
@@ -521,7 +521,7 @@ pub fn match_enum(msrc: &str, blobstart: uint, blobend: uint,
 // through one.
 thread_local!(static ALREADY_GLOBBING: Cell<Option<bool>> = Cell::new(None));
 
-pub fn match_use(msrc: &str, blobstart: uint, blobend: uint, 
+pub fn match_use(msrc: &str, blobstart: usize, blobend: usize, 
              searchstr: &str, filepath: &Path, search_type: SearchType,
              local: bool) -> Vec<Match> {
 
@@ -532,7 +532,7 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
     if ((local && blob.starts_with("use ")) || blob.starts_with("pub use ")) && blob.contains("*") {
         // uh oh! a glob. Need to search the module for the searchstr
         let view_item = ast::parse_view_item(String::from_str(blob));
-        debug!("found a glob!! {}", view_item);
+        debug!("found a glob!! {:?}", view_item);
 
         if view_item.is_glob {
 
@@ -554,7 +554,7 @@ pub fn match_use(msrc: &str, blobstart: uint, blobend: uint,
                 let seg = PathSegment{ name: searchstr.to_string(), types: Vec::new() };
                 let mut path = basepath.clone();
                 path.segments.push(seg);
-                debug!("found a glob: now searching for {}", path);
+                debug!("found a glob: now searching for {:?}", path);
                 // TODO: pretty sure this isn't correct/complete, only works because
                 //  we recurse backwards up modules when searching
                 let path = hack_remove_self_and_super_in_modpaths(path);
@@ -640,7 +640,7 @@ fn hack_remove_self_and_super_in_modpaths(mut path: racer::Path) -> racer::Path 
     return path;
 } 
 
-pub fn match_fn(msrc: &str, blobstart: uint, blobend: uint, 
+pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize, 
              searchstr: &str, filepath: &Path, search_type: SearchType,
              local: bool) -> Option<Match> {
     let blob = msrc.slice(blobstart, blobend);

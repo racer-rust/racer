@@ -9,7 +9,7 @@ use racer::SearchType::ExactMatch;
 use racer::Namespace::TypeNamespace;
 use racer::util::txt_matches;
 
-fn find_start_of_function_body(src: &str) -> uint {
+fn find_start_of_function_body(src: &str) -> usize {
     // TODO: this should ignore anything inside parens so as to skip the arg list
     return src.find_str("{").unwrap();
 }
@@ -41,14 +41,14 @@ fn generates_skeleton_for_mod() {
 }
 
 fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<racer::Ty> {
-    debug!("get_type_of_self_arg {}", m);
+    debug!("get_type_of_self_arg {:?}", m);
     return scopes::find_impl_start(msrc, m.point, 0).and_then(|start| {
         let decl = generate_skeleton_for_parsing(msrc.slice_from(start));
         debug!("get_type_of_self_arg impl skeleton |{}|", decl);
         
         if decl.as_slice().starts_with("impl") {
             let implres = ast::parse_impl(decl);
-            debug!("get_type_of_self_arg implres |{}|", implres);
+            debug!("get_type_of_self_arg implres |{:?}|", implres);
             return resolve_path_with_str(&implres.name_path.expect("failed parsing impl name"), 
                                          &m.filepath, start,
                                          ExactMatch, TypeNamespace).nth(0).map(|m| racer::Ty::TyMatch(m));
@@ -147,7 +147,7 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<rac
     return None;
 }
 
-pub fn get_tuplestruct_field_type(fieldnum: uint, structmatch: &Match) -> Option<racer::Ty> {
+pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match) -> Option<racer::Ty> {
     let src = racer::load_file(&structmatch.filepath);
 
     let structsrc = if let racer::MatchType::EnumVariant = structmatch.mtype {
@@ -166,7 +166,7 @@ pub fn get_tuplestruct_field_type(fieldnum: uint, structmatch: &Match) -> Option
 
     let fields = ast::parse_struct_fields(structsrc,
                                           racer::Scope::from_match(structmatch));
-    let mut i = 0u;
+    let mut i = 0u32;
     for (_, _, ty) in fields.into_iter() {
         if i == fieldnum {
             return ty;
@@ -184,7 +184,7 @@ pub fn get_first_stmt(src: &str) -> &str {
 }
 
 pub fn get_type_of_match(m: Match, msrc: &str) -> Option<racer::Ty> {
-    debug!("get_type_of match {} ",m);
+    debug!("get_type_of match {:?} ",m);
 
     return match m.mtype {
         racer::MatchType::Let => get_type_of_let_expr(&m, msrc),
@@ -195,7 +195,7 @@ pub fn get_type_of_match(m: Match, msrc: &str) -> Option<racer::Ty> {
         racer::MatchType::Enum => Some(racer::Ty::TyMatch(m)),
         racer::MatchType::Function => Some(racer::Ty::TyMatch(m)),
         racer::MatchType::Module => Some(racer::Ty::TyMatch(m)),
-        _ => { debug!("!!! WARNING !!! Can't get type of {}",m.mtype); None }
+        _ => { debug!("!!! WARNING !!! Can't get type of {:?}",m.mtype); None }
     }
 }
 

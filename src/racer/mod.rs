@@ -65,7 +65,7 @@ impl Copy for CompletionType {}
 pub struct Match {
     pub matchstr: String,
     pub filepath: path::Path,
-    pub point: uint,
+    pub point: usize,
     pub local: bool,
     pub mtype: MatchType,
     pub contextstr: String,
@@ -91,7 +91,7 @@ impl Match {
 
 impl fmt::Show for Match {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Match [{}, {}, {}, {}, {}, {}, {} |{}|]", 
+        write!(f, "Match [{:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?} |{}|]", 
                self.matchstr, 
                self.filepath.as_str(), 
                self.point, 
@@ -106,7 +106,7 @@ impl fmt::Show for Match {
 #[derive(Clone)]
 pub struct Scope {
     pub filepath: path::Path,
-    pub point: uint
+    pub point: usize
 }
 
 impl Scope {
@@ -117,7 +117,7 @@ impl Scope {
 
 impl fmt::Show for Scope {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Scope [{}, {}]", 
+        write!(f, "Scope [{:?}, {:?}]", 
                self.filepath.as_str(), 
                self.point)
     }
@@ -162,10 +162,10 @@ impl fmt::Show for Path {
                 let mut tfirst = true;
                 for typath in seg.types.iter() {
                     if tfirst {
-                        try!(write!(f, "{}", typath));
+                        try!(write!(f, "{:?}", typath));
                         tfirst = false;
                     } else {
-                        try!(write!(f, ",{}", typath))
+                        try!(write!(f, ",{:?}", typath))
                     }
                 }
                 try!(write!(f, ">"));
@@ -185,12 +185,12 @@ pub struct PathSegment {
 pub struct PathSearch {
     path: Path,
     filepath: path::Path,
-    point: uint
+    point: usize
 }
 
 impl fmt::Show for PathSearch {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Search [{}, {}, {}]", 
+        write!(f, "Search [{:?}, {:?}, {:?}]", 
                self.path, 
                self.filepath.as_str(), 
                self.point)
@@ -217,14 +217,14 @@ pub fn load_file_and_mask_comments(filepath: &path::Path) -> String {
     return msrc;
 }
 
-pub fn complete_from_file(src: &str, filepath: &path::Path, pos: uint) -> vec::IntoIter<Match> {
+pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize) -> vec::IntoIter<Match> {
 
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = src.slice(start,pos);
 
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
-    debug!("{}: contextstr is |{}|, searchstr is |{}|",
+    debug!("{:?}: contextstr is |{}|, searchstr is |{}|",
            completetype, contextstr, searchstr);
 
     let mut out = Vec::new();
@@ -251,7 +251,7 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: uint) -> vec::I
         },
         CompletionType::CompleteField => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
-            debug!("complete_from_file context is {}", context);
+            debug!("complete_from_file context is {:?}", context);
             context.map(|ty| {
                 match ty {
                     Ty::TyMatch(m) => {
@@ -268,17 +268,17 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: uint) -> vec::I
 }
 
 
-pub fn find_definition(src: &str, filepath: &path::Path, pos: uint) -> Option<Match> {
+pub fn find_definition(src: &str, filepath: &path::Path, pos: usize) -> Option<Match> {
     return find_definition_(src, filepath, pos);
 }
 
-pub fn find_definition_(src: &str, filepath: &path::Path, pos: uint) -> Option<Match> {
+pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize) -> Option<Match> {
     let (start, end) = scopes::expand_search_expr(src, pos);
     let expr = src.slice(start,end);
 
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
-    debug!("find_definition_ for |{}| |{}| {}",contextstr, searchstr, completetype);
+    debug!("find_definition_ for |{:?}| |{:?}| {:?}",contextstr, searchstr, completetype);
 
     return match completetype {
         CompletionType::CompletePath => {
@@ -300,7 +300,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: uint) -> Option<M
         },
         CompletionType::CompleteField => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
-            debug!("context is {}",context);
+            debug!("context is {:?}",context);
 
             return context.and_then(|ty| {
                 // for now, just handle matches

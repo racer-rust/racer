@@ -21,7 +21,7 @@ fn match_fn(m:Match) {
     if m.matchstr.as_slice() == "" {
         panic!("MATCHSTR is empty - waddup?");
     }
-    println!("MATCH {},{},{},{},{},{}", m.matchstr,
+    println!("MATCH {},{},{},{},{:?},{}", m.matchstr,
                                     linenum.to_string(),
                                     charnum.to_string(),
                                     m.filepath.as_str().unwrap(),
@@ -39,7 +39,7 @@ fn complete() {
         std::os::set_exit_status(1);
         return;
     }
-    match std::os::args().as_slice()[2].as_slice().parse::<uint>() {
+    match std::os::args().as_slice()[2].as_slice().parse::<usize>() {
         Some(linenum) => {
             // input: linenum, colnum, fname
             if args.len() < 5 {
@@ -48,7 +48,7 @@ fn complete() {
                 std::os::set_exit_status(1);
                 return;
             }
-            let charnum = std::os::args().as_slice()[3].as_slice().parse::<uint>().unwrap();
+            let charnum = std::os::args().as_slice()[3].as_slice().parse::<usize>().unwrap();
             let fname = args.as_slice()[4].as_slice();
             let fpath = Path::new(fname);
             let src = racer::load_file(&fpath);
@@ -90,8 +90,8 @@ fn prefix() {
         std::os::set_exit_status(1);
         return;
     }
-    let linenum = args[2].as_slice().parse::<uint>().unwrap();
-    let charnum = args[3].as_slice().parse::<uint>().unwrap();
+    let linenum = args[2].as_slice().parse::<usize>().unwrap();
+    let charnum = args[3].as_slice().parse::<usize>().unwrap();
     let fname = args[4].as_slice();
 
     // print the start, end, and the identifier prefix being matched
@@ -111,8 +111,8 @@ fn find_definition() {
         std::os::set_exit_status(1);
         return;
     }
-    let linenum = args[2].as_slice().parse::<uint>().unwrap();
-    let charnum = args[3].as_slice().parse::<uint>().unwrap();
+    let linenum = args[2].as_slice().parse::<usize>().unwrap();
+    let charnum = args[3].as_slice().parse::<usize>().unwrap();
     let fname = args[4].as_slice();
     let fpath = Path::new(fname);
     let src = racer::load_file(&fpath);

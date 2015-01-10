@@ -15,6 +15,6 @@ pub fn rejustify(src: &str) -> String {
 }
 
 #[cfg(test)]
-pub fn slice<'a>(src: &'a str, (begin, end): (uint, uint)) -> &'a str{
+pub fn slice<'a>(src: &'a str, (begin, end): (usize, usize)) -> &'a str{
     return src.slice(begin, end);
 }

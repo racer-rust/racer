@@ -10,20 +10,20 @@ use racer::codecleaner::{code_chunks,CodeIndicesIter};
 pub struct StmtIndicesIter<'a> {
     src: &'a str,
     it: CodeIndicesIter<'a>,
-    pos: uint,
-    start: uint,
-    end: uint,
-    bracelevel: int,
-    parenlevel: int,
+    pos: usize,
+    start: usize,
+    end: usize,
+    bracelevel: i32,
+    parenlevel: i32,
     is_macro: bool,
     enddelim: u8
 }
 
 impl<'a> Iterator for StmtIndicesIter<'a> {
-    type Item = (uint, uint);
+    type Item = (usize, usize);
 
     #[inline]
-    fn next(&mut self) -> Option<(uint, uint)> {
+    fn next(&mut self) -> Option<(usize, usize)> {
         let semicolon: u8 = ";".as_bytes()[0];
         let hash: u8 = "#".as_bytes()[0];
         let openbrace: u8 = "{".as_bytes()[0];
@@ -152,7 +152,7 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
     }
 }
 
-fn is_a_use_stmt(src: &str, start: uint, pos: uint) -> bool {
+fn is_a_use_stmt(src: &str, start: usize, pos: usize) -> bool {
     let src_bytes = src.as_bytes();
     let whitespace = " {\t\r\n".as_bytes();
     (pos > 3 && src_bytes.slice(start, start+3) == "use".as_bytes() && 
