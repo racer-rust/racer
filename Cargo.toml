@@ -9,3 +9,7 @@ authors = ["Phil Dawes <phil@phildawes.net>"]
 [[bin]]
 name = "racer"
 path = "src/main.rs"
+
+[lib]
+name = "racer"
+path = "src/lib.rs"

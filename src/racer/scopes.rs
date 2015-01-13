@@ -326,7 +326,7 @@ pub fn point_to_coords(src:&str, point:usize) -> (usize, usize) {
     return (nlines, point - linestart);
 }
 
-pub fn point_to_coords2(path: &Path, point:usize) -> Option<(usize, usize)> {
+pub fn point_to_coords_from_file(path: &Path, point:usize) -> Option<(usize, usize)> {
     let mut lineno = 0;
     let mut file = BufferedReader::new(File::open(path));
     let mut p = 0;
