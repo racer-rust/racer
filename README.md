@@ -14,7 +14,7 @@
 
 ## Installation
 
-1. ```cd racer; make```
+1. ```cd racer; cargo build --release```
 
 2. Set the ```RUST_SRC_PATH``` env variable to point to the 'src' dir in your rust source installation
 
@@ -22,7 +22,7 @@
 
 3. Test on the command line: 
 
-   ```./bin/racer complete std::io::B ```  (should show some completions)
+   ```./target/release/racer complete std::io::B ```  (should show some completions)
 
 
 ## Emacs integration
@@ -43,7 +43,7 @@
 
    ```
    (setq racer-rust-src-path "<path-to-rust-srcdir>/src/")
-   (setq racer-cmd "<path-to-racer>/bin/racer")
+   (setq racer-cmd "<path-to-racer>/target/release/racer")
    (add-to-list 'load-path "<path-to-racer>/editors")
    (eval-after-load "rust-mode" '(require 'racer))
    ```
@@ -79,8 +79,8 @@
 
      ```
      set hidden
-     let g:racer_cmd = "/home/pld/src/rust/racer/bin/racer"
-     let $RUST_SRC_PATH="/usr/local/src/rust/src"
+     let g:racer_cmd = "<path-to-racer>/target/release/racer"
+     let $RUST_SRC_PATH="<path-to-rust-srcdir>/src/"
      ```
 
 3. In insert mode use C-x-C-o to search for completions
