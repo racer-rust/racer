@@ -10,7 +10,7 @@
 
 
 if !exists('g:racer_cmd')
-    let g:racer_cmd = escape(expand('<sfile>:p:h'), '\') . '/../bin/racer'
+    let g:racer_cmd = escape(expand('<sfile>:p:h'), '\') . '/../target/release/racer'
 
     if !(filereadable(g:racer_cmd))
       echohl WarningMsg | echomsg "No racer executable present in " . g:racer_cmd
