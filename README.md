@@ -69,8 +69,8 @@
   ```
   NeoBundle 'phildawes/racer', {
   \   'build' : {
-  \     'mac': 'make',
-  \     'unix': 'make',
+  \     'mac': 'cargo build --release',
+  \     'unix': 'cargo build --release',
   \   }
   \ }
   ```
