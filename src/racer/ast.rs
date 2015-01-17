@@ -425,13 +425,13 @@ fn get_type_of_typedef(m: Match) -> Option<Match> {
     debug!("get_type_of_typedef match is {:?}",m);
     let msrc = racer::load_file_and_mask_comments(&m.filepath);
     let blobstart = m.point - 5;  // - 5 because 'type '
-    let blob = msrc.as_slice().slice_from(blobstart);
+    let blob = &msrc[blobstart..];
 
     return racer::codeiter::iter_stmts(blob).nth(0).and_then(|(start, end)|{
-        let blob = msrc.as_slice().slice(blobstart + start, blobstart+end).to_string();
-        debug!("get_type_of_typedef blob string {}",blob);
+        let blob = msrc[blobstart + start..blobstart+end].to_string();
+        debug!("get_type_of_typedef blob string {}", blob);
         let res = parse_type(blob);
-        debug!("get_type_of_typedef parsed type {:?}",res.type_);
+        debug!("get_type_of_typedef parsed type {:?}", res.type_);
         return res.type_;
     }).and_then(|type_|{
         nameres::resolve_path_with_str(&type_, &m.filepath, m.point, racer::SearchType::ExactMatch, racer::Namespace::TypeNamespace).nth(0)
@@ -455,7 +455,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                                  &self.scope.filepath, 
                                  self.scope.point).and_then(|m| {
                    let msrc = racer::load_file_and_mask_comments(&m.filepath);
-                   typeinf::get_type_of_match(m, msrc.as_slice())
+                   typeinf::get_type_of_match(m, &msrc[])
                                  });
             }
             ast::ExprCall(ref callee_expression, _/*ref arguments*/) => {
@@ -501,8 +501,8 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                     match contextm {
                         &TyMatch(ref contextm) => {
                             let omethod = nameres::search_for_impl_methods(
-                                contextm.matchstr.as_slice(),
-                                methodname.as_slice(), 
+                                &contextm.matchstr[],
+                                &methodname[], 
                                 contextm.point, 
                                 &contextm.filepath,
                                 contextm.local,
@@ -525,7 +525,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                       .and_then(|structm| 
                                 match structm {
                                     &TyMatch(ref structm) => {
-                                typeinf::get_struct_field_type(fieldname.as_slice(), structm)
+                                typeinf::get_struct_field_type(&fieldname[], structm)
                                 .and_then(|fieldtypepath| 
                                           find_type_match_including_generics(&fieldtypepath,
                                                                              &structm.filepath,
