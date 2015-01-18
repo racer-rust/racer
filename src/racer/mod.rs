@@ -201,7 +201,7 @@ pub fn load_file(filepath: &path::Path) -> String {
     let rawbytes = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
 
     // skip BOF bytes, if present
-    if rawbytes.slice(0,3) == [0xEF, 0xBB, 0xBF] {
+    if rawbytes[0..3] == [0xEF, 0xBB, 0xBF][] {
         let mut it = rawbytes.into_iter();
         it.next(); it.next(); it.next();
         return String::from_utf8(it.collect::<Vec<_>>()).unwrap();
@@ -212,7 +212,7 @@ pub fn load_file(filepath: &path::Path) -> String {
 
 pub fn load_file_and_mask_comments(filepath: &path::Path) -> String {
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
-    let src = str::from_utf8(filetxt.as_slice()).unwrap();
+    let src = str::from_utf8(&filetxt[]).unwrap();
     let msrc = scopes::mask_comments(src);
     return msrc;
 }
@@ -220,7 +220,7 @@ pub fn load_file_and_mask_comments(filepath: &path::Path) -> String {
 pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize) -> vec::IntoIter<Match> {
 
     let start = scopes::get_start_of_search_expr(src, pos);
-    let expr = src.slice(start,pos);
+    let expr = &src[start..pos];
 
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
@@ -274,7 +274,7 @@ pub fn find_definition(src: &str, filepath: &path::Path, pos: usize) -> Option<M
 
 pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize) -> Option<Match> {
     let (start, end) = scopes::expand_search_expr(src, pos);
-    let expr = src.slice(start,end);
+    let expr = &src[start..end];
 
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
