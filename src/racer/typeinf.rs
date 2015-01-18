@@ -11,7 +11,7 @@ use racer::util::txt_matches;
 
 fn find_start_of_function_body(src: &str) -> usize {
     // TODO: this should ignore anything inside parens so as to skip the arg list
-    return src.find_str("{").unwrap();
+    src.find_str("{").unwrap()
 }
 
 // Removes the body of the statement (anything in the braces {...}), leaving just
@@ -20,16 +20,16 @@ fn find_start_of_function_body(src: &str) -> usize {
 pub fn generate_skeleton_for_parsing(src: &str) -> String {
     let mut s = String::new();
     let n = src.find_str("{").unwrap();
-    s.push_str(src.slice_to(n+1));
+    s.push_str(&src[..n+1]);
     s.push_str("};");
-    return s;
+    s
 }
 
 pub fn first_param_is_self(blob: &str) -> bool {
     return blob.find_str("(").map_or(false, |start| {
         let end = scopes::find_closing_paren(blob, start+1);
-        debug!("searching fn args: |{}| {}",blob.slice(start+1,end), txt_matches(ExactMatch, "self", blob.slice(start+1,end)));
-        return txt_matches(ExactMatch, "self", blob.slice(start+1,end));
+        debug!("searching fn args: |{}| {}",&blob[(start+1)..end], txt_matches(ExactMatch, "self", &blob[(start+1)..end]));
+        return txt_matches(ExactMatch, "self", &blob[(start+1)..end]);
     });
 }
 
@@ -37,16 +37,16 @@ pub fn first_param_is_self(blob: &str) -> bool {
 fn generates_skeleton_for_mod() {
     let src = "mod foo { blah };";
     let out = generate_skeleton_for_parsing(src);
-    assert_eq!("mod foo {};", out.as_slice());
+    assert_eq!("mod foo {};", &out[]);
 }
 
 fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<racer::Ty> {
     debug!("get_type_of_self_arg {:?}", m);
     return scopes::find_impl_start(msrc, m.point, 0).and_then(|start| {
-        let decl = generate_skeleton_for_parsing(msrc.slice_from(start));
+        let decl = generate_skeleton_for_parsing(&msrc[start..]);
         debug!("get_type_of_self_arg impl skeleton |{}|", decl);
         
-        if decl.as_slice().starts_with("impl") {
+        if (&decl[]).starts_with("impl") {
             let implres = ast::parse_impl(decl);
             debug!("get_type_of_self_arg implres |{:?}|", implres);
             return resolve_path_with_str(&implres.name_path.expect("failed parsing impl name"), 
@@ -60,7 +60,7 @@ fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<racer::Ty> {
                            point: start,
                            local: m.local,
                            mtype: racer::MatchType::Trait,
-                           contextstr: racer::matchers::first_line(msrc.slice_from(start)),
+                           contextstr: racer::matchers::first_line(&msrc[start..]),
                            generic_args: Vec::new(), generic_types: Vec::new()
                 }))
             });
@@ -70,19 +70,19 @@ fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<racer::Ty> {
 
 fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<racer::Ty> {
     
-    if m.matchstr.as_slice() == "self" {
+    if &m.matchstr[] == "self" {
         return get_type_of_self_arg(m, msrc);
     }
 
     let stmtstart = scopes::find_stmt_start(msrc, m.point).unwrap();
-    let block = msrc.slice_from(stmtstart);
+    let block = &msrc[stmtstart..];
     if let Some((start,end)) = codeiter::iter_stmts(block).next() {
-        let blob = msrc.slice(stmtstart+start, stmtstart+end);
+        let blob = &msrc[(stmtstart+start)..(stmtstart+end)];
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut s = String::new();
         s.push_str("impl blah {");
         let impl_header_len = s.len();
-        s.push_str(blob.slice_to(find_start_of_function_body(blob)+1));
+        s.push_str(&blob[..(find_start_of_function_body(blob)+1)]);
         s.push_str("}}");
         let argpos = m.point - (stmtstart+start) + impl_header_len;
         return ast::parse_fn_arg_type(s, argpos, racer::Scope::from_match(m));
@@ -94,9 +94,9 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<racer::Ty> {
     // ASSUMPTION: this is being called on a let decl
     let point = scopes::find_stmt_start(msrc, m.point).unwrap();
 
-    let src = msrc.slice_from(point);
+    let src = &msrc[point..];
     if let Some((start,end)) = codeiter::iter_stmts(src).next() { 
-        let blob = src.slice(start,end);
+        let blob = &src[start..end];
         debug!("get_type_of_let_expr calling parse_let |{}|",blob);
 
         let pos = m.point - point - start;
@@ -110,13 +110,13 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<racer::Ty> {
 fn get_type_of_if_let_expr(m: &Match, msrc: &str) -> Option<racer::Ty> {
     // ASSUMPTION: this is being called on an if let decl
     let stmtstart = scopes::find_stmt_start(msrc, m.point).unwrap();
-    let stmt = msrc.slice_from(stmtstart);
+    let stmt = &msrc[stmtstart..];
     let point = stmt.find_str("if let").unwrap();
-    let src = stmt.slice_from(point);
+    let src = &stmt[point..];
     let src = generate_skeleton_for_parsing(src);
 
     if let Some((start, end)) = codeiter::iter_stmts(&*src).next() {
-        let blob = src.slice(start,end);
+        let blob = &src[start..end];
         debug!("get_type_of_if_let_expr calling parse_if_let |{}|",blob);
 
         let pos = m.point - stmtstart - point - start;
@@ -134,13 +134,13 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<rac
     let src = racer::load_file(&structmatch.filepath);
 
     let opoint = scopes::find_stmt_start(&*src, structmatch.point);
-    let structsrc = scopes::end_of_next_scope(src.slice_from(opoint.unwrap()));
+    let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
 
     let fields = ast::parse_struct_fields(String::from_str(structsrc), 
                                           racer::Scope::from_match(structmatch));
     for (field, _, ty) in fields.into_iter() {
 
-        if fieldname == field.as_slice() {
+        if fieldname == &field[] {
             return ty;
         }
     }
@@ -152,14 +152,14 @@ pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match) -> Option<
 
     let structsrc = if let racer::MatchType::EnumVariant = structmatch.mtype {
         // decorate the enum variant src to make it look like a tuple struct
-        let to = src.slice_from(structmatch.point).find_str("(")
+        let to = (&src[structmatch.point..]).find_str("(")
             .map(|n| scopes::find_closing_paren(&*src, structmatch.point + n+1))
             .unwrap();
-        "struct ".to_string() + src.slice(structmatch.point, to+1) + ";"
+        "struct ".to_string() + &src[structmatch.point..(to+1)] + ";"
     } else {
         assert!(structmatch.mtype == racer::MatchType::Struct);
         let opoint = scopes::find_stmt_start(&*src, structmatch.point);
-        get_first_stmt(src.slice_from(opoint.unwrap())).to_string()
+        get_first_stmt(&src[opoint.unwrap()..]).to_string()
     };
 
     debug!("get_tuplestruct_field_type structsrc=|{}|",structsrc);
@@ -178,7 +178,7 @@ pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match) -> Option<
 
 pub fn get_first_stmt(src: &str) -> &str {
     match codeiter::iter_stmts(src).next() {
-        Some((from, to)) => src.slice(from,to),
+        Some((from, to)) => &src[from..to],
         None => src
     }    
 }
@@ -208,18 +208,18 @@ pub fn get_type_from_match_arm(m: &Match, msrc: &str) -> Option<racer::Ty> {
     // match stmt may be incomplete (half written) in the real code
 
     // skip to end of match arm pattern so we can search backwards
-    let arm = otry!(msrc.slice_from(m.point).find_str("=>")) + m.point;
+    let arm = otry!((&msrc[m.point..]).find_str("=>")) + m.point;
     let scopestart = scopes::scope_start(msrc, arm);
 
     let stmtstart = otry!(scopes::find_stmt_start(msrc, scopestart-1));
     debug!("PHIL preblock is {} {}", stmtstart, scopestart);
-    let preblock = msrc.slice(stmtstart, scopestart);
+    let preblock = &msrc[stmtstart..scopestart];
     let matchstart = otry!(util::find_last_str("match ", preblock)) + stmtstart;
 
     let lhs_start = scopes::get_start_of_pattern(msrc, arm);
-    let lhs = msrc.slice(lhs_start, arm);
+    let lhs = &msrc[lhs_start..arm];
     // construct faux match statement and recreate point
-    let mut fauxmatchstmt = msrc.slice(matchstart, scopestart).to_string();
+    let mut fauxmatchstmt = (&msrc[matchstart..scopestart]).to_string();
     let faux_prefix_size = fauxmatchstmt.len();
     fauxmatchstmt = fauxmatchstmt + lhs + " => () };";
     let faux_point = faux_prefix_size + (m.point - lhs_start);
@@ -238,11 +238,11 @@ pub fn get_type_from_match_arm(m: &Match, msrc: &str) -> Option<racer::Ty> {
 pub fn get_return_type_of_function(fnmatch: &Match) -> Option<racer::Ty> {
     let src = racer::load_file(&fnmatch.filepath);
     let point = scopes::find_stmt_start(&*src, fnmatch.point).unwrap();
-    return src.slice_from(point).find_str("{").and_then(|n|{
+    return (&src[point..]).find_str("{").and_then(|n|{
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut decl = String::new();
         decl.push_str("impl blah {");
-        decl.push_str(src.slice(point, point+n+1));
+        decl.push_str(&src[point..(point+n+1)]);
         decl.push_str("}}");
         debug!("get_return_type_of_function: passing in |{}|",decl);
         return ast::parse_fn_output(decl, racer::Scope::from_match(fnmatch));
