@@ -1,9 +1,9 @@
 #[cfg(test)]
 pub fn rejustify(src: &str) -> String {
-    let s = src.slice_from(1); // remove the newline
+    let s = &src[1..]; // remove the newline
     let mut sb = String::new();
     for l in s.lines() {
-        let tabless = l.slice_from(4);
+        let tabless = &l[4..];
         sb.push_str(tabless); 
         if tabless.len() != 0 { 
             sb.push_str("\n");
@@ -16,5 +16,5 @@ pub fn rejustify(src: &str) -> String {
 
 #[cfg(test)]
 pub fn slice<'a>(src: &'a str, (begin, end): (usize, usize)) -> &'a str{
-    return src.slice(begin, end);
+    return &src[begin..end];
 }

@@ -83,7 +83,7 @@ pub fn get_backtrace() -> String {
 }
 
 pub fn is_double_dot(msrc: &str, i: usize) -> bool {
-    (i > 1) && msrc.slice(i-1, i+1) == ".."
+    (i > 1) && &msrc[i-1..i+1] == ".."
 }
 
 #[test]
@@ -98,7 +98,7 @@ fn txt_matches_matches_stuff() {
 
 
 pub fn expand_ident(s : &str, pos : usize) -> (usize,usize) {
-    let sb = s.slice_to(pos);
+    let sb = &s[..pos];
     let mut start = pos;
 
     // backtrack to find start of word
@@ -113,7 +113,7 @@ pub fn expand_ident(s : &str, pos : usize) -> (usize,usize) {
 
 pub fn find_ident_end(s : &str, pos : usize) -> usize {
     // find end of word
-    let sa = s.slice_from(pos);
+    let sa = &s[pos..];
     let mut end = pos;
     for (i, c) in sa.char_indices() {
         if !is_ident_char(c) {
@@ -127,7 +127,7 @@ pub fn find_ident_end(s : &str, pos : usize) -> usize {
 pub fn to_refs<'a>(v: &'a Vec<String>) -> Vec<&'a str> {
     let mut out = Vec::new();
     for item in v.iter() {
-        out.push(item.as_slice()); 
+        out.push(&item[]); 
     }
     return out;
 }
@@ -136,7 +136,7 @@ pub fn find_last_str(needle: &str, mut haystack: &str) -> Option<usize> {
     let mut res = None;
     while let Some(n) = haystack.find_str(needle) {
         res = Some(n);
-        haystack = haystack.slice_from(n+1);
+        haystack = &haystack[n+1..];
     }
     return res;
 }
