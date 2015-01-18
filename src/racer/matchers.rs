@@ -63,7 +63,7 @@ pub fn match_const(msrc: &str, blobstart: usize, blobend: usize,
     };
     if start != 0 {
         blob.find_str(":").map(|end|{
-            let s = blob.slice(start, end);
+            let s = &blob[start..end];
             if symbol_matches(search_type, searchstr, s) {
                 res = Some(Match { matchstr: s.to_string(),
                                    filepath: filepath.clone(),
@@ -86,7 +86,7 @@ pub fn match_static(msrc: &str, blobstart: usize, blobend: usize,
     // ast currently doesn't contain the ident coords, so match them with a hacky
     // string search
     let mut res = None;
-    let blob = msrc.slice(blobstart, blobend);
+    let blob = &msrc[blobstart..blobend];
     let start = if local && blob.starts_with("static ") { 
         7us
     } else if blob.starts_with("pub static ") { 
@@ -96,7 +96,7 @@ pub fn match_static(msrc: &str, blobstart: usize, blobend: usize,
     };
     if start != 0 {
         blob.find_str(":").map(|end|{
-            let s = blob.slice(start, end);
+            let s = &blob[start..end];
             if symbol_matches(search_type, searchstr, s) {
                 res = Some(Match { matchstr: s.to_string(),
                                    filepath: filepath.clone(),
@@ -117,11 +117,11 @@ pub fn match_if_let(msrc: &str, blobstart: usize, blobend: usize,
                  searchstr: &str, filepath: &Path, search_type: SearchType,
                  local: bool)  -> Vec<Match> {
     let mut out = Vec::new();
-    let blob = msrc.slice(blobstart, blobend);
+    let blob = &msrc[blobstart..blobend];
     if blob.starts_with("if let ") && txt_matches(search_type, searchstr, blob) {
         let coords = ast::parse_let(String::from_str(blob));
         for &(start,end) in coords.iter() {
-            let s = blob.slice(start,end);
+            let s = &blob[start..end];
             if symbol_matches(search_type, searchstr, s) {
                 out.push(Match { matchstr: s.to_string(),
                                    filepath: filepath.clone(),
@@ -145,11 +145,11 @@ pub fn match_let(msrc: &str, blobstart: usize, blobend: usize,
                  searchstr: &str, filepath: &Path, search_type: SearchType,
                  local: bool)  -> Vec<Match> {
     let mut out = Vec::new();
-    let blob = msrc.slice(blobstart, blobend);
+    let blob = &msrc[blobstart..blobend];
     if blob.starts_with("let ") && txt_matches(search_type, searchstr, blob) {
         let coords = ast::parse_let(String::from_str(blob));
         for &(start,end) in coords.iter() {
-            let s = blob.slice(start,end);
+            let s = &blob[start..end];
             if symbol_matches(search_type, searchstr, s) {
                 out.push(Match { matchstr: s.to_string(),
                                    filepath: filepath.clone(),
@@ -177,7 +177,7 @@ pub fn first_line(blob: &str) -> String {
 pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize, 
          searchstr: &str, filepath: &Path, search_type: SearchType) -> Option<Match> {
     let mut res = None;
-    let blob = msrc.slice(blobstart, blobend);
+    let blob = &msrc[blobstart..blobend];
 
     if blob.starts_with(&format!("extern crate {}", searchstr)[]) ||
          (blob.starts_with("extern crate") && 
@@ -192,7 +192,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
             // so we need to get the source text without scrubbed strings 
 
             let rawsrc = racer::load_file(filepath);
-            let rawblob = rawsrc.slice(blobstart,blobend);
+            let rawblob = &rawsrc[blobstart..blobend];
             debug!("found an extern crate (unscrubbed): |{}|", rawblob);
             
             view_item = ast::parse_view_item(String::from_str(rawblob));
@@ -248,7 +248,7 @@ pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
 
 
     let mut res = None;
-    let blob = msrc.slice(blobstart, blobend);
+    let blob = &msrc[blobstart..blobend];
 
 
     let exact_match = match search_type {
@@ -260,7 +260,7 @@ pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
         debug!("found a module: |{}|",blob);
         // TODO: parse this properly
         let end = util::find_ident_end(blob, 4);
-        let l = blob.slice(4, end);
+        let l = &blob[4..end];
 
         if (exact_match && l == searchstr) || (!exact_match && l.starts_with(searchstr)) {
             if blob.find_str("{").is_some() {
@@ -301,7 +301,7 @@ pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
     if blob.starts_with(&format!("pub mod {}", searchstr)[]) {
         // TODO: parse this properly
         let end = util::find_ident_end(blob, 8);
-        let l = blob.slice(8, end);
+        let l = &blob[8..end];
 
         if (exact_match && l == searchstr) || (!exact_match && l.starts_with(searchstr)) {
             if blob.find_str("{").is_some() {
@@ -346,13 +346,13 @@ pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
 pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize, 
                 searchstr: &str, filepath: &Path, search_type: SearchType,
                 local: bool) -> Option<Match> {
-    let blob = msrc.slice(blobstart, blobend);
+    let blob = &msrc[blobstart..blobend];
     if (local && txt_matches(search_type, &format!("struct {}", searchstr)[], blob)) || 
         txt_matches(search_type, &format!("pub struct {}", searchstr)[], blob) {
         // TODO: parse this properly
         let start = blob.find_str(&format!("struct {}", searchstr)[]).unwrap() + 7;
         let end = find_ident_end(blob, start);
-        let l = blob.slice(start, end);
+        let l = &blob[start..end];
         debug!("found a struct |{}|", l);
 
         // Parse generics
@@ -379,12 +379,12 @@ pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize,
 pub fn match_type(msrc: &str, blobstart: usize, blobend: usize, 
              searchstr: &str, filepath: &Path, search_type: SearchType,
              local: bool) -> Option<Match> {
-    let blob = msrc.slice(blobstart, blobend);
+    let blob = &msrc[blobstart..blobend];
     if local && txt_matches(search_type, &format!("type {}", searchstr)[], blob) {
         // TODO: parse this properly
         let start = blob.find_str(&format!("type {}", searchstr)[]).unwrap() + 5;
         let end = find_ident_end(blob, start);
-        let l = blob.slice(start, end);
+        let l = &blob[start..end];
         debug!("found!! a type {}", l);
         return Some(Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
@@ -400,7 +400,7 @@ pub fn match_type(msrc: &str, blobstart: usize, blobend: usize,
         // TODO: parse this properly
         let start = blob.find_str(&format!("pub type {}", searchstr)[]).unwrap() + 9;
         let end = find_ident_end(blob, start);
-        let l = blob.slice(start, end);
+        let l = &blob[start..end];
         debug!("found!! a pub type {}", l);
         return Some(Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
@@ -417,12 +417,12 @@ pub fn match_type(msrc: &str, blobstart: usize, blobend: usize,
 pub fn match_trait(msrc: &str, blobstart: usize, blobend: usize, 
              searchstr: &str, filepath: &Path, search_type: SearchType,
              local: bool) -> Option<Match> {
-    let blob = msrc.slice(blobstart, blobend);
+    let blob = &msrc[blobstart..blobend];
     if local && txt_matches(search_type, &format!("trait {}", searchstr)[], blob) {
         // TODO: parse this properly
         let start = blob.find_str(&format!("trait {}", searchstr)[]).unwrap() + 6;
         let end = find_ident_end(blob, start);
-        let l = blob.slice(start, end);
+        let l = &blob[start..end];
         debug!("found!! a trait {}", l);
         return Some(Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
@@ -438,7 +438,7 @@ pub fn match_trait(msrc: &str, blobstart: usize, blobend: usize,
         // TODO: parse this properly
         let start = blob.find_str(&format!("pub trait {}", searchstr)[]).unwrap() + 10;
         let end = find_ident_end(blob, start);
-        let l = blob.slice(start, end);
+        let l = &blob[start..end];
         debug!("found!! a pub trait {}", l);
         return Some(Match {matchstr: l.to_string(),
                            filepath: filepath.clone(), 
@@ -455,7 +455,7 @@ pub fn match_trait(msrc: &str, blobstart: usize, blobend: usize,
 pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize, 
              searchstr: &str, filepath: &Path, search_type: SearchType,
              local: bool) -> vec::IntoIter<Match> {
-    let blob = msrc.slice(blobstart, blobend);
+    let blob = &msrc[blobstart..blobend];
     let mut out = Vec::new();
     if blob.starts_with("pub enum") || (local && blob.starts_with("enum")) {
         if txt_matches(search_type, searchstr, blob) {
@@ -487,13 +487,13 @@ pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize,
 pub fn match_enum(msrc: &str, blobstart: usize, blobend: usize, 
              searchstr: &str, filepath: &Path, search_type: SearchType,
              local: bool) -> Option<Match> {
-    let blob = msrc.slice(blobstart, blobend);
+    let blob = &msrc[blobstart..blobend];
     if (local && txt_matches(search_type, &format!("enum {}", searchstr)[], blob)) || 
         txt_matches(search_type, &format!("pub enum {}", searchstr)[], blob) {
         // TODO: parse this properly
         let start = blob.find_str(&format!("enum {}", searchstr)[]).unwrap() + 5;
         let end = find_ident_end(blob, start);
-        let l = blob.slice(start, end);
+        let l = &blob[start..end];
         debug!("found!! an enum |{}|", l);
         // Parse generics
         let end = blob.find_str("{").or(blob.find_str(";"))
@@ -527,7 +527,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
 
     let mut out = Vec::new();
 
-    let blob = msrc.slice(blobstart, blobend);
+    let blob = &msrc[blobstart..blobend];
 
     if ((local && blob.starts_with("use ")) || blob.starts_with("pub use ")) && blob.contains("*") {
         // uh oh! a glob. Need to search the module for the searchstr
@@ -643,13 +643,13 @@ fn hack_remove_self_and_super_in_modpaths(mut path: racer::Path) -> racer::Path 
 pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize, 
              searchstr: &str, filepath: &Path, search_type: SearchType,
              local: bool) -> Option<Match> {
-    let blob = msrc.slice(blobstart, blobend);
+    let blob = &msrc[blobstart..blobend];
     if blob.starts_with("pub fn") && txt_matches(search_type, &format!("pub fn {}", searchstr)[], blob) && !typeinf::first_param_is_self(blob) {
         debug!("found a pub fn starting {}",searchstr);
         // TODO: parse this properly
         let start = blob.find_str(&format!("pub fn {}", searchstr)[]).unwrap() + 7;
         let end = util::find_ident_end(blob, start);
-        let l = blob.slice(start, end);
+        let l = &blob[start..end];
         debug!("found a pub fn {}",l);
         return Some(Match {matchstr: l.to_string(),
                        filepath: filepath.clone(), 
@@ -665,7 +665,7 @@ pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize,
         // TODO: parse this properly
         let start = blob.find_str(&format!("fn {}", searchstr)[]).unwrap() + 3;
         let end = find_ident_end(blob, start);
-        let l = blob.slice(start, end);
+        let l = &blob[start..end];
         return Some(Match {matchstr: l.to_string(),
                        filepath: filepath.clone(), 
                        point: blobstart + start,

@@ -157,7 +157,7 @@ fn is_a_use_stmt(src: &str, start: usize, pos: usize) -> bool {
     let whitespace = " {\t\r\n".as_bytes();
     (pos > 3 && &src_bytes[start..start+3] == "use".as_bytes() && 
      whitespace.contains(&src_bytes[start+3])) || 
-        (pos > 7 && src_bytes.slice(start, start+7) == "pub use".as_bytes() &&
+        (pos > 7 && &src_bytes[start..(start+7)] == "pub use".as_bytes() &&
                       whitespace.contains(&src_bytes[start+7]))
 }
 
