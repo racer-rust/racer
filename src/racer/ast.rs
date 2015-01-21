@@ -1030,6 +1030,8 @@ impl<'v> visit::Visitor<'v> for FnOutputVisitor {
                 to_racer_ty(&**ty, &self.scope),
             ast::NoReturn(_) =>
                 None,
+            ast::DefaultReturn(_) =>
+                None,
         };
     }
 }
