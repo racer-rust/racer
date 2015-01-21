@@ -52,28 +52,31 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
 
 fn code(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
     
-    // previous character to handle comments
-    let mut prev = if self_.pos > 0 { self_.src.char_at(self_.pos-1) } else { ' ' };
+    let src_bytes = self_.src.as_bytes();
+    let mut is_prev_slash = self_.pos > 0 && src_bytes[self_.pos-1] == b'/';
 
-    for (i, c) in self_.src[self_.pos..].chars().enumerate() {
-        match c {
-            '/' if prev == '/' => { 
-                return code_return(self_, i, State::StateComment, i-1); 
+    for (i, &b) in src_bytes[self_.pos..].iter().enumerate() {
+        match b {
+            b'/' => { 
+                if is_prev_slash {
+                    return code_return(self_, i, State::StateComment, i-1); 
+                }
+                is_prev_slash = true;
             },
-            '*' if prev == '/' => {
+            b'*' if is_prev_slash => {
                 self_.nesting_level = 0;
                 return code_return(self_, i, State::StateCommentBlock, i-1);
             },
-            '"' => { 
+            b'"' => { 
                 // include the dblquote in the code
                 return code_return(self_, i, State::StateString, i+1);
             },
-            _ => { prev = c; }
+            _ => { is_prev_slash = false; }
         }
     }
 
     self_.state = State::StateFinished;
-    Some((self_.start, self_.src.len()))
+    Some((self_.start, src_bytes.len()))
 }
 
 fn code_return(self_: &mut CodeIndicesIter, i: usize, state: State, inner_end: usize) 
@@ -86,8 +89,9 @@ fn code_return(self_: &mut CodeIndicesIter, i: usize, state: State, inner_end: u
 }
 
 fn comment(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
-    for (i, c) in self_.src[self_.pos..].chars().enumerate() {
-        if c == '\n' { 
+    let src_bytes = self_.src.as_bytes();
+    for (i, &b) in src_bytes[self_.pos..].iter().enumerate() {
+        if b == b'\n' {
             self_.pos += i+1;
             self_.start = self_.pos;
             self_.state = State::StateCode;
@@ -95,17 +99,18 @@ fn comment(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
         }
     }
     self_.state = State::StateFinished;
-    Some((self_.start, self_.src.len()))
+    Some((self_.start, src_bytes.len()))
 }
 
 fn comment_block(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
     
-    // previous character to handle comments
-    let mut prev = if self_.pos > 0 { self_.src.char_at(self_.pos-1) } else { ' ' };
+    let src_bytes = self_.src.as_bytes();
+    // previous character
+    let mut prev = if self_.pos > 0 { src_bytes[self_.pos-1] } else { b' ' };
 
-    for (i, c) in self_.src[self_.pos..].chars().enumerate() {
-        match c {
-            '/' if prev == '*' => { 
+    for (i, &b) in src_bytes[self_.pos..].iter().enumerate() {
+        match b {
+            b'/' if prev == b'*' => { 
                 if self_.nesting_level == 0 {
                     self_.pos += i+1;
                     self_.start = self_.pos;
@@ -115,32 +120,33 @@ fn comment_block(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
                     self_.nesting_level -= 1;
                 }
             },
-            '*' if prev == '/' => {
+            b'*' if prev == b'/' => {
                 self_.nesting_level += 1;
             },
-            _ => { prev = c; }
+            _ => { prev = b; }
         }
     }
     self_.state = State::StateFinished;
-    return Some((self_.start, self_.src.len()));
+    return Some((self_.start, src_bytes.len()));
 }
 
 fn string(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
+    let src_bytes = self_.src.as_bytes();
     let mut is_escaped = false;
-    for (i, c) in self_.src[self_.pos..].chars().enumerate() {
-        match c {
-            '"' if !is_escaped  => { 
+    for (i, &b) in src_bytes[self_.pos..].iter().enumerate() {
+        match b {
+            b'"' if !is_escaped  => { 
                 self_.start = self_.pos+i;  // include the dblquote as code
                 self_.pos = self_.start+1;
                 self_.state = State::StateCode;
                 return code(self_);
             },
-            '\\' => { is_escaped = !is_escaped; },
+            b'\\' => { is_escaped = !is_escaped; },
             _ => { if is_escaped {is_escaped = false;} }
         }
     }
     self_.state = State::StateFinished;
-    return Some((self_.start, self_.src.len()));
+    return Some((self_.start, src_bytes.len()));
 }
 
 /// Returns indices of chunks of code (minus comments and string contents)
