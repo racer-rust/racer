@@ -90,8 +90,10 @@ impl<'v> visit::Visitor<'v> for ViewItemVisitor {
 
                                     newpath.segments.push(seg);
                                     self.paths.push(newpath);
-                                }
-                                ast::PathListMod{..} => (), // TODO
+                                },
+                                ast::PathListMod{..} => {
+                                    self.paths.push(basepath.clone());
+                                },
                             }
                         }
                     }
