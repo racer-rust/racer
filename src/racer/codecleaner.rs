@@ -29,9 +29,7 @@ enum State {
 
 pub struct CodeIndicesIter<'a> {
     src: &'a str,
-    start: usize,
     pos: usize,
-    nesting_level: usize,
     state: State
 }
 
@@ -40,118 +38,94 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<(usize, usize)> {
-        match self.state {
-            State::StateCode => code(self),
-            State::StateComment => comment(self),
-            State::StateCommentBlock  => comment_block(self),
-            State::StateString => string(self),
+        let res = match self.state {
+            State::StateCode => Some(code(self)),
+            State::StateComment => Some(comment(self)),
+            State::StateCommentBlock  => Some(comment_block(self)),
+            State::StateString => Some(string(self)),
             State::StateFinished => None
-        }
+        };
+        res
     }
 }
 
-fn code(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
-    
-    let src_bytes = self_.src.as_bytes();
-    let mut is_prev_slash = self_.pos > 0 && src_bytes[self_.pos-1] == b'/';
+fn code(self_: &mut CodeIndicesIter) -> (usize,usize) {
 
-    for (i, &b) in src_bytes[self_.pos..].iter().enumerate() {
+    let mut prev = b' ';
+    let start = match self_.state {
+        State::StateString => { self_.pos-1 }, // include dblquotes
+        _ => { self_.pos }
+    };
+    for &b in self_.src.as_bytes()[self_.pos..].iter() {
+        self_.pos += 1;
         match b {
-            b'/' => { 
-                if is_prev_slash {
-                    return code_return(self_, i, State::StateComment, i-1); 
-                }
-                is_prev_slash = true;
-            },
-            b'*' if is_prev_slash => {
-                self_.nesting_level = 0;
-                return code_return(self_, i, State::StateCommentBlock, i-1);
-            },
-            b'"' => { 
-                // include the dblquote in the code
-                return code_return(self_, i, State::StateString, i+1);
-            },
-            _ => { is_prev_slash = false; }
-        }
-    }
-
-    self_.state = State::StateFinished;
-    Some((self_.start, src_bytes.len()))
-}
-
-fn code_return(self_: &mut CodeIndicesIter, i: usize, state: State, inner_end: usize) 
-        -> Option<(usize,usize)>{
-    let res = Some((self_.start, self_.pos+inner_end));
-    self_.pos += i+1;
-    self_.start = self_.pos;
-    self_.state = state;
-    return res;
-}
-
-fn comment(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
-    let src_bytes = self_.src.as_bytes();
-    for (i, &b) in src_bytes[self_.pos..].iter().enumerate() {
-        if b == b'\n' {
-            self_.pos += i+1;
-            self_.start = self_.pos;
-            self_.state = State::StateCode;
-            return code(self_);
-        }
-    }
-    self_.state = State::StateFinished;
-    Some((self_.start, src_bytes.len()))
-}
-
-fn comment_block(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
-    
-    let src_bytes = self_.src.as_bytes();
-    // previous character
-    let mut prev = if self_.pos > 0 { src_bytes[self_.pos-1] } else { b' ' };
-
-    for (i, &b) in src_bytes[self_.pos..].iter().enumerate() {
-        match b {
-            b'/' if prev == b'*' => { 
-                if self_.nesting_level == 0 {
-                    self_.pos += i+1;
-                    self_.start = self_.pos;
-                    self_.state = State::StateCode;
-                    return code(self_);
-                } else {
-                    self_.nesting_level -= 1;
-                }
+            b'/' if prev == b'/' => { 
+                self_.state = State::StateComment;
+                return (start, self_.pos-2);
             },
             b'*' if prev == b'/' => {
-                self_.nesting_level += 1;
+                self_.state = State::StateCommentBlock;
+                return (start, self_.pos-2);
+            },
+            b'"' => { 
+                self_.state = State::StateString;
+                return (start, self_.pos); // include dblquotes
             },
             _ => { prev = b; }
         }
     }
+
     self_.state = State::StateFinished;
-    return Some((self_.start, src_bytes.len()));
+    (start, self_.src.len())
 }
 
-fn string(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
-    let src_bytes = self_.src.as_bytes();
-    let mut is_escaped = false;
-    for (i, &b) in src_bytes[self_.pos..].iter().enumerate() {
+fn comment(self_: &mut CodeIndicesIter) -> (usize,usize) {
+    for &b in self_.src.as_bytes()[self_.pos..].iter() {
+        self_.pos += 1;
+        if b == b'\n' { break; }
+    } 
+    code(self_)
+}
+
+fn comment_block(self_: &mut CodeIndicesIter) -> (usize,usize) {
+    
+    let mut nesting_level = 0u8; // should be enough
+    let mut prev = b' ';
+    for &b in self_.src.as_bytes()[self_.pos..].iter() {
+        self_.pos += 1;
         match b {
-            b'"' if !is_escaped  => { 
-                self_.start = self_.pos+i;  // include the dblquote as code
-                self_.pos = self_.start+1;
-                self_.state = State::StateCode;
-                return code(self_);
+            b'/' if prev == b'*' => { 
+                if nesting_level == 0 {
+                    break;
+                } else {
+                    nesting_level -= 1;
+                }
             },
-            b'\\' => { is_escaped = !is_escaped; },
-            _ => { if is_escaped {is_escaped = false;} }
+            b'*' if prev == b'/' => {
+                nesting_level += 1;
+            },
+            _ => { prev = b; }
         }
     }
-    self_.state = State::StateFinished;
-    return Some((self_.start, src_bytes.len()));
+    code(self_)
+}
+
+fn string(self_: &mut CodeIndicesIter) -> (usize,usize) {
+    let mut is_not_escaped = true;
+    for &b in self_.src.as_bytes()[self_.pos..].iter() {
+        self_.pos += 1;
+        match b {
+            b'"' if is_not_escaped  => { break; },
+            b'\\' => { is_not_escaped = !is_not_escaped; },
+            _ => { is_not_escaped = true; }
+        }
+    }
+    code(self_)
 }
 
 /// Returns indices of chunks of code (minus comments and string contents)
 pub fn code_chunks<'a>(src: &'a str) -> CodeIndicesIter<'a> {
-    CodeIndicesIter { src: src, start: 0, pos: 0, state: State::StateCode, nesting_level: 0 }
+    CodeIndicesIter { src: src, state: State::StateCode, pos: 0 }
 }
 
 #[test]
