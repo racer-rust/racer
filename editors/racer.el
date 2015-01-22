@@ -14,7 +14,10 @@
   :type 'file
   :group 'racer)
 
-(defcustom racer-rust-src-path "/usr/local/src/rust/src"
+(defcustom racer-rust-src-path
+  (if (getenv "RUST_SRC_PATH")
+      (getenv "RUST_SRC_PATH")
+    "/usr/local/src/rust/src")
   "Path to the rust source tree."
   :type 'file
   :group 'racer)
