@@ -514,12 +514,12 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
 
     if ((local && blob.starts_with("use ")) || blob.starts_with("pub use ")) && blob.contains("*") {
         // uh oh! a glob. Need to search the module for the searchstr
-        let view_item = ast::parse_use(String::from_str(blob));
-        debug!("found a glob!! {:?}", view_item);
+        let use_item = ast::parse_use(String::from_str(blob));
+        debug!("found a glob!! {:?}", use_item);
 
-        if view_item.is_glob {
+        if use_item.is_glob {
 
-            let basepath = view_item.paths.into_iter().nth(0).unwrap();
+            let basepath = use_item.paths.into_iter().nth(0).unwrap();
             let mut follow_glob = true;
             {
                 // don't follow glob if we are already following one otherwise
@@ -562,10 +562,10 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
         }
 
         debug!("found use: {} in |{}|", searchstr, blob);
-        let view_item = ast::parse_use(String::from_str(blob));
+        let use_item = ast::parse_use(String::from_str(blob));
 
-        let ident = view_item.ident.unwrap_or("".to_string());
-        for mut path in view_item.paths.into_iter() {
+        let ident = use_item.ident.unwrap_or("".to_string());
+        for mut path in use_item.paths.into_iter() {
             let len = path.segments.len();
 
             // TODO: simplify this:
