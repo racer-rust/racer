@@ -64,22 +64,22 @@ pub fn string_to_crate (source_str : String) -> ast::Crate {
 }
 
 #[derive(Show)]
-pub struct ViewItemVisitor {
+pub struct UseVisitor {
     pub ident : Option<String>,
     pub paths : Vec<racer::Path>,
     pub is_glob: bool
 }
 
-impl<'v> visit::Visitor<'v> for ViewItemVisitor {
-    fn visit_view_item(&mut self, i: &ast::ViewItem) {
+impl<'v> visit::Visitor<'v> for UseVisitor {
+    fn visit_item(&mut self, i: &'v ast::Item) {
         match i.node {
-            ast::ViewItemUse(ref path) => {
+            ast::ItemUse(ref path) => {
                 match path.node {
-                    ast::ViewPathSimple(ident, ref path, _) => {
+                    ast::ViewPathSimple(ident, ref path) => {
                         self.paths.push(to_racer_path(path));
                         self.ident = Some(token::get_ident(ident).get().to_string());
                     },
-                    ast::ViewPathList(ref pth, ref paths, _) => {
+                    ast::ViewPathList(ref pth, ref paths) => {
                         let basepath = to_racer_path(pth);
                         for path in paths.iter() {
                             match path.node {
@@ -87,7 +87,7 @@ impl<'v> visit::Visitor<'v> for ViewItemVisitor {
                                     let name = token::get_ident(name).get().to_string();
                                     let seg = racer::PathSegment{ name: name, types: Vec::new() };
                                     let mut newpath = basepath.clone();
-
+                                    
                                     newpath.segments.push(seg);
                                     self.paths.push(newpath);
                                 },
@@ -97,34 +97,18 @@ impl<'v> visit::Visitor<'v> for ViewItemVisitor {
                             }
                         }
                     }
-                    ast::ViewPathGlob(ref pth, _) => {
+                    ast::ViewPathGlob(ref pth) => {
                         let basepath = to_racer_path(pth);
                         self.paths.push(basepath);
                         self.is_glob = true;
                     }
                 }
-            },
-            ast::ViewItemExternCrate(ident, ref loc, _) => {
-                self.ident = Some(token::get_ident(ident).get().to_string());
-
-                let ll = loc.clone();
-                ll.map(|(ref istr, _ /* str style */)| {
-                    let name = istr.get().to_string();
-
-                    let pathseg = racer::PathSegment{ name: name, 
-                                                      types: Vec::new() };
-
-                    let path = racer::Path{ global: true, 
-                                 segments: vec!(pathseg) };
-                    self.paths.push(path);
-                });
             }
-        }
+            _ => {}
 
-        visit::walk_view_item(self, i)
+        }
     }
 }
-
 
 pub struct LetVisitor {
     ident_points: Vec<(usize,usize)>
@@ -755,8 +739,28 @@ impl<'v> visit::Visitor<'v> for ModVisitor {
             _ => {}
         }
     }
-
 }
+
+pub struct ExternCrateVisitor {
+    pub name: Option<String>,
+    pub realname: Option<String>
+}
+
+impl<'v> visit::Visitor<'v> for ExternCrateVisitor {
+    fn visit_item(&mut self, item: &ast::Item) {
+        match item.node {
+            ast::ItemExternCrate(ref optional_s) => {
+                self.name = Some(String::from_str(token::get_ident(item.ident).get()));
+                if let &Some((ref istr, _)) = optional_s {
+                    self.realname = Some(istr.get().to_string());
+                }
+
+            }
+            _ => {}
+        }
+    }
+}
+
 
 pub struct GenericsVisitor {
     pub generic_args: Vec<String>
@@ -817,12 +821,12 @@ impl<'v> visit::Visitor<'v> for EnumVisitor {
     }
 }
 
-pub fn parse_view_item(s: String) -> ViewItemVisitor {
+pub fn parse_use(s: String) -> UseVisitor {
     // parser can panic!() so isolate it in another task
 
     let thread = Thread::scoped(move || { 
         let cr = string_to_crate(s);
-        let mut v = ViewItemVisitor{ident: None, 
+        let mut v = UseVisitor{ident: None, 
                                     paths: Vec::new(),
                                     is_glob: false};
         visit::walk_crate(&mut v, &cr);
@@ -832,9 +836,9 @@ pub fn parse_view_item(s: String) -> ViewItemVisitor {
     match result {
         Ok(s) => {return s;},
         Err(_) => {
-            return ViewItemVisitor{ident: None, 
-                                   paths: Vec::new(),
-                                   is_glob: false};
+            return UseVisitor{ident: None, 
+                              paths: Vec::new(),
+                              is_glob: false};
         }
     }
 }
@@ -957,6 +961,16 @@ pub fn parse_mod(s: String) -> ModVisitor {
     return thread.join().ok().unwrap();    
 }
 
+pub fn parse_extern_crate(s: String) -> ExternCrateVisitor {
+    let thread = Thread::scoped(move || {
+        let stmt = string_to_stmt(s);
+        let mut v = ExternCrateVisitor { name: None, realname: None };
+        visit::walk_stmt(&mut v, &*stmt);
+        return v;
+    });
+    return thread.join().ok().unwrap();    
+}
+
 pub fn parse_enum(s: String) -> EnumVisitor {
     let thread = Thread::scoped(move || {
         let stmt = string_to_stmt(s);
@@ -1064,10 +1078,10 @@ impl<'v> visit::Visitor<'v> for FnArgTypeVisitor {
 
 #[test]
 fn ast_sandbox() {
-    let src = "match foo { Some(a) => () }";
-    //let stmt = string_to_stmt(String::from_str(src));
-    //println!("stmt {} ", stmt);
-    get_match_arm_type(src.to_string(), 17, Scope {filepath: Path::new("./foo"), point: 0});
+    let src = "extern crate \"myarse\" as phil;";
+    let stmt = string_to_stmt(String::from_str(src));
+    println!("stmt {:?} ", stmt);
+    // get_match_arm_type(src.to_string(), 17, Scope {filepath: Path::new("./foo"), point: 0});
     panic!("");
 
     //let src = "if let Foo(a) = b {}";

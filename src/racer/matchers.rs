@@ -180,12 +180,12 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
     let blob = &msrc[blobstart..blobend];
 
     if txt_matches(search_type, &format!("extern crate {}",searchstr)[], blob) ||
-         (blob.starts_with("extern crate") && 
-          txt_matches(search_type, &format!("as {}",searchstr)[], blob)) {
+        (blob.starts_with("extern crate") && 
+         txt_matches(search_type, &format!("as {}",searchstr)[], blob)) {
 
         debug!("found an extern crate: |{}|",blob);
 
-        let view_item;
+        let extern_crate;
         if blob.contains("\"") {
             // Annoyingly the extern crate can use a string literal for the
             // real crate name (e.g. extern crate collections_core = "collections")
@@ -195,48 +195,31 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
             let rawblob = &rawsrc[blobstart..blobend];
             debug!("found an extern crate (unscrubbed): |{}|", rawblob);
             
-            view_item = ast::parse_view_item(String::from_str(rawblob));
+            extern_crate = ast::parse_extern_crate(String::from_str(rawblob));
         } else {
-            view_item = ast::parse_view_item(String::from_str(blob));
+            extern_crate = ast::parse_extern_crate(String::from_str(blob));
         }
 
-        if view_item.paths.is_empty() {
-            // reference to a crate.
+        if let Some(ref name) = extern_crate.name {
+            debug!("extern crate {}",name);
 
-            view_item.ident.clone().map(|ident|{
-                debug!("EXTERN CRATE {}",&ident[]);
-                get_crate_file(&ident[]).map(|cratepath|{
-                    res = Some(Match {matchstr: ident.to_string(),
-                                      filepath: cratepath.clone(), 
-                                      point: 0,
-                                      local: false,
-                                      mtype: Module,
-                                      contextstr: cratepath.as_str().unwrap().to_string(),
-                                      generic_args: Vec::new(), 
-                                      generic_types: Vec::new()
-                    });
-                });                
-            });
-        } else {
-
-            view_item.ident.clone().map(|ident|{
-                if symbol_matches(search_type, searchstr, &ident[]) {
-                    // e.g. extern core_collections = "collections";
-                    let ref real_str = view_item.paths[0].segments[0].name;
-                    get_crate_file(&real_str[]).map(|modpath|{
-                        res = Some(Match {matchstr: ident.to_string(),
-                                       filepath: modpath.clone(), 
-                                       point: 0,
-                                       local: false,
-                                       mtype: Module,
-                                       contextstr: modpath.as_str().unwrap().to_string(),
-                                       generic_args: Vec::new(), 
-                                       generic_types: Vec::new()
-                        });
-                    });
-
-                }
-            });
+            let realname = 
+                if let Some(ref realname) = extern_crate.realname {
+                    realname
+                } else {
+                    name
+                };
+            get_crate_file(&realname[]).map(|cratepath|{
+                res = Some(Match {matchstr: name.clone(),
+                                  filepath: cratepath.clone(), 
+                                  point: 0,
+                                  local: false,
+                                  mtype: Module,
+                                  contextstr: cratepath.as_str().unwrap().to_string(),
+                                  generic_args: Vec::new(), 
+                                  generic_types: Vec::new()
+                });
+            });                
         }
     }
     return res;
@@ -531,7 +514,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
 
     if ((local && blob.starts_with("use ")) || blob.starts_with("pub use ")) && blob.contains("*") {
         // uh oh! a glob. Need to search the module for the searchstr
-        let view_item = ast::parse_view_item(String::from_str(blob));
+        let view_item = ast::parse_use(String::from_str(blob));
         debug!("found a glob!! {:?}", view_item);
 
         if view_item.is_glob {
@@ -579,7 +562,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
         }
 
         debug!("found use: {} in |{}|", searchstr, blob);
-        let view_item = ast::parse_view_item(String::from_str(blob));
+        let view_item = ast::parse_use(String::from_str(blob));
 
         let ident = view_item.ident.unwrap_or("".to_string());
         for mut path in view_item.paths.into_iter() {
