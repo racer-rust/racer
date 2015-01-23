@@ -10,6 +10,5 @@ authors = ["Phil Dawes <phil@phildawes.net>"]
 name = "racer"
 path = "src/main.rs"
 
-[lib]
-name = "racer"
-path = "src/lib.rs"
+[profile.release]
+debug = true
