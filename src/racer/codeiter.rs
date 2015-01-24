@@ -22,7 +22,7 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
 
         let src_bytes = self.src.as_bytes();
         let mut enddelim = b';';
-        let mut bracelevel = 02;
+        let mut bracelevel = 0u16;
         let mut parenlevel = 0i32;
         let mut start = self.pos;
 
