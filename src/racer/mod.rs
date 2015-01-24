@@ -13,6 +13,7 @@ pub mod util;
 pub mod matchers;
 
 #[cfg(test)] pub mod test;
+#[cfg(test)] pub mod bench;
 
 #[derive(Show,Clone,PartialEq)]
 pub enum MatchType {

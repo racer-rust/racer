@@ -12,11 +12,11 @@ pub fn rejustify(src: &str) -> String {
     }
     let newlen = sb.len()-1; // remove the trailing newline
     sb.truncate(newlen);
-    return sb;
+    sb
 }
 
-pub fn slice<'a>(src: &'a str, (begin, end): (usize, usize)) -> &'a str{
-    return &src[begin..end];
+pub fn slice(src: &str, (begin, end): (usize, usize)) -> &str{
+    &src[begin..end]
 }
 
 enum State {
@@ -29,9 +29,7 @@ enum State {
 
 pub struct CodeIndicesIter<'a> {
     src: &'a str,
-    start: usize,
     pos: usize,
-    nesting_level: usize,
     state: State
 }
 
@@ -40,132 +38,94 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<(usize, usize)> {
-        return match self.state {
-            State::StateCode => code(self),
-            State::StateComment => comment(self),
-            State::StateCommentBlock  => comment_block(self),
-            State::StateString => string(self),
+        let res = match self.state {
+            State::StateCode => Some(code(self)),
+            State::StateComment => Some(comment(self)),
+            State::StateCommentBlock  => Some(comment_block(self)),
+            State::StateString => Some(string(self)),
             State::StateFinished => None
-        }
+        };
+        res
     }
 }
 
-fn code(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
-    let slash: u8 = "/".as_bytes()[0] as u8;
-    let star: u8 = "*".as_bytes()[0] as u8;
-    let dblquote: u8 = "\"".as_bytes()[0] as u8;
+fn code(self_: &mut CodeIndicesIter) -> (usize,usize) {
 
-    let (mut pos, src, end) = (self_.pos, self_.src, self_.src.len());
-    let src_bytes = src.as_bytes();
-    let start = self_.start;
-    while pos < end {
-        if pos > 0 && src_bytes[pos] == slash && src_bytes[pos-1] == slash {
-            self_.start = pos+1;
-            self_.pos = pos+1;
-            self_.state = State::StateComment;
-            return Some((start, pos-1));
+    let mut prev = b' ';
+    let start = match self_.state {
+        State::StateString => { self_.pos-1 }, // include dblquotes
+        _ => { self_.pos }
+    };
+    for &b in self_.src.as_bytes()[self_.pos..].iter() {
+        self_.pos += 1;
+        match b {
+            b'/' if prev == b'/' => { 
+                self_.state = State::StateComment;
+                return (start, self_.pos-2);
+            },
+            b'*' if prev == b'/' => {
+                self_.state = State::StateCommentBlock;
+                return (start, self_.pos-2);
+            },
+            b'"' => { 
+                self_.state = State::StateString;
+                return (start, self_.pos); // include dblquotes
+            },
+            _ => { prev = b; }
         }
-
-        if pos > 0 && src_bytes[pos] == star && src_bytes[pos-1] == slash {
-            self_.start = pos+1;
-            self_.pos = pos+1;
-            self_.state = State::StateCommentBlock;
-            self_.nesting_level = 0;
-            return Some((start, pos-1));
-        }
-
-        if src_bytes[pos] == dblquote {
-            self_.start = pos+1;
-            self_.pos = pos+1;
-            self_.state = State::StateString;
-            return Some((start, pos+1)); // include the dblquote in the code
-        }
-
-        pos += 1;
     }
+
     self_.state = State::StateFinished;
-    return Some((start, end));
+    (start, self_.src.len())
 }
 
-fn comment(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
-    let newline: u8 = "\n".as_bytes()[0] as u8;
-    let (mut pos, src, end) = (self_.pos, self_.src, self_.src.len());
-    let src_bytes = src.as_bytes();
-    let start = pos;
-    while pos < end {
-        if src_bytes[pos] == newline {
-            self_.start = pos+1;
-            self_.pos = pos+1;
-            self_.state = State::StateCode;
-            return code(self_);
-        }
-        pos += 1;
-    }
-    self_.state = State::StateFinished;
-    return Some((start, end));
+fn comment(self_: &mut CodeIndicesIter) -> (usize,usize) {
+    for &b in self_.src.as_bytes()[self_.pos..].iter() {
+        self_.pos += 1;
+        if b == b'\n' { break; }
+    } 
+    code(self_)
 }
 
-fn comment_block(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
-    let slash: u8 = "/".as_bytes()[0] as u8;
-    let star: u8 = "*".as_bytes()[0] as u8;
-    let (mut pos, src, end) = (self_.pos, self_.src, self_.src.len());
-    let src_bytes = src.as_bytes();
-    let start = pos;
-    while pos < end {
-        if pos > 0 && src_bytes[pos] == star && src_bytes[pos-1] == slash {
-            self_.nesting_level += 1;
+fn comment_block(self_: &mut CodeIndicesIter) -> (usize,usize) {
+    
+    let mut nesting_level = 0u8; // should be enough
+    let mut prev = b' ';
+    for &b in self_.src.as_bytes()[self_.pos..].iter() {
+        self_.pos += 1;
+        match b {
+            b'/' if prev == b'*' => { 
+                if nesting_level == 0 {
+                    break;
+                } else {
+                    nesting_level -= 1;
+                }
+            },
+            b'*' if prev == b'/' => {
+                nesting_level += 1;
+            },
+            _ => { prev = b; }
         }
-
-        if pos > 0 && src_bytes[pos] == slash && src_bytes[pos-1] == star {
-            if self_.nesting_level == 0 {
-                self_.start = pos+1;
-                self_.pos = pos+1;
-                self_.state = State::StateCode;
-                return code(self_);
-            } else {
-                self_.nesting_level -= 1;
-            }
-        }
-        pos += 1;
     }
-    self_.state = State::StateFinished;
-    return Some((start, end));
+    code(self_)
 }
 
-
-// returns true if char at position is escaped
-fn escaped(src_bytes: &[u8], mut pos: usize) -> bool {
-    let mut num_backslashes = 0u32;
-    let backslash: u8 = "\\".as_bytes()[0] as u8;
-    while pos > 0 && src_bytes[pos-1] == backslash {
-        num_backslashes += 1;
-        pos -= 1;
-    }
-    return num_backslashes % 2 == 1;
-}
-
-fn string(self_: &mut CodeIndicesIter) -> Option<(usize,usize)> {
-    let dblquote: u8 = "\"".as_bytes()[0] as u8;
-
-    let (mut pos, src, end) = (self_.pos, self_.src, self_.src.len());
-    let src_bytes = src.as_bytes();
-    let start = self_.start;
-    while pos < end {
-        if src_bytes[pos] == dblquote && !escaped(src_bytes, pos) {
-            self_.start = pos;   // include the dblquote as code
-            self_.pos = pos+1;
-            self_.state = State::StateCode;
-            return code(self_);
+fn string(self_: &mut CodeIndicesIter) -> (usize,usize) {
+    let mut is_not_escaped = true;
+    for &b in self_.src.as_bytes()[self_.pos..].iter() {
+        self_.pos += 1;
+        match b {
+            b'"' if is_not_escaped  => { break; },
+            b'\\' => { is_not_escaped = !is_not_escaped; },
+            _ => { is_not_escaped = true; }
         }
-        pos += 1;
     }
-    self_.state = State::StateFinished;
-    return Some((start, end));
+    code(self_)
 }
 
 /// Returns indices of chunks of code (minus comments and string contents)
 pub fn code_chunks<'a>(src: &'a str) -> CodeIndicesIter<'a> {
-    CodeIndicesIter { src: src, start: 0, pos: 0, state: State::StateCode, nesting_level: 0 }
+    CodeIndicesIter { src: src, state: State::StateCode, pos: 0 }
 }
 
 #[test]
