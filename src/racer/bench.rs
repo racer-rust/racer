@@ -6,7 +6,7 @@ use std::old_io::File;
 use self::test::Bencher;
 use racer::codecleaner::code_chunks;
 use racer::codeiter::iter_stmts;
-use racer::scopes::mask_comments;
+use racer::scopes::{mask_comments, mask_sub_scopes};
 
 fn get_rust_file_str(path: &[&str]) -> String {
 
@@ -40,6 +40,14 @@ fn bench_mask_comments(b: &mut Bencher) {
     let src = &get_rust_file_str(&["libcollections", "bit.rs"])[];
     b.iter(|| {
         mask_comments(src);
+    });
+}
+
+#[bench]
+fn bench_mask_sub_scopes(b: &mut Bencher) {
+    let src = &get_rust_file_str(&["libcollections", "bit.rs"])[];
+    b.iter(|| {
+        mask_sub_scopes(src);
     });
 }
 
