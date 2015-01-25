@@ -39,6 +39,7 @@ pub enum MatchType {
     Const,
     Static,
     Macro,
+    Builtin,
 }
 
 #[derive(Debug,Clone,Copy)]
@@ -558,7 +559,8 @@ impl<'c> Session<'c> {
 }
 
 
-pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> vec::IntoIter<Match> {
+pub fn complete_from_file(src: &str, filepath: &path::Path, 
+                          pos: usize, session: &Session) -> vec::IntoIter<Match> {
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = &src[start..pos];
 
