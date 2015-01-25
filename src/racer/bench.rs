@@ -6,6 +6,7 @@ use std::old_io::File;
 use self::test::Bencher;
 use racer::codecleaner::code_chunks;
 use racer::codeiter::iter_stmts;
+use racer::scopes::mask_comments;
 
 fn get_rust_file_str(path: &[&str]) -> String {
 
@@ -31,6 +32,14 @@ fn bench_iter_stmts(b: &mut Bencher) {
     let src = &get_rust_file_str(&["libcollections", "bit.rs"])[];
     b.iter(|| {
         let chunks = iter_stmts(src).collect::<Vec<_>>();
+    });
+}
+
+#[bench]
+fn bench_mask_comments(b: &mut Bencher) {
+    let src = &get_rust_file_str(&["libcollections", "bit.rs"])[];
+    b.iter(|| {
+        mask_comments(src);
     });
 }
 
