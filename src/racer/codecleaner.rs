@@ -51,27 +51,32 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
 
 fn code(self_: &mut CodeIndicesIter) -> (usize,usize) {
 
-    let mut prev = b' ';
     let start = match self_.state {
         State::StateString => { self_.pos-1 }, // include dblquotes
         _ => { self_.pos }
     };
-    for &b in self_.src.as_bytes()[self_.pos..].iter() {
+    let src_bytes = self_.src.as_bytes();
+    for &b in src_bytes[self_.pos..].iter(){
         self_.pos += 1;
         match b {
-            b'/' if prev == b'/' => { 
-                self_.state = State::StateComment;
-                return (start, self_.pos-2);
-            },
-            b'*' if prev == b'/' => {
-                self_.state = State::StateCommentBlock;
-                return (start, self_.pos-2);
+            b'/' => match src_bytes[self_.pos] {
+                b'/' => {
+                    self_.state = State::StateComment;
+                    self_.pos +=1;
+                    return (start, self_.pos-2);
+                },
+                b'*' => {
+                    self_.state = State::StateCommentBlock;
+                    self_.pos +=1;
+                    return (start, self_.pos-2);
+                },
+                _ => {}
             },
             b'"' => { 
                 self_.state = State::StateString;
                 return (start, self_.pos); // include dblquotes
             },
-            _ => { prev = b; }
+            _ => {}
         }
     }
 
@@ -89,7 +94,7 @@ fn comment(self_: &mut CodeIndicesIter) -> (usize,usize) {
 
 fn comment_block(self_: &mut CodeIndicesIter) -> (usize,usize) {
     
-    let mut nesting_level = 0u8; // should be enough
+    let mut nesting_level = 0u16; // should be enough
     let mut prev = b' ';
     for &b in self_.src.as_bytes()[self_.pos..].iter() {
         self_.pos += 1;
