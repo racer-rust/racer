@@ -1,5 +1,5 @@
-use std::io::File;
-use std::io::BufferedReader;
+use std::old_io::File;
+use std::old_io::BufferedReader;
 use std::{str,vec,fmt,path};
 
 pub mod scopes;
@@ -234,7 +234,7 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize) -> vec::
         CompletionType::CompletePath => {
             let mut v = expr.split_str("::").collect::<Vec<_>>();
             let mut global = false;
-            if v[0] == "" {      // i.e. starts with '::' e.g. ::std::io::blah
+            if v[0] == "" {      // i.e. starts with '::' e.g. ::std::old_io::blah
                 v.remove(0);
                 global = true;
             }
@@ -285,7 +285,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize) -> Option<
         CompletionType::CompletePath => {
             let mut v = expr.split_str("::").collect::<Vec<_>>();
             let mut global = false;
-            if v[0] == "" {      // i.e. starts with '::' e.g. ::std::io::blah
+            if v[0] == "" {      // i.e. starts with '::' e.g. ::std::old_io::blah
                 v.remove(0);
                 global = true;
             }

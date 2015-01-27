@@ -17,7 +17,7 @@ use racer::ast;
 use racer::util;
 use racer::util::{symbol_matches, txt_matches, find_ident_end};
 use racer::scopes;
-use std::io::{File};
+use std::old_io::{File};
 use std::{vec};
 use std::iter::Iterator;
 use std;
@@ -315,7 +315,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
     v.push(currentdir.as_str().unwrap());
     debug!("do_file_search v is {:?}",v);
     for srcpath in v.into_iter() {
-        match std::io::fs::readdir(&Path::new(srcpath)) {
+        match std::old_io::fs::readdir(&Path::new(srcpath)) {
             Ok(v) => {
                 for fpath in v.iter() {
                     //debug!("fpath {}",fpath.as_str());

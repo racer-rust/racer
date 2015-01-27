@@ -1,5 +1,5 @@
-use std::io::File;
-use std::io::BufferedReader;
+use std::old_io::File;
+use std::old_io::BufferedReader;
 
 use racer;
 use racer::util;

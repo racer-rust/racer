@@ -1,8 +1,8 @@
 extern crate test;
 
-use std::io::fs::PathExtensions;
+use std::old_io::fs::PathExtensions;
 use std::os::getenv;
-use std::io::File;
+use std::old_io::File;
 use self::test::Bencher;
 use racer::codecleaner::code_chunks;
 use racer::codeiter::iter_stmts;

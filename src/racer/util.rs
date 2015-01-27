@@ -1,5 +1,5 @@
 // Small functions of utility
-use std::io::{File, BufferedReader};
+use std::old_io::{File, BufferedReader};
 use racer::{SearchType};
 use racer::SearchType::{ExactMatch, StartsWith};
 use std;
@@ -75,7 +75,7 @@ pub fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bo
 }
 
 pub fn get_backtrace() -> String {
-    let mut m = std::io::MemWriter::new();
+    let mut m = std::old_io::MemWriter::new();
     let s = std::rt::backtrace::write(&mut m)
         .ok().map_or("NO backtrace".to_string(), 
                      |_| String::from_utf8_lossy(m.get_ref()).to_string());

@@ -1,6 +1,6 @@
 use racer::complete_from_file;
 use racer::find_definition;
-use std::io::File;
+use std::old_io::File;
 use std::thread;
 use racer::scopes;
 
@@ -20,7 +20,7 @@ fn write_file(tmppath:&Path, s : &str) {
 }
 
 fn remove_file(tmppath:&Path) {
-    ::std::io::fs::unlink(tmppath).unwrap();
+    ::std::old_io::fs::unlink(tmppath).unwrap();
 }
 
 #[test]
@@ -352,7 +352,7 @@ fn follows_self_use() {
     ";
     let basedir = tmpname();
     let moddir = basedir.join("mymod");
-    ::std::io::fs::mkdir_recursive(&moddir, ::std::io::USER_RWX).unwrap();
+    ::std::old_io::fs::mkdir_recursive(&moddir, ::std::old_io::USER_RWX).unwrap();
 
     write_file(&moddir.join("mod.rs"), modsrc);
     write_file(&moddir.join("src2.rs"), src2);
@@ -360,7 +360,7 @@ fn follows_self_use() {
     write_file(&srcpath, src);
     let pos = scopes::coords_to_point(src, 6, 10);
     let got = find_definition(src, &srcpath, pos).unwrap();
-    ::std::io::fs::rmdir_recursive(&basedir).unwrap();
+    ::std::old_io::fs::rmdir_recursive(&basedir).unwrap();
     assert_eq!(got.matchstr,"myfn".to_string());
     assert_eq!(moddir.join("src2.rs").display().to_string(), 
                got.filepath.display().to_string());
@@ -385,12 +385,12 @@ fn finds_nested_submodule_file() {
     let basedir = tmpname();
     let srcpath = basedir.join("root.rs");
     let sub2dir = basedir.join("sub1").join("sub2");
-    ::std::io::fs::mkdir_recursive(&sub2dir, ::std::io::USER_RWX).unwrap();
+    ::std::old_io::fs::mkdir_recursive(&sub2dir, ::std::old_io::USER_RWX).unwrap();
     write_file(&srcpath, rootsrc);
     write_file(&sub2dir.join("sub3.rs"), sub3src);
     let pos = scopes::coords_to_point(rootsrc, 7, 23);
     let got = find_definition(rootsrc, &srcpath, pos).unwrap();
-    ::std::io::fs::rmdir_recursive(&basedir).unwrap();
+    ::std::old_io::fs::rmdir_recursive(&basedir).unwrap();
     assert_eq!(got.matchstr,"myfn".to_string());
     assert_eq!(sub2dir.join("sub3.rs").display().to_string(), 
                got.filepath.display().to_string());
@@ -415,7 +415,7 @@ fn follows_use_to_impl() {
     }
     ";
     let basedir = tmpname();
-    ::std::io::fs::mkdir_recursive(&basedir, ::std::io::USER_RWX).unwrap();
+    ::std::old_io::fs::mkdir_recursive(&basedir, ::std::old_io::USER_RWX).unwrap();
 
     let modpath = basedir.join("mymod.rs");
     write_file(&modpath, modsrc);
@@ -424,7 +424,7 @@ fn follows_use_to_impl() {
     let pos = scopes::coords_to_point(src, 5, 14);
     let got = find_definition(src, &srcpath, pos).unwrap();
 
-    ::std::io::fs::rmdir_recursive(&basedir).unwrap();
+    ::std::old_io::fs::rmdir_recursive(&basedir).unwrap();
     assert_eq!(got.matchstr,"new".to_string());
     assert_eq!(90, got.point);
     assert_eq!(modpath.display().to_string(), 
