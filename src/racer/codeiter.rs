@@ -11,12 +11,7 @@ pub struct StmtIndicesIter<'a> {
     src: &'a str,
     it: CodeIndicesIter<'a>,
     pos: usize,
-    start: usize,
-    end: usize,
-    bracelevel: i32,
-    parenlevel: i32,
-    is_macro: bool,
-    enddelim: u8
+    end: usize
 }
 
 impl<'a> Iterator for StmtIndicesIter<'a> {
@@ -24,130 +19,91 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<(usize, usize)> {
-        let semicolon: u8 = ";".as_bytes()[0];
-        let hash: u8 = "#".as_bytes()[0];
-        let openbrace: u8 = "{".as_bytes()[0];
-        let closebrace: u8 = "}".as_bytes()[0];
-        let openparen: u8 = "(".as_bytes()[0];
-        let closeparen: u8 = ")".as_bytes()[0];
-        let closesqbrace: u8 = "]".as_bytes()[0];
-        let bang: u8 = "!".as_bytes()[0];
-        let whitespace = " \t\r\n".as_bytes();
-
-        let __u: u8 = "u".as_bytes()[0];
-        let __s: u8 = "s".as_bytes()[0];
-        let __e: u8 = "e".as_bytes()[0];
-
 
         let src_bytes = self.src.as_bytes();
+        let mut enddelim = b';';
+        let mut bracelevel = 0u16;
+        let mut parenlevel = 0i32;
+        let mut start = self.pos;
 
+        // loop on all code_chuncks until we find a relevant open/close pattern
         loop {
 
             // do we need the next chunk?
-            if self.end <= self.pos {
+            if self.end == self.pos {
                 // get the next chunk of code
                 match self.it.next() {
-                    Some((start, end)) => {
-                        self.end = end;
-                        if self.start == self.pos {
-                            self.start = start;
-                        }
-                        self.pos = start;
+                    Some((ch_start, ch_end)) => {
+                        self.end = ch_end;
+                        if start == self.pos { start = ch_start; }
+                        self.pos = ch_start;
                     }
                     None => {
                         // no more chunks. finished
-                        if self.start < self.end {
-                            let start = self.start;
-                            self.start = self.end;
-                            return Some((start, self.end));
-                        } else {
-                            return None
-                        }
-
+                        return if start < self.end { Some((start, self.end)) }
+                        else { None }
                     }
                 }
             }
-
-            // if this is a new stmt block, skip the whitespace
-            if self.pos == self.start {
-                while self.pos < self.end {
-                    if !whitespace.contains(&src_bytes[self.pos]) {
-                        break;
-                    } else {
-                        self.pos += 1;
-                    }
-                }
-                self.start = self.pos;
-            }
-
             
-            // if the statement starts with 'macro_rules!' then we're in a macro
-            // We need to know this because a closeparen can terminate a macro
-            if (self.end - self.pos) > 12 && 
-                &self.src[self.pos..self.pos+12] == "macro_rules!" {
-                self.is_macro = true;
+            if start == self.pos {
+                // if this is a new stmt block, skip the whitespace
+                for &b in src_bytes[self.pos..self.end].iter() {
+                    match b {
+                        b' ' | b'\r' | b'\n' | b'\t' => { self.pos += 1; },
+                        _ => { break; }
+                    }
+                }
+                start = self.pos;
+
+                // test attribute   #[foo = bar]
+                if self.pos<self.end && src_bytes[self.pos] == b'#' { 
+                    enddelim = b']' 
+                };
             }
 
             // iterate through the chunk, looking for stmt end
-            while self.pos < self.end {
-                if src_bytes[self.pos] == openparen {
-
-                    // macros can be terminated by closeparen if opened by one
-                    if self.is_macro &&
-                        self.bracelevel == 0 && 
-                        self.parenlevel == 0 {
-                        self.enddelim = closeparen;
-                    }
-                    
-                    // also macro invocations can too
-                    if self.pos > 0 && src_bytes[self.pos-1] == bang &&
-                        self.bracelevel == 0 && 
-                        self.parenlevel == 0 {
-                        self.enddelim = closeparen;
-                    }
-
-                    self.parenlevel += 1;
-
-                } else if src_bytes[self.pos] == closeparen {
-                    self.parenlevel -= 1;
-
-                } else if src_bytes[self.pos] == openbrace {
-                    // if we are top level and stmt is not a 'use' then 
-                    // closebrace finishes the stmt
-                    if self.bracelevel == 0 && 
-                        self.parenlevel == 0 &&
-                       !(is_a_use_stmt(self.src, self.start, self.pos)) {
-                           self.enddelim = closebrace;
-                    }
-                    self.bracelevel += 1;
-
-                } else if src_bytes[self.pos] == closebrace {
-                    self.bracelevel -= 1;
-                    // have we reached the end of the scope?
-                    if self.bracelevel < 0 {
-                        return None;
-                    }
-                }
-
-                // attribute   #[foo = bar]
-                if self.bracelevel == 0 && self.start == self.pos && 
-                    src_bytes[self.pos] == hash {
-                    self.enddelim = closesqbrace;
-                }
-
-                if self.bracelevel == 0 && self.parenlevel == 0 && 
-                   src_bytes[self.pos] == self.enddelim {
-                    let start = self.start;
-                    self.start = self.pos+1;
-                    self.pos = self.pos+1;
-                    self.enddelim = semicolon;
-                    self.is_macro = false;
-                    return Some((start, self.pos));
-                }
+            for &b in src_bytes[self.pos..self.end].iter() {
 
                 self.pos += 1;
+
+                match b {
+                    b'(' => { parenlevel += 1; },
+                    b')' => { parenlevel -= 1; },
+                    b'{' => {
+                        // if we are top level and stmt is not a 'use' then 
+                        // closebrace finishes the stmt
+                        if bracelevel == 0 && parenlevel == 0 
+                            && !(is_a_use_stmt(self.src, start, self.pos)) {
+                            enddelim = b'}';
+                        }
+                        bracelevel += 1;
+                    },
+                    b'}' => {
+                        // have we reached the end of the scope?
+                        if bracelevel == 0 { return None; }
+                        bracelevel -= 1;
+                    },
+                    b'!' => {
+                        // macro if followed by at least one space or (
+                        // FIXME: test with boolean 'not' expression
+                        if parenlevel == 0 && bracelevel == 0
+                            && self.pos < self.end && (self.pos-start)>1 {
+                            match src_bytes[self.pos] {
+                                b' ' | b'\r' | b'\n' | b'\t' | b'('  => { 
+                                    enddelim = b')';
+                                },
+                                _ => {}
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+
+                if enddelim == b && bracelevel == 0 && parenlevel == 0 { 
+                    return Some((start, self.pos));
+                }
             }
-            
         }
     }
 }
@@ -155,17 +111,14 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
 fn is_a_use_stmt(src: &str, start: usize, pos: usize) -> bool {
     let src_bytes = src.as_bytes();
     let whitespace = " {\t\r\n".as_bytes();
-    (pos > 3 && &src_bytes[start..start+3] == "use".as_bytes() && 
+    (pos > 3 && &src_bytes[start..start+3] == b"use" && 
      whitespace.contains(&src_bytes[start+3])) || 
-        (pos > 7 && &src_bytes[start..(start+7)] == "pub use".as_bytes() &&
-                      whitespace.contains(&src_bytes[start+7]))
+    (pos > 7 && &src_bytes[start..(start+7)] == b"pub use" &&
+     whitespace.contains(&src_bytes[start+7]))
 }
 
 pub fn iter_stmts<'a>(src: &'a str) -> StmtIndicesIter<'a> {
-    let semicolon: u8 = ";".as_bytes()[0];
-    StmtIndicesIter{src: src, it: code_chunks(src), 
-                    pos: 0, start: 0, end: 0, bracelevel: 0, 
-                    parenlevel: 0, enddelim: semicolon, is_macro: false}
+    StmtIndicesIter{src: src, it: code_chunks(src), pos: 0, end: 0}
 }
 
 
