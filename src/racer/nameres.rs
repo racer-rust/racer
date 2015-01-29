@@ -753,7 +753,7 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path,
 pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType, 
                            namespace: Namespace) -> vec::IntoIter<Match> {
     debug!("search_prelude file {:?} {:?} {:?}", pathseg, search_type, namespace);
-    debug!("PHIL searching prelude file, backtrace: {}",util::get_backtrace());
+//    debug!("PHIL searching prelude file, backtrace: {}",util::get_backtrace());
 
     let mut out : Vec<Match> = Vec::new();
 
