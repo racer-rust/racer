@@ -24,6 +24,7 @@ enum State {
     StateComment,
     StateCommentBlock,
     StateString,
+    StateChar,
     StateFinished
 }
 
@@ -43,6 +44,7 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
             State::StateComment => Some(comment(self)),
             State::StateCommentBlock  => Some(comment_block(self)),
             State::StateString => Some(string(self)),
+            State::StateChar => Some(char(self)),
             State::StateFinished => None
         };
         res
@@ -52,7 +54,7 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
 fn code(self_: &mut CodeIndicesIter) -> (usize,usize) {
 
     let start = match self_.state {
-        State::StateString => { self_.pos-1 }, // include dblquotes
+        State::StateString | State::StateChar => { self_.pos-1 }, // include quote
         _ => { self_.pos }
     };
     let src_bytes = self_.src.as_bytes();
@@ -72,9 +74,13 @@ fn code(self_: &mut CodeIndicesIter) -> (usize,usize) {
                 },
                 _ => {}
             },
-            b'"' => { 
+            b'"' => {    // "
                 self_.state = State::StateString;
                 return (start, self_.pos); // include dblquotes
+            },
+            b'\'' => {
+                self_.state = State::StateChar;
+                return (start, self_.pos); // include single quote
             },
             _ => {}
         }
@@ -120,7 +126,20 @@ fn string(self_: &mut CodeIndicesIter) -> (usize,usize) {
     for &b in self_.src.as_bytes()[self_.pos..].iter() {
         self_.pos += 1;
         match b {
-            b'"' if is_not_escaped  => { break; },
+            b'"' if is_not_escaped  => { break; }, // "
+            b'\\' => { is_not_escaped = !is_not_escaped; },
+            _ => { is_not_escaped = true; }
+        }
+    }
+    code(self_)
+}
+
+fn char(self_: &mut CodeIndicesIter) -> (usize,usize) {
+    let mut is_not_escaped = true;
+    for &b in self_.src.as_bytes()[self_.pos..].iter() {
+        self_.pos += 1;
+        match b {
+            b'\'' if is_not_escaped  => { break; }, 
             b'\\' => { is_not_escaped = !is_not_escaped; },
             _ => { is_not_escaped = true; }
         }
@@ -152,6 +171,16 @@ fn removes_string_contents() {
     let mut it = code_chunks(src);
     assert_eq!("this is some code \"", slice(src, it.next().unwrap()));
     assert_eq!("\" more code", slice(src, it.next().unwrap()));
+}
+
+#[test]
+fn removes_char_contents() {
+    let src = &rejustify("
+    this is some code \'\"\' more code
+    ")[];
+    let mut it = code_chunks(src);
+    assert_eq!("this is some code \'", slice(src, it.next().unwrap()));
+    assert_eq!("\' more code", slice(src, it.next().unwrap()));
 }
 
 #[test]
@@ -234,13 +263,11 @@ fn handles_tricky_bit_from_str_rs() {
 }
 
 // fn main() {
-//     use std::io::BufferedReader;
-//     use std::io::File;
+//     use std::old_io::BufferedReader;
+//     use std::old_io::File;
 //     use std::str;
 
-//     //let filetxt = BufferedReader::new(File::open(&Path::new("/usr/local/src/rust/src/libstd/prelude.rs"))).read_to_end().unwrap();
-//     //let filetxt = BufferedReader::new(File::open(&Path::new("/usr/local/src/rust/src/libstd/prelude.rs"))).read_to_end().unwrap();
-//     let filetxt = BufferedReader::new(File::open(&Path::new("/usr/local/src/rust/src/libcollections/str.rs"))).read_to_end().unwrap();
+//     let filetxt = BufferedReader::new(File::open(&Path::new("/tmp/testcode.rs"))).read_to_end().unwrap();
 //     let src = str::from_utf8(filetxt.as_slice()).unwrap();
 
 //     for (start,end) in code_chunks(src) {
