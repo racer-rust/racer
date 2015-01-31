@@ -3,6 +3,8 @@ use racer::find_definition;
 use std::old_io::File;
 use std::thread;
 use racer::scopes;
+use racer::ast::MethDeclInfo;
+use racer::signatureof;
 
 fn tmpname() -> Path {
     let thread = thread::Thread::current();
@@ -1103,6 +1105,40 @@ fn gets_type_via_match_arm() {
     assert_eq!("subfield", &got.matchstr[]);
 }
 
+fn add(a : i32, b : i32) -> i32{
+        a+b
+    }
+
+#[test]
+fn handles_signature_extraction() {
+    let src="
+    fn add(a : i32, b : i32) -> i32{
+    }
+    pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: String) -> Parser<'a> {
+    }
+    fn with_error_checking_parse<F, T>(s: String, f: F) -> T where F: Fn(&mut Parser) -> T {
+    }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 2, 8);
+    let info = signatureof(src, &path, pos);
+
+    assert_eq!(info.name, "add".to_string());
+    assert_eq!(info.args.len(), 2);
+    assert_eq!(info.args[0], "a: i32".to_string());
+    assert_eq!(info.output, Some("i32".to_string()));
+
+    let pos = scopes::coords_to_point(src, 4, 11);
+    let info = signatureof(src, &path, pos);
+    assert_eq!(info.name, "string_to_parser".to_string());
+    assert_eq!(info.args.len(), 2);
+    assert_eq!(info.args[0], "ps: &'a ParseSess".to_string());
+    assert_eq!(info.output, Some("Parser<'a>".to_string()));
+
+
+    remove_file(&path);
+}
 
 // #[test]
 // fn finds_methods_of_string_slice() {

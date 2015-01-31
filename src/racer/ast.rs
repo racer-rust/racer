@@ -1,5 +1,7 @@
 extern crate syntax;
 use syntax::ast;
+use syntax::ast::{FunctionRetTy, Method_};
+use syntax::ext::quote::rt::ToSource;
 use syntax::parse::{new_parse_sess};
 use syntax::parse::{ParseSess};
 use syntax::parse::{new_parser_from_source_str};
@@ -1072,6 +1074,41 @@ impl<'v> visit::Visitor<'v> for FnArgTypeVisitor {
                 break;
             }
         }        
+    }
+}
+
+pub struct MethDeclInfo {
+    pub name : String,
+    pub output : Option<String>,
+    pub args : Vec<String>
+
+}
+
+impl MethDeclInfo {
+    pub fn from_source_str(source : String) -> MethDeclInfo {
+        let decorated = format!("{} {{}}()", source);
+
+        with_error_checking_parse(decorated, |p| {
+
+            let ref method = p.parse_method_with_outer_attributes();
+
+            if let Method_::MethDecl(ident, _, _, _, _,ref decl, _, _) = method.node {
+                let mut args = Vec::new();
+                let mut out = None;
+
+                if let FunctionRetTy::Return(ref tp) = decl.output {
+                    out = Some(tp.to_source());
+                }
+
+                for arg in decl.inputs.iter() {
+                    args.push(arg.to_source());
+                }
+
+                return MethDeclInfo{ name:ident.to_source(), args:args, output:out};
+            }
+
+            panic!("Unable to parse method declaration.");
+        })
     }
 }
 

@@ -120,12 +120,40 @@ fn find_definition() {
 }
 
 #[cfg(not(test))]
+fn signatureof() {
+        let args = std::os::args();
+    if args.len() < 5 {
+        println!("Provide more arguments!");
+        print_usage();
+        std::os::set_exit_status(1);
+        return;
+    }
+    let linenum = args[2].parse::<usize>().unwrap();
+    let charnum = args[3].parse::<usize>().unwrap();
+    let fname = &args[4][];
+    let fpath = Path::new(fname);
+    let src = racer::load_file(&fpath);
+    let pos = scopes::coords_to_point(&*src, linenum, charnum);
+
+    let info = racer::signatureof(&*src, &fpath, pos);
+
+    if let Some(ret) = info.output {
+        println!("RETURNS {}", ret);
+    }
+
+    for arg in info.args.iter() {
+        println!("ARG {}", arg);
+    }
+}
+
+#[cfg(not(test))]
 fn print_usage() {
     let program = std::os::args()[0].clone();
     println!("usage: {} complete linenum charnum fname", program);
     println!("or:    {} find-definition linenum charnum fname", program);
     println!("or:    {} complete fullyqualifiedname   (e.g. std::io::)",program);
     println!("or:    {} prefix linenum charnum fname",program);
+    println!("or:    {} signatureof linenum charnum fname", program);
 }
 
 
@@ -150,6 +178,7 @@ fn main() {
         "prefix" => prefix(),
         "complete" => complete(),
         "find-definition" => find_definition(),
+        "signatureof" => signatureof(),
         "help" => print_usage(),
         _ => {
             println!("Sorry, I didn't understand command {}", command );
