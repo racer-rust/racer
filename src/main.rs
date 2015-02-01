@@ -137,6 +137,8 @@ fn signatureof() {
 
     let info = racer::signatureof(&*src, &fpath, pos);
 
+    println!("NAME {}", info.name);
+
     if let Some(ret) = info.output {
         println!("RETURNS {}", ret);
     }

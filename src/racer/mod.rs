@@ -270,14 +270,11 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize) -> vec::
 
 
 pub fn signatureof(src: &str, filepath: &path::Path, pos: usize) -> ast::MethDeclInfo {
-    println!("starting");
-
     //this should work as long positions is somewhere in the name of the function
     let start_index = src[..pos+1].rfind(' ').unwrap();
     let end_index = src[pos..].find('{').unwrap()+pos;
     let mtch = format!("fn {}",src[start_index..end_index].trim());
-
-    println!("{}",mtch);
+    
     return ast::MethDeclInfo::from_source_str(mtch);
 }
 
