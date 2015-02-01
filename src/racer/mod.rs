@@ -271,16 +271,14 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize) -> vec::
 
 pub fn signatureof(src: &str, filepath: &path::Path, pos: usize) -> ast::MethDeclInfo {
     println!("starting");
-    if let Some(mtch) = find_definition_(src, filepath, pos) {
-        println!("found_match {}", mtch.contextstr);
-        if mtch.mtype == MatchType::Function {
-            let matches: &[_] = &['\n','\r','{',' '];
-            let source = mtch.contextstr.as_slice().trim_right_matches(matches).to_string();
-            println!("source {}", source);
-            return ast::MethDeclInfo::from_source_str(source);
-        }
-    }
-    panic!("could not find match")
+
+    //this should work as long positions is somewhere in the name of the function
+    let start_index = src[..pos+1].rfind(' ').unwrap();
+    let end_index = src[pos..].find('{').unwrap()+pos;
+    let mtch = format!("fn {}",src[start_index..end_index].trim());
+
+    println!("{}",mtch);
+    return ast::MethDeclInfo::from_source_str(mtch);
 }
 
 pub fn find_definition(src: &str, filepath: &path::Path, pos: usize) -> Option<Match> {

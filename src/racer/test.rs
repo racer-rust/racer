@@ -1114,14 +1114,14 @@ fn handles_signature_extraction() {
     let src="
     fn add(a : i32, b : i32) -> i32{
     }
-    pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: String) -> Parser<'a> {
+    pub fn string_to_parser<'a>(&self, ps: &'a ParseSess, source_str: String) -> Parser<'a> {
     }
-    fn with_error_checking_parse<F, T>(s: String, f: F) -> T where F: Fn(&mut Parser) -> T {
+    fn with_error_checking_parse<F, T>(&self, s: String, f: F) -> T where F: Fn(&mut Parser) -> T {
     }
     ";
     let path = tmpname();
     write_file(&path, src);
-    let pos = scopes::coords_to_point(src, 2, 8);
+    let pos = scopes::coords_to_point(src, 2, 7);
     let info = signatureof(src, &path, pos);
 
     assert_eq!(info.name, "add".to_string());
@@ -1129,13 +1129,46 @@ fn handles_signature_extraction() {
     assert_eq!(info.args[0], "a: i32".to_string());
     assert_eq!(info.output, Some("i32".to_string()));
 
-    let pos = scopes::coords_to_point(src, 4, 11);
+    let pos = scopes::coords_to_point(src, 4, 10);
     let info = signatureof(src, &path, pos);
     assert_eq!(info.name, "string_to_parser".to_string());
-    assert_eq!(info.args.len(), 2);
-    assert_eq!(info.args[0], "ps: &'a ParseSess".to_string());
+    assert_eq!(info.args.len(), 3);
+    assert_eq!(info.args[1], "ps: &'a ParseSess".to_string());
     assert_eq!(info.output, Some("Parser<'a>".to_string()));
 
+        let pos = scopes::coords_to_point(src, 6, 7);
+    let info = signatureof(src, &path, pos);
+    assert_eq!(info.name, "with_error_checking_parse".to_string());
+    assert_eq!(info.args.len(), 3);
+    assert_eq!(info.args[0], "self".to_string());
+    assert_eq!(info.output, Some("T".to_string()));
+
+
+    remove_file(&path);
+}
+
+///getting signature should work with data returned from find definition
+#[test]
+fn handles_signature_from_find_definition() {
+    let src="
+    fn add(a : i32, b : i32) -> i32{
+    }
+    pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: String) -> Parser<'a> {
+    }
+    fn with_error_checking_parse<F, T>(s: String, f: F) -> T where F: Fn(&mut Parser) -> T {
+    }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 2, 10);
+    let got = find_definition(src, &path, pos).unwrap();
+    println!("got definition");
+    let info = signatureof(src, &path, got.point);
+
+    assert_eq!(info.name, "add".to_string());
+    assert_eq!(info.args.len(), 2);
+    assert_eq!(info.args[0], "a: i32".to_string());
+    assert_eq!(info.output, Some("i32".to_string()));
 
     remove_file(&path);
 }
