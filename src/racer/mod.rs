@@ -15,7 +15,7 @@ pub mod matchers;
 #[cfg(test)] pub mod test;
 #[cfg(test)] pub mod bench;
 
-#[derive(Show,Clone,PartialEq)]
+#[derive(Debug,Clone,PartialEq)]
 pub enum MatchType {
     Struct,
     Module,
@@ -37,7 +37,7 @@ pub enum MatchType {
 
 impl Copy for MatchType {}
 
-#[derive(Show)]
+#[derive(Debug)]
 pub enum SearchType {
     ExactMatch,
     StartsWith
@@ -45,7 +45,7 @@ pub enum SearchType {
 
 impl Copy for SearchType {}
 
-#[derive(Show)]
+#[derive(Debug)]
 pub enum Namespace {
     TypeNamespace,
     ValueNamespace,
@@ -54,7 +54,7 @@ pub enum Namespace {
 
 impl Copy for Namespace {}
 
-#[derive(Show)]
+#[derive(Debug)]
 pub enum CompletionType {
     CompleteField,
     CompletePath
@@ -90,7 +90,7 @@ impl Match {
     }
 }
 
-impl fmt::Show for Match {
+impl fmt::Debug for Match {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Match [{:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?} |{}|]", 
                self.matchstr, 
@@ -116,7 +116,7 @@ impl Scope {
     }
 }
 
-impl fmt::Show for Scope {
+impl fmt::Debug for Scope {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Scope [{:?}, {:?}]", 
                self.filepath.as_str(), 
@@ -125,7 +125,7 @@ impl fmt::Show for Scope {
 }
 
 // Represents a type. Equivilent to rustc's ast::Ty but can be passed across threads
-#[derive(Show,Clone)]
+#[derive(Debug,Clone)]
 pub enum Ty {
     TyMatch(Match),
     TyPathSearch(Path, Scope),   // A path + the scope to be able to resolve it
@@ -146,7 +146,7 @@ impl Path {
     }
 }
 
-impl fmt::Show for Path {
+impl fmt::Debug for Path {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(write!(f, "P["));
         let mut first = true;
@@ -176,7 +176,7 @@ impl fmt::Show for Path {
     }
 }
 
-#[derive(Show,Clone)]
+#[derive(Debug,Clone)]
 pub struct PathSegment {
     pub name: String,
     pub types: Vec<Path>
@@ -189,7 +189,7 @@ pub struct PathSearch {
     point: usize
 }
 
-impl fmt::Show for PathSearch {
+impl fmt::Debug for PathSearch {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Search [{:?}, {:?}, {:?}]", 
                self.path, 

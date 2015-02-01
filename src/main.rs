@@ -1,3 +1,5 @@
+#![feature(collections, core, io, os, path, rustc_private, std_misc)]
+
 #[macro_use] extern crate log;
 
 extern crate syntax;
