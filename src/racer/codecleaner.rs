@@ -52,7 +52,6 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
 }
 
 fn code(self_: &mut CodeIndicesIter) -> (usize,usize) {
-
     let start = match self_.state {
         State::StateString | State::StateChar => { self_.pos-1 }, // include quote
         _ => { self_.pos }
@@ -79,8 +78,15 @@ fn code(self_: &mut CodeIndicesIter) -> (usize,usize) {
                 return (start, self_.pos); // include dblquotes
             },
             b'\'' => {
-                self_.state = State::StateChar;
-                return (start, self_.pos); // include single quote
+                // single quotes are also used for lifetimes, so we need to 
+                // be confident that this is not a lifetime.
+                // Look for closing quote:
+                if src_bytes.len() > self_.pos + 2 && 
+                    (src_bytes[self_.pos+1] == b'\'' || 
+                     src_bytes[self_.pos+2] == b'\'') {
+                    self_.state = State::StateChar;
+                    return (start, self_.pos); // include single quote
+                }
             },
             _ => {}
         }
