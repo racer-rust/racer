@@ -314,7 +314,6 @@ impl<'v> visit::Visitor<'v> for LetTypeVisitor {
 
 struct MatchTypeVisitor {
     scope: Scope,
-    srctxt: String,
     pos: usize,        // pos is relative to the srctxt, scope is global
     result: Option<Ty>
 }
@@ -1020,7 +1019,6 @@ pub fn get_match_arm_type(stmtstr: String, pos: usize, scope: Scope) -> Option<T
         let stmt = string_to_stmt(stmtstr.clone());
         let mut v = MatchTypeVisitor {
             scope: scope,
-            srctxt: stmtstr,
             pos: pos, result: None
         };
         visit::walk_stmt(&mut v, &*stmt);

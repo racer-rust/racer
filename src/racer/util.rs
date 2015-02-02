@@ -2,7 +2,6 @@
 use std::old_io::{File, BufferedReader};
 use racer::{SearchType};
 use racer::SearchType::{ExactMatch, StartsWith};
-use std;
 
 pub fn getline(filepath : &Path, linenum : usize) -> String {
     let mut i = 0;

@@ -554,13 +554,6 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
             }
         }
     } else if ((local && blob.starts_with("use ")) || blob.starts_with("pub use ")) && txt_matches(search_type, searchstr, blob) {     
-        if searchstr.len() != 0 && blob.match_indices(searchstr).count() == 1 {
-            if blob.find_str(&(searchstr.to_string() + "::")[]).is_some() {
-                // can't possibly match, fail fast!
-                return out;
-            }
-        }
-
         debug!("found use: {} in |{}|", searchstr, blob);
         let use_item = ast::parse_use(String::from_str(blob));
 
