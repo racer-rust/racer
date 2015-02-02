@@ -1112,16 +1112,25 @@ fn add(a : i32, b : i32) -> i32{
 #[test]
 fn handles_signature_extraction() {
     let src="
-    fn add(a : i32, b : i32) -> i32{
+    fn main() {
+        let d = Foo{x:1};
+        add(1,2);
+        d.string_to_parser();
+        d.with_error_checking_parse(1);
     }
-    pub fn string_to_parser<'a>(&self, ps: &'a ParseSess, source_str: String) -> Parser<'a> {
-    }
-    fn with_error_checking_parse<F, T>(&self, s: String, f: F) -> T where F: Fn(&mut Parser) -> T {
+
+    fn add(a : i32, b : i32) -> i32 {a+b}
+
+    struct Foo {x : i32}
+
+    impl Foo {
+        pub fn string_to_parser(&self) {}
+        pub fn with_error_checking_parse<T>(&self, x : T) -> T {x}
     }
     ";
     let path = tmpname();
     write_file(&path, src);
-    let pos = scopes::coords_to_point(src, 2, 7);
+    let pos = scopes::coords_to_point(src, 4, 10);
     let info = signatureof(src, &path, pos);
 
     assert_eq!(info.name, "add".to_string());
@@ -1129,17 +1138,16 @@ fn handles_signature_extraction() {
     assert_eq!(info.args[0], "a: i32".to_string());
     assert_eq!(info.output, Some("i32".to_string()));
 
-    let pos = scopes::coords_to_point(src, 4, 10);
+    let pos = scopes::coords_to_point(src, 5, 13);
     let info = signatureof(src, &path, pos);
     assert_eq!(info.name, "string_to_parser".to_string());
-    assert_eq!(info.args.len(), 3);
-    assert_eq!(info.args[1], "ps: &'a ParseSess".to_string());
-    assert_eq!(info.output, Some("Parser<'a>".to_string()));
+    assert_eq!(info.args.len(), 1);
+    assert_eq!(info.args[0], "self".to_string());
 
-        let pos = scopes::coords_to_point(src, 6, 7);
+    let pos = scopes::coords_to_point(src, 6, 13);
     let info = signatureof(src, &path, pos);
     assert_eq!(info.name, "with_error_checking_parse".to_string());
-    assert_eq!(info.args.len(), 3);
+    assert_eq!(info.args.len(), 2);
     assert_eq!(info.args[0], "self".to_string());
     assert_eq!(info.output, Some("T".to_string()));
 
