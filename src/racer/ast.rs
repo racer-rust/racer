@@ -65,7 +65,7 @@ pub fn string_to_crate (source_str : String) -> ast::Crate {
     })
 }
 
-#[derive(Show)]
+#[derive(Debug)]
 pub struct UseVisitor {
     pub ident : Option<String>,
     pub paths : Vec<racer::Path>,
@@ -692,7 +692,7 @@ impl<'v> visit::Visitor<'v> for TraitVisitor {
     }
 }
 
-#[derive(Show)]
+#[derive(Debug)]
 pub struct ImplVisitor {
     pub name_path: Option<racer::Path>,
     pub trait_path: Option<racer::Path>,
