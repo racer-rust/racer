@@ -29,10 +29,10 @@
 
 1. Install emacs 24
 
-2. Install rust-mode. E.g. add the following to .emacs:
+2. Install [rust-mode](https://github.com/rust-lang/rust-mode). E.g. add the following to .emacs:
 
    ```
-   (add-to-list 'load-path "<path-to-rust-srcdir>/src/etc/emacs/")
+   (add-to-list 'load-path "<path-to-rust-mode-srcdir>/")
    (autoload 'rust-mode "rust-mode" nil t)
    (add-to-list 'auto-mode-alist '("\\.rs\\'" . rust-mode))
    ```
