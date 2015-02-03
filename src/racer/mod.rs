@@ -269,6 +269,17 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize) -> vec::
 }
 
 
+pub fn signatureof(src: &str, filepath: &path::Path, pos: usize) -> ast::MethDeclInfo {
+    
+    let def = find_definition(src, filepath, pos).expect("Could not find definition of this method.");
+
+    let start_index = src[..def.point+1].rfind(' ').expect("Could not find start of the method declaration");
+    let end_index = src[def.point..].find('{').expect("Could not find end of the method declaration")+def.point;
+    let mtch = format!("fn {}",src[start_index..end_index].trim());
+    
+    return ast::MethDeclInfo::from_source_str(mtch);
+}
+
 pub fn find_definition(src: &str, filepath: &path::Path, pos: usize) -> Option<Match> {
     return find_definition_(src, filepath, pos);
 }
