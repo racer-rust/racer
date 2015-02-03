@@ -548,7 +548,7 @@ pub fn search_scope(start: usize, point: usize, src: &str,
 
     let mut delayed_use_globs = Vec::new();
 
-    let mut codeit = codeiter::iter_stmts(scopesrc);
+    let codeit = codeiter::iter_stmts(scopesrc);
     let mut v = Vec::new();
 
     // collect up to point so we can search backwards for let bindings
@@ -599,7 +599,7 @@ pub fn search_scope(start: usize, point: usize, src: &str,
     }
 
     // now search from top of scope for items etc..
-    let mut codeit = v.into_iter().chain(codeit);
+    let codeit = v.into_iter().chain(codeit);
     for (blobstart,blobend) in codeit { 
         // sometimes we need to skip blocks of code if the preceeding attribute disables it
         //  (e.g. #[cfg(test)])

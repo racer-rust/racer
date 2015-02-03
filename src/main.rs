@@ -42,7 +42,7 @@ fn complete() {
         return;
     }
     match std::os::args()[2].parse::<usize>() {
-        Some(linenum) => {
+        Ok(linenum) => {
             // input: linenum, colnum, fname
             if args.len() < 5 {
                 println!("Provide more arguments!");
@@ -63,7 +63,7 @@ fn complete() {
                 match_fn(m);
             }
         }
-        None => {
+        Err(_) => {
             // input: a command line string passed in
             let arg = &args[2][];
             let it = arg.split_str("::");

@@ -557,7 +557,7 @@ fn path_to_match_including_generics(ty: Ty, contextm: &racer::Match) -> Option<T
             if fieldtypepath.segments.len() == 1 {
                 // could be a generic arg! - try and resolve it
                 let ref typename = fieldtypepath.segments[0].name;
-                let mut it = contextm.generic_args.iter()
+                let it = contextm.generic_args.iter()
                     .zip(contextm.generic_types.iter());
                 for (name, typesearch) in it {
                     if name == typename {
@@ -593,7 +593,7 @@ fn find_type_match_including_generics(fieldtype: &racer::Ty,
     if fieldtypepath.segments.len() == 1 {
         // could be a generic arg! - try and resolve it
         let ref typename = fieldtypepath.segments[0].name;
-        let mut it = structm.generic_args.iter()
+        let it = structm.generic_args.iter()
             .zip(structm.generic_types.iter());
         for (name, typesearch) in it {
             if name == typename {

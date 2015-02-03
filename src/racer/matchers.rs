@@ -558,7 +558,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
         let use_item = ast::parse_use(String::from_str(blob));
 
         let ident = use_item.ident.unwrap_or("".to_string());
-        for mut path in use_item.paths.into_iter() {
+        for path in use_item.paths.into_iter() {
             let len = path.segments.len();
 
             // TODO: simplify this:

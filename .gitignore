@@ -4,3 +4,4 @@ bin
 src/scopes
 !.travis.yml
 *tmpfile*
+*.racertmp
