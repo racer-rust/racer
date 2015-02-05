@@ -1,6 +1,7 @@
 use std::old_io::File;
 use std::old_io::BufferedReader;
-use std::{str,vec,fmt,path};
+use std::old_path;
+use std::{str,vec,fmt};
 
 pub mod scopes;
 pub mod ast;
@@ -65,7 +66,7 @@ impl Copy for CompletionType {}
 #[derive(Clone)]
 pub struct Match {
     pub matchstr: String,
-    pub filepath: path::Path,
+    pub filepath: old_path::Path,
     pub point: usize,
     pub local: bool,
     pub mtype: MatchType,
@@ -106,7 +107,7 @@ impl fmt::Debug for Match {
 
 #[derive(Clone)]
 pub struct Scope {
-    pub filepath: path::Path,
+    pub filepath: old_path::Path,
     pub point: usize
 }
 
@@ -185,7 +186,7 @@ pub struct PathSegment {
 #[derive(Clone)]
 pub struct PathSearch {
     path: Path,
-    filepath: path::Path,
+    filepath: old_path::Path,
     point: usize
 }
 
@@ -198,7 +199,7 @@ impl fmt::Debug for PathSearch {
     }
 }
 
-pub fn load_file(filepath: &path::Path) -> String {
+pub fn load_file(filepath: &old_path::Path) -> String {
     let rawbytes = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
 
     // skip BOF bytes, if present
@@ -211,14 +212,14 @@ pub fn load_file(filepath: &path::Path) -> String {
     }
 }
 
-pub fn load_file_and_mask_comments(filepath: &path::Path) -> String {
+pub fn load_file_and_mask_comments(filepath: &old_path::Path) -> String {
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
     let src = str::from_utf8(&filetxt[]).unwrap();
     let msrc = scopes::mask_comments(src);
     return msrc;
 }
 
-pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize) -> vec::IntoIter<Match> {
+pub fn complete_from_file(src: &str, filepath: &old_path::Path, pos: usize) -> vec::IntoIter<Match> {
 
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = &src[start..pos];
@@ -269,11 +270,11 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize) -> vec::
 }
 
 
-pub fn find_definition(src: &str, filepath: &path::Path, pos: usize) -> Option<Match> {
+pub fn find_definition(src: &str, filepath: &old_path::Path, pos: usize) -> Option<Match> {
     return find_definition_(src, filepath, pos);
 }
 
-pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize) -> Option<Match> {
+pub fn find_definition_(src: &str, filepath: &old_path::Path, pos: usize) -> Option<Match> {
     let (start, end) = scopes::expand_search_expr(src, pos);
     let expr = &src[start..end];
 
