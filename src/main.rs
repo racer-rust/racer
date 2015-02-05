@@ -15,6 +15,10 @@ use racer::nameres::{do_file_search, do_external_search};
 #[cfg(not(test))]
 use racer::scopes;
 
+use racer::MatchType;
+
+use racer::method_info::MethodInfo;
+
 pub mod racer;
 
 #[cfg(not(test))]
@@ -23,12 +27,23 @@ fn match_fn(m:Match) {
     if m.matchstr == "" {
         panic!("MATCHSTR is empty - waddup?");
     }
-    println!("MATCH {},{},{},{},{:?},{}", m.matchstr,
+
+    let mut snippet : String = "".to_string();
+    if m.mtype == MatchType::Function {
+        snippet.push_str(", ???");
+        let info = MethodInfo::from_source_str(m.contextstr.as_slice());
+        snippet.push_str(info.snippet().as_slice());
+    }
+
+
+
+    println!("MATCH {},{},{},{},{:?},{},???{}", m.matchstr,
                                     linenum.to_string(),
                                     charnum.to_string(),
                                     m.filepath.as_str().unwrap(),
                                     m.mtype,
-                                    m.contextstr
+                                    m.contextstr,
+                                    snippet
              );
 }
 
