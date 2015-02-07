@@ -23,7 +23,7 @@ fn get_rust_file_str(path: &[&str]) -> String {
 fn bench_code_chunks(b: &mut Bencher) {
     let src = &get_rust_file_str(&["libcollections", "bit.rs"])[];
     b.iter(|| {
-        let chunks = code_chunks(src).collect::<Vec<_>>();
+        test::black_box(code_chunks(src).collect::<Vec<_>>());
     });
 }
 
@@ -31,7 +31,7 @@ fn bench_code_chunks(b: &mut Bencher) {
 fn bench_iter_stmts(b: &mut Bencher) {
     let src = &get_rust_file_str(&["libcollections", "bit.rs"])[];
     b.iter(|| {
-        let chunks = iter_stmts(src).collect::<Vec<_>>();
+        test::black_box(iter_stmts(src).collect::<Vec<_>>());
     });
 }
 
@@ -39,7 +39,7 @@ fn bench_iter_stmts(b: &mut Bencher) {
 fn bench_mask_comments(b: &mut Bencher) {
     let src = &get_rust_file_str(&["libcollections", "bit.rs"])[];
     b.iter(|| {
-        mask_comments(src);
+        test::black_box(mask_comments(src));
     });
 }
 
@@ -47,7 +47,7 @@ fn bench_mask_comments(b: &mut Bencher) {
 fn bench_mask_sub_scopes(b: &mut Bencher) {
     let src = &get_rust_file_str(&["libcollections", "bit.rs"])[];
     b.iter(|| {
-        mask_sub_scopes(src);
+        test::black_box(mask_sub_scopes(src));
     });
 }
 
