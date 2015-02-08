@@ -1,19 +1,26 @@
 use syntax::ast::{FunctionRetTy, Method_};
 use syntax::ext::quote::rt::ToSource;
 use racer::ast::with_error_checking_parse;
+use racer::{Match, MatchType};
 
+pub fn snippet_for_match(m : &Match) -> String {
+    match m.mtype {
+        MatchType::Function => MethodInfo::from_source_str(&m.contextstr).snippet(),
+        _ => m.matchstr.clone()
+    }
+}
 
-pub struct MethodInfo {
-    pub name : String,
-    pub output : Option<String>,
-    pub args : Vec<String>
+struct MethodInfo {
+    name : String,
+    output : Option<String>,
+    args : Vec<String>
 
 }
 
 impl MethodInfo {
 
     ///Parses method declaration as string and returns relevant data
-    pub fn from_source_str(source : &str) -> MethodInfo {
+    fn from_source_str(source : &str) -> MethodInfo {
 
         let trim: &[_] = &['\n', '\r', '{', ' '];
         let decorated = format!("{} {{}}()", source.trim_right_matches(trim));
@@ -42,7 +49,7 @@ impl MethodInfo {
     }
 
     ///Returns completion snippets usable by some editors
-    pub fn snippet(&self) -> String {
+    fn snippet(&self) -> String {
         let mut args = String::new();
         let mut counter = 1;
         for arg in self.args.iter() {
