@@ -9,7 +9,7 @@ use racer::codeiter;
 use racer::typeinf;
 use racer::ast;
 
-fn find_close<'a, A>(mut iter: A, open: u8, close: u8, level_end: u32) -> Option<usize>
+fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<usize>
     where A: Iterator<Item=&'a u8> {
 
     let mut count = 0us;
