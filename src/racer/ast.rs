@@ -77,14 +77,14 @@ impl<'v> visit::Visitor<'v> for UseVisitor {
                 match path.node {
                     ast::ViewPathSimple(ident, ref path) => {
                         self.paths.push(to_racer_path(path));
-                        self.ident = Some(token::get_ident(ident).get().to_string());
+                        self.ident = Some(token::get_ident(ident).to_string());
                     },
                     ast::ViewPathList(ref pth, ref paths) => {
                         let basepath = to_racer_path(pth);
                         for path in paths.iter() {
                             match path.node {
                                 ast::PathListIdent{name, ..} => {
-                                    let name = token::get_ident(name).get().to_string();
+                                    let name = token::get_ident(name).to_string();
                                     let seg = racer::PathSegment{ name: name, types: Vec::new() };
                                     let mut newpath = basepath.clone();
                                     
@@ -355,7 +355,7 @@ fn to_racer_path(pth: &ast::Path) -> racer::Path {
 
     let mut v = Vec::new();    
     for seg in pth.segments.iter() {
-        let name = token::get_ident(seg.identifier).get().to_string();
+        let name = token::get_ident(seg.identifier).to_string();
         let mut types = Vec::new();    
         for ty in seg.parameters.types().iter() {
             match ty.node {
@@ -474,7 +474,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
 
             ast::ExprMethodCall(ref spannedident, ref types, ref arguments) => {
                 // spannedident.node is an ident I think
-                let methodname = token::get_ident(spannedident.node).get().to_string();
+                let methodname = token::get_ident(spannedident.node).to_string();
                 debug!("method call ast name {}",methodname);
                 debug!("method call ast types {:?} {}",types, types.len());
                 
@@ -503,7 +503,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
             }
 
             ast::ExprField(ref subexpression, spannedident) => {
-                let fieldname = token::get_ident(spannedident.node).get().to_string();
+                let fieldname = token::get_ident(spannedident.node).to_string();
                 debug!("exprfield {}",fieldname);
                 self.visit_expr(&**subexpression);
                 self.result = self.result.as_ref()
@@ -624,7 +624,7 @@ impl<'v> visit::Visitor<'v> for StructVisitor {
 
             match field.node.kind {
                 ast::NamedField(name, _) => {
-                    let name = String::from_str(token::get_ident(name).get());
+                    let name = String::from_str(&token::get_ident(name));
                     let ty = to_racer_ty(&*field.node.ty, &self.scope);
                     self.fields.push((name, point as usize, ty));
                 }
@@ -646,7 +646,7 @@ impl<'v> visit::Visitor<'v> for TypeVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         match item.node {
             ast::ItemTy(ref ty, _) => {
-                self.name = Some(token::get_ident(item.ident).get().to_string());
+                self.name = Some(token::get_ident(item.ident).to_string());
 
                 let typepath = match ty.node {
                     ast::TyRptr(_, ref ty) => {
@@ -682,7 +682,7 @@ impl<'v> visit::Visitor<'v> for TraitVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         match item.node {
             ast::ItemTrait(_, _, _, _) => {
-                self.name = Some(token::get_ident(item.ident).get().to_string());
+                self.name = Some(token::get_ident(item.ident).to_string());
             }
             _ => ()
         }
@@ -733,7 +733,7 @@ impl<'v> visit::Visitor<'v> for ModVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         match item.node {
             ast::ItemMod(_) => {
-                self.name = Some(String::from_str(token::get_ident(item.ident).get()));
+                self.name = Some(String::from_str(&token::get_ident(item.ident)));
             }
             _ => {}
         }
@@ -749,9 +749,9 @@ impl<'v> visit::Visitor<'v> for ExternCrateVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         match item.node {
             ast::ItemExternCrate(ref optional_s) => {
-                self.name = Some(String::from_str(token::get_ident(item.ident).get()));
+                self.name = Some(String::from_str(&token::get_ident(item.ident)));
                 if let &Some((ref istr, _)) = optional_s {
-                    self.realname = Some(istr.get().to_string());
+                    self.realname = Some(istr.to_string());
                 }
 
             }
@@ -768,7 +768,7 @@ pub struct GenericsVisitor {
 impl<'v> visit::Visitor<'v> for GenericsVisitor {
     fn visit_generics(&mut self, g: &ast::Generics) {
         for ty in g.ty_params.iter() {
-            self.generic_args.push(String::from_str(token::get_ident(ty.ident).get()));
+            self.generic_args.push(String::from_str(&token::get_ident(ty.ident)));
         }
     }
 }
@@ -781,14 +781,14 @@ pub struct StructDefVisitor {
 impl<'v> visit::Visitor<'v> for StructDefVisitor {
     fn visit_generics(&mut self, g: &ast::Generics) {
         for ty in g.ty_params.iter() {
-            self.generic_args.push(String::from_str(token::get_ident(ty.ident).get()));
+            self.generic_args.push(String::from_str(&token::get_ident(ty.ident)));
         }
     }
 
     fn visit_ident(&mut self, _sp: codemap::Span, _ident: ast::Ident) {
         /*! Visit the idents */
         let codemap::BytePos(point) = _sp.lo;
-        let name = String::from_str(token::get_ident(_ident).get());
+        let name = String::from_str(&token::get_ident(_ident));
         self.name = Some((name,point as usize));
     }
 }
@@ -802,7 +802,7 @@ impl<'v> visit::Visitor<'v> for EnumVisitor {
     fn visit_item(&mut self, i: &ast::Item) {
         match i.node {
             ast::ItemEnum(ref enum_definition, _) => {
-                self.name = String::from_str(token::get_ident(i.ident).get());
+                self.name = String::from_str(&token::get_ident(i.ident));
                 //visitor.visit_generics(type_parameters, env.clone());
                 //visit::walk_enum_def(self, enum_definition, type_parameters, e)
 
@@ -812,7 +812,7 @@ impl<'v> visit::Visitor<'v> for EnumVisitor {
 
                 for variant in enum_definition.variants.iter() {
                     let codemap::BytePos(point) = variant.span.lo;
-                    self.values.push((String::from_str(token::get_ident(variant.node.name).get()), point as usize));
+                    self.values.push((String::from_str(&token::get_ident(variant.node.name)), point as usize));
                 }
             },
             _ => {}
