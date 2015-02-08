@@ -1,4 +1,4 @@
-#![feature(collections, core, io, os, path, rustc_private, std_misc)]
+#![feature(collections, core, io, os, path, rustc_private, std_misc, env)]
 
 #[macro_use] extern crate log;
 
@@ -34,23 +34,23 @@ fn match_fn(m:Match) {
 
 #[cfg(not(test))]
 fn complete() {
-    let args = std::os::args();
+    let args = std::env::args().map(|a| a.into_string().unwrap()).collect::<Vec<_>>();
     if args.len() < 3 {
         println!("Provide more arguments!");
         print_usage();
-        std::os::set_exit_status(1);
+        std::env::set_exit_status(1);
         return;
     }
-    match std::os::args()[2].parse::<usize>() {
+    match args[2].parse::<usize>() {
         Ok(linenum) => {
             // input: linenum, colnum, fname
             if args.len() < 5 {
                 println!("Provide more arguments!");
                 print_usage();
-                std::os::set_exit_status(1);
+                std::env::set_exit_status(1);
                 return;
             }
-            let charnum = std::os::args()[3].parse::<usize>().unwrap();
+            let charnum = args[3].parse::<usize>().unwrap();
             let fname = &args[4][];
             let fpath = Path::new(fname);
             let src = racer::load_file(&fpath);
@@ -84,11 +84,11 @@ fn complete() {
 
 #[cfg(not(test))]
 fn prefix() {
-    let args = std::os::args();
+    let args = std::env::args().map(|a| a.into_string().unwrap()).collect::<Vec<_>>();
     if args.len() < 5 {
         println!("Provide more arguments!");
         print_usage();
-        std::os::set_exit_status(1);
+        std::env::set_exit_status(1);
         return;
     }
     let linenum = args[2].parse::<usize>().unwrap();
@@ -104,11 +104,11 @@ fn prefix() {
 
 #[cfg(not(test))]
 fn find_definition() {
-    let args = std::os::args();
+    let args = std::env::args().map(|a| a.into_string().unwrap()).collect::<Vec<_>>();
     if args.len() < 5 {
         println!("Provide more arguments!");
         print_usage();
-        std::os::set_exit_status(1);
+        std::env::set_exit_status(1);
         return;
     }
     let linenum = args[2].parse::<usize>().unwrap();
@@ -123,7 +123,7 @@ fn find_definition() {
 
 #[cfg(not(test))]
 fn print_usage() {
-    let program = std::os::args()[0].clone();
+    let program = std::env::args().next().unwrap().into_string().unwrap().clone();
     println!("usage: {} complete linenum charnum fname", program);
     println!("or:    {} find-definition linenum charnum fname", program);
     println!("or:    {} complete fullyqualifiedname   (e.g. std::io::)",program);
@@ -133,17 +133,17 @@ fn print_usage() {
 
 #[cfg(not(test))]
 fn main() {
-    if std::os::getenv("RUST_SRC_PATH").is_none() {
+    if std::env::var_string("RUST_SRC_PATH").is_err() {
         println!("RUST_SRC_PATH environment variable must be set");
-        std::os::set_exit_status(1);
+        std::env::set_exit_status(1);
         return;
     }
 
-    let args = std::os::args();
+    let args = std::env::args().map(|a| a.into_string().unwrap()).collect::<Vec<_>>();
 
     if args.len() == 1 {
         print_usage();
-        std::os::set_exit_status(1);
+        std::env::set_exit_status(1);
         return;
     }
 
@@ -156,7 +156,7 @@ fn main() {
         _ => {
             println!("Sorry, I didn't understand command {}", command );
             print_usage();
-            std::os::set_exit_status(1);
+            std::env::set_exit_status(1);
             return;
         }
     }

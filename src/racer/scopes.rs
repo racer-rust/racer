@@ -114,7 +114,7 @@ fn finds_subnested_module() {
 
 pub fn split_into_context_and_completion<'a>(s: &'a str) -> (&'a str, &'a str, racer::CompletionType) {
 
-    match s.char_indices().rev().find(|&(i, c)| !util::is_ident_char(c)) {
+    match s.char_indices().rev().find(|&(_, c)| !util::is_ident_char(c)) {
         Some((i,c)) => {
             match c {
                 '.' => (&s[..i], &s[(i+1)..], racer::CompletionType::CompleteField),
