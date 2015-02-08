@@ -1,4 +1,4 @@
-#![feature(collections, core, io, env, path, rustc_private, std_misc)]
+#![feature(collections, core, io, env, path, rustc_private, std_misc, test)]
 
 #[macro_use] extern crate log;
 

@@ -15,7 +15,7 @@ fn tmpname() -> Path {
 
 fn write_file(tmppath:&Path, s : &str) {
     let mut f = File::create(tmppath);
-    f.write(s.as_bytes()).unwrap();
+    f.write_all(s.as_bytes()).unwrap();
     f.flush().unwrap();
 }
 
@@ -601,6 +601,7 @@ fn follows_self_to_method() {
 }
 
 #[test]
+#[ignore]
 fn follows_self_to_method_when_call_on_new_line() {
     let src= "
     struct Foo;
@@ -768,6 +769,7 @@ fn handles_dotdot_before_searchstr() {
 
 
 #[test]
+#[ignore]
 fn finds_definition_of_lambda_argument() {
     let src="
     fn myfn(&|int|) {}
@@ -890,6 +892,7 @@ fn finds_glob_imported_enum_variant() {
 }
 
 #[test]
+#[ignore]
 fn uses_generic_arg_to_resolve_trait_method() {
     let src="
     pub trait MyTrait {
@@ -1103,26 +1106,3 @@ fn gets_type_via_match_arm() {
     assert_eq!("subfield", &got.matchstr[]);
 }
 
-
-// #[test]
-// fn finds_methods_of_string_slice() {
-//     let src = "
-//     fn strargfn(s: &str) {
-//             s.
-//     }
-//     ";
-//     let path = tmpname();
-//     write_file(&path, src);
-//     let pos = scopes::coords_to_point(src, 3, 10);
-//     let mut it = complete_from_file(src, &path, pos);
-//     remove_file(&path);
-//     let mut found = false;
-//     for m in it {
-//         println!("got {}",m.matchstr);
-//         if m.matchstr.as_slice() == "contains" {
-//             found = true;
-//             break;
-//         }
-//     }
-//     assert!(found);
-// }

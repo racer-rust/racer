@@ -1076,11 +1076,10 @@ impl<'v> visit::Visitor<'v> for FnArgTypeVisitor {
 
 #[test]
 fn ast_sandbox() {
-    let src = "extern crate \"myarse\" as phil;";
-    let stmt = string_to_stmt(String::from_str(src));
-    println!("stmt {:?} ", stmt);
-    // get_match_arm_type(src.to_string(), 17, Scope {filepath: Path::new("./foo"), point: 0});
-    panic!("");
+    // let stmt = string_to_stmt(String::from_str(src));
+    // println!("stmt {:?} ", stmt);
+    // // get_match_arm_type(src.to_string(), 17, Scope {filepath: Path::new("./foo"), point: 0});
+    // panic!("");
 
     //let src = "if let Foo(a) = b {}";
 

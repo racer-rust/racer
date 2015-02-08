@@ -1,7 +1,6 @@
 extern crate test;
 
 use std::env::var_string;
-use std::old_io::fs::PathExtensions;
 use std::old_io::File;
 use self::test::Bencher;
 use racer::codecleaner::code_chunks;
