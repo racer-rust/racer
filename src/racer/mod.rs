@@ -12,6 +12,7 @@ pub mod codecleaner;
 pub mod testutils;
 pub mod util;
 pub mod matchers;
+pub mod snippets;
 
 #[cfg(test)] pub mod test;
 #[cfg(test)] pub mod bench;

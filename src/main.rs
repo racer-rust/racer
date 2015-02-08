@@ -18,6 +18,24 @@ use racer::scopes;
 pub mod racer;
 
 #[cfg(not(test))]
+fn match_with_snippet_fn(m:Match) {
+    let (linenum, charnum) = scopes::point_to_coords_from_file(&m.filepath, m.point).unwrap();
+    if m.matchstr == "" {
+        panic!("MATCHSTR is empty - waddup?");
+    }
+
+    let snippet = racer::snippets::snippet_for_match(&m);
+    println!("MATCH {};{};{};{};{};{:?};{}", m.matchstr,
+                                    snippet,
+                                    linenum.to_string(),
+                                    charnum.to_string(),
+                                    m.filepath.as_str().unwrap(),
+                                    m.mtype,
+                                    m.contextstr,
+             );
+}
+
+#[cfg(not(test))]
 fn match_fn(m:Match) {
     let (linenum, charnum) = scopes::point_to_coords_from_file(&m.filepath, m.point).unwrap();
     if m.matchstr == "" {
@@ -33,7 +51,7 @@ fn match_fn(m:Match) {
 }
 
 #[cfg(not(test))]
-fn complete() {
+fn complete(match_found : &Fn(Match)) {
     let args = std::env::args().map(|a| a.into_string().unwrap()).collect::<Vec<_>>();
     if args.len() < 3 {
         println!("Provide more arguments!");
@@ -60,7 +78,7 @@ fn complete() {
 
             let point = scopes::coords_to_point(&*src, linenum, charnum);
             for m in racer::complete_from_file(&*src, &fpath, point) {
-                match_fn(m);
+                match_found(m);
             }
         }
         Err(_) => {
@@ -71,10 +89,10 @@ fn complete() {
 
             for m in do_file_search(p[0], &Path::new(".")) {
                 if p.len() == 1 {
-                    match_fn(m);
+                    match_found(m);
                 } else {
                     for m in do_external_search(&p[1..], &m.filepath, m.point, racer::SearchType::StartsWith, racer::Namespace::BothNamespaces) {
-                        match_fn(m);
+                        match_found(m);
                     }
                 }
             }
@@ -128,6 +146,7 @@ fn print_usage() {
     println!("or:    {} find-definition linenum charnum fname", program);
     println!("or:    {} complete fullyqualifiedname   (e.g. std::io::)",program);
     println!("or:    {} prefix linenum charnum fname",program);
+    println!("or replace complete with complete-with-snippet for more detailed completions.");
 }
 
 
@@ -150,7 +169,8 @@ fn main() {
     let command = &args[1][];
     match command {
         "prefix" => prefix(),
-        "complete" => complete(),
+        "complete" => complete(&match_fn),
+        "complete-with-snippet" => complete(&match_with_snippet_fn),
         "find-definition" => find_definition(),
         "help" => print_usage(),
         _ => {
