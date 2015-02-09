@@ -264,15 +264,14 @@ fn iterates_half_open_subscope_if_is_the_last_thing() {
 }
 
 // fn main() {
-//     use std::io::BufferedReader;
-//     use std::io::File;
+//     use std::old_io::BufferedReader;
+//     use std::old_io::File;
 //     use std::str;
 
-//     let filetxt = BufferedReader::new(File::open(&Path::new("/usr/local/src/rust/src/libstd/io/stdio.rs"))).read_to_end().unwrap();
+//     let filetxt = BufferedReader::new(File::open(&Path::new("/usr/local/src/rust/src/libstd/path.rs"))).read_to_end().unwrap();
 //     let src = str::from_utf8(filetxt.as_slice()).unwrap();
 
 //     for (start,end) in iter_stmts(src) {
 //         println!("BLOB |{}|",src.slice(start,end));
 //     }
-
 // }

@@ -25,6 +25,7 @@ enum State {
     StateComment,
     StateCommentBlock,
     StateString,
+    StateRawString,
     StateChar,
     StateFinished
 }
@@ -46,6 +47,7 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
             State::StateComment => Some(comment(self)),
             State::StateCommentBlock  => Some(comment_block(self)),
             State::StateString => Some(string(self)),
+            State::StateRawString => Some(raw_string(self)),
             State::StateChar => Some(char(self)),
             State::StateFinished => None
         };
@@ -55,7 +57,9 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
 
 fn code(self_: &mut CodeIndicesIter) -> (usize,usize) {
     let start = match self_.state {
-        State::StateString | State::StateChar => { self_.pos-1 }, // include quote
+        State::StateString | 
+        State::StateRawString | 
+        State::StateChar => { self_.pos-1 }, // include quote
         _ => { self_.pos }
     };
     let src_bytes = self_.src.as_bytes();
@@ -75,6 +79,13 @@ fn code(self_: &mut CodeIndicesIter) -> (usize,usize) {
                 },
                 _ => {}
             },
+            b'r' => {
+                if src_bytes.len() > self_.pos + 1 && src_bytes[self_.pos] == b'"' {
+                    self_.pos +=1;
+                    self_.state = State::StateRawString;
+                    return (start, self_.pos); // include dblquotes
+                }
+            }
             b'"' => {    // "
                 self_.state = State::StateString;
                 return (start, self_.pos); // include dblquotes
@@ -124,6 +135,16 @@ fn comment_block(self_: &mut CodeIndicesIter) -> (usize,usize) {
                 nesting_level += 1;
             },
             _ => { prev = b; }
+        }
+    }
+    code(self_)
+}
+
+fn raw_string(self_: &mut CodeIndicesIter) -> (usize,usize) {
+    for &b in self_.src.as_bytes()[self_.pos..].iter() {
+        self_.pos += 1;
+        if b == b'"' {
+            break;
         }
     }
     code(self_)
@@ -243,6 +264,18 @@ fn removes_string_with_escaped_dblquote_in_it() {
     assert_eq!("this is some code \"", slice(src, it.next().unwrap()));
     assert_eq!("\" more code", slice(src, it.next().unwrap()));
 }
+
+#[test]
+fn removes_raw_string_with_dangling_escape_in_it() {
+    let src = &rejustify("
+    this is some code br\" escaped dblquote raw string \\\" more code
+    ")[];
+
+    let mut it = code_chunks(src);
+    assert_eq!("this is some code br\"", slice(src, it.next().unwrap()));
+    assert_eq!("\" more code", slice(src, it.next().unwrap()));
+}
+
 
 #[test]
 fn removes_string_with_escaped_slash_before_dblquote_in_it() {
