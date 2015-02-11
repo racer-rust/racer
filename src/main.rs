@@ -173,8 +173,8 @@ fn main() {
         "complete-with-snippet" => complete(&match_with_snippet_fn),
         "find-definition" => find_definition(),
         "help" => print_usage(),
-        _ => {
-            println!("Sorry, I didn't understand command {}", command );
+        cmd => {
+            println!("Sorry, I didn't understand command {}", cmd);
             print_usage();
             std::env::set_exit_status(1);
             return;
