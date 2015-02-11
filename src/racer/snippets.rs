@@ -14,7 +14,6 @@ struct MethodInfo {
     name : String,
     output : Option<String>,
     args : Vec<String>
-
 }
 
 impl MethodInfo {
@@ -29,43 +28,27 @@ impl MethodInfo {
 
             let ref method = p.parse_method_with_outer_attributes();
 
-            if let Method_::MethDecl(ident, _, _, _, _,ref decl, _, _) = method.node {
-                let mut args = Vec::new();
-                let mut out = None;
-
-                if let FunctionRetTy::Return(ref tp) = decl.output {
-                    out = Some(tp.to_source());
-                }
-
-                for arg in decl.inputs.iter() {
-                    args.push(arg.to_source());
-                }
-
-                return MethodInfo{ name:ident.to_source(), args:args, output:out};
+            match method.node {
+                Method_::MethDecl(ident, _, _, _, _,ref decl, _, _) => 
+                    MethodInfo { 
+                        name: ident.to_source(), 
+                        args: decl.inputs.iter().map(|a| (*a).to_source()).collect(),
+                        output: match decl.output {
+                            FunctionRetTy::Return(ref tp) => Some(tp.to_source()),
+                            _ => None
+                        } 
+                    },
+                _ => panic!("Unable to parse method declaration.")
             }
-
-            panic!("Unable to parse method declaration.");
         })
     }
 
     ///Returns completion snippets usable by some editors
     fn snippet(&self) -> String {
-        let mut args = String::new();
-        let mut counter = 1;
-        for arg in self.args.iter() {
-            if arg.as_slice() == "self" {
-                continue;
-            }
-
-            if counter > 1 {
-                args.push_str(", ");
-            }
-
-            args.push_str(format!("${{{}:{}}}", counter, arg).as_slice());
-            counter = counter + 1;
-        }
-
-        return format!("{}({})", self.name, args);
+        format!("{}({})", self.name, &self.args.iter()
+                .filter(|&s| &s[] != "self").enumerate()
+                .fold(String::new(), |cur, (i, ref s)| 
+                      cur + &format!(", ${{{}:{}}}", i+1, s)[])[2..])
     }
 }
 
