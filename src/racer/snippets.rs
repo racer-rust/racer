@@ -2,10 +2,14 @@ use syntax::ast::{FunctionRetTy, Method_};
 use syntax::ext::quote::rt::ToSource;
 use racer::ast::with_error_checking_parse;
 use racer::{Match, MatchType};
+use racer::typeinf::get_function_declaration;
 
 pub fn snippet_for_match(m : &Match) -> String {
     match m.mtype {
-        MatchType::Function => MethodInfo::from_source_str(&m.contextstr).snippet(),
+        MatchType::Function => {
+            let method= get_function_declaration(&m);
+            MethodInfo::from_source_str(&method).snippet()
+        }
         _ => m.matchstr.clone()
     }
 }
@@ -46,9 +50,12 @@ impl MethodInfo {
     ///Returns completion snippets usable by some editors
     fn snippet(&self) -> String {
         format!("{}({})", self.name, &self.args.iter()
-                .filter(|&s| &s[] != "self").enumerate()
-                .fold(String::new(), |cur, (i, ref s)| 
-                      cur + &format!(", ${{{}:{}}}", i+1, s)[])[2..])
+            .filter(|&s| &s[] != "self").enumerate()
+            .fold(String::new(), |cur, (i, ref s)| {
+                let arg = format!("${{{}:{}}}", i+1, s);
+                let delim = if i > 0 {", "} else {""};
+                cur + delim + &arg
+        }))
     }
 }
 
@@ -59,9 +66,11 @@ fn method_info_test() {
     assert_eq!(info.name, "new".as_slice());
     assert_eq!(info.args.len(), 0);
     assert_eq!(info.output, Some("Vec<T>".to_string()));
+    assert_eq!(info.snippet(), "new()");
 
     let info = MethodInfo::from_source_str("pub fn reserve(&mut self, additional: uint)");
     assert_eq!(info.name, "reserve".as_slice());
     assert_eq!(info.args.len(), 2);
     assert_eq!(info.args[0].as_slice(), "self");
+    assert_eq!(info.snippet(), "reserve(${1:additional: uint})");
 }

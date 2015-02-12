@@ -235,6 +235,13 @@ pub fn get_type_from_match_arm(m: &Match, msrc: &str) -> Option<racer::Ty> {
                                    });
 }
 
+pub fn get_function_declaration(fnmatch: &Match) -> String {
+    let src = racer::load_file(&fnmatch.filepath);
+    let start = scopes::find_stmt_start(&*src, fnmatch.point).unwrap();
+    let end = (&src[start..]).find('{').unwrap();
+    return String::from_str(&src[start..end+start]);
+}
+
 pub fn get_return_type_of_function(fnmatch: &Match) -> Option<racer::Ty> {
     let src = racer::load_file(&fnmatch.filepath);
     let point = scopes::find_stmt_start(&*src, fnmatch.point).unwrap();
