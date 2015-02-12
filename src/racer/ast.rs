@@ -72,40 +72,36 @@ pub struct UseVisitor {
 
 impl<'v> visit::Visitor<'v> for UseVisitor {
     fn visit_item(&mut self, i: &'v ast::Item) {
-        match i.node {
-            ast::ItemUse(ref path) => {
-                match path.node {
-                    ast::ViewPathSimple(ident, ref path) => {
-                        self.paths.push(to_racer_path(path));
-                        self.ident = Some(token::get_ident(ident).to_string());
-                    },
-                    ast::ViewPathList(ref pth, ref paths) => {
-                        let basepath = to_racer_path(pth);
-                        for path in paths.iter() {
-                            match path.node {
-                                ast::PathListIdent{name, ..} => {
-                                    let name = token::get_ident(name).to_string();
-                                    let seg = racer::PathSegment{ name: name, types: Vec::new() };
-                                    let mut newpath = basepath.clone();
-                                    
-                                    newpath.segments.push(seg);
-                                    self.paths.push(newpath);
-                                },
-                                ast::PathListMod{..} => {
-                                    self.paths.push(basepath.clone());
-                                },
-                            }
+        if let ast::ItemUse(ref path) = i.node {
+            match path.node {
+                ast::ViewPathSimple(ident, ref path) => {
+                    self.paths.push(to_racer_path(path));
+                    self.ident = Some(token::get_ident(ident).to_string());
+                },
+                ast::ViewPathList(ref pth, ref paths) => {
+                    let basepath = to_racer_path(pth);
+                    for path in paths.iter() {
+                        match path.node {
+                            ast::PathListIdent{name, ..} => {
+                                let name = token::get_ident(name).to_string();
+                                let seg = racer::PathSegment{ name: name, types: Vec::new() };
+                                let mut newpath = basepath.clone();
+                                
+                                newpath.segments.push(seg);
+                                self.paths.push(newpath);
+                            },
+                            ast::PathListMod{..} => {
+                                self.paths.push(basepath.clone());
+                            },
                         }
                     }
-                    ast::ViewPathGlob(ref pth) => {
-                        let basepath = to_racer_path(pth);
-                        self.paths.push(basepath);
-                        self.is_glob = true;
-                    }
+                }
+                ast::ViewPathGlob(ref pth) => {
+                    let basepath = to_racer_path(pth);
+                    self.paths.push(basepath);
+                    self.is_glob = true;
                 }
             }
-            _ => {}
-
         }
     }
 }
@@ -190,7 +186,7 @@ fn to_racer_ty(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
 fn point_is_in_span(point: u32, span: &codemap::Span) -> bool {
     let codemap::BytePos(lo) = span.lo;
     let codemap::BytePos(hi) = span.hi;
-    return point >= lo && point < hi;
+    point >= lo && point < hi
 }
 
 // The point must point to an ident within the pattern.
@@ -199,7 +195,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
                              ty: &Ty, 
                              scope: &Scope) -> Option<Ty> {
     debug!("destructure_pattern_to_ty point {} ty {:?}    ||||||||    pat: {:?}",point, ty, pat);
-    return match pat.node {
+    match pat.node {
         ast::PatIdent(_ , ref spannedident, _) => {
             if point_is_in_span(point as u32, &spannedident.span) {
                 debug!("destructure_pattern_to_ty matched an ident!");
@@ -358,11 +354,8 @@ fn to_racer_path(pth: &ast::Path) -> racer::Path {
         let name = token::get_ident(seg.identifier).to_string();
         let mut types = Vec::new();    
         for ty in seg.parameters.types().iter() {
-            match ty.node {
-                ast::TyPath(ref path, _) => {
-                    types.push(to_racer_path(path));
-                }
-                _ => {}
+            if let ast::TyPath(ref path, _) = ty.node {
+                types.push(to_racer_path(path));
             }
         }
         v.push(racer::PathSegment{ name: name, types: types}); 
@@ -371,11 +364,11 @@ fn to_racer_path(pth: &ast::Path) -> racer::Path {
 }
 
 fn path_to_match(ty: Ty) -> Option<Ty> {
-    return match ty {
+    match ty {
         TyPathSearch(ref path, ref scope) => 
             find_type_match(path, &scope.filepath, scope.point),
         _ => Some(ty)
-    };
+    }
 }
 
 fn find_type_match(path: &racer::Path, fpath: &Path, pos: usize) -> Option<Ty> {
@@ -697,30 +690,23 @@ pub struct ImplVisitor {
 
 impl<'v> visit::Visitor<'v> for ImplVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
-        match item.node {
-            ast::ItemImpl(_, _, _, ref otrait, ref typ, _) => {
-                match typ.node {
-                    ast::TyPath(ref path, _) => {
+        if let ast::ItemImpl(_, _, _, ref otrait, ref typ, _) = item.node {
+            match typ.node {
+                ast::TyPath(ref path, _) => {
+                    self.name_path = Some(to_racer_path(path));
+                }
+                ast::TyRptr(_, ref ty) => {
+                    // HACK for now, treat refs the same as unboxed types 
+                    // so that we can match '&str' to 'str'
+                    if let ast::TyPath(ref path, _) = ty.ty.node {
                         self.name_path = Some(to_racer_path(path));
                     }
-                    ast::TyRptr(_, ref ty) => {
-                        // HACK for now, treat refs the same as unboxed types 
-                        // so that we can match '&str' to 'str'
-                        match ty.ty.node {
-                            ast::TyPath(ref path, _) => {
-                                self.name_path = Some(to_racer_path(path));
-                            }
-                            _ => {}
-                        }
-                    }
-                    _ => {}
                 }
-                otrait.as_ref().map(|ref t|{
-                    self.trait_path = Some(to_racer_path(&t.path));
-                });
-
-            },
-            _ => {}
+                _ => {}
+            }
+            otrait.as_ref().map(|ref t|{
+                self.trait_path = Some(to_racer_path(&t.path));
+            });
         }
     }
 }
@@ -731,11 +717,8 @@ pub struct ModVisitor {
 
 impl<'v> visit::Visitor<'v> for ModVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
-        match item.node {
-            ast::ItemMod(_) => {
-                self.name = Some(String::from_str(&token::get_ident(item.ident)));
-            }
-            _ => {}
+        if let ast::ItemMod(_) = item.node {
+            self.name = Some(String::from_str(&token::get_ident(item.ident)));
         }
     }
 }
@@ -747,15 +730,11 @@ pub struct ExternCrateVisitor {
 
 impl<'v> visit::Visitor<'v> for ExternCrateVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
-        match item.node {
-            ast::ItemExternCrate(ref optional_s) => {
-                self.name = Some(String::from_str(&token::get_ident(item.ident)));
-                if let &Some((ref istr, _)) = optional_s {
-                    self.realname = Some(istr.to_string());
-                }
-
+        if let ast::ItemExternCrate(ref optional_s) = item.node {
+            self.name = Some(String::from_str(&token::get_ident(item.ident)));
+            if let &Some((ref istr, _)) = optional_s {
+                self.realname = Some(istr.to_string());
             }
-            _ => {}
         }
     }
 }
@@ -800,22 +779,19 @@ pub struct EnumVisitor {
 
 impl<'v> visit::Visitor<'v> for EnumVisitor {
     fn visit_item(&mut self, i: &ast::Item) {
-        match i.node {
-            ast::ItemEnum(ref enum_definition, _) => {
-                self.name = String::from_str(&token::get_ident(i.ident));
-                //visitor.visit_generics(type_parameters, env.clone());
-                //visit::walk_enum_def(self, enum_definition, type_parameters, e)
+        if let ast::ItemEnum(ref enum_definition, _) = i.node {
+            self.name = String::from_str(&token::get_ident(i.ident));
+            //visitor.visit_generics(type_parameters, env.clone());
+            //visit::walk_enum_def(self, enum_definition, type_parameters, e)
 
-                let codemap::BytePos(point) = i.span.lo;
-                let codemap::BytePos(point2) = i.span.hi;
-                debug!("name point is {} {}",point,point2);
+            let codemap::BytePos(point) = i.span.lo;
+            let codemap::BytePos(point2) = i.span.hi;
+            debug!("name point is {} {}",point,point2);
 
-                for variant in enum_definition.variants.iter() {
-                    let codemap::BytePos(point) = variant.span.lo;
-                    self.values.push((String::from_str(&token::get_ident(variant.node.name)), point as usize));
-                }
-            },
-            _ => {}
+            for variant in enum_definition.variants.iter() {
+                let codemap::BytePos(point) = variant.span.lo;
+                self.values.push((String::from_str(&token::get_ident(variant.node.name)), point as usize));
+            }
         }
     }
 }

@@ -25,7 +25,6 @@ enum State {
     StateComment,
     StateCommentBlock,
     StateString,
-    StateRawString,
     StateChar,
     StateFinished
 }
@@ -47,7 +46,6 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
             State::StateComment => Some(comment(self)),
             State::StateCommentBlock  => Some(comment_block(self)),
             State::StateString => Some(string(self)),
-            State::StateRawString => Some(raw_string(self)),
             State::StateChar => Some(char(self)),
             State::StateFinished => None
         };
@@ -58,7 +56,6 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
 fn code(self_: &mut CodeIndicesIter) -> (usize,usize) {
     let start = match self_.state {
         State::StateString | 
-        State::StateRawString | 
         State::StateChar => { self_.pos-1 }, // include quote
         _ => { self_.pos }
     };
@@ -79,13 +76,6 @@ fn code(self_: &mut CodeIndicesIter) -> (usize,usize) {
                 },
                 _ => {}
             },
-            b'r' => {
-                if src_bytes.len() > self_.pos + 1 && src_bytes[self_.pos] == b'"' {
-                    self_.pos +=1;
-                    self_.state = State::StateRawString;
-                    return (start, self_.pos); // include dblquotes
-                }
-            }
             b'"' => {    // "
                 self_.state = State::StateString;
                 return (start, self_.pos); // include dblquotes
@@ -140,24 +130,23 @@ fn comment_block(self_: &mut CodeIndicesIter) -> (usize,usize) {
     code(self_)
 }
 
-fn raw_string(self_: &mut CodeIndicesIter) -> (usize,usize) {
-    for &b in self_.src.as_bytes()[self_.pos..].iter() {
-        self_.pos += 1;
-        if b == b'"' {
-            break;
-        }
-    }
-    code(self_)
-}
-
 fn string(self_: &mut CodeIndicesIter) -> (usize,usize) {
-    let mut is_not_escaped = true;
-    for &b in self_.src.as_bytes()[self_.pos..].iter() {
-        self_.pos += 1;
-        match b {
-            b'"' if is_not_escaped  => { break; }, // "
-            b'\\' => { is_not_escaped = !is_not_escaped; },
-            _ => { is_not_escaped = true; }
+    let src_bytes = self_.src.as_bytes();
+    if self_.pos > 1 && src_bytes[self_.pos-2] == b'r' {
+        // raw string (eg br"\"): no escape
+        match src_bytes[self_.pos..].iter().position(|&b| b == b'"') {
+            Some(p) => self_.pos += p+1,
+            None    => self_.pos = src_bytes.len()
+        }
+    } else {
+        let mut is_not_escaped = true;
+        for &b in src_bytes[self_.pos..].iter() {
+            self_.pos += 1;
+            match b {
+                b'"' if is_not_escaped  => { break; }, // "
+                b'\\' => { is_not_escaped = !is_not_escaped; },
+                _ => { is_not_escaped = true; }
+            }
         }
     }
     code(self_)
