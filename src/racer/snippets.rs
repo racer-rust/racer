@@ -45,9 +45,11 @@ impl MethodInfo {
 
     ///Returns completion snippets usable by some editors
     fn snippet(&self) -> String {
-        let args: String = if self.args.len() > 0 {
+        let args: String = 
+        if self.args.len() > 0 && 
+         !(self.args.len() == 1 && self.args[0] == "self")  {
             self.args.iter()
-                    .filter(|&s| &s[] != "self")
+                    .filter(|s| &s[] != "self")
                     .enumerate()
                     .fold(String::new(), |cur, (i, ref s)|
                       cur + &format!(", ${{{}:{}}}", i+1, s)[])[2..].to_string()
