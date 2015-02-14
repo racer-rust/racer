@@ -916,7 +916,7 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: usize,
     if len == 1 {
         let ref pathseg = path.segments[0];
         return resolve_name(pathseg, filepath, pos, search_type, namespace);
-    } else {
+    } else if len != 0 {
         let mut out = Vec::new();
         let mut parent_path: racer::Path = path.clone();
         parent_path.segments.remove(len-1);
@@ -968,6 +968,10 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: usize,
         });
         debug!("resolve_path returning {:?}",out);
         return out.into_iter();
+    } else {
+        // TODO: Should this better be an assertion ? Why do we have a racer::Path
+        // with empty segments in the first place ?
+        return Vec::new().into_iter();
     }
 }
 
