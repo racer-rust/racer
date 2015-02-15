@@ -26,7 +26,7 @@ fn remove_file(tmppath:&Path) {
 #[test]
 fn completes_fn() {
     let src="
-    fn apple() {
+    fn   apple() {
     }
 
     fn main() {
