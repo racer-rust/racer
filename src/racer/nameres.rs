@@ -309,7 +309,7 @@ fn search_fn_args(fnstart: usize, open_brace_pos: usize, msrc:&str, searchstr:&s
 pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match> {
     debug!("do_file_search {}",searchstr);
     let mut out = Vec::new();
-    let srcpaths = std::env::var_string("RUST_SRC_PATH").unwrap_or("".to_string());
+    let srcpaths = std::env::var("RUST_SRC_PATH").unwrap_or("".to_string());
     debug!("do_file_search srcpaths {}",srcpaths);
     let mut v = (&srcpaths[]).split_str(PATH_SEP).collect::<Vec<_>>();
     v.push(currentdir.as_str().unwrap());
@@ -484,7 +484,7 @@ pub fn search_next_scope(mut startpoint: usize, pathseg: &racer::PathSegment,
 }
 
 pub fn get_crate_file(name: &str) -> Option<Path> {
-    let srcpaths = std::env::var_string("RUST_SRC_PATH").unwrap();
+    let srcpaths = std::env::var("RUST_SRC_PATH").unwrap();
     let v = (&srcpaths[]).split_str(PATH_SEP).collect::<Vec<_>>();
     for srcpath in v.into_iter() {
         {
@@ -758,7 +758,7 @@ pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType
     let mut out : Vec<Match> = Vec::new();
 
     // find the prelude file from the search path and scan it
-    let srcpaths = match std::env::var_string("RUST_SRC_PATH") { 
+    let srcpaths = match std::env::var("RUST_SRC_PATH") { 
         Ok(paths) => paths,
         Err(_) => return out.into_iter()
     };
@@ -916,7 +916,7 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: usize,
     if len == 1 {
         let ref pathseg = path.segments[0];
         return resolve_name(pathseg, filepath, pos, search_type, namespace);
-    } else {
+    } else if len != 0 {
         let mut out = Vec::new();
         let mut parent_path: racer::Path = path.clone();
         parent_path.segments.remove(len-1);
@@ -968,6 +968,10 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: usize,
         });
         debug!("resolve_path returning {:?}",out);
         return out.into_iter();
+    } else {
+        // TODO: Should this better be an assertion ? Why do we have a racer::Path
+        // with empty segments in the first place ?
+        return Vec::new().into_iter();
     }
 }
 

@@ -1,4 +1,5 @@
 // Small functions of utility
+use std::cmp;
 use std::old_io::{File, BufferedReader};
 use racer::{SearchType};
 use racer::SearchType::{ExactMatch, StartsWith};
@@ -97,6 +98,10 @@ fn txt_matches_matches_stuff() {
 
 
 pub fn expand_ident(s : &str, pos : usize) -> (usize,usize) {
+    // TODO: Would this better be an assertion ? Why are out-of-bound values getting here ?
+    // They are coming from the command-line, question is, if they should be handled beforehand
+    // clamp pos into allowed range
+    let pos = cmp::min(s.len(), pos);
     let sb = &s[..pos];
     let mut start = pos;
 

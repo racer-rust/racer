@@ -45,10 +45,22 @@ impl MethodInfo {
 
     ///Returns completion snippets usable by some editors
     fn snippet(&self) -> String {
-        format!("{}({})", self.name, &self.args.iter()
-                .filter(|&s| &s[] != "self").enumerate()
-                .fold(String::new(), |cur, (i, ref s)| 
-                      cur + &format!(", ${{{}:{}}}", i+1, s)[])[2..])
+        let args: String = 
+        if self.args.len() > 0 && 
+         !(self.args.len() == 1 && self.args[0] == "self")  {
+            self.args.iter()
+                    .filter(|s| &s[] != "self")
+                    .enumerate()
+                    .fold(String::new(), |cur, (i, ref s)|
+                      cur + &format!(", ${{{}:{}}}", i+1, s)[])[2..].to_string()
+        } else {
+            // TODO: Figure out why this happens. It appears this happens when 
+            // constants are handled like a method
+            // produces matches like this one
+            // MATCH consts;consts;504;8;/Users/byron/Documents/dev/ext/rust-lang/rust/src/libstd/env.rs;Module;pub mod consts
+            "".to_string()
+        };
+        format!("{}({})", self.name, args)
     }
 }
 
