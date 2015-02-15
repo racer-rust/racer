@@ -1,6 +1,6 @@
 extern crate test;
 
-use std::env::var_string;
+use std::env::var;
 use std::old_io::File;
 use self::test::Bencher;
 use racer::codecleaner::code_chunks;
@@ -9,7 +9,7 @@ use racer::scopes::{mask_comments, mask_sub_scopes};
 
 fn get_rust_file_str(path: &[&str]) -> String {
 
-    let mut src_path = match var_string("RUST_SRC_PATH") {
+    let mut src_path = match var("RUST_SRC_PATH") {
         Ok(env) => { Path::new(&env[]) },
         _ => panic!("Cannot find $RUST_SRC_PATH")
     };

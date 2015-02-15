@@ -1,4 +1,4 @@
-#![feature(collections, core, io, os, path, rustc_private, std_misc, env, test)]
+#![feature(collections, core, io, path, rustc_private, std_misc, env, test)]
 
 #[macro_use] extern crate log;
 
@@ -52,7 +52,7 @@ fn match_fn(m:Match) {
 
 #[cfg(not(test))]
 fn complete(match_found : &Fn(Match)) {
-    let args = std::env::args().map(|a| a.into_string().unwrap()).collect::<Vec<_>>();
+    let args: Vec<String> = std::env::args().collect();
     if args.len() < 3 {
         println!("Provide more arguments!");
         print_usage();
@@ -102,7 +102,7 @@ fn complete(match_found : &Fn(Match)) {
 
 #[cfg(not(test))]
 fn prefix() {
-    let args = std::env::args().map(|a| a.into_string().unwrap()).collect::<Vec<_>>();
+    let args: Vec<String> = std::env::args().collect();
     if args.len() < 5 {
         println!("Provide more arguments!");
         print_usage();
@@ -122,7 +122,7 @@ fn prefix() {
 
 #[cfg(not(test))]
 fn find_definition() {
-    let args = std::env::args().map(|a| a.into_string().unwrap()).collect::<Vec<_>>();
+    let args: Vec<String> = std::env::args().collect();
     if args.len() < 5 {
         println!("Provide more arguments!");
         print_usage();
@@ -141,7 +141,7 @@ fn find_definition() {
 
 #[cfg(not(test))]
 fn print_usage() {
-    let program = std::env::args().next().unwrap().into_string().unwrap().clone();
+    let program = std::env::args().next().unwrap().clone();
     println!("usage: {} complete linenum charnum fname", program);
     println!("or:    {} find-definition linenum charnum fname", program);
     println!("or:    {} complete fullyqualifiedname   (e.g. std::io::)",program);
@@ -152,13 +152,13 @@ fn print_usage() {
 
 #[cfg(not(test))]
 fn main() {
-    if std::env::var_string("RUST_SRC_PATH").is_err() {
+    if std::env::var("RUST_SRC_PATH").is_err() {
         println!("RUST_SRC_PATH environment variable must be set");
         std::env::set_exit_status(1);
         return;
     }
 
-    let args = std::env::args().map(|a| a.into_string().unwrap()).collect::<Vec<_>>();
+    let args: Vec<String> = std::env::args().collect();
 
     if args.len() == 1 {
         print_usage();
