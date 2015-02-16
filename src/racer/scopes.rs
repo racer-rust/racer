@@ -42,12 +42,8 @@ pub fn scope_start(src:&str, point:usize) -> usize {
 pub fn find_stmt_start(msrc: &str, point: usize) -> Option<usize> {
     // iterate the scope to find the start of the statement
     let scopestart = scope_start(msrc, point);
-    for (start, end) in codeiter::iter_stmts(&msrc[scopestart..]) {
-        if (scopestart + end) > point {
-            return Some(scopestart+start);
-        }
-    }
-    None
+    codeiter::iter_stmts(&msrc[scopestart..]).filter_map(|(start, end)|
+        if scopestart+end > point { Some(scopestart+start) } else {None}).next()
 }
 
 pub fn get_local_module_path(msrc: &str, point: usize) -> Vec<String> {

@@ -64,13 +64,9 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
 }
 
 pub fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bool {
-   return match stype {
-        ExactMatch => {
-            return searchstr == candidate;
-        },
-        StartsWith => {
-            return candidate.starts_with(searchstr);
-        }
+   match stype {
+        ExactMatch => searchstr == candidate,
+        StartsWith => candidate.starts_with(searchstr)
     }
 }
 
