@@ -5,3 +5,5 @@ src/scopes
 !.travis.yml
 *tmpfile*
 *.racertmp
+Cargo.lock
+target/
