@@ -16,7 +16,6 @@ use racer::Ty::{TyTuple, TyPathSearch, TyMatch, TyUnsupported};
 use syntax::ptr::P;
 use syntax::visit::Visitor;
 use racer::nameres;
-use std::thread::Thread;
 
 
 // This code ripped from libsyntax::util::parser_testing
@@ -797,95 +796,61 @@ impl<'v> visit::Visitor<'v> for EnumVisitor {
 }
 
 pub fn parse_use(s: String) -> UseVisitor {
-    // parser can panic!() so isolate it in another task
-
-    let thread = Thread::scoped(move || { 
-        let cr = string_to_crate(s);
-        let mut v = UseVisitor{ident: None, 
-                                    paths: Vec::new(),
-                                    is_glob: false};
-        visit::walk_crate(&mut v, &cr);
-        return v;
-    });
-    let result = thread.join();
-    match result {
-        Ok(s) => {return s;},
-        Err(_) => {
-            return UseVisitor{ident: None, 
-                              paths: Vec::new(),
-                              is_glob: false};
-        }
-    }
+    let cr = string_to_crate(s);
+    let mut v = UseVisitor{ident: None, 
+                                paths: Vec::new(),
+                                is_glob: false};
+    visit::walk_crate(&mut v, &cr);
+    return v;
 }
 
 pub fn parse_let(s: String) -> Vec<(usize, usize)> {
-    let thread = Thread::scoped(move || { 
-        let stmt = string_to_stmt(s);
-        let mut v = LetVisitor{ ident_points: Vec::new() };
-        visit::walk_stmt(&mut v, &*stmt);
-        return v.ident_points;
-    });
-    return thread.join().unwrap_or(Vec::new());
+    let stmt = string_to_stmt(s);
+    let mut v = LetVisitor{ ident_points: Vec::new() };
+    visit::walk_stmt(&mut v, &*stmt);
+    return v.ident_points;
 }
 
 pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, usize, Option<racer::Ty>)> {
-    let thread = Thread::scoped(move || {
-        let stmt = string_to_stmt(s);
-        let mut v = StructVisitor{ scope: scope, fields: Vec::new() };
-        visit::walk_stmt(&mut v, &*stmt);
-        return v.fields;
-    });
-    return thread.join().ok().unwrap_or(Vec::new());
+    let stmt = string_to_stmt(s);
+    let mut v = StructVisitor{ scope: scope, fields: Vec::new() };
+    visit::walk_stmt(&mut v, &*stmt);
+    return v.fields;
 }
 
 pub fn parse_impl(s: String) -> ImplVisitor {
-    let thread = Thread::scoped(move || {
-        let stmt = string_to_stmt(s);
-        let mut v = ImplVisitor { name_path: None, trait_path: None };
-        visit::walk_stmt(&mut v, &*stmt);
-        return v;
-    });
-    return thread.join().ok().unwrap();    
+    let stmt = string_to_stmt(s);
+    let mut v = ImplVisitor { name_path: None, trait_path: None };
+    visit::walk_stmt(&mut v, &*stmt);
+    return v;
 }
 
 pub fn parse_trait(s: String) -> TraitVisitor {
-    let thread = Thread::scoped(move || {
-        let stmt = string_to_stmt(s);
-        let mut v = TraitVisitor { name: None };
-        visit::walk_stmt(&mut v, &*stmt);
-        return v;
-    });
-    return thread.join().ok().unwrap();    
+    let stmt = string_to_stmt(s);
+    let mut v = TraitVisitor { name: None };
+    visit::walk_stmt(&mut v, &*stmt);
+    return v;
 }
 
 pub fn parse_struct_def(s: String) -> StructDefVisitor {
-    let thread = Thread::scoped(move || {
-        let stmt = string_to_stmt(s);
-        let mut v = StructDefVisitor { name: None, generic_args: Vec::new() };
-        visit::walk_stmt(&mut v, &*stmt);
-        return v;
-    });
-    return thread.join().ok().unwrap();
+    let stmt = string_to_stmt(s);
+    let mut v = StructDefVisitor { name: None, generic_args: Vec::new() };
+    visit::walk_stmt(&mut v, &*stmt);
+    return v;
 }
 
 pub fn parse_generics(s: String) -> GenericsVisitor {
-    let thread = Thread::scoped(move || {
-        let stmt = string_to_stmt(s);
-        let mut v = GenericsVisitor { generic_args: Vec::new() };
-        visit::walk_stmt(&mut v, &*stmt);
-        return v;
-    });
-    return thread.join().ok().unwrap();
+    let stmt = string_to_stmt(s);
+    let mut v = GenericsVisitor { generic_args: Vec::new() };
+    visit::walk_stmt(&mut v, &*stmt);
+    return v;
 }
 
 pub fn parse_type(s: String) -> TypeVisitor {
-    let thread = Thread::scoped(move || {
-        let stmt = string_to_stmt(s);
-        let mut v = TypeVisitor { name: None, type_: None };
-        visit::walk_stmt(&mut v, &*stmt);
-        return v;
-    });
-    return thread.join().ok().unwrap();    
+    let stmt = string_to_stmt(s);
+    let mut v = TypeVisitor { name: None, type_: None };
+    visit::walk_stmt(&mut v, &*stmt);
+    return v;
 }
 
 pub fn parse_fn_args(s: String) -> Vec<(usize, usize)> {
@@ -893,114 +858,87 @@ pub fn parse_fn_args(s: String) -> Vec<(usize, usize)> {
 }
 
 pub fn parse_pat_idents(s: String) -> Vec<(usize, usize)> {
-    let thread = Thread::scoped(move || { 
-        let stmt = string_to_stmt(s);
-        debug!("parse_pat_idents stmt is {:?}",stmt);
-        let mut v = PatVisitor{ ident_points: Vec::new() };
-        visit::walk_stmt(&mut v, &*stmt);
-        debug!("ident points are {:?}", v.ident_points);
-        return v.ident_points;
-    });
-    return thread.join().unwrap_or(Vec::new());
+    let stmt = string_to_stmt(s);
+    debug!("parse_pat_idents stmt is {:?}",stmt);
+    let mut v = PatVisitor{ ident_points: Vec::new() };
+    visit::walk_stmt(&mut v, &*stmt);
+    debug!("ident points are {:?}", v.ident_points);
+    return v.ident_points;
 }
 
 
 pub fn parse_fn_output(s: String, scope: Scope) -> Option<racer::Ty> {
-    let thread = Thread::scoped(move || {
-        let stmt = string_to_stmt(s);
-        let mut v = FnOutputVisitor { result: None, scope: scope};
-        visit::walk_stmt(&mut v, &*stmt);
-        return v.result;
-    });
-    return thread.join().ok().unwrap();
+    let stmt = string_to_stmt(s);
+    let mut v = FnOutputVisitor { result: None, scope: scope};
+    visit::walk_stmt(&mut v, &*stmt);
+    return v.result;
 }
 
 pub fn parse_fn_arg_type(s: String, argpos: usize, scope: Scope) -> Option<racer::Ty> {
     debug!("parse_fn_arg {} |{}|",argpos, s);
-    let thread = Thread::scoped(move || {
-        let stmt = string_to_stmt(s);
-        let mut v = FnArgTypeVisitor { argpos: argpos, scope: scope, result: None};
-        visit::walk_stmt(&mut v, &*stmt);
-        return v.result;
-    });
-    return thread.join().ok().unwrap();
+    let stmt = string_to_stmt(s);
+    let mut v = FnArgTypeVisitor { argpos: argpos, scope: scope, result: None};
+    visit::walk_stmt(&mut v, &*stmt);
+    return v.result;
 }
 
 pub fn parse_mod(s: String) -> ModVisitor {
-    let thread = Thread::scoped(move || {
-        let stmt = string_to_stmt(s);
-        let mut v = ModVisitor { name: None };
-        visit::walk_stmt(&mut v, &*stmt);
-        return v;
-    });
-    return thread.join().ok().unwrap();    
+    let stmt = string_to_stmt(s);
+    let mut v = ModVisitor { name: None };
+    visit::walk_stmt(&mut v, &*stmt);
+    return v;
 }
 
 pub fn parse_extern_crate(s: String) -> ExternCrateVisitor {
-    let thread = Thread::scoped(move || {
-        let stmt = string_to_stmt(s);
-        let mut v = ExternCrateVisitor { name: None, realname: None };
-        visit::walk_stmt(&mut v, &*stmt);
-        return v;
-    });
-    return thread.join().ok().unwrap();    
+    let stmt = string_to_stmt(s);
+    let mut v = ExternCrateVisitor { name: None, realname: None };
+    visit::walk_stmt(&mut v, &*stmt);
+    return v;
 }
 
 pub fn parse_enum(s: String) -> EnumVisitor {
-    let thread = Thread::scoped(move || {
-        let stmt = string_to_stmt(s);
-        let mut v = EnumVisitor { name: String::new(), values: Vec::new()};
-        visit::walk_stmt(&mut v, &*stmt);
-        return v;
-    });
-    return thread.join().ok().unwrap();
+    let stmt = string_to_stmt(s);
+    let mut v = EnumVisitor { name: String::new(), values: Vec::new()};
+    visit::walk_stmt(&mut v, &*stmt);
+    return v;
 }
 
 
 pub fn get_type_of(exprstr: String, fpath: &Path, pos: usize) -> Option<Ty> {
     let myfpath = fpath.clone();
 
-    let thread = Thread::scoped(move || {
-        let stmt = string_to_stmt(exprstr);
-        let startscope = Scope {
-            filepath: myfpath,
-            point: pos
-        };
+    let stmt = string_to_stmt(exprstr);
+    let startscope = Scope {
+        filepath: myfpath,
+        point: pos
+    };
 
-        let mut v = ExprTypeVisitor{ scope: startscope,
-                                     result: None};
-        visit::walk_stmt(&mut v, &*stmt);
-        return v.result;
-    });
-    return thread.join().ok().unwrap();
+    let mut v = ExprTypeVisitor{ scope: startscope,
+                                 result: None};
+    visit::walk_stmt(&mut v, &*stmt);
+    return v.result;
 }
 
 // pos points to an ident in the lhs of the stmtstr
 pub fn get_let_type(stmtstr: String, pos: usize, scope: Scope) -> Option<Ty> {
-    let thread = Thread::scoped(move || {
-        let stmt = string_to_stmt(stmtstr.clone());
-        let mut v = LetTypeVisitor {
-            scope: scope,
-            srctxt: stmtstr,
-            pos: pos, result: None
-        };
-        visit::walk_stmt(&mut v, &*stmt);
-        return v.result;
-    });
-    return thread.join().ok().unwrap();
+    let stmt = string_to_stmt(stmtstr.clone());
+    let mut v = LetTypeVisitor {
+        scope: scope,
+        srctxt: stmtstr,
+        pos: pos, result: None
+    };
+    visit::walk_stmt(&mut v, &*stmt);
+    return v.result;
 }
 
 pub fn get_match_arm_type(stmtstr: String, pos: usize, scope: Scope) -> Option<Ty> {
-    let thread = Thread::scoped(move || {
-        let stmt = string_to_stmt(stmtstr.clone());
-        let mut v = MatchTypeVisitor {
-            scope: scope,
-            pos: pos, result: None
-        };
-        visit::walk_stmt(&mut v, &*stmt);
-        return v.result;
-    });
-    return thread.join().ok().unwrap();
+    let stmt = string_to_stmt(stmtstr.clone());
+    let mut v = MatchTypeVisitor {
+        scope: scope,
+        pos: pos, result: None
+    };
+    visit::walk_stmt(&mut v, &*stmt);
+    return v.result;
 }
 
 pub struct FnOutputVisitor {
