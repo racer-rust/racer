@@ -18,7 +18,15 @@ if !exists('g:racer_cmd')
 endif
 
 if !exists('$RUST_SRC_PATH')
+    let s:rust_src_default = 1
     let $RUST_SRC_PATH="/usr/local/src/rust/src"
+endif
+if !isdirectory($RUST_SRC_PATH)
+    if exists('s:rust_src_default')
+      echohl WarningMsg | echomsg "No RUST_SRC_PATH environment variable present, nor could default installation be found at: " . $RUST_SRC_PATH
+    else
+      echohl WarningMsg | echomsg "No directory was found at provided RUST_SRC_PATH: " . $RUST_SRC_PATH
+    endif
 endif
 
 if !exists('g:racer_experimental_completer')
