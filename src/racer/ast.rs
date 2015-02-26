@@ -174,7 +174,7 @@ fn to_racer_ty(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
         ast::TyRptr(_, ref ty) => {
             to_racer_ty(&*ty.ty, scope)
         },
-        ast::TyPath(ref path, _) => {
+        ast::TyPath(_, ref path) => {
             Some(TyPathSearch(to_racer_path(path), scope.clone()))
         }
         _ => None
@@ -353,7 +353,7 @@ fn to_racer_path(pth: &ast::Path) -> racer::Path {
         let name = token::get_ident(seg.identifier).to_string();
         let mut types = Vec::new();    
         for ty in seg.parameters.types().iter() {
-            if let ast::TyPath(ref path, _) = ty.node {
+            if let ast::TyPath(_, ref path) = ty.node {
                 types.push(to_racer_path(path));
             }
         }
@@ -426,7 +426,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
         debug!("visit_expr {:?}",expr);
         //walk_expr(self, ex, e) 
         match expr.node {
-            ast::ExprPath(ref path) => {
+            ast::ExprPath(_, ref path) => {
                 debug!("expr is a path {:?}",to_racer_path(path));
                 self.result = resolve_ast_path(path, 
                                  &self.scope.filepath, 
@@ -643,7 +643,7 @@ impl<'v> visit::Visitor<'v> for TypeVisitor {
                 let typepath = match ty.node {
                     ast::TyRptr(_, ref ty) => {
                         match ty.ty.node {
-                            ast::TyPath(ref path, _) => {
+                            ast::TyPath(_, ref path) => {
                                 let type_ = to_racer_path(path);
                                 debug!("type type is {:?}", type_);
                                 Some(type_)
@@ -651,7 +651,7 @@ impl<'v> visit::Visitor<'v> for TypeVisitor {
                             _ => None
                         }
                     }
-                    ast::TyPath(ref path, _) => {
+                    ast::TyPath(_, ref path) => {
                         let type_ = to_racer_path(path);
                         debug!("type type is {:?}", type_);
                         Some(type_)
@@ -691,13 +691,13 @@ impl<'v> visit::Visitor<'v> for ImplVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ast::ItemImpl(_, _, _, ref otrait, ref typ, _) = item.node {
             match typ.node {
-                ast::TyPath(ref path, _) => {
+                ast::TyPath(_, ref path) => {
                     self.name_path = Some(to_racer_path(path));
                 }
                 ast::TyRptr(_, ref ty) => {
                     // HACK for now, treat refs the same as unboxed types 
                     // so that we can match '&str' to 'str'
-                    if let ast::TyPath(ref path, _) = ty.ty.node {
+                    if let ast::TyPath(_, ref path) = ty.ty.node {
                         self.name_path = Some(to_racer_path(path));
                     }
                 }
