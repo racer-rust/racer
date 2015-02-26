@@ -30,7 +30,7 @@ pub fn with_error_checking_parse<F, T>(s: String, f: F) -> T where F: Fn(&mut Pa
     let ps = new_parse_sess();
     let mut p = string_to_parser(&ps, s);
     let x = f(&mut p);
-    p.abort_if_errors();
+    //p.abort_if_errors();
     x
 }
 
