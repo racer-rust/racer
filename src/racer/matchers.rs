@@ -52,7 +52,7 @@ fn find_keyword(src: &str, pattern: &str,
         vec!["pub", pattern]
     };
 
-    let mut start = 0us;
+    let mut start = 0usize;
     for pat in patterns.iter() {
         if src[start..].starts_with(pat) {
             // remove whitespaces ... must have one at least
@@ -174,9 +174,9 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
     let mut res = None;
     let blob = &msrc[blobstart..blobend];
 
-    if txt_matches(search_type, &format!("extern crate {}",searchstr)[], blob) ||
+    if txt_matches(search_type, &format!("extern crate {}",searchstr), blob) ||
         (blob.starts_with("extern crate") && 
-         txt_matches(search_type, &format!("as {}",searchstr)[], blob)) {
+         txt_matches(search_type, &format!("as {}",searchstr), blob)) {
 
         debug!("found an extern crate: |{}|",blob);
 
@@ -204,7 +204,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
                 } else {
                     name
                 };
-            get_crate_file(&realname[]).map(|cratepath|{
+            get_crate_file(&realname).map(|cratepath|{
                 res = Some(Match {matchstr: name.clone(),
                                   filepath: cratepath.clone(), 
                                   point: 0,
@@ -253,7 +253,7 @@ pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
             // because if it is then we need to search further down the 
             // directory hierarchy
             let internalpath = scopes::get_local_module_path(msrc, blobstart);
-            let searchdir = filepath.dir_path().join_many(&internalpath[]);
+            let searchdir = filepath.dir_path().join_many(&internalpath);
             if let Some(modpath) = get_module_file(l, &searchdir) {
                 return Some(Match {
                     matchstr: l.to_string(),
@@ -364,7 +364,7 @@ pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize,
             let parsed_enum = ast::parse_enum(String::from_str(blob));
 
             for (name, offset) in parsed_enum.values.into_iter() {
-                if (&name[]).starts_with(searchstr) {
+                if (&name).starts_with(searchstr) {
 
                     let m = Match {
                         matchstr: name.clone(),
@@ -483,7 +483,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
 
             // TODO: simplify this:
             if symbol_matches(search_type, searchstr, &*ident) { // i.e. 'use foo::bar as searchstr'
-                if len == 1 && &path.segments[0].name[] == searchstr {
+                if len == 1 && path.segments[0].name == searchstr {
                     // is an exact match of a single use stmt. 
                     // Do nothing because this will be picked up by the module
                     // search in a bit.
@@ -502,11 +502,11 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
             } else if &*ident == "" {
                 // if searching for a symbol and the last bit matches the symbol
                 // then find the fqn
-                if len == 1 && &path.segments[0].name[] == searchstr {
+                if len == 1 && path.segments[0].name == searchstr {
                     // is an exact match of a single use stmt. 
                     // Do nothing because this will be picked up by the module
                     // search in a bit.
-                } else if (&path.segments[len-1].name[]).starts_with(searchstr) {
+                } else if path.segments[len-1].name.starts_with(searchstr) {
                     // TODO: pretty sure this isn't correct/complete, only works because
                     //  we recurse backwards up modules when searching
                     let path = hack_remove_self_and_super_in_modpaths(path);
@@ -527,10 +527,10 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
 }
 
 fn hack_remove_self_and_super_in_modpaths(mut path: racer::Path) -> racer::Path {
-    if &path.segments[0].name[] == "self" {
+    if path.segments[0].name == "self" {
         path.segments.remove(0);
     }
-    if &path.segments[0].name[] == "super" {
+    if path.segments[0].name == "super" {
         path.segments.remove(0);
     }
     return path;

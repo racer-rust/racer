@@ -10,7 +10,7 @@ use racer::scopes::{mask_comments, mask_sub_scopes};
 fn get_rust_file_str(path: &[&str]) -> String {
 
     let mut src_path = match var("RUST_SRC_PATH") {
-        Ok(env) => { Path::new(&env[]) },
+        Ok(env) => { Path::new(env) },
         _ => panic!("Cannot find $RUST_SRC_PATH")
     };
     for &s in path.iter() { src_path.push(s); }
@@ -20,7 +20,7 @@ fn get_rust_file_str(path: &[&str]) -> String {
 
 #[bench]
 fn bench_code_chunks(b: &mut Bencher) {
-    let src = &get_rust_file_str(&["libcollections", "bit.rs"])[];
+    let src = &get_rust_file_str(&["libcollections", "bit.rs"]);
     b.iter(|| {
         test::black_box(code_chunks(src).collect::<Vec<_>>());
     });
@@ -28,7 +28,7 @@ fn bench_code_chunks(b: &mut Bencher) {
 
 #[bench]
 fn bench_iter_stmts(b: &mut Bencher) {
-    let src = &get_rust_file_str(&["libcollections", "bit.rs"])[];
+    let src = &get_rust_file_str(&["libcollections", "bit.rs"]);
     b.iter(|| {
         test::black_box(iter_stmts(src).collect::<Vec<_>>());
     });
@@ -36,7 +36,7 @@ fn bench_iter_stmts(b: &mut Bencher) {
 
 #[bench]
 fn bench_mask_comments(b: &mut Bencher) {
-    let src = &get_rust_file_str(&["libcollections", "bit.rs"])[];
+    let src = &get_rust_file_str(&["libcollections", "bit.rs"]);
     b.iter(|| {
         test::black_box(mask_comments(src));
     });
@@ -44,7 +44,7 @@ fn bench_mask_comments(b: &mut Bencher) {
 
 #[bench]
 fn bench_mask_sub_scopes(b: &mut Bencher) {
-    let src = &get_rust_file_str(&["libcollections", "bit.rs"])[];
+    let src = &get_rust_file_str(&["libcollections", "bit.rs"]);
     b.iter(|| {
         test::black_box(mask_sub_scopes(src));
     });

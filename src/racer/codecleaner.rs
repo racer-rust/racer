@@ -175,7 +175,7 @@ fn removes_a_comment() {
     let src = &rejustify("
     this is some code // this is a comment
     some more code
-    ")[];
+    ");
     let mut it = code_chunks(src);
     assert_eq!("this is some code ", slice(src, it.next().unwrap()));
     assert_eq!("some more code", slice(src, it.next().unwrap()));
@@ -185,7 +185,7 @@ fn removes_a_comment() {
 fn removes_string_contents() {
     let src = &rejustify("
     this is some code \"this is a string\" more code
-    ")[];
+    ");
     let mut it = code_chunks(src);
     assert_eq!("this is some code \"", slice(src, it.next().unwrap()));
     assert_eq!("\" more code", slice(src, it.next().unwrap()));
@@ -195,7 +195,7 @@ fn removes_string_contents() {
 fn removes_char_contents() {
     let src = &rejustify("
     this is some code \'\"\' more code
-    ")[];
+    ");
     let mut it = code_chunks(src);
     assert_eq!("this is some code \'", slice(src, it.next().unwrap()));
     assert_eq!("\' more code", slice(src, it.next().unwrap()));
@@ -205,7 +205,7 @@ fn removes_char_contents() {
 fn removes_string_contents_with_a_comment_in_it() {
     let src = &rejustify("
     this is some code \"string with a // fake comment \" more code
-    ")[];
+    ");
     let mut it = code_chunks(src);
     assert_eq!("this is some code \"", slice(src, it.next().unwrap()));
     assert_eq!("\" more code", slice(src, it.next().unwrap()));
@@ -216,7 +216,7 @@ fn removes_a_comment_with_a_dbl_quote_in_it() {
     let src = &rejustify("
     this is some code // comment with \" double quote
     some more code
-    ")[];
+    ");
     let mut it = code_chunks(src);
     assert_eq!("this is some code ", slice(src, it.next().unwrap()));
     assert_eq!("some more code", slice(src, it.next().unwrap()));
@@ -227,7 +227,7 @@ fn removes_multiline_comment() {
     let src = &rejustify("
     this is some code /* this is a
     \"multiline\" comment */some more code
-    ")[];
+    ");
     let mut it = code_chunks(src);
     assert_eq!("this is some code ", slice(src, it.next().unwrap()));
     assert_eq!("some more code", slice(src, it.next().unwrap()));
@@ -237,7 +237,7 @@ fn removes_multiline_comment() {
 fn handles_nesting_of_block_comments() {
     let src = &rejustify("
     this is some code /* nested /* block */ comment */ some more code
-    ")[];
+    ");
     let mut it = code_chunks(src);
     assert_eq!("this is some code ", slice(src, it.next().unwrap()));
     assert_eq!(" some more code", slice(src, it.next().unwrap()));
@@ -247,7 +247,7 @@ fn handles_nesting_of_block_comments() {
 fn removes_string_with_escaped_dblquote_in_it() {
     let src = &rejustify("
     this is some code \"string with a \\\" escaped dblquote fake comment \" more code
-    ")[];
+    ");
 
     let mut it = code_chunks(src);
     assert_eq!("this is some code \"", slice(src, it.next().unwrap()));
@@ -258,7 +258,7 @@ fn removes_string_with_escaped_dblquote_in_it() {
 fn removes_raw_string_with_dangling_escape_in_it() {
     let src = &rejustify("
     this is some code br\" escaped dblquote raw string \\\" more code
-    ")[];
+    ");
 
     let mut it = code_chunks(src);
     assert_eq!("this is some code br\"", slice(src, it.next().unwrap()));
@@ -270,7 +270,7 @@ fn removes_raw_string_with_dangling_escape_in_it() {
 fn removes_string_with_escaped_slash_before_dblquote_in_it() {
     let src = &rejustify("
     this is some code \"string with an escaped slash, so dbl quote does end the string after all \\\\\" more code
-    ")[];
+    ");
 
     let mut it = code_chunks(src);
     assert_eq!("this is some code \"", slice(src, it.next().unwrap()));
@@ -282,7 +282,7 @@ fn handles_tricky_bit_from_str_rs() {
     let src = &rejustify("
         before(\"\\\\\'\\\\\\\"\\\\\\\\\");
         more_code(\" skip me \")
-    ")[];
+    ");
 
     for (start,end) in code_chunks(src) {
         println!("BLOB |{}|",&src[start..end]);

@@ -128,7 +128,7 @@ fn iterates_single_use_stmts() {
     let src = &rejustify("
     use std::Foo; // a comment
     use std::Bar;
-    ")[];
+    ");
     let mut it = iter_stmts(src);
     assert_eq!("use std::Foo;", slice(src, it.next().unwrap()));
     assert_eq!("use std::Bar;", slice(src, it.next().unwrap()));
@@ -139,7 +139,7 @@ fn iterates_use_stmt_over_two_lines() {
     let src = &rejustify("
     use std::{Foo,
               Bar}; // a comment
-    ")[];
+    ");
     let mut it = iter_stmts(src);
     assert_eq!("use std::{Foo,
           Bar};", slice(src, it.next().unwrap()));
@@ -150,7 +150,7 @@ fn iterates_use_stmt_without_the_prefix() {
     let src = &rejustify("
     pub use {Foo,
               Bar}; // this is also legit apparently
-    ")[];
+    ");
     let mut it = iter_stmts(src);
     assert_eq!("pub use {Foo,
           Bar};", slice(src, it.next().unwrap()));
@@ -160,7 +160,7 @@ fn iterates_use_stmt_without_the_prefix() {
 fn iterates_while_stmt() {
     let src = &rejustify("
     while self.pos < 3 { }
-    ")[];
+    ");
     let mut it = iter_stmts(src);
     assert_eq!("while self.pos < 3 { }", slice(src, it.next().unwrap()));
 }
@@ -169,7 +169,7 @@ fn iterates_while_stmt() {
 fn iterates_lambda_arg() {
     let src = &rejustify("
     myfn(|n|{});
-    ")[];
+    ");
     let mut it = iter_stmts(src);
     assert_eq!("myfn(|n|{});", slice(src, it.next().unwrap()));
 }
@@ -239,7 +239,7 @@ fn iterates_module_attribute() {
     let src = &rejustify("
     #![license = \"BSD\"]
     #[test]
-    ")[];
+    ");
     let mut it = iter_stmts(src);
     assert_eq!("#![license = \"BSD\"]", slice(src, it.next().unwrap()));
     assert_eq!("#[test]", slice(src, it.next().unwrap()));

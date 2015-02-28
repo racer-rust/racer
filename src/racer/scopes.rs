@@ -12,7 +12,7 @@ use racer::ast;
 fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<usize>
     where A: Iterator<Item=&'a u8> {
 
-    let mut count = 0us;
+    let mut count = 0usize;
     let mut levels = 0u32;
     for &b in iter {
         if b == close {
@@ -60,7 +60,7 @@ fn get_local_module_path_(msrc: &str, point: usize, out: &mut Vec<String>) {
                 let p = typeinf::generate_skeleton_for_parsing(blob);
                 ast::parse_mod(p).name.map(|name|{
 
-                    let newstart = blob.find_str("{").unwrap() + 1;
+                    let newstart = blob.find("{").unwrap() + 1;
                     out.push(name);
                     get_local_module_path_(&blob[newstart..], 
                                        point - start - newstart, out);
@@ -81,7 +81,7 @@ pub fn find_impl_start(msrc: &str, point: usize, scopestart: usize) -> Option<us
                 blob.starts_with("trait") || blob.starts_with("pub trait") {
                 Some(scopestart + start)
             } else {
-                let newstart = blob.find_str("{").unwrap() + 1;
+                let newstart = blob.find("{").unwrap() + 1;
                 find_impl_start(msrc, point, scopestart+start+newstart)
             }
         },
@@ -99,12 +99,12 @@ fn finds_subnested_module() {
     }";
     let point = coords_to_point(src, 4, 12);
     let v = get_local_module_path(src, point);
-    assert_eq!("foo", &v[0][]);
-    assert_eq!("bar", &v[1][]);
+    assert_eq!("foo", &v[0][..]);
+    assert_eq!("bar", &v[1][..]);
 
     let point = coords_to_point(src, 2, 8);
     let v = get_local_module_path(src, point);
-    assert_eq!("foo", &v[0][]);
+    assert_eq!("foo", &v[0][..]);
 }
 
 
@@ -227,8 +227,8 @@ pub fn mask_sub_scopes(src:&str) -> String {
     let buf_byte = [b' '; 128];
     let buffer = from_utf8(&buf_byte).unwrap();
     let mut levels = 0i32;
-    let mut start = 0us;
-    let mut pos = 0us;
+    let mut start = 0usize;
+    let mut pos = 0usize;
 
     for &b in src.as_bytes().iter() {
         pos += 1;
@@ -242,7 +242,7 @@ pub fn mask_sub_scopes(src:&str) -> String {
             },
             b'}' => {
                 if levels == 1 {
-                    let num_spaces = (pos-start);
+                    let num_spaces = pos-start;
                     for _ in 0..(num_spaces/128) { result.push_str(buffer); }
                     result.push_str(&buffer[..((num_spaces)%128)]);
                     result.push_str("}");
@@ -368,7 +368,7 @@ some more
     assert!(src.as_bytes()[5] == r.as_bytes()[5]);
     // characters in the comments are masked
     let commentoffset = coords_to_point(src,3,23);
-    assert!((&r[]).char_at(commentoffset) == ' ');
+    assert!(r.char_at(commentoffset) == ' ');
     assert!(src.as_bytes()[commentoffset] != r.as_bytes()[commentoffset]);
     // characters afterwards are the same
     assert!(src.as_bytes()[src.len()-3] == r.as_bytes()[src.len()-3]);

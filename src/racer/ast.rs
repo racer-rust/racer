@@ -51,6 +51,7 @@ pub fn string_to_item (source_str : String) -> Option<P<ast::Item>> {
 // parse a string, return a stmt
 pub fn string_to_stmt(source_str : String) -> P<ast::Stmt> {
     with_error_checking_parse(source_str, |p| {
+
         p.parse_stmt(Vec::new())
     })
 }
@@ -206,7 +207,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
         ast::PatTup(ref tuple_elements) => {
             return match ty {
                 &TyTuple(ref typeelems) => {
-                    let mut i = 0us;
+                    let mut i = 0usize;
                     let mut res = None;
                     for p in tuple_elements.iter() {
                         if point_is_in_span(point as u32, &p.span) {
@@ -432,7 +433,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                                  &self.scope.filepath, 
                                  self.scope.point).and_then(|m| {
                    let msrc = racer::load_file_and_mask_comments(&m.filepath);
-                   typeinf::get_type_of_match(m, &msrc[])
+                   typeinf::get_type_of_match(m, &msrc)
                                  });
             }
             ast::ExprCall(ref callee_expression, _/*ref arguments*/) => {
@@ -478,8 +479,8 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                     match contextm {
                         &TyMatch(ref contextm) => {
                             let omethod = nameres::search_for_impl_methods(
-                                &contextm.matchstr[],
-                                &methodname[], 
+                                &contextm.matchstr,
+                                &methodname, 
                                 contextm.point, 
                                 &contextm.filepath,
                                 contextm.local,
@@ -502,7 +503,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                       .and_then(|structm| 
                                 match structm {
                                     &TyMatch(ref structm) => {
-                                typeinf::get_struct_field_type(&fieldname[], structm)
+                                typeinf::get_struct_field_type(&fieldname, structm)
                                 .and_then(|fieldtypepath| 
                                           find_type_match_including_generics(&fieldtypepath,
                                                                              &structm.filepath,

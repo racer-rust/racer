@@ -1,4 +1,6 @@
-#![feature(collections, core, old_io, old_path, rustc_private, env, test)]
+#![feature(collections, core, old_io, old_path, rustc_private, env)]
+#![feature(test)]   // need this for unit tests, but annoyingly puts a warning when building non-test
+
 
 #[macro_use] extern crate log;
 
@@ -69,7 +71,7 @@ fn complete(match_found : &Fn(Match)) {
                 return;
             }
             let charnum = args[3].parse::<usize>().unwrap();
-            let fname = &args[4][];
+            let fname = &args[4];
             let fpath = Path::new(fname);
             let src = racer::load_file(&fpath);
             let line = &*getline(&fpath, linenum);
@@ -83,8 +85,8 @@ fn complete(match_found : &Fn(Match)) {
         }
         Err(_) => {
             // input: a command line string passed in
-            let arg = &args[2][];
-            let it = arg.split_str("::");
+            let arg = &args[2];
+            let it = arg.split("::");
             let p : Vec<&str> = it.collect();
 
             for m in do_file_search(p[0], &Path::new(".")) {
@@ -111,7 +113,7 @@ fn prefix() {
     }
     let linenum = args[2].parse::<usize>().unwrap();
     let charnum = args[3].parse::<usize>().unwrap();
-    let fname = &args[4][];
+    let fname = &args[4];
 
     // print the start, end, and the identifier prefix being matched
     let path = Path::new(fname);
@@ -131,7 +133,7 @@ fn find_definition() {
     }
     let linenum = args[2].parse::<usize>().unwrap();
     let charnum = args[3].parse::<usize>().unwrap();
-    let fname = &args[4][];
+    let fname = &args[4];
     let fpath = Path::new(fname);
     let src = racer::load_file(&fpath);
     let pos = scopes::coords_to_point(&*src, linenum, charnum);
@@ -166,7 +168,7 @@ fn main() {
         return;
     }
 
-    let command = &args[1][];
+    let command = &args[1][..];
     match command {
         "prefix" => prefix(),
         "complete" => complete(&match_fn),

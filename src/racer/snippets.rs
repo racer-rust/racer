@@ -1,4 +1,4 @@
-use syntax::ast::{FunctionRetTy, Method_};
+use syntax::ast::{Method_};
 use syntax::ext::quote::rt::ToSource;
 use racer::ast::with_error_checking_parse;
 use racer::{Match, MatchType};
@@ -16,7 +16,6 @@ pub fn snippet_for_match(m : &Match) -> String {
 
 struct MethodInfo {
     name : String,
-    output : Option<String>,
     args : Vec<String>
 }
 
@@ -37,10 +36,6 @@ impl MethodInfo {
                     MethodInfo { 
                         name: ident.to_source(), 
                         args: decl.inputs.iter().map(|a| (*a).to_source()).collect(),
-                        output: match decl.output {
-                            FunctionRetTy::Return(ref tp) => Some(tp.to_source()),
-                            _ => None
-                        } 
                     },
                 _ => panic!("Unable to parse method declaration.")
             }
@@ -50,7 +45,7 @@ impl MethodInfo {
     ///Returns completion snippets usable by some editors
     fn snippet(&self) -> String {
         format!("{}({})", self.name, &self.args.iter()
-            .filter(|&s| &s[] != "self").enumerate()
+            .filter(|&s| *s != "self").enumerate()
             .fold(String::new(), |cur, (i, ref s)| {
                 let arg = format!("${{{}:{}}}", i+1, s);
                 let delim = if i > 0 {", "} else {""};
@@ -65,7 +60,6 @@ fn method_info_test() {
     let info = MethodInfo::from_source_str("pub fn new() -> Vec<T>");
     assert_eq!(info.name, "new".as_slice());
     assert_eq!(info.args.len(), 0);
-    assert_eq!(info.output, Some("Vec<T>".to_string()));
     assert_eq!(info.snippet(), "new()");
 
     let info = MethodInfo::from_source_str("pub fn reserve(&mut self, additional: uint)");

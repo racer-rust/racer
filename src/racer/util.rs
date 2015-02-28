@@ -127,14 +127,14 @@ pub fn find_ident_end(s : &str, pos : usize) -> usize {
 pub fn to_refs<'a>(v: &'a Vec<String>) -> Vec<&'a str> {
     let mut out = Vec::new();
     for item in v.iter() {
-        out.push(&item[]); 
+        out.push(&item[..]); 
     }
     return out;
 }
 
 pub fn find_last_str(needle: &str, mut haystack: &str) -> Option<usize> {
     let mut res = None;
-    while let Some(n) = haystack.find_str(needle) {
+    while let Some(n) = haystack.find(needle) {
         res = Some(n);
         haystack = &haystack[n+1..];
     }

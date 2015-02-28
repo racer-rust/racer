@@ -204,7 +204,7 @@ pub fn load_file(filepath: &old_path::Path) -> String {
     let rawbytes = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
 
     // skip BOF bytes, if present
-    if rawbytes[0..3] == [0xEF, 0xBB, 0xBF][] {
+    if rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
         let mut it = rawbytes.into_iter();
         it.next(); it.next(); it.next();
         return String::from_utf8(it.collect::<Vec<_>>()).unwrap();
@@ -215,7 +215,7 @@ pub fn load_file(filepath: &old_path::Path) -> String {
 
 pub fn load_file_and_mask_comments(filepath: &old_path::Path) -> String {
     let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
-    let src = str::from_utf8(&filetxt[]).unwrap();
+    let src = str::from_utf8(&filetxt).unwrap();
     let msrc = scopes::mask_comments(src);
     return msrc;
 }
@@ -234,7 +234,7 @@ pub fn complete_from_file(src: &str, filepath: &old_path::Path, pos: usize) -> v
 
     match completetype {
         CompletionType::CompletePath => {
-            let mut v = expr.split_str("::").collect::<Vec<_>>();
+            let mut v = expr.split("::").collect::<Vec<_>>();
             let mut global = false;
             if v[0] == "" {      // i.e. starts with '::' e.g. ::std::old_io::blah
                 v.remove(0);
@@ -285,7 +285,7 @@ pub fn find_definition_(src: &str, filepath: &old_path::Path, pos: usize) -> Opt
 
     return match completetype {
         CompletionType::CompletePath => {
-            let mut v = expr.split_str("::").collect::<Vec<_>>();
+            let mut v = expr.split("::").collect::<Vec<_>>();
             let mut global = false;
             if v[0] == "" {      // i.e. starts with '::' e.g. ::std::old_io::blah
                 v.remove(0);

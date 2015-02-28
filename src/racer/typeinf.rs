@@ -11,7 +11,7 @@ use racer::util::txt_matches;
 
 fn find_start_of_function_body(src: &str) -> usize {
     // TODO: this should ignore anything inside parens so as to skip the arg list
-    src.find_str("{").unwrap()
+    src.find("{").unwrap()
 }
 
 // Removes the body of the statement (anything in the braces {...}), leaving just
@@ -19,14 +19,14 @@ fn find_start_of_function_body(src: &str) -> usize {
 // TODO: this should skip parens (e.g. function arguments)
 pub fn generate_skeleton_for_parsing(src: &str) -> String {
     let mut s = String::new();
-    let n = src.find_str("{").unwrap();
+    let n = src.find("{").unwrap();
     s.push_str(&src[..n+1]);
     s.push_str("};");
     s
 }
 
 pub fn first_param_is_self(blob: &str) -> bool {
-    return blob.find_str("(").map_or(false, |start| {
+    return blob.find("(").map_or(false, |start| {
         let end = scopes::find_closing_paren(blob, start+1);
         debug!("searching fn args: |{}| {}",&blob[(start+1)..end], txt_matches(ExactMatch, "self", &blob[(start+1)..end]));
         return txt_matches(ExactMatch, "self", &blob[(start+1)..end]);
@@ -37,7 +37,7 @@ pub fn first_param_is_self(blob: &str) -> bool {
 fn generates_skeleton_for_mod() {
     let src = "mod foo { blah };";
     let out = generate_skeleton_for_parsing(src);
-    assert_eq!("mod foo {};", &out[]);
+    assert_eq!("mod foo {};", out);
 }
 
 fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<racer::Ty> {
@@ -46,7 +46,7 @@ fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<racer::Ty> {
         let decl = generate_skeleton_for_parsing(&msrc[start..]);
         debug!("get_type_of_self_arg impl skeleton |{}|", decl);
         
-        if (&decl[]).starts_with("impl") {
+        if (&decl).starts_with("impl") {
             let implres = ast::parse_impl(decl);
             debug!("get_type_of_self_arg implres |{:?}|", implres);
             return resolve_path_with_str(&implres.name_path.expect("failed parsing impl name"), 
@@ -70,7 +70,7 @@ fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<racer::Ty> {
 
 fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<racer::Ty> {
     
-    if &m.matchstr[] == "self" {
+    if m.matchstr == "self" {
         return get_type_of_self_arg(m, msrc);
     }
 
@@ -111,7 +111,7 @@ fn get_type_of_if_let_expr(m: &Match, msrc: &str) -> Option<racer::Ty> {
     // ASSUMPTION: this is being called on an if let decl
     let stmtstart = scopes::find_stmt_start(msrc, m.point).unwrap();
     let stmt = &msrc[stmtstart..];
-    let point = stmt.find_str("if let").unwrap();
+    let point = stmt.find("if let").unwrap();
     let src = &stmt[point..];
     let src = generate_skeleton_for_parsing(src);
 
@@ -140,7 +140,7 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<rac
                                           racer::Scope::from_match(structmatch));
     for (field, _, ty) in fields.into_iter() {
 
-        if fieldname == &field[] {
+        if fieldname == field {
             return ty;
         }
     }
@@ -152,7 +152,7 @@ pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match) -> Option<
 
     let structsrc = if let racer::MatchType::EnumVariant = structmatch.mtype {
         // decorate the enum variant src to make it look like a tuple struct
-        let to = (&src[structmatch.point..]).find_str("(")
+        let to = (&src[structmatch.point..]).find("(")
             .map(|n| scopes::find_closing_paren(&*src, structmatch.point + n+1))
             .unwrap();
         "struct ".to_string() + &src[structmatch.point..(to+1)] + ";"
@@ -208,7 +208,7 @@ pub fn get_type_from_match_arm(m: &Match, msrc: &str) -> Option<racer::Ty> {
     // match stmt may be incomplete (half written) in the real code
 
     // skip to end of match arm pattern so we can search backwards
-    let arm = otry!((&msrc[m.point..]).find_str("=>")) + m.point;
+    let arm = otry!((&msrc[m.point..]).find("=>")) + m.point;
     let scopestart = scopes::scope_start(msrc, arm);
 
     let stmtstart = otry!(scopes::find_stmt_start(msrc, scopestart-1));
@@ -245,7 +245,7 @@ pub fn get_function_declaration(fnmatch: &Match) -> String {
 pub fn get_return_type_of_function(fnmatch: &Match) -> Option<racer::Ty> {
     let src = racer::load_file(&fnmatch.filepath);
     let point = scopes::find_stmt_start(&*src, fnmatch.point).unwrap();
-    return (&src[point..]).find_str("{").and_then(|n|{
+    return (&src[point..]).find("{").and_then(|n|{
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut decl = String::new();
         decl.push_str("impl blah {");
