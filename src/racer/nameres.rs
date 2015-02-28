@@ -192,11 +192,13 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc:&str, searchstr:&s
 
             let matchstmt = typeinf::get_first_stmt(&msrc[matchstart..]);
             // The definition could be in the match LHS arms. Try to find this
-            debug!("PHIL found a match statement, examining match arms |{}|", matchstmt);
+            debug!("PHIL found a match statement, examining match arms (len {}) |{}|", 
+                   matchstmt.len(), matchstmt);
             
             let masked_matchstmt = mask_matchstmt(matchstmt, 
                                                   scopestart+1 - matchstart);
-            debug!("PHIL masked match stmt is |{}|", masked_matchstmt);
+            debug!("PHIL masked match stmt is len {} |{}|", 
+                   masked_matchstmt.len(), masked_matchstmt);
 
 
             // Locate the match arm LHS by finding the => just before point and then backtracking

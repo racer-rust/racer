@@ -210,8 +210,8 @@ fn expand_search_expr_handles_pos_at_end_of_search_str() {
 
 pub fn mask_comments(src: &str) -> String {
     let mut result = String::with_capacity(src.len());
-    let buf_byte = &[b' '; 128][];
-    let buffer = &from_utf8(buf_byte).unwrap()[];
+    let buf_byte = &[b' '; 128];
+    let buffer = from_utf8(buf_byte).unwrap();
     let mut prev: usize = 0;
     for (start, end) in codecleaner::code_chunks(src) {
         for _ in 0..((start-prev)/128) { result.push_str(buffer); }
@@ -224,8 +224,8 @@ pub fn mask_comments(src: &str) -> String {
 
 pub fn mask_sub_scopes(src:&str) -> String {
     let mut result = String::with_capacity(src.len());
-    let buf_byte = &[b' '; 128][];
-    let buffer = &from_utf8(buf_byte).unwrap()[];
+    let buf_byte = [b' '; 128];
+    let buffer = from_utf8(&buf_byte).unwrap();
     let mut levels = 0i32;
     let mut start = 0us;
     let mut pos = 0us;
@@ -235,24 +235,26 @@ pub fn mask_sub_scopes(src:&str) -> String {
         match b {
             b'{' => {
                 if levels == 0 {
-                    result.push_str(&src[start..(pos-1)]);
-                    start = pos;
+                    result.push_str(&src[start..(pos)]);
+                    start = pos+1;
                 }
                 levels += 1;
             },
             b'}' => {
                 if levels == 1 {
-                    for _ in 0..((pos-start)/128) { result.push_str(buffer); }
-                    result.push_str(&buffer[..((pos-start)%128)]);
-                    start = pos+1;
+                    let num_spaces = (pos-start);
+                    for _ in 0..(num_spaces/128) { result.push_str(buffer); }
+                    result.push_str(&buffer[..((num_spaces)%128)]);
+                    result.push_str("}");
+                    start = pos;
                 }
                 levels -= 1;
             },
             b'\n' if levels > 0 => {
-                for _ in 0..((pos-start-1)/128) { result.push_str(buffer); }
-                result.push_str(&buffer[..((pos-start-1)%128)]);
+                for _ in 0..((pos-start)/128) { result.push_str(buffer); }
+                result.push_str(&buffer[..((pos-start)%128)]);
                 result.push('\n');
-                start = pos;
+                start = pos+1;
             },
             _ => {}
         }

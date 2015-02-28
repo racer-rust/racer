@@ -1106,3 +1106,20 @@ fn gets_type_via_match_arm() {
     assert_eq!("subfield", &got.matchstr[]);
 }
 
+#[test]
+fn handles_default_arm() {
+    let src="
+    let o: MyOption<Blah>;
+    match o {
+        Foo => { }
+        _ => o
+    }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 5, 13);
+    let got = find_definition(src, &path, pos).unwrap();
+    remove_file(&path);
+    assert_eq!("o", got.matchstr);
+    assert_eq!(9, got.point);
+}
