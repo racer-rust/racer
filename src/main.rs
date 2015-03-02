@@ -1,4 +1,4 @@
-#![feature(collections, core, old_io, old_path, rustc_private, env)]
+#![feature(collections, core, old_io, old_path, rustc_private, exit_status)]
 #![feature(test)]   // need this for unit tests, but annoyingly puts a warning when building non-test
 
 
