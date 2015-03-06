@@ -1,5 +1,6 @@
-#![feature(collections, core, old_io, old_path, rustc_private, exit_status)]
-#![feature(test)]   // need this for unit tests, but annoyingly puts a warning when building non-test
+#![feature(collections, core, old_io, old_path, rustc_private)]
+#![cfg_attr(not(test), feature(exit_status))] // we don't need exit_status feature when testing
+#![cfg_attr(test, feature(test))] // we only need test feature when testing
 
 
 #[macro_use] extern crate log;
