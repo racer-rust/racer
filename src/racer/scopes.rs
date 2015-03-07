@@ -59,7 +59,6 @@ fn get_local_module_path_(msrc: &str, point: usize, out: &mut Vec<String>) {
             if blob.starts_with("pub mod "){
                 let p = typeinf::generate_skeleton_for_parsing(blob);
                 ast::parse_mod(p).name.map(|name|{
-
                     let newstart = blob.find("{").unwrap() + 1;
                     out.push(name);
                     get_local_module_path_(&blob[newstart..], 
@@ -102,7 +101,7 @@ fn finds_subnested_module() {
     assert_eq!("foo", &v[0][..]);
     assert_eq!("bar", &v[1][..]);
 
-    let point = coords_to_point(src, 2, 8);
+    let point = coords_to_point(src, 3, 8);
     let v = get_local_module_path(src, point);
     assert_eq!("foo", &v[0][..]);
 }
@@ -124,10 +123,10 @@ pub fn split_into_context_and_completion<'a>(s: &'a str) -> (&'a str, &'a str, r
 }
 
 pub fn get_start_of_search_expr(src: &str, point: usize) -> usize {
-    
-    let mut i = point-1;
+    let mut i = point;
     let mut levels = 0u32;
     for &b in src.as_bytes()[..point].iter().rev() {
+        i -= 1;
         match b {
             b'(' => {
                 if levels == 0 { return i+1; }
@@ -142,7 +141,6 @@ pub fn get_start_of_search_expr(src: &str, point: usize) -> usize {
                 }
             }
         }
-        i -= 1;
     }
     0
 }
