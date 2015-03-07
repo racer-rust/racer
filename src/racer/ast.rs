@@ -34,13 +34,6 @@ pub fn with_error_checking_parse<F, T>(s: String, f: F) -> T where F: Fn(&mut Pa
     x
 }
 
-// parse a string, return an expr
-pub fn string_to_expr (source_str : String) -> P<ast::Expr> {
-    with_error_checking_parse(source_str, |p| {
-        p.parse_expr()
-    })
-}
-
 // parse a string, return an item
 pub fn string_to_item (source_str : String) -> Option<P<ast::Item>> {
     with_error_checking_parse(source_str, |p| {
