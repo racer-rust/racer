@@ -1,4 +1,4 @@
-use syntax::ast::{Method_};
+use syntax::ast::{ImplItem_};
 use syntax::ext::quote::rt::ToSource;
 use racer::ast::with_error_checking_parse;
 use racer::{Match, MatchType};
@@ -28,16 +28,17 @@ impl MethodInfo {
         let decorated = format!("{} {{}}()", source.trim_right_matches(trim));
 
         with_error_checking_parse(decorated, |p| {
-
-            let ref method = p.parse_method_with_outer_attributes();
+            let ref method = p.parse_impl_item_with_outer_attributes();
 
             match method.node {
-                Method_::MethDecl(ident, _, _, _, _,ref decl, _, _) => 
-                    MethodInfo { 
-                        name: ident.to_source(), 
+                ImplItem_::MethodImplItem(ref msig, _) => {
+                    let ref decl = msig.decl;
+                    MethodInfo {
+                        name: method.ident.to_source(),
                         args: decl.inputs.iter().map(|a| (*a).to_source()).collect(),
-                    },
-                _ => panic!("Unable to parse method declaration.")
+                    }
+                },
+                _ => { panic!("Unable to parse method declaration.") }
             }
         })
     }
