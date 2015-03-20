@@ -37,7 +37,7 @@ pub fn with_error_checking_parse<F, T>(s: String, f: F) -> T where F: Fn(&mut Pa
 // parse a string, return an item
 pub fn string_to_item (source_str : String) -> Option<P<ast::Item>> {
     with_error_checking_parse(source_str, |p| {
-        p.parse_item(Vec::new())
+        p.parse_item()
     })
 }
 
@@ -45,7 +45,7 @@ pub fn string_to_item (source_str : String) -> Option<P<ast::Item>> {
 pub fn string_to_stmt(source_str : String) -> P<ast::Stmt> {
     with_error_checking_parse(source_str, |p| {
 
-        p.parse_stmt(Vec::new())
+        p.parse_stmt().unwrap()
     })
 }
 
