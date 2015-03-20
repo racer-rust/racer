@@ -17,6 +17,18 @@ use syntax::ptr::P;
 use syntax::visit::Visitor;
 use racer::nameres;
 
+/*
+since libsyntax panics when we send it a syntactically wrong file,
+we need to make sure that when it panics, it does not bring RACER
+down with it. This is doubly important when RACER is used as a library,
+since crashing a library through the FFI will also crash anything that uses
+the library. Therefore, to sandbox crashes, use Rust's threads that are able to do this.
+*/
+//for sending and receiving data between threads
+use std::sync::mpsc;
+//for thread::spawn (to spawn a new thread)
+use std::thread;
+
 
 // This code ripped from libsyntax::util::parser_testing
 pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: String) -> Parser<'a> {
@@ -789,27 +801,65 @@ impl<'v> visit::Visitor<'v> for EnumVisitor {
     }
 }
 
+
 pub fn parse_use(s: String) -> UseVisitor {
-    let cr = string_to_crate(s);
-    let mut v = UseVisitor{ident: None, 
-                                paths: Vec::new(),
-                                is_glob: false};
-    visit::walk_crate(&mut v, &cr);
-    return v;
+    let (tx, rx) = mpsc::channel();
+
+    thread::spawn(move || {
+        let cr = string_to_crate(s);
+        let mut v = UseVisitor{ident: None, 
+                                    paths: Vec::new(),
+                                    is_glob: false};
+        visit::walk_crate(&mut v, &cr);
+
+        //we need the unwrap since send() returns a Result.
+        //if there is an error, unwrap() will cause a panic
+        tx.send(v).unwrap();    
+    });
+
+    match rx.recv() {
+        Ok(s) => { return s; },
+        Err(_) => {
+            return UseVisitor{ident: None, 
+                              paths: Vec::new(),
+                              is_glob: false};
+        }
+    }
 }
 
 pub fn parse_let(s: String) -> Vec<(usize, usize)> {
-    let stmt = string_to_stmt(s);
-    let mut v = LetVisitor{ ident_points: Vec::new() };
-    visit::walk_stmt(&mut v, &*stmt);
-    return v.ident_points;
+    let (tx, rx) = mpsc::channel();
+
+     thread::spawn(move || { 
+        let stmt = string_to_stmt(s);
+        let mut v = LetVisitor{ ident_points: Vec::new() };
+        visit::walk_stmt(&mut v, &*stmt);
+
+        tx.send(v.ident_points).unwrap();
+    });
+
+    match rx.recv() {
+        Ok(ident_points) => ident_points,
+        Err(_) => Vec::new()
+    }
 }
 
 pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, usize, Option<racer::Ty>)> {
-    let stmt = string_to_stmt(s);
-    let mut v = StructVisitor{ scope: scope, fields: Vec::new() };
-    visit::walk_stmt(&mut v, &*stmt);
-    return v.fields;
+
+    let (tx, rx) = mpsc::channel();
+
+    thread::spawn(move || {
+        let stmt = string_to_stmt(s);
+        let mut v = StructVisitor{ scope: scope, fields: Vec::new() };
+        visit::walk_stmt(&mut v, &*stmt);
+
+        tx.send(v.fields).unwrap();
+    });
+
+    match rx.recv() {
+        Ok(fields) => fields,
+        Err(_) => Vec::new()
+    }
 }
 
 pub fn parse_impl(s: String) -> ImplVisitor {
@@ -852,14 +902,23 @@ pub fn parse_fn_args(s: String) -> Vec<(usize, usize)> {
 }
 
 pub fn parse_pat_idents(s: String) -> Vec<(usize, usize)> {
-    let stmt = string_to_stmt(s);
-    debug!("parse_pat_idents stmt is {:?}",stmt);
-    let mut v = PatVisitor{ ident_points: Vec::new() };
-    visit::walk_stmt(&mut v, &*stmt);
-    debug!("ident points are {:?}", v.ident_points);
-    return v.ident_points;
-}
+    let (tx, rx) = mpsc::channel();
 
+    thread::spawn(move || {
+        let stmt = string_to_stmt(s);
+        debug!("parse_pat_idents stmt is {:?}",stmt);
+        let mut v = PatVisitor{ ident_points: Vec::new() };
+        visit::walk_stmt(&mut v, &*stmt);
+        debug!("ident points are {:?}", v.ident_points);
+
+        tx.send(v.ident_points).unwrap();
+    });
+
+    match rx.recv() {
+        Ok(ident_points) => ident_points,
+        Err(_) => Vec::new()
+    }
+}
 
 pub fn parse_fn_output(s: String, scope: Scope) -> Option<racer::Ty> {
     let stmt = string_to_stmt(s);
