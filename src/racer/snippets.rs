@@ -28,7 +28,7 @@ impl MethodInfo {
         let decorated = format!("{} {{}}()", source.trim_right_matches(trim));
 
         with_error_checking_parse(decorated, |p| {
-            let ref method = p.parse_impl_item_with_outer_attributes();
+            let ref method = p.parse_impl_item();
 
             match method.node {
                 ImplItem_::MethodImplItem(ref msig, _) => {
