@@ -1,7 +1,7 @@
-use std::old_io::File;
-use std::old_io::BufferedReader;
-use std::old_path;
-use std::{str,vec,fmt};
+use std::fs::File;
+use std::io::{BufReader, Read};
+use std::{str, vec, fmt};
+use std::path;
 
 pub mod scopes;
 pub mod ast;
@@ -67,7 +67,7 @@ impl Copy for CompletionType {}
 #[derive(Clone)]
 pub struct Match {
     pub matchstr: String,
-    pub filepath: old_path::Path,
+    pub filepath: path::PathBuf,
     pub point: usize,
     pub local: bool,
     pub mtype: MatchType,
@@ -96,7 +96,7 @@ impl fmt::Debug for Match {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Match [{:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?} |{}|]", 
                self.matchstr, 
-               self.filepath.as_str(), 
+               self.filepath.to_str(),
                self.point, 
                self.local, 
                self.mtype, 
@@ -108,7 +108,7 @@ impl fmt::Debug for Match {
 
 #[derive(Clone)]
 pub struct Scope {
-    pub filepath: old_path::Path,
+    pub filepath: path::PathBuf,
     pub point: usize
 }
 
@@ -121,7 +121,7 @@ impl Scope {
 impl fmt::Debug for Scope {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Scope [{:?}, {:?}]", 
-               self.filepath.as_str(), 
+               self.filepath.to_str(),
                self.point)
     }
 }
@@ -187,7 +187,7 @@ pub struct PathSegment {
 #[derive(Clone)]
 pub struct PathSearch {
     path: Path,
-    filepath: old_path::Path,
+    filepath: path::PathBuf,
     point: usize
 }
 
@@ -195,13 +195,14 @@ impl fmt::Debug for PathSearch {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Search [{:?}, {:?}, {:?}]", 
                self.path, 
-               self.filepath.as_str(), 
+               self.filepath.to_str(),
                self.point)
     }
 }
 
-pub fn load_file(filepath: &old_path::Path) -> String {
-    let rawbytes = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
+pub fn load_file(filepath: &path::Path) -> String {
+    let mut rawbytes = Vec::new();
+    BufReader::new(File::open(filepath).unwrap()).read_to_end(&mut rawbytes).unwrap();
 
     // skip BOF bytes, if present
     if rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
@@ -213,14 +214,15 @@ pub fn load_file(filepath: &old_path::Path) -> String {
     }
 }
 
-pub fn load_file_and_mask_comments(filepath: &old_path::Path) -> String {
-    let filetxt = BufferedReader::new(File::open(filepath)).read_to_end().unwrap();
+pub fn load_file_and_mask_comments(filepath: &path::Path) -> String {
+    let mut filetxt = Vec::new();
+    BufReader::new(File::open(filepath).unwrap()).read_to_end(&mut filetxt).unwrap();
     let src = str::from_utf8(&filetxt).unwrap();
     let msrc = scopes::mask_comments(src);
     return msrc;
 }
 
-pub fn complete_from_file(src: &str, filepath: &old_path::Path, pos: usize) -> vec::IntoIter<Match> {
+pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize) -> vec::IntoIter<Match> {
 
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = &src[start..pos];
@@ -271,11 +273,11 @@ pub fn complete_from_file(src: &str, filepath: &old_path::Path, pos: usize) -> v
 }
 
 
-pub fn find_definition(src: &str, filepath: &old_path::Path, pos: usize) -> Option<Match> {
+pub fn find_definition(src: &str, filepath: &path::Path, pos: usize) -> Option<Match> {
     return find_definition_(src, filepath, pos);
 }
 
-pub fn find_definition_(src: &str, filepath: &old_path::Path, pos: usize) -> Option<Match> {
+pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize) -> Option<Match> {
     let (start, end) = scopes::expand_search_expr(src, pos);
     let expr = &src[start..end];
 

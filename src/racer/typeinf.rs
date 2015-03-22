@@ -2,11 +2,9 @@
 
 use racer::{Match};
 use racer::nameres::{resolve_path_with_str};
-use racer::{ast,codeiter,scopes,util};
-use racer;
-
-use racer::SearchType::ExactMatch;
 use racer::Namespace::TypeNamespace;
+use racer::{self, ast, codeiter, scopes, util};
+use racer::SearchType::ExactMatch;
 use racer::util::txt_matches;
 
 fn find_start_of_function_body(src: &str) -> usize {
