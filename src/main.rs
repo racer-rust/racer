@@ -1,4 +1,4 @@
-#![feature(collections, core, old_io, old_path, rustc_private)]
+#![feature(collections, core, rustc_private, str_char)]
 #![cfg_attr(not(test), feature(exit_status))] // we don't need exit_status feature when testing
 #![cfg_attr(test, feature(test))] // we only need test feature when testing
 
@@ -17,6 +17,8 @@ use racer::util::getline;
 use racer::nameres::{do_file_search, do_external_search};
 #[cfg(not(test))]
 use racer::scopes;
+#[cfg(not(test))]
+use std::path::Path;
 
 pub mod racer;
 
@@ -32,7 +34,7 @@ fn match_with_snippet_fn(m:Match) {
                                     snippet,
                                     linenum.to_string(),
                                     charnum.to_string(),
-                                    m.filepath.as_str().unwrap(),
+                                    m.filepath.to_str().unwrap(),
                                     m.mtype,
                                     m.contextstr,
              );
@@ -47,7 +49,7 @@ fn match_fn(m:Match) {
     println!("MATCH {},{},{},{},{:?},{}", m.matchstr,
                                     linenum.to_string(),
                                     charnum.to_string(),
-                                    m.filepath.as_str().unwrap(),
+                                    m.filepath.to_str().unwrap(),
                                     m.mtype,
                                     m.contextstr
              );

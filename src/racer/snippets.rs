@@ -1,8 +1,9 @@
-use syntax::ast::{ImplItem_};
-use syntax::ext::quote::rt::ToSource;
 use racer::ast::with_error_checking_parse;
 use racer::{Match, MatchType};
 use racer::typeinf::get_function_declaration;
+
+use syntax::ast::{ImplItem_};
+use syntax::ext::quote::rt::ToSource;
 
 pub fn snippet_for_match(m : &Match) -> String {
     match m.mtype {

@@ -1,12 +1,15 @@
 // Small functions of utility
+
+use racer::SearchType::{self, ExactMatch, StartsWith};
+
 use std::cmp;
-use std::old_io::{File, BufferedReader};
-use racer::{SearchType};
-use racer::SearchType::{ExactMatch, StartsWith};
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+use std::path::Path;
 
 pub fn getline(filepath : &Path, linenum : usize) -> String {
     let mut i = 0;
-    let mut file = BufferedReader::new(File::open(filepath));
+    let file = BufReader::new(File::open(filepath).unwrap());
     for line in file.lines() {
         //print!("{}", line);
         i += 1;

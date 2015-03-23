@@ -1,13 +1,10 @@
-use std::old_io::{File, BufferedReader};
-use std::str::from_utf8;
-use std::iter::Iterator;
+use racer::{self, ast, codecleaner, codeiter, typeinf, util};
 
-use racer;
-use racer::util;
-use racer::codecleaner;
-use racer::codeiter;
-use racer::typeinf;
-use racer::ast;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
+use std::iter::Iterator;
+use std::path::Path;
+use std::str::from_utf8;
 
 fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<usize>
     where A: Iterator<Item=&'a u8> {
@@ -299,9 +296,9 @@ pub fn point_to_coords(src:&str, point:usize) -> (usize, usize) {
 
 pub fn point_to_coords_from_file(path: &Path, point:usize) -> Option<(usize, usize)> {
     let mut lineno = 0;
-    let mut file = BufferedReader::new(File::open(path));
+    let reader = BufReader::new(File::open(path).unwrap());
     let mut p = 0;
-    for line_r in file.lines() {
+    for line_r in reader.lines() {
         let line = line_r.unwrap();
         lineno += 1;
         if point < (p + line.len()) {

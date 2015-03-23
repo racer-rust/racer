@@ -1,22 +1,19 @@
 extern crate syntax;
+
+use racer::{self, typeinf, Match, MatchType, Scope, Ty};
+use racer::nameres::{self, resolve_path_with_str};
+use racer::Ty::{TyTuple, TyPathSearch, TyMatch, TyUnsupported};
+
+use std::ops::Deref;
+use std::path::Path;
+
 use syntax::ast;
-use syntax::parse::{new_parse_sess};
-use syntax::parse::{ParseSess};
-use syntax::parse::{new_parser_from_source_str};
+use syntax::codemap;
+use syntax::parse::{new_parser_from_source_str, new_parse_sess, ParseSess};
 use syntax::parse::parser::Parser;
 use syntax::parse::token;
-use syntax::visit;
-use syntax::codemap;
-use racer::Match;
-use racer;
-use racer::nameres::{resolve_path_with_str};
-use racer::typeinf;
-use racer::{Scope,Ty,MatchType};
-use racer::Ty::{TyTuple, TyPathSearch, TyMatch, TyUnsupported};
 use syntax::ptr::P;
-use syntax::visit::Visitor;
-use racer::nameres;
-
+use syntax::visit::{self, Visitor};
 
 // This code ripped from libsyntax::util::parser_testing
 pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: String) -> Parser<'a> {
@@ -380,7 +377,7 @@ fn find_type_match(path: &racer::Path, fpath: &Path, pos: usize) -> Option<Ty> {
             .map(|typepath| 
                  racer::PathSearch{ 
                      path: typepath.clone(),
-                     filepath: fpath.clone(),
+                     filepath: fpath.to_path_buf(),
                      point: pos
                  }).collect();
 
@@ -394,7 +391,7 @@ fn find_type_match(path: &racer::Path, fpath: &Path, pos: usize) -> Option<Ty> {
 
 fn get_type_of_typedef(m: Match) -> Option<Match> {
     debug!("get_type_of_typedef match is {:?}",m);
-    let msrc = racer::load_file_and_mask_comments(&m.filepath);
+    let msrc = racer::load_file_and_mask_comments(m.filepath.deref());
     let blobstart = m.point - 5;  // - 5 because 'type '
     let blob = &msrc[blobstart..];
 
@@ -903,7 +900,7 @@ pub fn get_type_of(exprstr: String, fpath: &Path, pos: usize) -> Option<Ty> {
 
     let stmt = string_to_stmt(exprstr);
     let startscope = Scope {
-        filepath: myfpath,
+        filepath: myfpath.to_path_buf(),
         point: pos
     };
 

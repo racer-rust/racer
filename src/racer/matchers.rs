@@ -1,5 +1,3 @@
-use std::cell::Cell;
-use std::{iter, option};
 use collections::vec;
 use racer::{self, scopes, typeinf, ast, Match, PathSegment};
 use racer::util::{symbol_matches, txt_matches, find_ident_end, is_ident_char};
@@ -7,7 +5,9 @@ use racer::nameres::{get_module_file, get_crate_file, resolve_path};
 use racer::SearchType::{self, StartsWith, ExactMatch};
 use racer::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant, Const, Static, IfLet};
 use racer::Namespace::BothNamespaces;
-
+use std::cell::Cell;
+use std::{iter, option};
+use std::path::Path;
 
 // Should I return a boxed trait object to make this signature nicer?
 pub fn match_types(src: &str, blobstart: usize, blobend: usize, 
@@ -96,7 +96,7 @@ fn match_pattern_start(src: &str, blobstart: usize, blobend: usize,
             let s = &blob[start..start+end].trim_right();
             return Some(Match { 
                 matchstr: s.to_string(),
-                filepath: filepath.clone(),
+                filepath: filepath.to_path_buf(),
                 point: blobstart+start,
                 local: local,
                 mtype: mtype,
@@ -135,7 +135,7 @@ fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
             let s = &blob[start..end];
             if symbol_matches(search_type, searchstr, s) {
                 out.push(Match { matchstr: s.to_string(),
-                                   filepath: filepath.clone(),
+                                   filepath: filepath.to_path_buf(),
                                    point: blobstart + start,
                                    local: local,
                                    mtype: mtype,
@@ -206,11 +206,11 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
                 };
             get_crate_file(&realname).map(|cratepath|{
                 res = Some(Match {matchstr: name.clone(),
-                                  filepath: cratepath.clone(), 
+                                  filepath: cratepath.to_path_buf(),
                                   point: 0,
                                   local: false,
                                   mtype: Module,
-                                  contextstr: cratepath.as_str().unwrap().to_string(),
+                                  contextstr: cratepath.to_str().unwrap().to_string(),
                                   generic_args: Vec::new(), 
                                   generic_types: Vec::new()
                 });
@@ -237,11 +237,11 @@ pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
 
             return Some(Match {
                 matchstr: l.to_string(),
-                filepath: filepath.clone(), 
+                filepath: filepath.to_path_buf(),
                 point: blobstart + start, 
                 local: false,
                 mtype: Module,
-                contextstr: filepath.as_str().unwrap().to_string(),
+                contextstr: filepath.to_str().unwrap().to_string(),
                 generic_args: Vec::new(), 
                 generic_types: Vec::new()
             })
@@ -253,15 +253,18 @@ pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
             // because if it is then we need to search further down the 
             // directory hierarchy
             let internalpath = scopes::get_local_module_path(msrc, blobstart);
-            let searchdir = filepath.dir_path().join_many(&internalpath);
+            let mut searchdir = filepath.parent().unwrap().to_path_buf();
+            for s in internalpath {
+                searchdir.push(&s);
+            }
             if let Some(modpath) = get_module_file(l, &searchdir) {
                 return Some(Match {
                     matchstr: l.to_string(),
-                    filepath: modpath.clone(), 
+                    filepath: modpath.to_path_buf(),
                     point: 0,
                     local: false,
                     mtype: Module,
-                    contextstr: modpath.as_str().unwrap().to_string(),
+                    contextstr: modpath.to_str().unwrap().to_string(),
                     generic_args: Vec::new(),
                     generic_types: Vec::new()
                 })
@@ -290,7 +293,7 @@ pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize,
 
         Some(Match {
             matchstr: l.to_string(),
-            filepath: filepath.clone(), 
+            filepath: filepath.to_path_buf(),
             point: blobstart + start,
             local: local,
             mtype: Struct,
@@ -315,7 +318,7 @@ pub fn match_type(msrc: &str, blobstart: usize, blobend: usize,
         debug!("found!! a type {}", l);
         Some(Match {
             matchstr: l.to_string(),
-            filepath: filepath.clone(), 
+            filepath: filepath.to_path_buf(),
             point: blobstart + start,
             local: local,
             mtype: Type,
@@ -340,7 +343,7 @@ pub fn match_trait(msrc: &str, blobstart: usize, blobend: usize,
         debug!("found!! a trait {}", l);
         Some(Match {
             matchstr: l.to_string(),
-            filepath: filepath.clone(), 
+            filepath: filepath.to_path_buf(),
             point: blobstart + start,
             local: local,
             mtype: Trait,
@@ -368,7 +371,7 @@ pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize,
 
                     let m = Match {
                         matchstr: name.clone(),
-                        filepath: filepath.clone(), 
+                        filepath: filepath.to_path_buf(),
                         point: blobstart + offset,
                         local: local,
                         mtype: EnumVariant,
@@ -401,7 +404,7 @@ pub fn match_enum(msrc: &str, blobstart: usize, blobend: usize,
 
         Some(Match {
             matchstr: l.to_string(),
-            filepath: filepath.clone(), 
+            filepath: filepath.to_path_buf(),
             point: blobstart + start,
             local: local,
             mtype: Enum,
@@ -550,7 +553,7 @@ pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize,
             debug!("found a fn {}",l);
             Some(Match {
                 matchstr: l.to_string(),
-                filepath: filepath.clone(), 
+                filepath: filepath.to_path_buf(),
                 point: blobstart + start,
                 local: local,
                 mtype: Function,
