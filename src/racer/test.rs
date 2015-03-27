@@ -13,7 +13,7 @@ fn tmpname() -> PathBuf {
     let s = taskname.replace("::","_"); 
     let mut p = String::from_str("tmpfile.");
     p.push_str(&s[..]);
-    PathBuf::new(p)
+    PathBuf::from(p)
 }
 
 fn write_file(tmppath:&Path, s : &str) {
@@ -350,7 +350,6 @@ fn follows_self_use() {
     }
     ";
     let basedir = tmpname();
-    fs::create_dir(&basedir).unwrap();
     let moddir = basedir.join("mymod");
     fs::create_dir_all(&moddir).unwrap();
 
@@ -383,7 +382,6 @@ fn finds_nested_submodule_file() {
     ";
 
     let basedir = tmpname();
-    fs::create_dir(&basedir).unwrap();
     let srcpath = basedir.join("root.rs");
     let sub2dir = basedir.join("sub1").join("sub2");
     fs::create_dir_all(&sub2dir).unwrap();
