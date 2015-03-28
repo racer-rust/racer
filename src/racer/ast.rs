@@ -722,7 +722,7 @@ impl<'v> visit::Visitor<'v> for ExternCrateVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ast::ItemExternCrate(ref optional_s) = item.node {
             self.name = Some(String::from_str(&token::get_ident(item.ident)));
-            if let &Some((ref istr, _)) = optional_s {
+            if let &Some(ref istr) = optional_s {
                 self.realname = Some(istr.to_string());
             }
         }
