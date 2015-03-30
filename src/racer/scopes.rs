@@ -304,7 +304,7 @@ pub fn point_to_coords_from_file(path: &Path, point:usize) -> Option<(usize, usi
         if point < (p + line.len()) {
             return Some((lineno, point - p));
         }
-        p += line.len();
+        p += line.len() + 1;  // +1 for the newline char
     }
     None
 }
