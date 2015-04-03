@@ -40,7 +40,7 @@ pub enum MatchType {
 
 impl Copy for MatchType {}
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum SearchType {
     ExactMatch,
     StartsWith
@@ -48,7 +48,7 @@ pub enum SearchType {
 
 impl Copy for SearchType {}
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum Namespace {
     TypeNamespace,
     ValueNamespace,
@@ -57,7 +57,7 @@ pub enum Namespace {
 
 impl Copy for Namespace {}
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum CompletionType {
     CompleteField,
     CompletePath

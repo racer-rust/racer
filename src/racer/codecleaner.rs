@@ -19,7 +19,7 @@ pub fn slice(src: &str, (begin, end): (usize, usize)) -> &str{
     &src[begin..end]
 }
 
-#[derive(Copy)]
+#[derive(Clone,Copy)]
 enum State {
     StateCode,
     StateComment,
@@ -29,7 +29,7 @@ enum State {
     StateFinished
 }
 
-#[derive(Copy)]
+#[derive(Clone,Copy)]
 pub struct CodeIndicesIter<'a> {
     src: &'a str,
     pos: usize,

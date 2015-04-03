@@ -7,7 +7,7 @@ use racer::codecleaner::{code_chunks,CodeIndicesIter};
 
 #[cfg(test)] use racer::testutils::{rejustify, slice};
 
-#[derive(Copy)]
+#[derive(Clone,Copy)]
 pub struct StmtIndicesIter<'a> {
     src: &'a str,
     it: CodeIndicesIter<'a>,
