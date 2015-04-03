@@ -4,13 +4,9 @@
 
 *RACER* = *R*ust *A*uto-*C*omplete-*er*. A utility intended to provide rust code completion for editors and IDEs. Maybe one day the 'er' bit will be exploring + refactoring or something.
 
-## Status
+## Important - Racer does not work with Rust Beta!
 
-- Does an ok job of static completions: functions, structs, enums etc.. 
-
-- Not so hot on the dynamic stuff: methods, fields etc.. (yet)
-
-- Also provides 'find-definition' support for jumping around source code
+Racer uses unstable features from the standard library, and so currently requires a rust nightly install 
 
 ## Installation
 
