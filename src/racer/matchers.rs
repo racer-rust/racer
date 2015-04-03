@@ -134,6 +134,7 @@ fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
         for &(start,end) in coords.iter() {
             let s = &blob[start..end];
             if symbol_matches(search_type, searchstr, s) {
+                println!("PHIL point is {}", blobstart + start);
                 out.push(Match { matchstr: s.to_string(),
                                    filepath: filepath.to_path_buf(),
                                    point: blobstart + start,
@@ -204,7 +205,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
                 } else {
                     name
                 };
-            get_crate_file(&realname).map(|cratepath|{
+            get_crate_file(&realname, filepath).map(|cratepath|{
                 res = Some(Match {matchstr: name.clone(),
                                   filepath: cratepath.to_path_buf(),
                                   point: 0,

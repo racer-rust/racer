@@ -9,6 +9,7 @@ use racer::Match;
 use racer::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, MatchArm};
 use racer::Namespace::{self, TypeNamespace, ValueNamespace, BothNamespaces};
 use racer::util::{symbol_matches, txt_matches, find_ident_end};
+use racer::cargo;
 
 use std::fs::File;
 use std::ops::Deref;
@@ -483,7 +484,7 @@ pub fn search_next_scope(mut startpoint: usize, pathseg: &racer::PathSegment,
     return search_scope(startpoint, startpoint, &*filesrc, pathseg, filepath, search_type, local, namespace);
 }
 
-pub fn get_crate_file(name: &str) -> Option<PathBuf> {
+pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
     let srcpaths = std::env::var("RUST_SRC_PATH").unwrap();
     let v = (&srcpaths).split(PATH_SEP).collect::<Vec<_>>();
     for srcpath in v.into_iter() {
@@ -504,6 +505,11 @@ pub fn get_crate_file(name: &str) -> Option<PathBuf> {
             }
         }
     }
+
+    if let Some(p) = cargo::get_crate_file(name, from_path) {
+        return Some(p);
+    }
+
     return None;
 }
 
@@ -848,7 +854,7 @@ pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: usize,
     let is_exact_match = match search_type { ExactMatch => true, StartsWith => false };
 
     if (is_exact_match && (&searchstr[..]) == "std") || (!is_exact_match && "std".starts_with(searchstr)) {
-        get_crate_file("std").map(|cratepath|{
+        get_crate_file("std", filepath).map(|cratepath|{
             out.push(Match { matchstr: "std".to_string(),
                         filepath: cratepath.to_path_buf(),
                         point: 0,

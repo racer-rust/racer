@@ -13,6 +13,7 @@ pub mod testutils;
 pub mod util;
 pub mod matchers;
 pub mod snippets;
+pub mod cargo;
 
 #[cfg(test)] pub mod test;
 #[cfg(test)] pub mod bench;

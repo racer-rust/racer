@@ -1,13 +1,13 @@
-#![feature(collections, core, rustc_private, str_char)]
+#![feature(collections, core, rustc_private, str_char, path_ext)]
 #![cfg_attr(not(test), feature(exit_status))] // we don't need exit_status feature when testing
 #![cfg_attr(test, feature(convert, test))] // we only need test feature when testing
-
 
 #[macro_use] extern crate log;
 
 extern crate syntax;
 extern crate collections;
 extern crate core;
+extern crate toml;
 
 #[cfg(not(test))]
 use racer::Match;
@@ -42,7 +42,9 @@ fn match_with_snippet_fn(m:Match) {
 
 #[cfg(not(test))]
 fn match_fn(m:Match) {
+    println!("PHIL m is {:?} {}",m, m.point);
     let (linenum, charnum) = scopes::point_to_coords_from_file(&m.filepath, m.point).unwrap();
+    println!("PHIL linenum, charnum is {:?}",(linenum, charnum));
     if m.matchstr == "" {
         panic!("MATCHSTR is empty - waddup?");
     }
