@@ -35,17 +35,41 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
                 let version = otry!(getstr(t, "version"));
                 let source = otry!(getstr(t, "source"));
 
+                
                 if Some("registry") == source.split("+").nth(0) {
-
                     let mut d = otry!(env::home_dir());
-                    d.push(".cargo"); 
+                    d.push(".cargo");
                     d.push("registry");
                     d.push("src");
-                    d = otry!(find_git_dir(d));
+                    d = otry!(find_cratesio_src_dir(d));
                     d.push(kratename.to_string() + "-" + &version);
                     d.push("src");
                     d.push("lib.rs");
                     return Some(d)
+                } else if Some("git") == source.split("+").nth(0) {
+                    let sha1 = otry!(source.split("#").last());
+                    let mut d = otry!(env::home_dir());
+                    d.push(".cargo"); 
+                    d.push("git");
+                    d.push("checkouts");
+                    d = otry!(find_git_src_dir(d, kratename, &sha1));
+                    d.push("src");
+                    d.push("lib.rs");
+                    return Some(d);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn find_cratesio_src_dir(d: PathBuf) -> Option<PathBuf> {
+    for entry in otry2!(read_dir(d)) {
+        let path = otry2!(entry).path();
+        if path.is_dir() {
+            if let Some(ref fname) = path.file_name().and_then(|s| s.to_str()) {
+                if fname.starts_with("github.com-") {
+                    return Some(path.clone());
                 }
             }
         }
@@ -53,16 +77,42 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     return None;
 }
 
-fn find_git_dir(d: PathBuf) -> Option<PathBuf> {
+fn find_git_src_dir(d: PathBuf, name: &str, sha1: &str) -> Option<PathBuf> {
     for entry in otry2!(read_dir(d)) {
         let path = otry2!(entry).path();
-        
-        // Assume there is only one directory and it's the git one
         if path.is_dir() {
             if let Some(ref fname) = path.file_name().and_then(|s| s.to_str()) {
-                println!("PHIL fname is {}",fname);
-                if fname.starts_with("git-") { 
-                    return Some(path.clone());
+                if fname.starts_with(name) {
+                    let mut d = path.clone();
+
+                    // dirname can be the sha1 or master.
+                    d.push(sha1);
+
+                    if !d.exists() {
+                        d.pop();
+                        d.push("master");
+                    }
+
+                    let retval = d.clone();
+
+                    // check that the checkout matches the commit sha1
+                    d.push(".git");
+                    d.push("refs");
+                    d.push("heads");
+                    d.push("master");
+
+                    let mut headref = String::new();
+                    otry2!(otry2!(File::open(d)).read_to_string(&mut headref));
+
+                    debug!("git headref is {:?}",headref);
+
+                    if headref.ends_with("\n") {
+                        headref.pop();
+                    }
+
+                    if sha1 == headref {
+                        return Some(retval);
+                    }
                 }
             }
         }
