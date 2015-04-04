@@ -134,7 +134,7 @@ fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
         for &(start,end) in coords.iter() {
             let s = &blob[start..end];
             if symbol_matches(search_type, searchstr, s) {
-                println!("PHIL point is {}", blobstart + start);
+                debug!("match_pattern_let point is {}", blobstart + start);
                 out.push(Match { matchstr: s.to_string(),
                                    filepath: filepath.to_path_buf(),
                                    point: blobstart + start,

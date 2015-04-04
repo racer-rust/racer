@@ -42,9 +42,7 @@ fn match_with_snippet_fn(m:Match) {
 
 #[cfg(not(test))]
 fn match_fn(m:Match) {
-    println!("PHIL m is {:?} {}",m, m.point);
     let (linenum, charnum) = scopes::point_to_coords_from_file(&m.filepath, m.point).unwrap();
-    println!("PHIL linenum, charnum is {:?}",(linenum, charnum));
     if m.matchstr == "" {
         panic!("MATCHSTR is empty - waddup?");
     }

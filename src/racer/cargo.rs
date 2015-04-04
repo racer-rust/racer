@@ -5,14 +5,41 @@ use std::path::{Path,PathBuf};
 use std::fs::{PathExt,read_dir};
 use toml;
 
+// otry is 'option try'
 macro_rules! otry {
     ($e:expr) => (match $e { Some(e) => e, None => return None})
 }
 
+// converts errors into None
 macro_rules! otry2 {
     ($e:expr) => (match $e { Ok(e) => e, Err(_) => return None})
 }
 
+fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
+    // only look for 'path' references here. 
+    // We find the git and crates.io stuff via the lockfile
+
+    let mut file = otry2!(File::open(cargofile));
+    let mut string = String::new();
+    otry2!(file.read_to_string(&mut string));
+    let mut parser = toml::Parser::new(&string);
+    let table = otry!(parser.parse());
+    let t = match table.get("dependencies") {
+        Some(&toml::Value::Table(ref t)) => t,
+        _ => return None
+    };
+
+    let t = match t.get(kratename) {
+        Some(&toml::Value::Table(ref t)) => t,
+        _ => return None
+    };
+
+    let relative_path = otry!(getstr(t, "path"));
+    return Some(otry!(cargofile.parent())
+                .join(relative_path)
+                .join("src")
+                .join("lib.rs"));
+}
 
 fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     let mut file = otry2!(File::open(cargofile));
@@ -34,7 +61,6 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
 
                 let version = otry!(getstr(t, "version"));
                 let source = otry!(getstr(t, "source"));
-
                 
                 if Some("registry") == source.split("+").nth(0) {
                     let mut d = otry!(env::home_dir());
@@ -142,9 +168,16 @@ fn find_cargo_lockfile(currentfile: &Path) -> Option<PathBuf> {
 }
 
 
-pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
-    if let Some(lockfile) = find_cargo_lockfile(from_path) {
-        return find_src_via_lockfile(name, &lockfile);
+pub fn get_crate_file(kratename: &str, from_path: &Path) -> Option<PathBuf> {
+    if let Some(mut lockfile) = find_cargo_lockfile(from_path) {
+        if let Some(f) = find_src_via_lockfile(kratename, &lockfile) {
+            return Some(f);
+        } else {
+            lockfile.pop();
+            lockfile.push("Cargo.toml");
+            let tomlfile = lockfile;
+            return find_src_via_tomlfile(kratename, &tomlfile)
+        }
     }
     None
 }
