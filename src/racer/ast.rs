@@ -49,9 +49,15 @@ pub fn string_to_stmt(source_str : String) -> P<ast::Stmt> {
 // parse a string, return a crate.
 pub fn string_to_crate (source_str : String) -> ast::Crate {
     with_error_checking_parse(source_str, |p| {
-        p.parse_crate_mod()
+        use std::result::Result::{Ok, Err};
+        use syntax::diagnostic::FatalError;
+        match p.parse_crate_mod() {
+            Ok(e) => e,
+            Err(FatalError) => panic!(FatalError)
+        }
     })
 }
+
 
 #[derive(Debug)]
 pub struct UseVisitor {

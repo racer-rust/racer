@@ -29,17 +29,23 @@ impl MethodInfo {
         let decorated = format!("{} {{}}()", source.trim_right_matches(trim));
 
         with_error_checking_parse(decorated, |p| {
-            let ref method = p.parse_impl_item();
 
-            match method.node {
-                ImplItem_::MethodImplItem(ref msig, _) => {
-                    let ref decl = msig.decl;
-                    MethodInfo {
-                        name: method.ident.to_source(),
-                        args: decl.inputs.iter().map(|a| (*a).to_source()).collect(),
+            use std::result::Result::{Ok, Err};
+            use syntax::diagnostic::FatalError;
+            match p.parse_impl_item() {
+                Ok(method) => {
+                    match method.node {
+                        ImplItem_::MethodImplItem(ref msig, _) => {
+                            let ref decl = msig.decl;
+                            MethodInfo {
+                                name: method.ident.to_source(),
+                                args: decl.inputs.iter().map(|a| (*a).to_source()).collect(),
+                            }
+                        },
+                        _ => panic!("Unable to parse method declaration.")
                     }
                 },
-                _ => { panic!("Unable to parse method declaration.") }
+                Err(FatalError) => panic!(FatalError)
             }
         })
     }
