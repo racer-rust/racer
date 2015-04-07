@@ -756,7 +756,7 @@ fn finds_definition_of_static() {
 fn handles_dotdot_before_searchstr() {
     let src="
     static MYLEN:uint = 30;
-    let f = [0i, ..MYLEN];
+    let f = [0i32, ..MYLEN];
     ";
     let path = tmpname();
     write_file(&path, src);

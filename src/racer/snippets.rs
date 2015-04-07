@@ -9,7 +9,11 @@ pub fn snippet_for_match(m : &Match) -> String {
     match m.mtype {
         MatchType::Function => {
             let method= get_function_declaration(&m);
-            MethodInfo::from_source_str(&method).snippet()
+            if let Some(m) = MethodInfo::from_source_str(&method) {
+                m.snippet()
+            } else {
+                "".to_string()
+            }
         }
         _ => m.matchstr.clone()
     }
@@ -23,7 +27,7 @@ struct MethodInfo {
 impl MethodInfo {
 
     ///Parses method declaration as string and returns relevant data
-    fn from_source_str(source : &str) -> MethodInfo {
+    fn from_source_str(source : &str) -> Option<MethodInfo> {
 
         let trim: &[_] = &['\n', '\r', '{', ' '];
         let decorated = format!("{} {{}}()", source.trim_right_matches(trim));
@@ -37,15 +41,21 @@ impl MethodInfo {
                     match method.node {
                         ImplItem_::MethodImplItem(ref msig, _) => {
                             let ref decl = msig.decl;
-                            MethodInfo {
+                            Some(MethodInfo {
                                 name: method.ident.to_source(),
                                 args: decl.inputs.iter().map(|a| (*a).to_source()).collect(),
-                            }
+                            })
                         },
-                        _ => panic!("Unable to parse method declaration.")
+                        _ => {
+                            debug!("Unable to parse method declaration. |{}|",source);
+                            return None;
+                        }
                     }
                 },
-                Err(FatalError) => panic!(FatalError)
+                Err(FatalError) => {
+                    debug!("Unable to parse method declaration. |{}|",source);
+                    return None;
+                }
             }
         })
     }
@@ -65,14 +75,15 @@ impl MethodInfo {
 
 #[test]
 fn method_info_test() {
-    let info = MethodInfo::from_source_str("pub fn new() -> Vec<T>");
-    assert_eq!(info.name, "new".as_slice());
+
+    let info = MethodInfo::from_source_str("pub fn new() -> Vec<T>").unwrap();
+    assert_eq!(info.name, "new");
     assert_eq!(info.args.len(), 0);
     assert_eq!(info.snippet(), "new()");
 
-    let info = MethodInfo::from_source_str("pub fn reserve(&mut self, additional: uint)");
-    assert_eq!(info.name, "reserve".as_slice());
+    let info = MethodInfo::from_source_str("pub fn reserve(&mut self, additional: uint)").unwrap();
+    assert_eq!(info.name, "reserve");
     assert_eq!(info.args.len(), 2);
-    assert_eq!(info.args[0].as_slice(), "self");
+    assert_eq!(info.args[0], "self");
     assert_eq!(info.snippet(), "reserve(${1:additional: uint})");
 }

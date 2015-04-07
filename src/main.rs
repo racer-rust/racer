@@ -1,6 +1,6 @@
 #![feature(collections, core, rustc_private, str_char, path_ext)]
 #![cfg_attr(not(test), feature(exit_status))] // we don't need exit_status feature when testing
-#![cfg_attr(test, feature(convert, test))] // we only need test feature when testing
+#![cfg_attr(test, feature(test))] // we only need test feature when testing
 
 #[macro_use] extern crate log;
 

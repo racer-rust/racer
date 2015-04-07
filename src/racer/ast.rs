@@ -9,51 +9,53 @@ use std::path::Path;
 
 use syntax::ast;
 use syntax::codemap;
-use syntax::parse::{new_parser_from_source_str, new_parse_sess, ParseSess};
+use syntax::parse::{new_parse_sess, ParseSess, string_to_filemap};
 use syntax::parse::parser::Parser;
 use syntax::parse::token;
+use syntax::parse::lexer;
 use syntax::ptr::P;
 use syntax::visit::{self, Visitor};
+use syntax::diagnostic::FatalError;
 
 // This code ripped from libsyntax::util::parser_testing
-pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: String) -> Parser<'a> {
-    new_parser_from_source_str(ps,
-                               Vec::new(),
-                               "bogofile".to_string(),
-                               source_str)
+pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: String) -> Option<Parser<'a>> {
+    let fm = string_to_filemap(ps, source_str, "bogofile".to_string());
+    let srdr = lexer::StringReader::new(&ps.span_diagnostic, fm);
+    let p = Parser::new(ps, Vec::new(), Box::new(srdr));
+    Some(p)
 }
 
-pub fn with_error_checking_parse<F, T>(s: String, f: F) -> T where F: Fn(&mut Parser) -> T {
+pub fn with_error_checking_parse<F, T>(s: String, f: F) -> Option<T> where F: Fn(&mut Parser) -> Option<T> {
     let ps = new_parse_sess();
-    let mut p = string_to_parser(&ps, s);
+    let mut p = match string_to_parser(&ps, s) {
+        Some(p) => p,
+        None => return None
+    };
     let x = f(&mut p);
-    //p.abort_if_errors();
     x
 }
 
-// parse a string, return an item
-pub fn string_to_item (source_str : String) -> Option<P<ast::Item>> {
-    with_error_checking_parse(source_str, |p| {
-        p.parse_item()
-    })
-}
-
 // parse a string, return a stmt
-pub fn string_to_stmt(source_str : String) -> P<ast::Stmt> {
+pub fn string_to_stmt(source_str : String) -> Option<P<ast::Stmt>> {
     with_error_checking_parse(source_str, |p| {
-
-        p.parse_stmt().unwrap()
+        match p.parse_stmt_nopanic() {
+            Ok(p) => p,
+            Err(FatalError) => None
+        }
     })
 }
 
 // parse a string, return a crate.
-pub fn string_to_crate (source_str : String) -> ast::Crate {
-    with_error_checking_parse(source_str, |p| {
+pub fn string_to_crate (source_str : String) -> Option<ast::Crate> {
+    with_error_checking_parse(source_str.clone(), |p| {
         use std::result::Result::{Ok, Err};
         use syntax::diagnostic::FatalError;
         match p.parse_crate_mod() {
-            Ok(e) => e,
-            Err(FatalError) => panic!(FatalError)
+            Ok(e) => Some(e),
+            Err(FatalError) => {
+                debug!("unable to parse crate. Returning None |{}|",source_str);
+                None
+            }
         }
     })
 }
@@ -793,60 +795,68 @@ impl<'v> visit::Visitor<'v> for EnumVisitor {
 }
 
 pub fn parse_use(s: String) -> UseVisitor {
-    let cr = string_to_crate(s);
     let mut v = UseVisitor{ident: None, 
                                 paths: Vec::new(),
                                 is_glob: false};
-    visit::walk_crate(&mut v, &cr);
+    if let Some(cr) = string_to_crate(s) {
+        visit::walk_crate(&mut v, &cr);
+    }
     return v;
 }
 
 pub fn parse_let(s: String) -> Vec<(usize, usize)> {
-    let stmt = string_to_stmt(s);
     let mut v = LetVisitor{ ident_points: Vec::new() };
-    visit::walk_stmt(&mut v, &*stmt);
+    if let Some(stmt) = string_to_stmt(s) {
+        visit::walk_stmt(&mut v, &*stmt);
+    }
     return v.ident_points;
 }
 
 pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, usize, Option<racer::Ty>)> {
-    let stmt = string_to_stmt(s);
     let mut v = StructVisitor{ scope: scope, fields: Vec::new() };
-    visit::walk_stmt(&mut v, &*stmt);
+    if let Some(stmt) = string_to_stmt(s) {
+        visit::walk_stmt(&mut v, &*stmt);
+    }
     return v.fields;
 }
 
 pub fn parse_impl(s: String) -> ImplVisitor {
-    let stmt = string_to_stmt(s);
     let mut v = ImplVisitor { name_path: None, trait_path: None };
-    visit::walk_stmt(&mut v, &*stmt);
+    if let Some(stmt) = string_to_stmt(s) {
+        visit::walk_stmt(&mut v, &*stmt);
+    }
     return v;
 }
 
 pub fn parse_trait(s: String) -> TraitVisitor {
-    let stmt = string_to_stmt(s);
     let mut v = TraitVisitor { name: None };
-    visit::walk_stmt(&mut v, &*stmt);
+    if let Some(stmt) = string_to_stmt(s) {
+        visit::walk_stmt(&mut v, &*stmt);
+    }
     return v;
 }
 
 pub fn parse_struct_def(s: String) -> StructDefVisitor {
-    let stmt = string_to_stmt(s);
     let mut v = StructDefVisitor { name: None, generic_args: Vec::new() };
-    visit::walk_stmt(&mut v, &*stmt);
+    if let Some(stmt) = string_to_stmt(s) {
+        visit::walk_stmt(&mut v, &*stmt);
+    }
     return v;
 }
 
 pub fn parse_generics(s: String) -> GenericsVisitor {
-    let stmt = string_to_stmt(s);
     let mut v = GenericsVisitor { generic_args: Vec::new() };
-    visit::walk_stmt(&mut v, &*stmt);
+    if let Some(stmt) = string_to_stmt(s) {
+        visit::walk_stmt(&mut v, &*stmt);
+    }
     return v;
 }
 
 pub fn parse_type(s: String) -> TypeVisitor {
-    let stmt = string_to_stmt(s);
     let mut v = TypeVisitor { name: None, type_: None };
-    visit::walk_stmt(&mut v, &*stmt);
+    if let Some(stmt) = string_to_stmt(s) {
+        visit::walk_stmt(&mut v, &*stmt);
+    }
     return v;
 }
 
@@ -855,56 +865,60 @@ pub fn parse_fn_args(s: String) -> Vec<(usize, usize)> {
 }
 
 pub fn parse_pat_idents(s: String) -> Vec<(usize, usize)> {
-    let stmt = string_to_stmt(s);
-    debug!("parse_pat_idents stmt is {:?}",stmt);
     let mut v = PatVisitor{ ident_points: Vec::new() };
-    visit::walk_stmt(&mut v, &*stmt);
-    debug!("ident points are {:?}", v.ident_points);
+    if let Some(stmt) = string_to_stmt(s) {
+        debug!("parse_pat_idents stmt is {:?}",stmt);
+        visit::walk_stmt(&mut v, &*stmt);
+        debug!("ident points are {:?}", v.ident_points);
+    }
     return v.ident_points;
 }
 
 
 pub fn parse_fn_output(s: String, scope: Scope) -> Option<racer::Ty> {
-    let stmt = string_to_stmt(s);
     let mut v = FnOutputVisitor { result: None, scope: scope};
-    visit::walk_stmt(&mut v, &*stmt);
+    if let Some(stmt) = string_to_stmt(s) {
+        visit::walk_stmt(&mut v, &*stmt);
+    }
     return v.result;
 }
 
 pub fn parse_fn_arg_type(s: String, argpos: usize, scope: Scope) -> Option<racer::Ty> {
     debug!("parse_fn_arg {} |{}|",argpos, s);
-    let stmt = string_to_stmt(s);
     let mut v = FnArgTypeVisitor { argpos: argpos, scope: scope, result: None};
-    visit::walk_stmt(&mut v, &*stmt);
+    if let Some(stmt) = string_to_stmt(s) {
+        visit::walk_stmt(&mut v, &*stmt);
+    }
     return v.result;
 }
 
 pub fn parse_mod(s: String) -> ModVisitor {
-    let stmt = string_to_stmt(s);
     let mut v = ModVisitor { name: None };
-    visit::walk_stmt(&mut v, &*stmt);
+    if let Some(stmt) = string_to_stmt(s) {
+        visit::walk_stmt(&mut v, &*stmt);
+    }
     return v;
 }
 
 pub fn parse_extern_crate(s: String) -> ExternCrateVisitor {
-    let stmt = string_to_stmt(s);
     let mut v = ExternCrateVisitor { name: None, realname: None };
-    visit::walk_stmt(&mut v, &*stmt);
+    if let Some(stmt) = string_to_stmt(s) {
+        visit::walk_stmt(&mut v, &*stmt);
+    }
     return v;
 }
 
 pub fn parse_enum(s: String) -> EnumVisitor {
-    let stmt = string_to_stmt(s);
     let mut v = EnumVisitor { name: String::new(), values: Vec::new()};
-    visit::walk_stmt(&mut v, &*stmt);
+    if let Some(stmt) = string_to_stmt(s) {
+        visit::walk_stmt(&mut v, &*stmt);
+    }
     return v;
 }
 
 
 pub fn get_type_of(exprstr: String, fpath: &Path, pos: usize) -> Option<Ty> {
     let myfpath = fpath.clone();
-
-    let stmt = string_to_stmt(exprstr);
     let startscope = Scope {
         filepath: myfpath.to_path_buf(),
         point: pos
@@ -912,29 +926,34 @@ pub fn get_type_of(exprstr: String, fpath: &Path, pos: usize) -> Option<Ty> {
 
     let mut v = ExprTypeVisitor{ scope: startscope,
                                  result: None};
-    visit::walk_stmt(&mut v, &*stmt);
+
+    if let Some(stmt) = string_to_stmt(exprstr) {
+        visit::walk_stmt(&mut v, &*stmt);
+    }
     return v.result;
 }
 
 // pos points to an ident in the lhs of the stmtstr
 pub fn get_let_type(stmtstr: String, pos: usize, scope: Scope) -> Option<Ty> {
-    let stmt = string_to_stmt(stmtstr.clone());
     let mut v = LetTypeVisitor {
         scope: scope,
-        srctxt: stmtstr,
+        srctxt: stmtstr.clone(),
         pos: pos, result: None
     };
-    visit::walk_stmt(&mut v, &*stmt);
+    if let Some(stmt) = string_to_stmt(stmtstr) {
+        visit::walk_stmt(&mut v, &*stmt);
+    }
     return v.result;
 }
 
 pub fn get_match_arm_type(stmtstr: String, pos: usize, scope: Scope) -> Option<Ty> {
-    let stmt = string_to_stmt(stmtstr.clone());
     let mut v = MatchTypeVisitor {
         scope: scope,
         pos: pos, result: None
     };
-    visit::walk_stmt(&mut v, &*stmt);
+    if let Some(stmt) = string_to_stmt(stmtstr) {
+        visit::walk_stmt(&mut v, &*stmt);
+    }
     return v.result;
 }
 
