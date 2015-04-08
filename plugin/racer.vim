@@ -100,8 +100,17 @@ function! racer#GetCompletions()
     let out = []
     for line in lines
        if line =~ "^MATCH"
-           let completion = split(line[6:], ",")[0]
-           let out = add(out, completion)
+           let line_parts = split(line[6:], ",")
+           let name = line_parts[0]
+	   let kind = ""
+           let type = ""
+	   if line_parts[4] == "StructField"
+	       let kind = "m"
+           elseif line_parts[4] == "Function"
+	       let kind = "f"
+               let type = join(line_parts[5:], ",")
+	   endif
+           let out = add(out, {'word': name, 'kind': kind, 'menu': type})
        endif
     endfor
     call delete(tmpfname)
