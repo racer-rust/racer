@@ -918,6 +918,12 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: usize,
         let ref pathseg = path.segments[0];
         return resolve_name(pathseg, filepath, pos, search_type, namespace);
     } else if len != 0 {
+        if path.segments[0].name == "self" ||  path.segments[0].name == "super" {
+            // just remove self
+            let mut newpath: racer::Path = path.clone();
+            newpath.segments.remove(0);
+            return resolve_path(&newpath, filepath, pos, search_type, namespace);
+        }
         let mut out = Vec::new();
         let mut parent_path: racer::Path = path.clone();
         parent_path.segments.remove(len-1);
