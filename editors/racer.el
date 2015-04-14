@@ -52,7 +52,7 @@
   "Run the racer complete command and process the results."
   (setq racer-tmp-file-name (concat (buffer-file-name) ".racertmp"))
   (racer--write-tmp-file racer-tmp-file-name)
-  (setenv "RUST_SRC_PATH" racer-rust-src-path)
+  (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
     (let ((lines (process-lines racer-cmd
 				"complete"
 				(number-to-string racer-line-number)
@@ -76,7 +76,7 @@
   "Run the racer prefix command and process the results."
   (setq racer-tmp-file-name (concat (buffer-file-name) ".racertmp"))
   (racer--write-tmp-file racer-tmp-file-name)
-  (setenv "RUST_SRC_PATH" racer-rust-src-path)
+  (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
   (let ((lines (process-lines racer-cmd
 			      "prefix"
 			      (number-to-string racer-line-number)
@@ -90,7 +90,7 @@
   "Run the racer complete command and process the results."
   (setq racer-tmp-file-name (concat (buffer-file-name) ".racertmp"))
   (racer--write-tmp-file racer-tmp-file-name)
-  (setenv "RUST_SRC_PATH" racer-rust-src-path)
+  (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
   (save-excursion
     (let ((lines (process-lines racer-cmd
 				"complete"
@@ -172,7 +172,7 @@
   (interactive)
   (setq racer-tmp-file-name (concat (buffer-file-name) ".racertmp"))
   (racer--write-tmp-file racer-tmp-file-name)
-  (setenv "RUST_SRC_PATH" racer-rust-src-path)
+  (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
   (push-mark)
   (let ((lines (process-lines racer-cmd
 			      "find-definition"
