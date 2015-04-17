@@ -1151,3 +1151,18 @@ fn handles_default_arm() {
     assert_eq!("o", got.matchstr);
     assert_eq!(9, got.point);
 }
+
+#[test]
+fn doesnt_match_rhs_of_let_in_same_stmt() {
+    let src="
+    let a = 3;      // <--- should match this 'a'
+    let a = a + 2;  // not this one
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 3, 12);
+    let got = find_definition(src, &path, pos).unwrap();
+    fs::remove_file(&path).unwrap();
+    assert_eq!("a", got.matchstr);
+    assert_eq!(9, got.point);
+}

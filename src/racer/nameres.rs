@@ -582,7 +582,7 @@ pub fn search_scope(start: usize, point: usize, src: &str,
 
     // search backwards from point for let bindings
     for &(blobstart, blobend) in v.iter().rev() {
-        if blobstart > point {
+        if blobend >= point {
             continue;
         }
 
@@ -600,7 +600,6 @@ pub fn search_scope(start: usize, point: usize, src: &str,
             }
         }
     }
-
     // now search from top of scope for items etc..
     let codeit = v.into_iter().chain(codeit);
     for (blobstart,blobend) in codeit { 
