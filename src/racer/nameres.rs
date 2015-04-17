@@ -11,7 +11,7 @@ use racer::Namespace::{self, TypeNamespace, ValueNamespace, BothNamespaces};
 use racer::util::{symbol_matches, txt_matches, find_ident_end};
 use racer::cargo;
 
-use std::fs::File;
+use std::fs::{File,PathExt};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::{self, vec};
@@ -910,6 +910,36 @@ pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: usize,
     return out.into_iter();
 }
 
+// Get the scope corresponding to super::
+pub fn get_super_scope(filepath: &Path, pos: usize) -> Option<racer::Scope> {
+    let msrc = racer::load_file_and_mask_comments(filepath);
+    let mut path = scopes::get_local_module_path(&msrc, pos);
+    if path.is_empty() {
+        let filepath = filepath.parent().unwrap();  // safe because file is valid
+        if filepath.join("mod.rs").exists() {
+            Some(racer::Scope{ filepath: filepath.join("mod.rs"),
+                                 point: 0 })
+        } else if filepath.join("lib.rs").exists() {
+            Some(racer::Scope{ filepath: filepath.join("lib.rs"),
+                                 point: 0 })
+        } else {
+            None
+        }
+    } else if path.len() == 1 {
+        Some(racer::Scope{ filepath: filepath.to_path_buf(),
+                                 point: 0 })
+    } else {
+        path.pop();
+        let path =racer::Path::from_svec(false, path);
+        debug!("get_super_scope looking for local scope {:?}", path);
+        resolve_path(&path, filepath, 0, SearchType::ExactMatch,
+                            Namespace::TypeNamespace).nth(0)
+            .and_then(|m| msrc[m.point..].find("{")
+                      .map(|p| racer::Scope{ filepath: filepath.to_path_buf(),
+                                             point:m.point + p + 1 }))
+    }
+}
+
 pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: usize, 
                   search_type: SearchType, namespace: Namespace) -> vec::IntoIter<Match> {
     debug!("resolve_path {:?} {:?} {} {:?}", path, filepath.to_str(), pos, search_type);
@@ -918,12 +948,28 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: usize,
         let ref pathseg = path.segments[0];
         return resolve_name(pathseg, filepath, pos, search_type, namespace);
     } else if len != 0 {
-        if path.segments[0].name == "self" ||  path.segments[0].name == "super" {
+        if path.segments[0].name == "self" {
             // just remove self
             let mut newpath: racer::Path = path.clone();
             newpath.segments.remove(0);
             return resolve_path(&newpath, filepath, pos, search_type, namespace);
         }
+
+        if path.segments[0].name == "super" {
+            if let Some(scope) = get_super_scope(filepath, pos) {
+                debug!("PHIL super scope is {:?}",scope);
+
+                let mut newpath: racer::Path = path.clone();
+                newpath.segments.remove(0);
+                return resolve_path(&newpath, &scope.filepath,
+                                    scope.point, search_type, namespace);
+            } else {
+                // can't find super scope. Return no matches
+                debug!("can't resolve path {:?}, returning no matches", path);
+                return Vec::new().into_iter();
+            }
+        }
+
         let mut out = Vec::new();
         let mut parent_path: racer::Path = path.clone();
         parent_path.segments.remove(len-1);

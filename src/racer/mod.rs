@@ -147,6 +147,22 @@ impl Path {
     pub fn generic_types(&self) -> ::std::slice::Iter<Path> {
         return self.segments[self.segments.len()-1].types.iter();
     }
+
+    pub fn from_vec(global: bool, v: Vec<&str>) -> Path {
+        let segs = v
+            .iter()
+            .map(|x| PathSegment{name:x.to_string(), types: Vec::new()})
+            .collect::<Vec<_>>();
+        return Path{ global: global, segments: segs };
+    }
+
+    pub fn from_svec(global: bool, v: Vec<String>) -> Path {
+        let segs = v
+            .iter()
+            .map(|x| PathSegment{name:x.clone(), types: Vec::new()})
+            .collect::<Vec<_>>();
+        return Path{ global: global, segments: segs };
+    }
 }
 
 impl fmt::Debug for Path {
@@ -244,12 +260,7 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize) -> vec::
                 global = true;
             }
 
-            let segs = v
-                .iter()
-                .map(|x| PathSegment{name:x.to_string(), types: Vec::new()})
-                .collect::<Vec<_>>();
-            let path = Path{ global: global, segments: segs };
-
+            let path = Path::from_vec(global, v);
             for m in nameres::resolve_path(&path, filepath, pos, 
                                          SearchType::StartsWith, Namespace::BothNamespaces) {
                 out.push(m);

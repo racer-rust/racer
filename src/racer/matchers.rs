@@ -252,7 +252,7 @@ pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
             // get internal module nesting  
             // e.g. is this in an inline submodule?  mod foo{ mod bar; } 
             // because if it is then we need to search further down the 
-            // directory hierarchy
+            // directory hierarchy - e.g. <cwd>/foo/bar.rs
             let internalpath = scopes::get_local_module_path(msrc, blobstart);
             let mut searchdir = filepath.parent().unwrap().to_path_buf();
             for s in internalpath {
@@ -460,10 +460,6 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                 let mut path = basepath.clone();
                 path.segments.push(seg);
                 debug!("found a glob: now searching for {:?}", path);
-                // TODO: pretty sure this isn't correct/complete, only works because
-                //  we recurse backwards up modules when searching
-                let path = hack_remove_self_and_super_in_modpaths(path);
-
                 let iter_path = resolve_path(&path, filepath, 0, search_type, BothNamespaces);
                 if let StartsWith = search_type {
                     return iter_path.collect();
@@ -492,7 +488,6 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                     // Do nothing because this will be picked up by the module
                     // search in a bit.
                 } else {
-                    let path = hack_remove_self_and_super_in_modpaths(path);
                     for m in resolve_path(&path, filepath, 0, ExactMatch, BothNamespaces) {
                         out.push(m);
                         if let ExactMatch = search_type  {
@@ -511,10 +506,6 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                     // Do nothing because this will be picked up by the module
                     // search in a bit.
                 } else if path.segments[len-1].name.starts_with(searchstr) {
-                    // TODO: pretty sure this isn't correct/complete, only works because
-                    //  we recurse backwards up modules when searching
-                    let path = hack_remove_self_and_super_in_modpaths(path);
-
                     for m in resolve_path(&path, filepath, 0, ExactMatch, BothNamespaces) {
                         out.push(m);
                         if let ExactMatch = search_type  {
@@ -529,16 +520,6 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
     }
     out
 }
-
-fn hack_remove_self_and_super_in_modpaths(mut path: racer::Path) -> racer::Path {
-    if path.segments[0].name == "self" {
-        path.segments.remove(0);
-    }
-    if path.segments[0].name == "super" {
-        path.segments.remove(0);
-    }
-    return path;
-} 
 
 pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize, 
              searchstr: &str, filepath: &Path, search_type: SearchType,

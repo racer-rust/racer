@@ -53,7 +53,7 @@ fn get_local_module_path_(msrc: &str, point: usize, out: &mut Vec<String>) {
     for (start, end) in codeiter::iter_stmts(msrc) {
         if start < point && end > point {
             let blob = &msrc[start..end];
-            if blob.starts_with("pub mod "){
+            if blob.starts_with("pub mod ") || blob.starts_with("mod ") {
                 let p = typeinf::generate_skeleton_for_parsing(blob);
                 ast::parse_mod(p).name.map(|name|{
                     let newstart = blob.find("{").unwrap() + 1;

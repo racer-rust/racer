@@ -395,6 +395,35 @@ fn finds_nested_submodule_file() {
                got.filepath.display().to_string());
 }
 
+#[test]
+fn follows_super_in_sub_module() {
+    let src="
+    pub fn iamhere() { }
+    mod inner { pub use super::iamhere; }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 3, 33);
+    let got = find_definition(src, &path, pos).unwrap();
+    fs::remove_file(&path).unwrap();
+    assert_eq!("iamhere", got.matchstr);
+}
+
+#[test]
+fn follows_super_in_local_sub_module() {
+    let src="
+    mod inner {
+      pub fn iamhere() { }
+      mod inner2 { pub use super::iamhere; }
+    }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 4, 38);
+    let got = find_definition(src, &path, pos).unwrap();
+    fs::remove_file(&path).unwrap();
+    assert_eq!("iamhere", got.matchstr);
+}
 
 #[test]
 fn follows_use_to_impl() {
