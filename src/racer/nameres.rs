@@ -17,9 +17,9 @@ use std::path::{Path, PathBuf};
 use std::{self, vec};
 
 #[cfg(unix)]
-const PATH_SEP: &'static str = ":";
+pub const PATH_SEP: &'static str = ":";
 #[cfg(windows)]
-const PATH_SEP: &'static str = ";";
+pub const PATH_SEP: &'static str = ";";
 
  fn search_struct_fields(searchstr: &str, structmatch: &Match,
                          search_type: SearchType) -> vec::IntoIter<Match> {
@@ -305,6 +305,7 @@ fn search_fn_args(fnstart: usize, open_brace_pos: usize, msrc:&str, searchstr:&s
 pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match> {
     debug!("do_file_search {}",searchstr);
     let mut out = Vec::new();
+    
     let srcpaths = std::env::var("RUST_SRC_PATH").unwrap_or("".to_string());
     debug!("do_file_search srcpaths {}",srcpaths);
     let mut v = srcpaths.split(PATH_SEP).collect::<Vec<_>>();

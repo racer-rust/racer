@@ -14,11 +14,13 @@ use racer::Match;
 #[cfg(not(test))]
 use racer::util::getline;
 #[cfg(not(test))]
-use racer::nameres::{do_file_search, do_external_search};
+use racer::nameres::{do_file_search, do_external_search, PATH_SEP};
 #[cfg(not(test))]
 use racer::scopes;
 #[cfg(not(test))]
 use std::path::Path;
+#[cfg(not(test))]
+use std::fs::{PathExt};
 
 pub mod racer;
 
@@ -154,14 +156,33 @@ fn print_usage() {
     println!("or replace complete with complete-with-snippet for more detailed completions.");
 }
 
-
 #[cfg(not(test))]
-fn main() {
-    if std::env::var("RUST_SRC_PATH").is_err() {
-        println!("RUST_SRC_PATH environment variable must be set");
+fn check_rust_src_env_var() {
+    if let Ok(srcpaths) = std::env::var("RUST_SRC_PATH") {
+        let v = srcpaths.split(PATH_SEP).collect::<Vec<_>>();
+        if v.len() > 0 {
+            let f = Path::new(v[0]);
+            if !f.exists() {
+                println!("racer can't find the directory pointed to by the RUST_SRC_PATH variable \"{}\". Try using an absolute fully qualified path and make sure it points to the src directory of a rust checkout - e.g. \"/home/foouser/src/rust/src\".", srcpaths);
+                
+                std::env::set_exit_status(1);
+                return;
+            } else if !f.ends_with("src") {
+                println!("RUST_SRC_PATH variable needs to point to the *src* directory inside a rust checkout e.g. \"/home/foouser/src/rust/src\". Current value \"{}\"", srcpaths);
+                std::env::set_exit_status(1);
+                return;
+            }
+        }
+    } else {
+        println!("RUST_SRC_PATH environment variable must be set to point to the src directory of a rust checkout. E.g. \"/home/foouser/src/rust/src\"");
         std::env::set_exit_status(1);
         return;
     }
+}
+
+#[cfg(not(test))]
+fn main() {
+    check_rust_src_env_var();
 
     let args: Vec<String> = std::env::args().collect();
 
