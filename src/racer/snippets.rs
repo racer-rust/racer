@@ -2,7 +2,7 @@ use racer::ast::with_error_checking_parse;
 use racer::{Match, MatchType};
 use racer::typeinf::get_function_declaration;
 
-use syntax::ast::{ImplItem_};
+use syntex_syntax::ast::ImplItem_;
 
 pub fn snippet_for_match(m : &Match) -> String {
     match m.mtype {
@@ -32,7 +32,7 @@ impl MethodInfo {
         with_error_checking_parse(decorated, |p| {
 
             use std::result::Result::{Ok, Err};
-            use syntax::diagnostic::FatalError;
+            use syntex_syntax::diagnostic::FatalError;
             match p.parse_impl_item() {
                 Ok(method) => {
                     match method.node {
