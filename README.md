@@ -8,7 +8,7 @@
 
 ## Important - Racer does not work with Rust Beta!
 
-Racer uses unstable features from the standard library, and so currently requires a rust nightly install 
+Racer uses unstable features from the standard library, and so currently requires a rust nightly install
 
 ## Installation
 
@@ -18,7 +18,7 @@ Racer uses unstable features from the standard library, and so currently require
 
    (e.g. ```% export RUST_SRC_PATH=/usr/local/src/rust/src``` )
 
-3. Test on the command line: 
+3. Test on the command line:
 
    ```./target/release/racer complete std::io::B ```  (should show some completions)
 
