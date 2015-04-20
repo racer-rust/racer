@@ -1,5 +1,7 @@
 # *Racer* - code completion for [Rust](http://www.rust-lang.org/)
 
+[![Build Status](https://travis-ci.org/phildawes/racer.svg?branch=master)](https://travis-ci.org/phildawes/racer)
+
 ![alt text](https://github.com/phildawes/racer/raw/master/images/racer1.png "Racer emacs session")
 
 *RACER* = *R*ust *A*uto-*C*omplete-*er*. A utility intended to provide rust code completion for editors and IDEs. Maybe one day the 'er' bit will be exploring + refactoring or something.
