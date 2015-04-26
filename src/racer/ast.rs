@@ -84,7 +84,7 @@ impl<'v> visit::Visitor<'v> for UseVisitor {
                                 let name = token::get_ident(name).to_string();
                                 let seg = racer::PathSegment{ name: name, types: Vec::new() };
                                 let mut newpath = basepath.clone();
-                                
+
                                 newpath.segments.push(seg);
                                 self.paths.push(newpath);
                             },
@@ -110,17 +110,17 @@ pub struct LetVisitor {
 
 impl<'v> visit::Visitor<'v> for LetVisitor {
 
-    fn visit_local(&mut self, local: &'v ast::Local) {  
+    fn visit_local(&mut self, local: &'v ast::Local) {
         // don't visit the RHS (init) side of the let stmt
         self.visit_pat(&*local.pat);
     }
 
-    fn visit_expr(&mut self, ex: &'v ast::Expr) { 
+    fn visit_expr(&mut self, ex: &'v ast::Expr) {
         // don't visit the RHS or block of an 'if let' stmt
         if let ast::ExprIfLet(ref pattern, _,_,_) = ex.node {
             self.visit_pat(&**pattern);
         } else {
-            visit::walk_expr(self, ex) 
+            visit::walk_expr(self, ex)
         }
     }
 
@@ -188,9 +188,9 @@ fn point_is_in_span(point: u32, span: &codemap::Span) -> bool {
 }
 
 // The point must point to an ident within the pattern.
-fn destructure_pattern_to_ty(pat: &ast::Pat, 
-                             point: usize, 
-                             ty: &Ty, 
+fn destructure_pattern_to_ty(pat: &ast::Pat,
+                             point: usize,
+                             ty: &Ty,
                              scope: &Scope) -> Option<Ty> {
     debug!("destructure_pattern_to_ty point {} ty {:?}    ||||||||    pat: {:?}",point, ty, pat);
     match pat.node {
@@ -218,7 +218,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
                     res
                 }
                 _ => panic!("Expecting TyTuple")
-                
+
             }
         }
         ast::PatEnum(ref path, ref children) => {
@@ -230,7 +230,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
                 let mut res = None;
                 for p in children.iter() {
                     if point_is_in_span(point as u32, &p.span) {
-                        
+
                         res = typeinf::get_tuplestruct_field_type(i, &m)
                             .and_then(|ty|
                                 // if context ty is a match, use its generics
@@ -265,18 +265,18 @@ struct LetTypeVisitor {
 }
 
 impl<'v> visit::Visitor<'v> for LetTypeVisitor {
-    
-    fn visit_expr(&mut self, ex: &'v ast::Expr) { 
+
+    fn visit_expr(&mut self, ex: &'v ast::Expr) {
         if let ast::ExprIfLet(ref pattern, ref expr, _, _) = ex.node {
             let mut v = ExprTypeVisitor{ scope: self.scope.clone(),
                                          result: None};
             v.visit_expr(&**expr);
             self.result = v.result.and_then(|ty|
-                   destructure_pattern_to_ty(&**pattern, self.pos, 
+                   destructure_pattern_to_ty(&**pattern, self.pos,
                                              &ty, &self.scope))
                 .and_then(|ty| path_to_match(ty));
         } else {
-            visit::walk_expr(self, ex) 
+            visit::walk_expr(self, ex)
         }
     }
 
@@ -286,8 +286,8 @@ impl<'v> visit::Visitor<'v> for LetTypeVisitor {
         let mut ty = None;
         if let Some(ref local_ty) = local.ty {
             ty = to_racer_ty(&**local_ty, &self.scope);
-        } 
-        
+        }
+
         if ty.is_none() {
             // oh, no type in the let expr. Try evalling the RHS
             ty = local.init.as_ref().and_then(|initexpr| {
@@ -313,23 +313,23 @@ struct MatchTypeVisitor {
 }
 
 impl<'v> visit::Visitor<'v> for MatchTypeVisitor {
-    
-    fn visit_expr(&mut self, ex: &'v ast::Expr) { 
+
+    fn visit_expr(&mut self, ex: &'v ast::Expr) {
         if let ast::ExprMatch(ref subexpression, ref arms, _) = ex.node {
             debug!("PHIL sub expr is {:?}",subexpression);
 
             let mut v = ExprTypeVisitor{ scope: self.scope.clone(),
                                          result: None};
             v.visit_expr(&**subexpression);
-           
+
             debug!("PHIL sub type is {:?}",v.result);
-            
+
             for arm in arms.iter() {
                 for pattern in arm.pats.iter() {
                     if point_is_in_span(self.pos as u32, &pattern.span) {
                         debug!("PHIL point is in pattern |{:?}|",pattern);
                         self.result = v.result.as_ref().and_then(|ty|
-                               destructure_pattern_to_ty(&**pattern, self.pos, 
+                               destructure_pattern_to_ty(&**pattern, self.pos,
                                                          ty, &self.scope))
                             .and_then(|ty| path_to_match(ty));
                     }
@@ -347,23 +347,23 @@ fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: usize) -> Option<Mat
 
 fn to_racer_path(pth: &ast::Path) -> racer::Path {
 
-    let mut v = Vec::new();    
+    let mut v = Vec::new();
     for seg in pth.segments.iter() {
         let name = token::get_ident(seg.identifier).to_string();
-        let mut types = Vec::new();    
+        let mut types = Vec::new();
         for ty in seg.parameters.types().iter() {
             if let ast::TyPath(_, ref path) = ty.node {
                 types.push(to_racer_path(path));
             }
         }
-        v.push(racer::PathSegment{ name: name, types: types}); 
+        v.push(racer::PathSegment{ name: name, types: types});
     }
     return racer::Path{ global: pth.global, segments: v} ;
 }
 
 fn path_to_match(ty: Ty) -> Option<Ty> {
     match ty {
-        TyPathSearch(ref path, ref scope) => 
+        TyPathSearch(ref path, ref scope) =>
             find_type_match(path, &scope.filepath, scope.point),
         _ => Some(ty)
     }
@@ -382,8 +382,8 @@ fn find_type_match(path: &racer::Path, fpath: &Path, pos: usize) -> Option<Ty> {
     return res.and_then(|m|{
         // add generic types to match (if any)
         let types: Vec<racer::PathSearch> = path.generic_types()
-            .map(|typepath| 
-                 racer::PathSearch{ 
+            .map(|typepath|
+                 racer::PathSearch{
                      path: typepath.clone(),
                      filepath: fpath.to_path_buf(),
                      point: pos
@@ -423,12 +423,12 @@ struct ExprTypeVisitor {
 impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
     fn visit_expr(&mut self, expr: &ast::Expr) {
         debug!("visit_expr {:?}",expr);
-        //walk_expr(self, ex, e) 
+        //walk_expr(self, ex, e)
         match expr.node {
             ast::ExprPath(_, ref path) => {
                 debug!("expr is a path {:?}",to_racer_path(path));
-                self.result = resolve_ast_path(path, 
-                                 &self.scope.filepath, 
+                self.result = resolve_ast_path(path,
+                                 &self.scope.filepath,
                                  self.scope.point).and_then(|m| {
                    let msrc = racer::load_file_and_mask_comments(&m.filepath);
                    typeinf::get_type_of_match(m, &msrc)
@@ -468,7 +468,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                 let methodname = token::get_ident(spannedident.node).to_string();
                 debug!("method call ast name {}",methodname);
                 debug!("method call ast types {:?} {}",types, types.len());
-                
+
                 let objexpr = &arguments[0];
                 //println!("obj expr is {:?}",objexpr);
                 self.visit_expr(&**objexpr);
@@ -478,13 +478,13 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                         &TyMatch(ref contextm) => {
                             let omethod = nameres::search_for_impl_methods(
                                 &contextm.matchstr,
-                                &methodname, 
-                                contextm.point, 
+                                &methodname,
+                                contextm.point,
                                 &contextm.filepath,
                                 contextm.local,
                                 racer::SearchType::ExactMatch).nth(0);
                             omethod
-                                .and_then(|method| 
+                                .and_then(|method|
                                           racer::typeinf::get_return_type_of_function(&method))
                                 .and_then(|ty| path_to_match_including_generics(ty, contextm))
                         }
@@ -498,11 +498,11 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                 debug!("exprfield {}",fieldname);
                 self.visit_expr(&**subexpression);
                 self.result = self.result.as_ref()
-                      .and_then(|structm| 
+                      .and_then(|structm|
                                 match structm {
                                     &TyMatch(ref structm) => {
                                 typeinf::get_struct_field_type(&fieldname, structm)
-                                .and_then(|fieldtypepath| 
+                                .and_then(|fieldtypepath|
                                           find_type_match_including_generics(&fieldtypepath,
                                                                              &structm.filepath,
                                                                              structm.point,
@@ -518,7 +518,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                 for expr in exprs.iter() {
                     self.visit_expr(&**expr);
                     match self.result {
-                        Some(ref t) => v.push(t.clone()), 
+                        Some(ref t) => v.push(t.clone()),
                         None => {
                             self.result = None;
                             return;
@@ -553,8 +553,8 @@ fn path_to_match_including_generics(ty: Ty, contextm: &racer::Match) -> Option<T
                 for (name, typesearch) in it {
                     if name == typename {
                         // yes! a generic type match!
-                        return find_type_match(&typesearch.path, 
-                                               &typesearch.filepath, 
+                        return find_type_match(&typesearch.path,
+                                               &typesearch.filepath,
                                                typesearch.point);
                     }
                 }
@@ -589,15 +589,15 @@ fn find_type_match_including_generics(fieldtype: &racer::Ty,
         for (name, typesearch) in it {
             if name == typename {
                 // yes! a generic type match!
-                return find_type_match(&typesearch.path, 
-                                       &typesearch.filepath, 
+                return find_type_match(&typesearch.path,
+                                       &typesearch.filepath,
                                        typesearch.point);
             }
         }
     }
-    
-    return find_type_match(fieldtypepath, 
-                           filepath, 
+
+    return find_type_match(fieldtypepath,
+                           filepath,
                            pos);
 }
 
@@ -694,7 +694,7 @@ impl<'v> visit::Visitor<'v> for ImplVisitor {
                     self.name_path = Some(to_racer_path(path));
                 }
                 ast::TyRptr(_, ref ty) => {
-                    // HACK for now, treat refs the same as unboxed types 
+                    // HACK for now, treat refs the same as unboxed types
                     // so that we can match '&str' to 'str'
                     if let ast::TyPath(_, ref path) = ty.ty.node {
                         self.name_path = Some(to_racer_path(path));
@@ -795,7 +795,7 @@ impl<'v> visit::Visitor<'v> for EnumVisitor {
 }
 
 pub fn parse_use(s: String) -> UseVisitor {
-    let mut v = UseVisitor{ident: None, 
+    let mut v = UseVisitor{ident: None,
                                 paths: Vec::new(),
                                 is_glob: false};
     if let Some(cr) = string_to_crate(s) {
@@ -963,8 +963,8 @@ pub struct FnOutputVisitor {
 }
 
 impl<'v> visit::Visitor<'v> for FnOutputVisitor {
-    fn visit_fn(&mut self, 
-                _: visit::FnKind, 
+    fn visit_fn(&mut self,
+                _: visit::FnKind,
                 fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId) {
 
         self.result = match fd.output {
@@ -985,8 +985,8 @@ pub struct FnArgTypeVisitor {
 }
 
 impl<'v> visit::Visitor<'v> for FnArgTypeVisitor {
-    fn visit_fn(&mut self, 
-                _: visit::FnKind, 
+    fn visit_fn(&mut self,
+                _: visit::FnKind,
                 fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId) {
         for arg in fd.inputs.iter() {
             let codemap::BytePos(lo) = arg.pat.span.lo;
@@ -994,12 +994,12 @@ impl<'v> visit::Visitor<'v> for FnArgTypeVisitor {
             if self.argpos >= (lo as usize) && self.argpos <= (hi as usize) {
                 debug!("fn arg visitor found type {:?}",arg.ty);
                 self.result = to_racer_ty(&*arg.ty, &self.scope)
-                    .and_then(|ty| destructure_pattern_to_ty(&*arg.pat, self.argpos, 
+                    .and_then(|ty| destructure_pattern_to_ty(&*arg.pat, self.argpos,
                                                    &ty, &self.scope))
                     .and_then(|ty| path_to_match(ty));
                 break;
             }
-        }        
+        }
     }
 }
 
@@ -1050,7 +1050,7 @@ fn ast_sandbox() {
 
     // let src = "let (a,b) : (usize,usize);";
 
-    // let result = task::try(move || { 
+    // let result = task::try(move || {
     //     return string_to_stmt(String::from_str(src));
     // });
 
@@ -1081,7 +1081,7 @@ fn ast_sandbox() {
     // panic!("");
     // let mut v = ExprTypeVisitor{ scope: startscope,
     //                              result: None};
-    
+
 
     // let src = ~"fn myfn(a: usize) -> Foo {}";
     // let src = ~"impl blah{    fn visit_item(&mut self, item: &ast::Item, _: ()) {} }";
@@ -1129,7 +1129,7 @@ fn ast_sandbox() {
 //     pub mtype: MatchType
 // }
 
-    // let startscope = Match{ 
+    // let startscope = Match{
     //     matchstr: "".to_owned(),
     //     filepath: Path::new("./ast.rs"),
     //     point: 0,
@@ -1159,4 +1159,3 @@ fn ast_sandbox() {
     // let res = parse_let(src);
     // debug!("res {}",res.unwrap().init);
 }
-

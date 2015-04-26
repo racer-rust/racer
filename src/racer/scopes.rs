@@ -58,7 +58,7 @@ fn get_local_module_path_(msrc: &str, point: usize, out: &mut Vec<String>) {
                 ast::parse_mod(p).name.map(|name|{
                     let newstart = blob.find("{").unwrap() + 1;
                     out.push(name);
-                    get_local_module_path_(&blob[newstart..], 
+                    get_local_module_path_(&blob[newstart..],
                                        point - start - newstart, out);
                 });
             }
@@ -73,7 +73,7 @@ pub fn find_impl_start(msrc: &str, point: usize, scopestart: usize) -> Option<us
         Some((start, _)) => {
             let blob = &msrc[(scopestart + start)..];
             // TODO:: the following is a bit weak at matching traits. make this better
-            if blob.starts_with("impl") || 
+            if blob.starts_with("impl") ||
                 blob.starts_with("trait") || blob.starts_with("pub trait") {
                 Some(scopestart + start)
             } else {
@@ -132,7 +132,7 @@ pub fn get_start_of_search_expr(src: &str, point: usize) -> usize {
             b')' => { levels += 1; },
             _ => {
                 if levels == 0 &&
-                    !util::is_search_expr_char(src.char_at(i)) || 
+                    !util::is_search_expr_char(src.char_at(i)) ||
                     util::is_double_dot(src,i) {
                     return i+1;
                 }
@@ -153,7 +153,7 @@ pub fn get_start_of_pattern(src: &str, point: usize) -> usize {
             },
             b')' => { levels += 1; },
             _ => {
-                if levels == 0 && 
+                if levels == 0 &&
                     !util::is_pattern_char(src.char_at(i)) {
                     return i+1;
                 }
@@ -262,7 +262,7 @@ pub fn mask_sub_scopes(src:&str) -> String {
     }
     result
 }
- 
+
 pub fn end_of_next_scope<'a>(src: &'a str) -> &'a str {
     match find_close(src.as_bytes().iter(), b'{', b'}', 1) {
         Some(count) => &src[..count+1],
@@ -406,4 +406,3 @@ struct foo {
     let s = end_of_next_scope(src);
     assert_eq!(expected, s);
 }
-

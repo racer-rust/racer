@@ -4,8 +4,8 @@ pub fn rejustify(src: &str) -> String {
     let mut sb = String::new();
     for l in s.lines() {
         let tabless = &l[4..];
-        sb.push_str(tabless); 
-        if tabless.len() != 0 { 
+        sb.push_str(tabless);
+        if tabless.len() != 0 {
             sb.push_str("\n");
         }
     }

@@ -95,12 +95,12 @@ impl Match {
 
 impl fmt::Debug for Match {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Match [{:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?} |{}|]", 
-               self.matchstr, 
+        write!(f, "Match [{:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?} |{}|]",
+               self.matchstr,
                self.filepath.to_str(),
-               self.point, 
-               self.local, 
-               self.mtype, 
+               self.point,
+               self.local,
+               self.mtype,
                self.generic_args,
                self.generic_types,
                self.contextstr)
@@ -121,7 +121,7 @@ impl Scope {
 
 impl fmt::Debug for Scope {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Scope [{:?}, {:?}]", 
+        write!(f, "Scope [{:?}, {:?}]",
                self.filepath.to_str(),
                self.point)
     }
@@ -210,8 +210,8 @@ pub struct PathSearch {
 
 impl fmt::Debug for PathSearch {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Search [{:?}, {:?}, {:?}]", 
-               self.path, 
+        write!(f, "Search [{:?}, {:?}, {:?}]",
+               self.path,
                self.filepath.to_str(),
                self.point)
     }
@@ -261,7 +261,7 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize) -> vec::
             }
 
             let path = Path::from_vec(global, v);
-            for m in nameres::resolve_path(&path, filepath, pos, 
+            for m in nameres::resolve_path(&path, filepath, pos,
                                          SearchType::StartsWith, Namespace::BothNamespaces) {
                 out.push(m);
             }
@@ -312,7 +312,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize) -> Option<
                 .collect::<Vec<_>>();
             let path = Path{ global: global, segments: segs };
 
-            return nameres::resolve_path(&path, filepath, pos, 
+            return nameres::resolve_path(&path, filepath, pos,
                                          SearchType::ExactMatch, Namespace::BothNamespaces).nth(0);
         },
         CompletionType::CompleteField => {
