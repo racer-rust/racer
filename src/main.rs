@@ -194,7 +194,6 @@ fn main() {
 
     let command = &args[1][..];
     match command {
-        "engine" => engine(),
         "prefix" => prefix(),
         "complete" => complete(&match_fn),
         "complete-with-snippet" => complete(&match_with_snippet_fn),
