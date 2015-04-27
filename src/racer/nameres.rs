@@ -27,11 +27,11 @@ pub const PATH_SEP: &'static str = ";";
     let opoint = scopes::find_stmt_start(&*src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
 
-    let fields = ast::parse_struct_fields(String::from_str(structsrc), 
+    let fields = ast::parse_struct_fields(String::from_str(structsrc),
                                           racer::Scope::from_match(structmatch));
 
     let mut out = Vec::new();
-    
+
     for (field, fpos, _) in fields.into_iter() {
 
         if symbol_matches(search_type, searchstr, &field) {
@@ -49,10 +49,10 @@ pub const PATH_SEP: &'static str = ";";
 }
 
 pub fn search_for_impl_methods(implsearchstr: &str,
-                           fieldsearchstr: &str, point: usize, 
+                           fieldsearchstr: &str, point: usize,
                            fpath: &Path, local: bool,
                            search_type: SearchType) -> vec::IntoIter<Match> {
-    
+
     debug!("searching for impl methods |{}| |{}| {:?}",implsearchstr, fieldsearchstr, fpath.to_str());
 
     let mut out = Vec::new();
@@ -61,7 +61,7 @@ pub fn search_for_impl_methods(implsearchstr: &str,
         debug!("found impl!! |{:?}| looking for methods",m);
         let src = racer::load_file(&m.filepath);
 
-        // find the opening brace and skip to it. 
+        // find the opening brace and skip to it.
         (&src[m.point..]).find("{").map(|n|{
             let point = m.point + n + 1;
             for m in search_scope_for_methods(point, &*src, fieldsearchstr, &m.filepath, search_type) {
@@ -72,16 +72,16 @@ pub fn search_for_impl_methods(implsearchstr: &str,
     return out.into_iter();
 }
 
-fn search_scope_for_methods(point: usize, src:&str, searchstr:&str, filepath:&Path, 
+fn search_scope_for_methods(point: usize, src:&str, searchstr:&str, filepath:&Path,
                       search_type: SearchType) -> vec::IntoIter<Match> {
     debug!("searching scope for methods {} |{}| {:?}",point, searchstr, filepath.to_str());
-    
+
     let scopesrc = &src[point..];
     let mut out = Vec::new();
-    for (blobstart,blobend) in codeiter::iter_stmts(scopesrc) { 
+    for (blobstart,blobend) in codeiter::iter_stmts(scopesrc) {
         let blob = &scopesrc[blobstart..blobend];
 
-        if txt_matches(search_type, &format!("fn {}", searchstr), blob) 
+        if txt_matches(search_type, &format!("fn {}", searchstr), blob)
             && typeinf::first_param_is_self(blob) {
             debug!("found a method starting |{}| |{}|",searchstr,blob);
             // TODO: parse this properly
@@ -113,7 +113,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
     let src = &s[pos..];
 
     let mut out = Vec::new();
-    for (start,end) in codeiter::iter_stmts(src) { 
+    for (start,end) in codeiter::iter_stmts(src) {
         let blob = &src[start..end];
 
         if blob.starts_with("impl") {
@@ -132,7 +132,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                                        local: local,
                                        mtype: Impl,
                                        contextstr: "".to_string(),
-                                       generic_args: Vec::new(), 
+                                       generic_args: Vec::new(),
                                        generic_types: Vec::new()
                             };
                             out.push(m);
@@ -142,7 +142,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                     // find trait
                     if include_traits && implres.trait_path.is_some() {
                         let trait_path = implres.trait_path.unwrap();
-                        let m = resolve_path(&trait_path, 
+                        let m = resolve_path(&trait_path,
                                              filepath, pos + start, ExactMatch, TypeNamespace).nth(0);
                         debug!("found trait |{:?}| {:?}",
                                  trait_path, m);
@@ -156,11 +156,11 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
 }
 
 // scope headers include fn decls, if let, while let etc..
-fn search_scope_headers(point: usize, scopestart: usize, msrc:&str, searchstr:&str, 
-                        filepath:&Path, search_type: SearchType, 
+fn search_scope_headers(point: usize, scopestart: usize, msrc:&str, searchstr:&str,
+                        filepath:&Path, search_type: SearchType,
                         local: bool) -> vec::IntoIter<Match> {
     debug!("search_scope_headers for |{}| pt: {}",searchstr, scopestart);
-    if let Some(stmtstart) = scopes::find_stmt_start(msrc, scopestart) { 
+    if let Some(stmtstart) = scopes::find_stmt_start(msrc, scopestart) {
         let preblock = &msrc[stmtstart..scopestart];
         debug!("PHIL search_scope_headers preblock is |{}|",preblock);
 
@@ -172,7 +172,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc:&str, searchstr:&s
             let ifletstart = stmtstart + n;
             let s = (&msrc[ifletstart..scopestart+1]).to_string() + "}";
             if txt_matches(search_type, searchstr, &*s) {
-                let mut out = matchers::match_if_let(&*s, 0, s.len(), searchstr, 
+                let mut out = matchers::match_if_let(&*s, 0, s.len(), searchstr,
                                                      filepath, search_type, local);
                 for m in out.iter_mut() {
                     m.point += ifletstart;
@@ -186,12 +186,12 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc:&str, searchstr:&s
 
             let matchstmt = typeinf::get_first_stmt(&msrc[matchstart..]);
             // The definition could be in the match LHS arms. Try to find this
-            debug!("PHIL found a match statement, examining match arms (len {}) |{}|", 
+            debug!("PHIL found a match statement, examining match arms (len {}) |{}|",
                    matchstmt.len(), matchstmt);
-            
-            let masked_matchstmt = mask_matchstmt(matchstmt, 
+
+            let masked_matchstmt = mask_matchstmt(matchstmt,
                                                   scopestart+1 - matchstart);
-            debug!("PHIL masked match stmt is len {} |{}|", 
+            debug!("PHIL masked match stmt is len {} |{}|",
                    masked_matchstmt.len(), masked_matchstmt);
 
 
@@ -223,7 +223,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc:&str, searchstr:&s
             debug!("PHIL arm fauxmatchstmt is |{}|, {}", fauxmatchstmt, faux_prefix_size);
             let mut out = Vec::new();
             for &(start,end) in ast::parse_pat_idents(fauxmatchstmt).iter() {
-                let (start,end) = (lhs_start + start - faux_prefix_size, 
+                let (start,end) = (lhs_start + start - faux_prefix_size,
                                    lhs_start + end - faux_prefix_size);
                 let s = &msrc[start..end];
 
@@ -231,11 +231,11 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc:&str, searchstr:&s
 
                     out.push(Match {matchstr: s.to_string(),
                                     filepath: filepath.to_path_buf(),
-                                    point: start, 
+                                    point: start,
                                     local: local,
                                     mtype: MatchArm,
                                     contextstr: lhs.trim().to_string(),
-                                    generic_args: Vec::new(), 
+                                    generic_args: Vec::new(),
                                     generic_types: Vec::new()
                     });
                     if let SearchType::ExactMatch = search_type {
@@ -266,8 +266,8 @@ fn does_it() {
     debug!("PHIL res is |{}|",res);
 }
 
-fn search_fn_args(fnstart: usize, open_brace_pos: usize, msrc:&str, searchstr:&str, 
-                   filepath:&Path, 
+fn search_fn_args(fnstart: usize, open_brace_pos: usize, msrc:&str, searchstr:&str,
+                   filepath:&Path,
                    search_type: SearchType, local: bool) -> vec::IntoIter<Match> {
     let mut out = Vec::new();
     let mut fndecl = String::new();
@@ -279,19 +279,19 @@ fn search_fn_args(fnstart: usize, open_brace_pos: usize, msrc:&str, searchstr:&s
     debug!("search_fn_args: found start of fn!! {} |{}| {}",fnstart, fndecl, searchstr);
     if txt_matches(search_type, searchstr, &fndecl) {
         let coords = ast::parse_fn_args(fndecl.clone());
-        
+
         for &(start,end) in coords.iter() {
             let s = &fndecl[start..end];
             debug!("search_fn_args: arg str is |{}|", s);
-            
-            if symbol_matches(search_type, searchstr, s) {                
+
+            if symbol_matches(search_type, searchstr, s) {
                 let m = Match { matchstr: s.to_string(),
                                 filepath: filepath.to_path_buf(),
                                 point: fnstart + start - impl_header_len,
                                 local: local,
                                 mtype: FnArg,
                                 contextstr: s.to_string(),
-                                generic_args: Vec::new(), 
+                                generic_args: Vec::new(),
                                 generic_types: Vec::new()
                 };
                 debug!("search_fn_args matched: {:?}", m);
@@ -305,7 +305,7 @@ fn search_fn_args(fnstart: usize, open_brace_pos: usize, msrc:&str, searchstr:&s
 pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match> {
     debug!("do_file_search {}",searchstr);
     let mut out = Vec::new();
-    
+
     let srcpaths = std::env::var("RUST_SRC_PATH").unwrap_or("".to_string());
     debug!("do_file_search srcpaths {}",srcpaths);
     let mut v = srcpaths.split(PATH_SEP).collect::<Vec<_>>();
@@ -331,7 +331,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                                            local: false,
                                            mtype: Module,
                                            contextstr: (&fname[3..]).to_string(),
-                                           generic_args: Vec::new(), 
+                                           generic_args: Vec::new(),
                                            generic_types: Vec::new()
                             };
                             out.push(m);
@@ -350,7 +350,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                                                local: false,
                                                mtype: Module,
                                                contextstr: filepath.to_str().unwrap().to_string(),
-                                               generic_args: Vec::new(), 
+                                               generic_args: Vec::new(),
                                                generic_types: Vec::new()
                                 };
                                 out.push(m);
@@ -366,7 +366,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                                                local: false,
                                                mtype: Module,
                                                contextstr: filepath.to_str().unwrap().to_string(),
-                                               generic_args: Vec::new(), 
+                                               generic_args: Vec::new(),
                                                generic_types: Vec::new()
                                 };
                                 out.push(m);
@@ -382,13 +382,13 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                                                local: false,
                                                mtype: Module,
                                                contextstr: filepath.to_str().unwrap().to_string(),
-                                               generic_args: Vec::new(), 
+                                               generic_args: Vec::new(),
                                                generic_types: Vec::new()
                                 };
                                 out.push(m);
                             }
                         }
-                        {            
+                        {
                             // try just <name>.rs
                             if fname.ends_with(".rs") {
                                 let m = Match {matchstr: (&fname[..(fname.len()-3)]).to_string(),
@@ -397,7 +397,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                                                local: false,
                                                mtype: Module,
                                                contextstr: fpath_buf.deref().to_str().unwrap().to_string(),
-                                               generic_args: Vec::new(), 
+                                               generic_args: Vec::new(),
                                                generic_types: Vec::new()
                                 };
                                 out.push(m);
@@ -415,7 +415,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
     return out.into_iter();
 }
 
-pub fn search_crate_root(pathseg: &racer::PathSegment, modfpath: &Path, 
+pub fn search_crate_root(pathseg: &racer::PathSegment, modfpath: &Path,
                          searchtype: SearchType, namespace: Namespace) -> vec::IntoIter<Match> {
     debug!("search_crate_root |{:?}| {:?}", pathseg, modfpath.to_str());
 
@@ -439,7 +439,7 @@ pub fn search_crate_root(pathseg: &racer::PathSegment, modfpath: &Path,
 
 pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<PathBuf> {
     let mut res = Vec::new();
-    
+
     {
         let filepath = currentdir.join("lib.rs");
         if File::open(&filepath).is_ok() {
@@ -467,16 +467,16 @@ pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<PathBuf> {
     return res;
 }
 
-pub fn search_next_scope(mut startpoint: usize, pathseg: &racer::PathSegment, 
-                         filepath:&Path, search_type: SearchType, local: bool, 
+pub fn search_next_scope(mut startpoint: usize, pathseg: &racer::PathSegment,
+                         filepath:&Path, search_type: SearchType, local: bool,
                          namespace: Namespace) -> vec::IntoIter<Match> {
     let filesrc = racer::load_file(filepath);
     if startpoint != 0 {
-        // is a scope inside the file. Point should point to the definition 
+        // is a scope inside the file. Point should point to the definition
         // (e.g. mod blah {...}), so the actual scope is past the first open brace.
         let src = &filesrc[startpoint..];
         //debug!("search_next_scope src1 |{}|",src);
-        // find the opening brace and skip to it. 
+        // find the opening brace and skip to it.
         src.find("{").map(|n|{
             startpoint = startpoint + n + 1;
         });
@@ -515,7 +515,7 @@ pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
 }
 
 pub fn get_module_file(name: &str, parentdir: &Path) -> Option<PathBuf> {
-    {            
+    {
         // try just <name>.rs
         let filepath = parentdir.join(format!("{}.rs", name));
         if File::open(&filepath).is_ok() {
@@ -534,8 +534,8 @@ pub fn get_module_file(name: &str, parentdir: &Path) -> Option<PathBuf> {
 }
 
 
-pub fn search_scope(start: usize, point: usize, src: &str, 
-                    pathseg: &racer::PathSegment, 
+pub fn search_scope(start: usize, point: usize, src: &str,
+                    pathseg: &racer::PathSegment,
                     filepath:&Path, search_type: SearchType, local: bool,
                     namespace: Namespace) -> vec::IntoIter<Match> {
 
@@ -543,9 +543,9 @@ pub fn search_scope(start: usize, point: usize, src: &str,
     let mut out = Vec::new();
 
     debug!("searching scope {:?} start: {} point: {} '{}' {:?} {:?} local: {}",
-           namespace, start, point, searchstr, 
+           namespace, start, point, searchstr,
            filepath.to_str(), search_type, local);
-    
+
     let scopesrc = &src[start..];
 
     let mut skip_next_block = false;
@@ -588,12 +588,12 @@ pub fn search_scope(start: usize, point: usize, src: &str,
         }
 
         // for m in matchers::match_let_bindings(src, start+blobstart,
-        //                                       start+blobend, 
-        //                                       searchstr, 
+        //                                       start+blobend,
+        //                                       searchstr,
         //                                       filepath, search_type, local) {
         for m in matchers::match_let(src, start+blobstart,
-                                     start+blobend, 
-                                     searchstr, 
+                                     start+blobend,
+                                     searchstr,
                                      filepath, search_type, local).into_iter() {
             out.push(m);
             if let ExactMatch = search_type {
@@ -603,7 +603,7 @@ pub fn search_scope(start: usize, point: usize, src: &str,
     }
     // now search from top of scope for items etc..
     let codeit = v.into_iter().chain(codeit);
-    for (blobstart,blobend) in codeit { 
+    for (blobstart,blobend) in codeit {
         // sometimes we need to skip blocks of code if the preceeding attribute disables it
         //  (e.g. #[cfg(test)])
         if skip_next_block {
@@ -621,7 +621,7 @@ pub fn search_scope(start: usize, point: usize, src: &str,
             continue;
         }
 
-        let is_a_use_glob = (blob.starts_with("use") || blob.starts_with("pub use")) 
+        let is_a_use_glob = (blob.starts_with("use") || blob.starts_with("pub use"))
               && blob.find("::*").is_some();
 
         if is_a_use_glob {
@@ -630,7 +630,7 @@ pub fn search_scope(start: usize, point: usize, src: &str,
             continue;
         }
 
-        // Optimisation: if the search string is not in the blob and it is not 
+        // Optimisation: if the search string is not in the blob and it is not
         // a 'use glob', this cannot match so fail fast!
         if blob.find(searchstr).is_none() {
             continue;
@@ -638,7 +638,7 @@ pub fn search_scope(start: usize, point: usize, src: &str,
 
         // There's a good chance of a match. Run the matchers
 
-        out = out + &*run_matchers_on_blob(src, start+blobstart, start+blobend, 
+        out = out + &*run_matchers_on_blob(src, start+blobstart, start+blobend,
                                       searchstr,
                                       filepath, search_type, local, namespace);
         if let ExactMatch = search_type {
@@ -651,8 +651,8 @@ pub fn search_scope(start: usize, point: usize, src: &str,
     // finally process any use-globs that we skipped before
     for &(blobstart, blobend) in delayed_use_globs.iter() {
         // There's a good chance of a match. Run the matchers
-        for m in run_matchers_on_blob(src, start+blobstart, start+blobend, 
-                                      searchstr,filepath, search_type, 
+        for m in run_matchers_on_blob(src, start+blobstart, start+blobend,
+                                      searchstr,filepath, search_type,
                                       local, namespace).into_iter() {
             out.push(m);
             if let ExactMatch = search_type {
@@ -665,23 +665,23 @@ pub fn search_scope(start: usize, point: usize, src: &str,
     return out.into_iter();
 }
 
-fn run_matchers_on_blob(src: &str, start: usize, end: usize, searchstr: &str, 
+fn run_matchers_on_blob(src: &str, start: usize, end: usize, searchstr: &str,
                          filepath:&Path, search_type: SearchType, local: bool,
                          namespace: Namespace) -> Vec<Match> {
     let mut out = Vec::new();
     match namespace {
-        TypeNamespace => 
-            for m in matchers::match_types(src, start, 
-                                           end, searchstr, 
+        TypeNamespace =>
+            for m in matchers::match_types(src, start,
+                                           end, searchstr,
                                            filepath, search_type, local) {
                 out.push(m);
                 if let ExactMatch = search_type {
                     return out;
                 }
             },
-        ValueNamespace => 
+        ValueNamespace =>
             for m in matchers::match_values(src, start,
-                                            end, searchstr, 
+                                            end, searchstr,
                                             filepath, search_type, local) {
                 out.push(m);
                 if let ExactMatch = search_type {
@@ -690,7 +690,7 @@ fn run_matchers_on_blob(src: &str, start: usize, end: usize, searchstr: &str,
             },
         BothNamespaces => {
             for m in matchers::match_types(src, start,
-                                           end, searchstr, 
+                                           end, searchstr,
                                            filepath, search_type, local) {
                 out.push(m);
                 if let ExactMatch = search_type {
@@ -698,21 +698,21 @@ fn run_matchers_on_blob(src: &str, start: usize, end: usize, searchstr: &str,
                 }
             }
             for m in matchers::match_values(src, start,
-                                            end, searchstr, 
+                                            end, searchstr,
                                             filepath, search_type, local) {
                 out.push(m);
                 if let ExactMatch = search_type {
                     return out;
                 }
-                
+
             }
         }
     }
     return out;
 }
 
-fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path, 
-                       msrc: &str, point: usize, search_type: SearchType, 
+fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path,
+                       msrc: &str, point: usize, search_type: SearchType,
                        namespace: Namespace) -> vec::IntoIter<Match> {
     debug!("search_local_scopes {:?} {:?} {} {:?} {:?}",pathseg, filepath.to_str(), point,
            search_type, namespace);
@@ -735,8 +735,8 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path,
                     return out.into_iter();
                 }
             }
-            if start == 0 { 
-                break; 
+            if start == 0 {
+                break;
             }
             start = start-1;
             let searchstr = &pathseg.name;
@@ -753,7 +753,7 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path,
     }
 }
 
-pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType, 
+pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType,
                            namespace: Namespace) -> vec::IntoIter<Match> {
     debug!("search_prelude file {:?} {:?} {:?}", pathseg, search_type, namespace);
 //    debug!("PHIL searching prelude file, backtrace: {}",util::get_backtrace());
@@ -761,7 +761,7 @@ pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType
     let mut out : Vec<Match> = Vec::new();
 
     // find the prelude file from the search path and scan it
-    let srcpaths = match std::env::var("RUST_SRC_PATH") { 
+    let srcpaths = match std::env::var("RUST_SRC_PATH") {
         Ok(paths) => paths,
         Err(_) => return out.into_iter()
     };
@@ -781,10 +781,10 @@ pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType
     return out.into_iter();
 }
 
-pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: usize, 
+pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: usize,
                                    search_type: SearchType, namespace: Namespace) -> vec::IntoIter<Match> {
     debug!("resolve_path_with_str {:?}", path);
-    
+
     let mut out = Vec::new();
 
     // HACK
@@ -793,7 +793,7 @@ pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: usize,
         let str_pathseg = racer::PathSegment{ name: "Str".to_string(), types: Vec::new() };
         let str_match = resolve_name(&str_pathseg, filepath, pos, ExactMatch, namespace).nth(0);
         debug!("str_match {:?}", str_match);
-        
+
         str_match.map(|str_match|{
             debug!("found Str, converting to str");
             let m = Match {matchstr: "str".to_string(),
@@ -802,7 +802,7 @@ pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: usize,
                            local: false,
                            mtype: Struct,
                            contextstr: "str".to_string(),
-                           generic_args: Vec::new(), 
+                           generic_args: Vec::new(),
                            generic_types: Vec::new()
             };
             out.push(m);
@@ -840,12 +840,12 @@ pub fn is_a_repeat_search(new_search: &Search) -> bool {
 }
 
 
-pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: usize, 
+pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: usize,
                     search_type: SearchType, namespace: Namespace) -> vec::IntoIter<Match> {
 
     let mut out = Vec::new();
     let searchstr = &pathseg.name;
-    
+
     debug!("resolve_name {} {:?} {} {:?} {:?}",searchstr, filepath.to_str(), pos, search_type, namespace);
 
     let msrc = racer::load_file_and_mask_comments(filepath);
@@ -864,7 +864,7 @@ pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: usize,
                         generic_args: Vec::new(), generic_types: Vec::new()
             });
         });
-        
+
         if let ExactMatch = search_type {
             if !out.is_empty() {
                 return out.into_iter();
@@ -889,7 +889,7 @@ pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: usize,
             if !out.is_empty() {
                 return out.into_iter();
             }
-        }        
+        }
     }
 
     for m in search_prelude_file(pathseg, search_type, namespace) {
@@ -898,7 +898,7 @@ pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: usize,
             if !out.is_empty() {
                 return out.into_iter();
             }
-        }        
+        }
     }
     // filesearch. Used to complete e.g. extern crate blah or mod foo
     if let StartsWith = search_type {
@@ -940,7 +940,7 @@ pub fn get_super_scope(filepath: &Path, pos: usize) -> Option<racer::Scope> {
     }
 }
 
-pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: usize, 
+pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: usize,
                   search_type: SearchType, namespace: Namespace) -> vec::IntoIter<Match> {
     debug!("resolve_path {:?} {:?} {} {:?}", path, filepath.to_str(), pos, search_type);
     let len = path.segments.len();
@@ -979,7 +979,7 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: usize,
                 Module => {
                     debug!("searching a module '{}' (whole path: {:?})",m.matchstr, path);
                     let ref pathseg = path.segments[len-1];
-                    for m in search_next_scope(m.point, pathseg, &m.filepath, search_type, false, namespace) { 
+                    for m in search_next_scope(m.point, pathseg, &m.filepath, search_type, false, namespace) {
                         out.push(m);
                     }
                 }
@@ -991,7 +991,7 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: usize,
                     let scopestart = scopes::find_stmt_start(&*filesrc, m.point).unwrap();
                     let scopesrc = &filesrc[scopestart..];
                     codeiter::iter_stmts(scopesrc).nth(0).map(|(blobstart,blobend)|{
-                        for m in matchers::match_enum_variants(&*filesrc, 
+                        for m in matchers::match_enum_variants(&*filesrc,
                                                                scopestart+blobstart,
                                                                scopestart+ blobend,
                                                       &*pathseg.name, &m.filepath, search_type, true) {
@@ -1006,17 +1006,17 @@ pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: usize,
                         debug!("found impl!! {:?}",m);
                         let ref pathseg = path.segments[len-1];
                         let src = racer::load_file(&m.filepath);
-                        // find the opening brace and skip to it. 
+                        // find the opening brace and skip to it.
                         (&src[m.point..]).find("{").map(|n|{
                             let point = m.point + n + 1;
                             for m in search_scope(point, point, &*src, pathseg, &m.filepath, search_type, m.local, namespace) {
                                 out.push(m);
                             }
                         });
-                        
+
                     };
                 }
-                _ => () 
+                _ => ()
             }
         });
         debug!("resolve_path returning {:?}",out);
@@ -1034,10 +1034,10 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
     if path.len() == 1 {
         let searchstr = path[0];
         // hack for now
-        let pathseg = racer::PathSegment{name: searchstr.to_string(), 
+        let pathseg = racer::PathSegment{name: searchstr.to_string(),
                                          types: Vec::new()};
 
-        for m in search_next_scope(pos, &pathseg, filepath, search_type, false, namespace) { 
+        for m in search_next_scope(pos, &pathseg, filepath, search_type, false, namespace) {
             out.push(m);
         }
 
@@ -1061,7 +1061,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
                 Module => {
                     debug!("found an external module {}",m.matchstr);
                     let searchstr = path[path.len()-1];
-                    let pathseg = racer::PathSegment{name: searchstr.to_string(), 
+                    let pathseg = racer::PathSegment{name: searchstr.to_string(),
                                          types: Vec::new()};
                     for m in search_next_scope(m.point, &pathseg, &m.filepath, search_type, false, namespace) {
                         out.push(m);
@@ -1073,7 +1073,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
                     for m in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, false) {
                         debug!("found  impl2!! {}",m.matchstr);
                         let searchstr = path[path.len()-1];
-                        let pathseg = racer::PathSegment{name: searchstr.to_string(), 
+                        let pathseg = racer::PathSegment{name: searchstr.to_string(),
                                          types: Vec::new()};
                         debug!("about to search impl scope...");
                         for m in search_next_scope(m.point, &pathseg, &m.filepath, search_type, false, namespace) {

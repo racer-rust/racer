@@ -46,7 +46,7 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
                     }
                 }
             }
-            
+
             if start == self.pos {
                 // if this is a new stmt block, skip the whitespace
                 for &b in src_bytes[self.pos..self.end].iter() {
@@ -58,8 +58,8 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
                 start = self.pos;
 
                 // test attribute   #[foo = bar]
-                if self.pos<self.end && src_bytes[self.pos] == b'#' { 
-                    enddelim = b']' 
+                if self.pos<self.end && src_bytes[self.pos] == b'#' {
+                    enddelim = b']'
                 };
             }
 
@@ -72,9 +72,9 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
                     b'(' => { parenlevel += 1; },
                     b')' => { parenlevel -= 1; },
                     b'{' => {
-                        // if we are top level and stmt is not a 'use' then 
+                        // if we are top level and stmt is not a 'use' then
                         // closebrace finishes the stmt
-                        if bracelevel == 0 && parenlevel == 0 
+                        if bracelevel == 0 && parenlevel == 0
                             && !(is_a_use_stmt(self.src, start, self.pos)) {
                             enddelim = b'}';
                         }
@@ -91,7 +91,7 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
                         if parenlevel == 0 && bracelevel == 0
                             && self.pos < self.end && (self.pos-start)>1 {
                             match src_bytes[self.pos] {
-                                b' ' | b'\r' | b'\n' | b'\t' | b'('  => { 
+                                b' ' | b'\r' | b'\n' | b'\t' | b'('  => {
                                     enddelim = b')';
                                 },
                                 _ => {}
@@ -101,7 +101,7 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
                     _ => {}
                 }
 
-                if enddelim == b && bracelevel == 0 && parenlevel == 0 { 
+                if enddelim == b && bracelevel == 0 && parenlevel == 0 {
                     return Some((start, self.pos));
                 }
             }
@@ -112,8 +112,8 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
 fn is_a_use_stmt(src: &str, start: usize, pos: usize) -> bool {
     let src_bytes = src.as_bytes();
     let whitespace = " {\t\r\n".as_bytes();
-    (pos > 3 && &src_bytes[start..start+3] == b"use" && 
-     whitespace.contains(&src_bytes[start+3])) || 
+    (pos > 3 && &src_bytes[start..start+3] == b"use" &&
+     whitespace.contains(&src_bytes[start+3])) ||
     (pos > 7 && &src_bytes[start..(start+7)] == b"pub use" &&
      whitespace.contains(&src_bytes[start+7]))
 }

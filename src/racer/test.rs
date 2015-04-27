@@ -10,7 +10,7 @@ use std::thread;
 fn tmpname() -> PathBuf {
     let thread = thread::current();
     let taskname = thread.name().unwrap();
-    let s = taskname.replace("::","_"); 
+    let s = taskname.replace("::","_");
     let mut p = String::from_str("tmpfile.");
     p.push_str(&s[..]);
     PathBuf::from(p)
@@ -162,7 +162,7 @@ fn completes_struct_field_via_assignment() {
     struct Point {
         first: f64,
         second: f64
-    } 
+    }
 
     let var = Point {first: 35, second: 22};
     var.f
@@ -181,7 +181,7 @@ fn finds_defn_of_struct_field() {
     struct Point {
         first: f64,
         second: f64
-    } 
+    }
 
     let var = Point {first: 35, second: 22};
     var.first
@@ -238,7 +238,7 @@ fn finds_enum() {
     enum MyEnum {
         One, Two
     }
-    
+
     fn myfn(e: MyEnum) {}
     ";
     write_file(&Path::new("src.rs"), src);
@@ -361,7 +361,7 @@ fn follows_self_use() {
     let got = find_definition(src, &srcpath, pos).unwrap();
     fs::remove_dir_all(&basedir).unwrap();
     assert_eq!(got.matchstr,"myfn".to_string());
-    assert_eq!(moddir.join("src2.rs").display().to_string(), 
+    assert_eq!(moddir.join("src2.rs").display().to_string(),
                got.filepath.display().to_string());
     assert_eq!(28, got.point);
 }
@@ -391,7 +391,7 @@ fn finds_nested_submodule_file() {
     let got = find_definition(rootsrc, &srcpath, pos).unwrap();
     fs::remove_dir_all(&basedir).unwrap();
     assert_eq!(got.matchstr,"myfn".to_string());
-    assert_eq!(sub2dir.join("sub3.rs").display().to_string(), 
+    assert_eq!(sub2dir.join("sub3.rs").display().to_string(),
                got.filepath.display().to_string());
 }
 
@@ -455,7 +455,7 @@ fn follows_use_to_impl() {
     fs::remove_dir_all(&basedir).unwrap();
     assert_eq!(got.matchstr,"new".to_string());
     assert_eq!(90, got.point);
-    assert_eq!(modpath.display().to_string(), 
+    assert_eq!(modpath.display().to_string(),
                got.filepath.display().to_string());
 }
 
@@ -625,7 +625,7 @@ fn follows_self_to_method() {
     let pos = scopes::coords_to_point(src, 8, 20);
     let got = find_definition(src, &path, pos).unwrap();
     fs::remove_file(&path).unwrap();
-    assert_eq!("method", got.matchstr);    
+    assert_eq!("method", got.matchstr);
 }
 
 #[test]
@@ -647,7 +647,7 @@ fn follows_self_to_method_when_call_on_new_line() {
     let pos = scopes::coords_to_point(src, 9, 20);
     let got = find_definition(src, &path, pos).unwrap();
     fs::remove_file(&path).unwrap();
-    assert_eq!("method", got.matchstr);    
+    assert_eq!("method", got.matchstr);
 }
 
 
@@ -666,7 +666,7 @@ fn follows_self_to_trait_method() {
     let pos = scopes::coords_to_point(src, 6, 20);
     let got = find_definition(src, &path, pos).unwrap();
     fs::remove_file(&path).unwrap();
-    assert_eq!("method", got.matchstr);    
+    assert_eq!("method", got.matchstr);
 }
 
 #[test]
@@ -674,8 +674,8 @@ fn finds_trait_method() {
     let src = "
     pub trait MyTrait {
         fn op(self);
-        fn trait_method(self){} 
-    } 
+        fn trait_method(self){}
+    }
 
     struct Foo;
     impl MyTrait for Foo {
@@ -924,8 +924,8 @@ fn finds_glob_imported_enum_variant() {
 fn uses_generic_arg_to_resolve_trait_method() {
     let src="
     pub trait MyTrait {
-        fn trait_method(self){} 
-    } 
+        fn trait_method(self){}
+    }
     pub fn doit<T:MyTrait>(stream: &mut T) {
         T.trait_method
     }
@@ -1099,9 +1099,9 @@ fn finds_match_arm_var_with_nested_match() {
     let src="
     match foo {
        bar => {something}
-       Some(a) => { 
-               let b = match blah {  
-                           None => () 
+       Some(a) => {
+               let b = match blah {
+                           None => ()
                }
                a
        }

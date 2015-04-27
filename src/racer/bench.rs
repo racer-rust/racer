@@ -54,4 +54,3 @@ fn bench_mask_sub_scopes(b: &mut Bencher) {
         test::black_box(mask_sub_scopes(src));
     });
 }
-
