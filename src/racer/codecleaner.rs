@@ -5,8 +5,8 @@ pub fn rejustify(src: &str) -> String {
     let mut sb = String::new();
     for l in s.lines() {
         let tabless = &l[4..];
-        sb.push_str(tabless); 
-        if tabless.len() != 0 { 
+        sb.push_str(tabless);
+        if tabless.len() != 0 {
             sb.push_str("\n");
         }
     }
@@ -55,7 +55,7 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
 
 fn code(self_: &mut CodeIndicesIter) -> (usize,usize) {
     let start = match self_.state {
-        State::StateString | 
+        State::StateString |
         State::StateChar => { self_.pos-1 }, // include quote
         _ => { self_.pos }
     };
@@ -81,11 +81,11 @@ fn code(self_: &mut CodeIndicesIter) -> (usize,usize) {
                 return (start, self_.pos); // include dblquotes
             },
             b'\'' => {
-                // single quotes are also used for lifetimes, so we need to 
+                // single quotes are also used for lifetimes, so we need to
                 // be confident that this is not a lifetime.
                 // Look for closing quote:
-                if src_bytes.len() > self_.pos + 2 && 
-                    (src_bytes[self_.pos+1] == b'\'' || 
+                if src_bytes.len() > self_.pos + 2 &&
+                    (src_bytes[self_.pos+1] == b'\'' ||
                      src_bytes[self_.pos+2] == b'\'') {
                     self_.state = State::StateChar;
                     return (start, self_.pos); // include single quote
@@ -103,18 +103,18 @@ fn comment(self_: &mut CodeIndicesIter) -> (usize,usize) {
     for &b in self_.src.as_bytes()[self_.pos..].iter() {
         self_.pos += 1;
         if b == b'\n' { break; }
-    } 
+    }
     code(self_)
 }
 
 fn comment_block(self_: &mut CodeIndicesIter) -> (usize,usize) {
-    
+
     let mut nesting_level = 0u16; // should be enough
     let mut prev = b' ';
     for &b in self_.src.as_bytes()[self_.pos..].iter() {
         self_.pos += 1;
         match b {
-            b'/' if prev == b'*' => { 
+            b'/' if prev == b'*' => {
                 if nesting_level == 0 {
                     break;
                 } else {
@@ -157,7 +157,7 @@ fn char(self_: &mut CodeIndicesIter) -> (usize,usize) {
     for &b in self_.src.as_bytes()[self_.pos..].iter() {
         self_.pos += 1;
         match b {
-            b'\'' if is_not_escaped  => { break; }, 
+            b'\'' if is_not_escaped  => { break; },
             b'\\' => { is_not_escaped = !is_not_escaped; },
             _ => { is_not_escaped = true; }
         }

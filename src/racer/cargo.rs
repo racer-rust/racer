@@ -16,7 +16,7 @@ macro_rules! otry2 {
 }
 
 fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
-    // only look for 'path' references here. 
+    // only look for 'path' references here.
     // We find the git and crates.io stuff via the lockfile
 
     let mut file = otry2!(File::open(cargofile));
@@ -61,7 +61,7 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
 
                 let version = otry!(getstr(t, "version"));
                 let source = otry!(getstr(t, "source"));
-                
+
                 if Some("registry") == source.split("+").nth(0) {
                     let mut d = otry!(env::home_dir());
                     d.push(".cargo");
@@ -75,7 +75,7 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
                 } else if Some("git") == source.split("+").nth(0) {
                     let sha1 = otry!(source.split("#").last());
                     let mut d = otry!(env::home_dir());
-                    d.push(".cargo"); 
+                    d.push(".cargo");
                     d.push("git");
                     d.push("checkouts");
                     d = otry!(find_git_src_dir(d, kratename, &sha1));

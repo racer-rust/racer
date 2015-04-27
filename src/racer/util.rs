@@ -33,7 +33,7 @@ pub fn is_ident_char(c : char) -> bool {
     c.is_alphanumeric() || (c == '_')
 }
 
-pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool { 
+pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
     return match stype {
         ExactMatch => {
             let nlen = needle.len();
@@ -44,7 +44,7 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
             }
 
             for (n,_) in haystack.match_indices(needle) {
-                if (n == 0  || !is_ident_char(haystack.char_at(n-1))) && 
+                if (n == 0  || !is_ident_char(haystack.char_at(n-1))) &&
                     (n+nlen == hlen || !is_ident_char(haystack.char_at(n+nlen))) {
                     return true;
                 }
@@ -76,7 +76,7 @@ pub fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bo
 // pub fn get_backtrace() -> String {
 //     let mut m = std::old_io::MemWriter::new();
 //     let s = std::rt::backtrace::write(&mut m)
-//         .ok().map_or("NO backtrace".to_string(), 
+//         .ok().map_or("NO backtrace".to_string(),
 //                      |_| String::from_utf8_lossy(m.get_ref()).to_string());
 //     return s;
 // }
@@ -130,7 +130,7 @@ pub fn find_ident_end(s : &str, pos : usize) -> usize {
 pub fn to_refs<'a>(v: &'a Vec<String>) -> Vec<&'a str> {
     let mut out = Vec::new();
     for item in v.iter() {
-        out.push(&item[..]); 
+        out.push(&item[..]);
     }
     return out;
 }
