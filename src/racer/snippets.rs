@@ -3,7 +3,6 @@ use racer::{Match, MatchType};
 use racer::typeinf::get_function_declaration;
 
 use syntax::ast::{ImplItem_};
-use syntax::ext::quote::rt::ToSource;
 
 pub fn snippet_for_match(m : &Match) -> String {
     match m.mtype {
@@ -25,10 +24,8 @@ struct MethodInfo {
 }
 
 impl MethodInfo {
-
     ///Parses method declaration as string and returns relevant data
     fn from_source_str(source : &str) -> Option<MethodInfo> {
-
         let trim: &[_] = &['\n', '\r', '{', ' '];
         let decorated = format!("{} {{}}()", source.trim_right_matches(trim));
 
@@ -42,8 +39,15 @@ impl MethodInfo {
                         ImplItem_::MethodImplItem(ref msig, _) => {
                             let ref decl = msig.decl;
                             Some(MethodInfo {
-                                name: method.ident.to_source(),
-                                args: decl.inputs.iter().map(|a| (*a).to_source()).collect(),
+                                // ident.as_str calls Ident.name.as_str
+                                name: String::from_str(method.ident.as_str()),
+                                args: decl.inputs.iter().map(|arg| {
+                                    let ref codemap = p.sess.span_diagnostic.cm;
+                                    match codemap.span_to_snippet(arg.pat.span) {
+                                        Ok(name) => name,
+                                        _ => "".to_string()
+                                    }
+                                }).collect(),
                             })
                         },
                         _ => {
