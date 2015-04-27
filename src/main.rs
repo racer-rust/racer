@@ -164,7 +164,7 @@ fn check_rust_src_env_var() {
             let f = Path::new(v[0]);
             if !f.exists() {
                 println!("racer can't find the directory pointed to by the RUST_SRC_PATH variable \"{}\". Try using an absolute fully qualified path and make sure it points to the src directory of a rust checkout - e.g. \"/home/foouser/src/rust/src\".", srcpaths);
-                
+
                 std::env::set_exit_status(1);
                 return;
             } else if !f.ends_with("src") {
@@ -194,6 +194,7 @@ fn main() {
 
     let command = &args[1][..];
     match command {
+        "engine" => engine(),
         "prefix" => prefix(),
         "complete" => complete(&match_fn),
         "complete-with-snippet" => complete(&match_with_snippet_fn),
