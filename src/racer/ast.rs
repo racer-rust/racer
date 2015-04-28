@@ -1,5 +1,3 @@
-extern crate syntax;
-
 use racer::{self, typeinf, Match, MatchType, Scope, Ty};
 use racer::nameres::{self, resolve_path_with_str};
 use racer::Ty::{TyTuple, TyPathSearch, TyMatch, TyUnsupported};
@@ -7,15 +5,12 @@ use racer::Ty::{TyTuple, TyPathSearch, TyMatch, TyUnsupported};
 use std::ops::Deref;
 use std::path::Path;
 
-use syntax::ast;
-use syntax::codemap;
-use syntax::parse::{new_parse_sess, ParseSess, string_to_filemap};
-use syntax::parse::parser::Parser;
-use syntax::parse::token;
-use syntax::parse::lexer;
-use syntax::ptr::P;
-use syntax::visit::{self, Visitor};
-use syntax::diagnostic::FatalError;
+use syntex_syntax::ast;
+use syntex_syntax::codemap;
+use syntex_syntax::parse::parser::Parser;
+use syntex_syntax::parse::{lexer, new_parse_sess, ParseSess, string_to_filemap, token};
+use syntex_syntax::ptr::P;
+use syntex_syntax::visit::{self, Visitor};
 
 // This code ripped from libsyntax::util::parser_testing
 pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: String) -> Option<Parser<'a>> {
@@ -38,6 +33,7 @@ pub fn with_error_checking_parse<F, T>(s: String, f: F) -> Option<T> where F: Fn
 // parse a string, return a stmt
 pub fn string_to_stmt(source_str : String) -> Option<P<ast::Stmt>> {
     with_error_checking_parse(source_str, |p| {
+        use syntex_syntax::diagnostic::FatalError;
         match p.parse_stmt_nopanic() {
             Ok(p) => p,
             Err(FatalError) => None
@@ -49,7 +45,7 @@ pub fn string_to_stmt(source_str : String) -> Option<P<ast::Stmt>> {
 pub fn string_to_crate (source_str : String) -> Option<ast::Crate> {
     with_error_checking_parse(source_str.clone(), |p| {
         use std::result::Result::{Ok, Err};
-        use syntax::diagnostic::FatalError;
+        use syntex_syntax::diagnostic::FatalError;
         match p.parse_crate_mod() {
             Ok(e) => Some(e),
             Err(FatalError) => {

@@ -4,9 +4,9 @@
 
 #[macro_use] extern crate log;
 
-extern crate syntax;
 extern crate collections;
 extern crate core;
+extern crate syntex_syntax;
 extern crate toml;
 
 #[cfg(not(test))]
