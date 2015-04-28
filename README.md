@@ -1,12 +1,14 @@
 # *Racer* - code completion for [Rust](http://www.rust-lang.org/)
 
+[![Build Status](https://travis-ci.org/phildawes/racer.svg?branch=master)](https://travis-ci.org/phildawes/racer)
+
 ![alt text](https://github.com/phildawes/racer/raw/master/images/racer1.png "Racer emacs session")
 
 *RACER* = *R*ust *A*uto-*C*omplete-*er*. A utility intended to provide rust code completion for editors and IDEs. Maybe one day the 'er' bit will be exploring + refactoring or something.
 
 ## Important - Racer does not work with Rust Beta!
 
-Racer uses unstable features from the standard library, and so currently requires a rust nightly install 
+Racer uses unstable features from the standard library, and so currently requires a rust nightly install
 
 ## Installation
 
@@ -16,7 +18,7 @@ Racer uses unstable features from the standard library, and so currently require
 
    (e.g. ```% export RUST_SRC_PATH=/usr/local/src/rust/src``` )
 
-3. Test on the command line: 
+3. Test on the command line:
 
    ```./target/release/racer complete std::io::B ```  (should show some completions)
 
