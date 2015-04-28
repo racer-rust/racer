@@ -79,7 +79,6 @@ impl MethodInfo {
 
 #[test]
 fn method_info_test() {
-
     let info = MethodInfo::from_source_str("pub fn new() -> Vec<T>").unwrap();
     assert_eq!(info.name, "new");
     assert_eq!(info.args.len(), 0);
@@ -89,5 +88,5 @@ fn method_info_test() {
     assert_eq!(info.name, "reserve");
     assert_eq!(info.args.len(), 2);
     assert_eq!(info.args[0], "self");
-    assert_eq!(info.snippet(), "reserve(${1:additional: uint})");
+    assert_eq!(info.snippet(), "reserve(${1:additional})");
 }
