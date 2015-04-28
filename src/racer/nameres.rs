@@ -1,8 +1,5 @@
 // Name resolution
 
-extern crate collections;
-extern crate core;
-
 use racer::{self, ast, codeiter, matchers, scopes, typeinf, util};
 use racer::SearchType::{self, ExactMatch, StartsWith};
 use racer::Match;
@@ -27,7 +24,7 @@ pub const PATH_SEP: &'static str = ";";
     let opoint = scopes::find_stmt_start(&*src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
 
-    let fields = ast::parse_struct_fields(String::from_str(structsrc),
+    let fields = ast::parse_struct_fields(structsrc.to_string(),
                                           racer::Scope::from_match(structmatch));
 
     let mut out = Vec::new();
@@ -118,7 +115,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
 
         if blob.starts_with("impl") {
             blob.find("{").map(|n|{
-                let mut decl = String::from_str(&blob[..n+1]);
+                let mut decl = (&blob[..n+1]).to_string();
                 decl.push_str("}");
                 if txt_matches(ExactMatch, searchstr, &decl) {
                     debug!("impl decl {}",decl);

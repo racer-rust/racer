@@ -134,7 +134,7 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<rac
     let opoint = scopes::find_stmt_start(&*src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
 
-    let fields = ast::parse_struct_fields(String::from_str(structsrc),
+    let fields = ast::parse_struct_fields(structsrc.to_string(),
                                           racer::Scope::from_match(structmatch));
     for (field, _, ty) in fields.into_iter() {
 
@@ -237,7 +237,7 @@ pub fn get_function_declaration(fnmatch: &Match) -> String {
     let src = racer::load_file(&fnmatch.filepath);
     let start = scopes::find_stmt_start(&*src, fnmatch.point).unwrap();
     let end = (&src[start..]).find('{').unwrap();
-    return String::from_str(&src[start..end+start]);
+    (&src[start..end+start]).to_string()
 }
 
 pub fn get_return_type_of_function(fnmatch: &Match) -> Option<racer::Ty> {

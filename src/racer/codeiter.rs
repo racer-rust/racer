@@ -1,9 +1,4 @@
-// #![feature(phase)]
-// #[phase(plugin, link)] extern crate log;
-
 use racer::codecleaner::{code_chunks,CodeIndicesIter};
-// use codecleaner::{code_chunks,CodeIndicesIter};
-// mod codecleaner;
 
 #[cfg(test)] use racer::testutils::{rejustify, slice};
 
@@ -205,14 +200,15 @@ fn iterates_macro_invocation() {
 }
 
 
-// #[test]
-// fn iterates_if_else_stmt() {
-//     let src = rejustify("
-//     if self.pos < 3 { } else { }
-//     ");
-//     let mut it = iter_stmts(src.as_slice());
-//     assert_eq!("if self.pos < 3 { } else { }", slice(src.as_slice(), it.next().unwrap()));
-// }
+#[test]
+fn iterates_if_else_stmt() {
+    let src = "
+    if self.pos < 3 { } else { }
+    ";
+    let mut it = iter_stmts(src);
+    assert_eq!("if self.pos < 3 { }", slice(src, it.next().unwrap()));
+    assert_eq!("else { }",            slice(src, it.next().unwrap()));
+}
 
 #[test]
 fn iterates_inner_scope() {
@@ -262,16 +258,3 @@ fn iterates_half_open_subscope_if_is_the_last_thing() {
        return a + 35;  // should iterate this
     ", slice(scope, it.next().unwrap()));
 }
-
-// fn main() {
-//     use std::old_io::BufferedReader;
-//     use std::old_io::File;
-//     use std::str;
-
-//     let filetxt = BufferedReader::new(File::open(&Path::new("/usr/local/src/rust/src/libstd/path.rs"))).read_to_end().unwrap();
-//     let src = str::from_utf8(filetxt.as_slice()).unwrap();
-
-//     for (start,end) in iter_stmts(src) {
-//         println!("BLOB |{}|",src.slice(start,end));
-//     }
-// }

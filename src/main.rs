@@ -1,11 +1,12 @@
-#![feature(collections, core, rustc_private, str_char, path_ext)]
+#![feature(collections)]
+#![feature(path_ext)]
+#![feature(str_char)]
+
 #![cfg_attr(not(test), feature(exit_status))] // we don't need exit_status feature when testing
 #![cfg_attr(test, feature(test))] // we only need test feature when testing
 
 #[macro_use] extern crate log;
 
-extern crate collections;
-extern crate core;
 extern crate syntex_syntax;
 extern crate toml;
 
