@@ -1,4 +1,3 @@
-use collections::vec;
 use racer::{self, scopes, typeinf, ast, Match, PathSegment};
 use racer::util::{symbol_matches, txt_matches, find_ident_end, is_ident_char};
 use racer::nameres::{get_module_file, get_crate_file, resolve_path};
@@ -6,8 +5,8 @@ use racer::SearchType::{self, StartsWith, ExactMatch};
 use racer::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant, Const, Static, IfLet};
 use racer::Namespace::BothNamespaces;
 use std::cell::Cell;
-use std::{iter, option};
 use std::path::Path;
+use std::{iter, option, vec};
 
 // Should I return a boxed trait object to make this signature nicer?
 pub fn match_types(src: &str, blobstart: usize, blobend: usize,
@@ -130,7 +129,7 @@ fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
     let mut out = Vec::new();
     let blob = &msrc[blobstart..blobend];
     if blob.starts_with(pattern) && txt_matches(search_type, searchstr, blob) {
-        let coords = ast::parse_let(String::from_str(blob));
+        let coords = ast::parse_let(blob.to_string());
         for &(start,end) in coords.iter() {
             let s = &blob[start..end];
             if symbol_matches(search_type, searchstr, s) {
@@ -191,9 +190,9 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
             let rawblob = &rawsrc[blobstart..blobend];
             debug!("found an extern crate (unscrubbed): |{}|", rawblob);
 
-            extern_crate = ast::parse_extern_crate(String::from_str(rawblob));
+            extern_crate = ast::parse_extern_crate(rawblob.to_string());
         } else {
-            extern_crate = ast::parse_extern_crate(String::from_str(blob));
+            extern_crate = ast::parse_extern_crate(blob.to_string());
         }
 
         if let Some(ref name) = extern_crate.name {
@@ -365,7 +364,7 @@ pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize,
     if blob.starts_with("pub enum") || (local && blob.starts_with("enum")) {
         if txt_matches(search_type, searchstr, blob) {
             // parse the enum
-            let parsed_enum = ast::parse_enum(String::from_str(blob));
+            let parsed_enum = ast::parse_enum(blob.to_string());
 
             for (name, offset) in parsed_enum.values.into_iter() {
                 if (&name).starts_with(searchstr) {
@@ -436,7 +435,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
 
     if blob.contains("*") {
         // uh oh! a glob. Need to search the module for the searchstr
-        let use_item = ast::parse_use(String::from_str(blob));
+        let use_item = ast::parse_use(blob.to_string());
         debug!("found a glob!! {:?}", use_item);
 
         if use_item.is_glob {
@@ -475,7 +474,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
         }
     } else if txt_matches(search_type, searchstr, blob) {
         debug!("found use: {} in |{}|", searchstr, blob);
-        let use_item = ast::parse_use(String::from_str(blob));
+        let use_item = ast::parse_use(blob.to_string());
 
         let ident = use_item.ident.unwrap_or("".to_string());
         for path in use_item.paths.into_iter() {

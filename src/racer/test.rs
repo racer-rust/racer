@@ -11,7 +11,7 @@ fn tmpname() -> PathBuf {
     let thread = thread::current();
     let taskname = thread.name().unwrap();
     let s = taskname.replace("::","_");
-    let mut p = String::from_str("tmpfile.");
+    let mut p = "tmpfile.".to_string();
     p.push_str(&s[..]);
     PathBuf::from(p)
 }

@@ -14,5 +14,6 @@ path = "src/main.rs"
 debug = true
 
 [dependencies]
+log = "*"
 syntex_syntax = "*"
 toml = "*"

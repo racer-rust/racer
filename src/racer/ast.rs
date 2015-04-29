@@ -611,7 +611,7 @@ impl<'v> visit::Visitor<'v> for StructVisitor {
 
             match field.node.kind {
                 ast::NamedField(name, _) => {
-                    let name = String::from_str(&token::get_ident(name));
+                    let name = (&token::get_ident(name)).to_string();
                     let ty = to_racer_ty(&*field.node.ty, &self.scope);
                     self.fields.push((name, point as usize, ty));
                 }
@@ -712,7 +712,7 @@ pub struct ModVisitor {
 impl<'v> visit::Visitor<'v> for ModVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ast::ItemMod(_) = item.node {
-            self.name = Some(String::from_str(&token::get_ident(item.ident)));
+            self.name = Some((&token::get_ident(item.ident)).to_string());
         }
     }
 }
@@ -725,7 +725,7 @@ pub struct ExternCrateVisitor {
 impl<'v> visit::Visitor<'v> for ExternCrateVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ast::ItemExternCrate(ref optional_s) = item.node {
-            self.name = Some(String::from_str(&token::get_ident(item.ident)));
+            self.name = Some((&token::get_ident(item.ident)).to_string());
             if let &Some(ref istr) = optional_s {
                 self.realname = Some(istr.to_string());
             }
@@ -741,7 +741,7 @@ pub struct GenericsVisitor {
 impl<'v> visit::Visitor<'v> for GenericsVisitor {
     fn visit_generics(&mut self, g: &ast::Generics) {
         for ty in g.ty_params.iter() {
-            self.generic_args.push(String::from_str(&token::get_ident(ty.ident)));
+            self.generic_args.push((&token::get_ident(ty.ident)).to_string());
         }
     }
 }
@@ -754,14 +754,14 @@ pub struct StructDefVisitor {
 impl<'v> visit::Visitor<'v> for StructDefVisitor {
     fn visit_generics(&mut self, g: &ast::Generics) {
         for ty in g.ty_params.iter() {
-            self.generic_args.push(String::from_str(&token::get_ident(ty.ident)));
+            self.generic_args.push((&token::get_ident(ty.ident)).to_string());
         }
     }
 
     fn visit_ident(&mut self, _sp: codemap::Span, _ident: ast::Ident) {
         /*! Visit the idents */
         let codemap::BytePos(point) = _sp.lo;
-        let name = String::from_str(&token::get_ident(_ident));
+        let name = (&token::get_ident(_ident)).to_string();
         self.name = Some((name,point as usize));
     }
 }
@@ -774,7 +774,7 @@ pub struct EnumVisitor {
 impl<'v> visit::Visitor<'v> for EnumVisitor {
     fn visit_item(&mut self, i: &ast::Item) {
         if let ast::ItemEnum(ref enum_definition, _) = i.node {
-            self.name = String::from_str(&token::get_ident(i.ident));
+            self.name = (&token::get_ident(i.ident)).to_string();
             //visitor.visit_generics(type_parameters, env.clone());
             //visit::walk_enum_def(self, enum_definition, type_parameters, e)
 
@@ -784,7 +784,7 @@ impl<'v> visit::Visitor<'v> for EnumVisitor {
 
             for variant in enum_definition.variants.iter() {
                 let codemap::BytePos(point) = variant.span.lo;
-                self.values.push((String::from_str(&token::get_ident(variant.node.name)), point as usize));
+                self.values.push(((&token::get_ident(variant.node.name)).to_string(), point as usize));
             }
         }
     }
