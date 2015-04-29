@@ -483,6 +483,11 @@ pub fn search_next_scope(mut startpoint: usize, pathseg: &racer::PathSegment,
 }
 
 pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
+    debug!("get_create_file {}", name);
+    if let Some(p) = cargo::get_crate_file(name, from_path) {
+        return Some(p);
+    }
+
     let srcpaths = std::env::var("RUST_SRC_PATH").unwrap();
     let v = (&srcpaths).split(PATH_SEP).collect::<Vec<_>>();
     for srcpath in v.into_iter() {
@@ -502,10 +507,6 @@ pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
                 return Some(filepath.to_path_buf());
             }
         }
-    }
-
-    if let Some(p) = cargo::get_crate_file(name, from_path) {
-        return Some(p);
     }
 
     return None;
