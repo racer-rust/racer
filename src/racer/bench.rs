@@ -11,7 +11,6 @@ use std::fs::File;
 use std::path::PathBuf;
 
 fn get_rust_file_str(path: &[&str]) -> String {
-
     let mut src_path = match var("RUST_SRC_PATH") {
         Ok(env) => { PathBuf::from(&env) },
         _ => panic!("Cannot find $RUST_SRC_PATH")

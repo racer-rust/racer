@@ -11,10 +11,10 @@ pub fn rejustify(src: &str) -> String {
     }
     let newlen = sb.len()-1; // remove the trailing newline
     sb.truncate(newlen);
-    return sb;
+    sb
 }
 
 #[cfg(test)]
-pub fn slice<'a>(src: &'a str, (begin, end): (usize, usize)) -> &'a str{
-    return &src[begin..end];
+pub fn slice<'a>(src: &'a str, (begin, end): (usize, usize)) -> &'a str {
+    &src[begin..end]
 }

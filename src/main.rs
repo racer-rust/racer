@@ -26,7 +26,7 @@ use std::fs::{PathExt};
 pub mod racer;
 
 #[cfg(not(test))]
-fn match_with_snippet_fn(m:Match) {
+fn match_with_snippet_fn(m: Match) {
     let (linenum, charnum) = scopes::point_to_coords_from_file(&m.filepath, m.point).unwrap();
     if m.matchstr == "" {
         panic!("MATCHSTR is empty - waddup?");
@@ -39,12 +39,12 @@ fn match_with_snippet_fn(m:Match) {
                                     charnum.to_string(),
                                     m.filepath.to_str().unwrap(),
                                     m.mtype,
-                                    m.contextstr,
+                                    m.contextstr
              );
 }
 
 #[cfg(not(test))]
-fn match_fn(m:Match) {
+fn match_fn(m: Match) {
     let (linenum, charnum) = scopes::point_to_coords_from_file(&m.filepath, m.point).unwrap();
     if m.matchstr == "" {
         panic!("MATCHSTR is empty - waddup?");
@@ -59,7 +59,7 @@ fn match_fn(m:Match) {
 }
 
 #[cfg(not(test))]
-fn complete(match_found : &Fn(Match)) {
+fn complete(match_found: &Fn(Match)) {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 3 {
         println!("Provide more arguments!");
@@ -93,7 +93,7 @@ fn complete(match_found : &Fn(Match)) {
             // input: a command line string passed in
             let arg = &args[2];
             let it = arg.split("::");
-            let p : Vec<&str> = it.collect();
+            let p: Vec<&str> = it.collect();
 
             for m in do_file_search(p[0], &Path::new(".")) {
                 if p.len() == 1 {
@@ -152,8 +152,8 @@ fn print_usage() {
     let program = std::env::args().next().unwrap().clone();
     println!("usage: {} complete linenum charnum fname", program);
     println!("or:    {} find-definition linenum charnum fname", program);
-    println!("or:    {} complete fullyqualifiedname   (e.g. std::io::)",program);
-    println!("or:    {} prefix linenum charnum fname",program);
+    println!("or:    {} complete fullyqualifiedname   (e.g. std::io::)", program);
+    println!("or:    {} prefix linenum charnum fname", program);
     println!("or replace complete with complete-with-snippet for more detailed completions.");
 }
 
@@ -161,11 +161,10 @@ fn print_usage() {
 fn check_rust_src_env_var() {
     if let Ok(srcpaths) = std::env::var("RUST_SRC_PATH") {
         let v = srcpaths.split(PATH_SEP).collect::<Vec<_>>();
-        if v.len() > 0 {
+        if !v.is_empty() {
             let f = Path::new(v[0]);
             if !f.exists() {
                 println!("racer can't find the directory pointed to by the RUST_SRC_PATH variable \"{}\". Try using an absolute fully qualified path and make sure it points to the src directory of a rust checkout - e.g. \"/home/foouser/src/rust/src\".", srcpaths);
-
                 std::env::set_exit_status(1);
                 return;
             } else if !f.ends_with("src") {

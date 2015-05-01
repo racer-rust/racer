@@ -115,7 +115,7 @@ pub struct Scope {
 
 impl Scope {
     pub fn from_match(m: &Match) -> Scope {
-        Scope{filepath: m.filepath.clone(), point: m.point}
+        Scope{ filepath: m.filepath.clone(), point: m.point }
     }
 }
 
@@ -145,23 +145,23 @@ pub struct Path {
 
 impl Path {
     pub fn generic_types(&self) -> ::std::slice::Iter<Path> {
-        return self.segments[self.segments.len()-1].types.iter();
+        self.segments[self.segments.len()-1].types.iter()
     }
 
     pub fn from_vec(global: bool, v: Vec<&str>) -> Path {
         let segs = v
             .iter()
-            .map(|x| PathSegment{name:x.to_string(), types: Vec::new()})
+            .map(|x| PathSegment{ name:x.to_string(), types: Vec::new() })
             .collect::<Vec<_>>();
-        return Path{ global: global, segments: segs };
+        Path{ global: global, segments: segs }
     }
 
     pub fn from_svec(global: bool, v: Vec<String>) -> Path {
         let segs = v
             .iter()
-            .map(|x| PathSegment{name:x.clone(), types: Vec::new()})
+            .map(|x| PathSegment{ name:x.clone(), types: Vec::new() })
             .collect::<Vec<_>>();
-        return Path{ global: global, segments: segs };
+        Path{ global: global, segments: segs }
     }
 }
 
@@ -191,7 +191,7 @@ impl fmt::Debug for Path {
                 try!(write!(f, ">"));
             }
         }
-        return write!(f, "]");
+        write!(f, "]")
     }
 }
 
@@ -235,19 +235,17 @@ pub fn load_file_and_mask_comments(filepath: &path::Path) -> String {
     let mut filetxt = Vec::new();
     BufReader::new(File::open(filepath).unwrap()).read_to_end(&mut filetxt).unwrap();
     let src = str::from_utf8(&filetxt).unwrap();
-    let msrc = scopes::mask_comments(src);
-    return msrc;
+
+    scopes::mask_comments(src)
 }
 
 pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize) -> vec::IntoIter<Match> {
-
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = &src[start..pos];
 
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
-    debug!("{:?}: contextstr is |{}|, searchstr is |{}|",
-           completetype, contextstr, searchstr);
+    debug!("{:?}: contextstr is |{}|, searchstr is |{}|", completetype, contextstr, searchstr);
 
     let mut out = Vec::new();
 
@@ -281,12 +279,12 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize) -> vec::
             });
         }
     }
-    return out.into_iter();
+    out.into_iter()
 }
 
 
 pub fn find_definition(src: &str, filepath: &path::Path, pos: usize) -> Option<Match> {
-    return find_definition_(src, filepath, pos);
+    find_definition_(src, filepath, pos)
 }
 
 pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize) -> Option<Match> {
@@ -295,7 +293,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize) -> Option<
 
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
-    debug!("find_definition_ for |{:?}| |{:?}| {:?}",contextstr, searchstr, completetype);
+    debug!("find_definition_ for |{:?}| |{:?}| {:?}", contextstr, searchstr, completetype);
 
     return match completetype {
         CompletionType::CompletePath => {
@@ -317,7 +315,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize) -> Option<
         },
         CompletionType::CompleteField => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
-            debug!("context is {:?}",context);
+            debug!("context is {:?}", context);
 
             return context.and_then(|ty| {
                 // for now, just handle matches
