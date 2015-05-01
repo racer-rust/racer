@@ -1,5 +1,4 @@
 #![feature(collections)]
-#![feature(path_ext)]
 #![feature(str_char)]
 
 #![cfg_attr(not(test), feature(exit_status))] // we don't need exit_status feature when testing
@@ -163,7 +162,8 @@ fn check_rust_src_env_var() {
         let v = srcpaths.split(PATH_SEP).collect::<Vec<_>>();
         if v.len() > 0 {
             let f = Path::new(v[0]);
-            if !f.exists() {
+            let file_info = std::fs::metadata(&f);
+            if file_info.is_err() || !file_info.unwrap().is_dir() {
                 println!("racer can't find the directory pointed to by the RUST_SRC_PATH variable \"{}\". Try using an absolute fully qualified path and make sure it points to the src directory of a rust checkout - e.g. \"/home/foouser/src/rust/src\".", srcpaths);
 
                 std::env::set_exit_status(1);

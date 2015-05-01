@@ -8,7 +8,7 @@ use racer::Namespace::{self, TypeNamespace, ValueNamespace, BothNamespaces};
 use racer::util::{symbol_matches, txt_matches, find_ident_end};
 use racer::cargo;
 
-use std::fs::{File,PathExt};
+use std::fs::File;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::{self, vec};
@@ -914,14 +914,18 @@ pub fn get_super_scope(filepath: &Path, pos: usize) -> Option<racer::Scope> {
     let mut path = scopes::get_local_module_path(&msrc, pos);
     if path.is_empty() {
         let filepath = filepath.parent().unwrap();  // safe because file is valid
-        if filepath.join("mod.rs").exists() {
-            Some(racer::Scope{ filepath: filepath.join("mod.rs"),
-                                 point: 0 })
-        } else if filepath.join("lib.rs").exists() {
-            Some(racer::Scope{ filepath: filepath.join("lib.rs"),
-                                 point: 0 })
-        } else {
-            None
+        match ["mod.rs", "lib.rs"]
+            .iter()
+            .filter_map(|&f| {
+                let file = filepath.join(f);
+                match std::fs::metadata(&file) {
+                    Ok(metadata) => if metadata.is_file() { Some(file) } else { None },
+                    _ => None
+                }
+            })
+            .take(1).next() {
+                Some(file) => Some(racer::Scope{ filepath: file, point: 0 }),
+                _ => None
         }
     } else if path.len() == 1 {
         Some(racer::Scope{ filepath: filepath.to_path_buf(),
