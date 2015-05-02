@@ -5,10 +5,9 @@ use racer::SearchType::{self, ExactMatch, StartsWith};
 use racer::Match;
 use racer::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, MatchArm};
 use racer::Namespace::{self, TypeNamespace, ValueNamespace, BothNamespaces};
-use racer::util::{symbol_matches, txt_matches, find_ident_end};
+use racer::util::{symbol_matches, txt_matches, find_ident_end, path_exists};
 use racer::cargo;
-
-use std::fs::{File, PathExt};
+use std::fs::{File};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::{self, vec};
@@ -892,9 +891,9 @@ pub fn get_super_scope(filepath: &Path, pos: usize) -> Option<racer::Scope> {
     let mut path = scopes::get_local_module_path(&msrc, pos);
     if path.is_empty() {
         let filepath = filepath.parent().unwrap();  // safe because file is valid
-        if filepath.join("mod.rs").exists() {
+        if path_exists(filepath.join("mod.rs")) {
             Some(racer::Scope{ filepath: filepath.join("mod.rs"), point: 0 })
-        } else if filepath.join("lib.rs").exists() {
+        } else if path_exists(filepath.join("lib.rs")) {
             Some(racer::Scope{ filepath: filepath.join("lib.rs"), point: 0 })
         } else {
             None

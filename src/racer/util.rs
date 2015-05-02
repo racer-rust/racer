@@ -156,3 +156,15 @@ pub fn find_last_str(needle: &str, mut haystack: &str) -> Option<usize> {
 pub fn char_at(src: &str, i: usize) -> char {
     src[i..].chars().next().unwrap()
 }
+
+// PD: short term replacement for path.exists() (PathExt trait). Replace once
+// that stabilizes
+pub fn path_exists<P: AsRef<Path>>(path: P) -> bool {
+    File::open(path).is_ok()
+}
+
+// PD: short term replacement for path.is_dir() (PathExt trait). Replace once
+// that stabilizes
+pub fn is_dir<P: AsRef<Path>>(path: P) -> bool {
+    ::std::fs::read_dir(path.as_ref()).is_ok()
+}

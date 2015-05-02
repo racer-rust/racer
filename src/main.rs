@@ -1,4 +1,3 @@
-#![feature(path_ext)]
 #![cfg_attr(test, feature(test))] // we only need test feature when testing
 
 #[macro_use] extern crate log;
@@ -9,15 +8,13 @@ extern crate toml;
 #[cfg(not(test))]
 use racer::Match;
 #[cfg(not(test))]
-use racer::util::getline;
+use racer::util::{getline, path_exists};
 #[cfg(not(test))]
 use racer::nameres::{do_file_search, do_external_search, PATH_SEP};
 #[cfg(not(test))]
 use racer::scopes;
 #[cfg(not(test))]
 use std::path::Path;
-#[cfg(not(test))]
-use std::fs::{PathExt};
 
 pub mod racer;
 
@@ -155,7 +152,7 @@ fn check_rust_src_env_var() {
         let v = srcpaths.split(PATH_SEP).collect::<Vec<_>>();
         if !v.is_empty() {
             let f = Path::new(v[0]);
-            if !f.exists() {
+            if !path_exists(f) {
                 println!("racer can't find the directory pointed to by the RUST_SRC_PATH variable \"{}\". Try using an absolute fully qualified path and make sure it points to the src directory of a rust checkout - e.g. \"/home/foouser/src/rust/src\".", srcpaths);
                 std::process::exit(1);
             } else if !f.ends_with("src") {

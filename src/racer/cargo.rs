@@ -2,7 +2,8 @@ use std::fs::File;
 use std::io::Read;
 use std::env;
 use std::path::{Path,PathBuf};
-use std::fs::{PathExt,read_dir};
+use racer::util::{path_exists, is_dir};
+use std::fs::{read_dir};
 use toml;
 
 // otry is 'option try'
@@ -101,7 +102,7 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
 fn find_cratesio_src_dir(d: PathBuf) -> Option<PathBuf> {
     for entry in otry2!(read_dir(d)) {
         let path = otry2!(entry).path();
-        if path.is_dir() {
+        if is_dir(path.as_path()) {
             if let Some(ref fname) = path.file_name().and_then(|s| s.to_str()) {
                 if fname.starts_with("github.com-") {
                     return Some(path.clone());
@@ -115,7 +116,7 @@ fn find_cratesio_src_dir(d: PathBuf) -> Option<PathBuf> {
 fn find_git_src_dir(d: PathBuf, name: &str, sha1: &str) -> Option<PathBuf> {
     for entry in otry2!(read_dir(d)) {
         let path = otry2!(entry).path();
-        if path.is_dir() {
+        if is_dir(path.as_path()) {
             if let Some(ref fname) = path.file_name().and_then(|s| s.to_str()) {
                 if fname.starts_with(name) {
                     let mut d = path.clone();
@@ -123,7 +124,7 @@ fn find_git_src_dir(d: PathBuf, name: &str, sha1: &str) -> Option<PathBuf> {
                     // dirname can be the sha1 or master.
                     d.push(sha1);
 
-                    if !d.exists() {
+                    if !is_dir(d.as_path()) {
                         d.pop();
                         d.push("master");
                     }
@@ -165,7 +166,7 @@ fn getstr(t: &toml::Table, k: &str) -> Option<String> {
 fn find_cargo_tomlfile(currentfile: &Path) -> Option<PathBuf> {
     let mut f = currentfile.to_path_buf();
     f.push("Cargo.toml");
-    if f.exists() {
+    if path_exists(f.as_path()) {
         return Some(f);
     } else {
         if f.pop() && f.pop() {
@@ -183,7 +184,7 @@ pub fn get_crate_file(kratename: &str, from_path: &Path) -> Option<PathBuf> {
         let mut lockfile = tomlfile.clone();
         lockfile.pop();
         lockfile.push("Cargo.lock");
-        if lockfile.exists() {
+        if path_exists(lockfile.as_path()) {
             if let Some(f) = find_src_via_lockfile(kratename, &lockfile) {
                 return Some(f);
             }
