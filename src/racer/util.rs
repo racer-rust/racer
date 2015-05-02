@@ -2,6 +2,7 @@
 
 use racer::SearchType::{self, ExactMatch, StartsWith};
 
+use std;
 use std::cmp;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -166,5 +167,8 @@ pub fn path_exists<P: AsRef<Path>>(path: P) -> bool {
 // PD: short term replacement for path.is_dir() (PathExt trait). Replace once
 // that stabilizes
 pub fn is_dir<P: AsRef<Path>>(path: P) -> bool {
-    ::std::fs::read_dir(path.as_ref()).is_ok()
+    match std::fs::metadata(path) {
+        Ok(file_info) => file_info.is_dir(),
+        _ => false
+    }
 }
