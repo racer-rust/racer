@@ -7,6 +7,8 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
+extern crate regex;
+
 pub fn getline(filepath : &Path, linenum : usize) -> String {
     let mut i = 0;
     let file = BufReader::new(File::open(filepath).unwrap());
@@ -34,34 +36,22 @@ pub fn is_ident_char(c : char) -> bool {
 }
 
 pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
+    let available_chars_in_ident = "r[:alnum:]|_";
+    let chars_not_in_ident = String::new() + r"[^" + &available_chars_in_ident + r"]";
+    let starts_with_re = String::new() + r"(" + &chars_not_in_ident + r"|^)" + &needle;
     return match stype {
         ExactMatch => {
-            let nlen = needle.len();
-            let hlen = haystack.len();
-
-            if nlen == 0 {
+            if needle.is_empty() {
                 return true;
             }
-
-            for (n,_) in haystack.match_indices(needle) {
-                if (n == 0  || !is_ident_char(haystack.char_at(n-1))) &&
-                    (n+nlen == hlen || !is_ident_char(haystack.char_at(n+nlen))) {
-                    return true;
-                }
-            }
-            return false;
+            let match_re = String::new() + &starts_with_re + r"(" + &chars_not_in_ident + r"|$)";;
+            return regex::Regex::new(&match_re).unwrap().is_match(haystack);
         },
         StartsWith => {
             if needle.is_empty() {
                 return true;
             }
-
-            for (n,_) in haystack.match_indices(needle) {
-                if n == 0  || !is_ident_char(haystack.char_at(n-1)) {
-                    return true;
-                }
-            }
-            return false;
+            return regex::Regex::new(&starts_with_re).unwrap().is_match(haystack);
         }
     }
 }
