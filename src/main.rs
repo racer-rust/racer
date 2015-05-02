@@ -1,5 +1,5 @@
-#![cfg_attr(not(test), feature(exit_status))] // we don't need exit_status feature when testing
-#![cfg_attr(test, feature(test))] // we only need test feature when testing
+#![cfg_attr(all(not(test), feature = "nightly"), feature(exit_status))] // we don't need exit_status feature when testing
+#![cfg_attr(all(test, feature = "nightly"), feature(test))] // we only need test feature when testing
 
 #[macro_use] extern crate log;
 
