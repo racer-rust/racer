@@ -15,7 +15,7 @@ pub fn rejustify(src: &str) -> String {
     sb
 }
 
-pub fn slice(src: &str, (begin, end): (usize, usize)) -> &str{
+pub fn slice(src: &str, (begin, end): (usize, usize)) -> &str {
     &src[begin..end]
 }
 
@@ -53,25 +53,25 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
     }
 }
 
-fn code(self_: &mut CodeIndicesIter) -> (usize,usize) {
+fn code(self_: &mut CodeIndicesIter) -> (usize, usize) {
     let start = match self_.state {
         State::StateString |
         State::StateChar => { self_.pos-1 }, // include quote
         _ => { self_.pos }
     };
     let src_bytes = self_.src.as_bytes();
-    for &b in src_bytes[self_.pos..].iter(){
+    for &b in src_bytes[self_.pos..].iter() {
         self_.pos += 1;
         match b {
             b'/' => match src_bytes[self_.pos] {
                 b'/' => {
                     self_.state = State::StateComment;
-                    self_.pos +=1;
+                    self_.pos += 1;
                     return (start, self_.pos-2);
                 },
                 b'*' => {
                     self_.state = State::StateCommentBlock;
-                    self_.pos +=1;
+                    self_.pos += 1;
                     return (start, self_.pos-2);
                 },
                 _ => {}
@@ -99,7 +99,7 @@ fn code(self_: &mut CodeIndicesIter) -> (usize,usize) {
     (start, self_.src.len())
 }
 
-fn comment(self_: &mut CodeIndicesIter) -> (usize,usize) {
+fn comment(self_: &mut CodeIndicesIter) -> (usize, usize) {
     for &b in self_.src.as_bytes()[self_.pos..].iter() {
         self_.pos += 1;
         if b == b'\n' { break; }
@@ -107,8 +107,7 @@ fn comment(self_: &mut CodeIndicesIter) -> (usize,usize) {
     code(self_)
 }
 
-fn comment_block(self_: &mut CodeIndicesIter) -> (usize,usize) {
-
+fn comment_block(self_: &mut CodeIndicesIter) -> (usize, usize) {
     let mut nesting_level = 0u16; // should be enough
     let mut prev = b' ';
     for &b in self_.src.as_bytes()[self_.pos..].iter() {
@@ -130,7 +129,7 @@ fn comment_block(self_: &mut CodeIndicesIter) -> (usize,usize) {
     code(self_)
 }
 
-fn string(self_: &mut CodeIndicesIter) -> (usize,usize) {
+fn string(self_: &mut CodeIndicesIter) -> (usize, usize) {
     let src_bytes = self_.src.as_bytes();
     if self_.pos > 1 && src_bytes[self_.pos-2] == b'r' {
         // raw string (eg br"\"): no escape
@@ -152,7 +151,7 @@ fn string(self_: &mut CodeIndicesIter) -> (usize,usize) {
     code(self_)
 }
 
-fn char(self_: &mut CodeIndicesIter) -> (usize,usize) {
+fn char(self_: &mut CodeIndicesIter) -> (usize, usize) {
     let mut is_not_escaped = true;
     for &b in self_.src.as_bytes()[self_.pos..].iter() {
         self_.pos += 1;
@@ -265,7 +264,6 @@ fn removes_raw_string_with_dangling_escape_in_it() {
     assert_eq!("\" more code", slice(src, it.next().unwrap()));
 }
 
-
 #[test]
 fn removes_string_with_escaped_slash_before_dblquote_in_it() {
     let src = &rejustify("
@@ -284,8 +282,8 @@ fn handles_tricky_bit_from_str_rs() {
         more_code(\" skip me \")
     ");
 
-    for (start,end) in code_chunks(src) {
-        println!("BLOB |{}|",&src[start..end]);
+    for (start, end) in code_chunks(src) {
+        println!("BLOB |{}|", &src[start..end]);
         if (&src[start..end]).contains("skip me") {
             panic!("{}", &src[start..end]);
         }

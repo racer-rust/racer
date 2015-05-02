@@ -7,12 +7,12 @@ use toml;
 
 // otry is 'option try'
 macro_rules! otry {
-    ($e:expr) => (match $e { Some(e) => e, None => return None})
+    ($e:expr) => (match $e { Some(e) => e, None => return None })
 }
 
 // converts errors into None
 macro_rules! otry2 {
-    ($e:expr) => (match $e { Ok(e) => e, Err(_) => return None})
+    ($e:expr) => (match $e { Ok(e) => e, Err(_) => return None })
 }
 
 fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
@@ -22,7 +22,7 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     let mut parser = toml::Parser::new(&string);
     let lock_table = parser.parse().unwrap();
 
-    debug!("find_src_via_lockfile found lock table {:?}",lock_table);
+    debug!("find_src_via_lockfile found lock table {:?}", lock_table);
 
     let t = match lock_table.get("package") {
         Some(&toml::Value::Array(ref t1)) => t1,
@@ -32,7 +32,6 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     for item in t {
         if let &toml::Value::Table(ref t) = item {
             if Some(&toml::Value::String(kratename.to_string())) == t.get("name") {
-
                 let version = otry!(getstr(t, "version"));
                 let source = otry!(getstr(t, "source"));
 
@@ -64,7 +63,8 @@ fn get_versioned_cratefile(kratename: &str, version: &str) -> Option<PathBuf> {
     d.push(kratename.to_string() + "-" + &version);
     d.push("src");
     d.push("lib.rs");
-    return Some(d)
+
+    Some(d)
  }
 
 fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
@@ -98,7 +98,6 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     }
 }
 
-
 fn find_cratesio_src_dir(d: PathBuf) -> Option<PathBuf> {
     for entry in otry2!(read_dir(d)) {
         let path = otry2!(entry).path();
@@ -110,7 +109,7 @@ fn find_cratesio_src_dir(d: PathBuf) -> Option<PathBuf> {
             }
         }
     }
-    return None;
+    None
 }
 
 fn find_git_src_dir(d: PathBuf, name: &str, sha1: &str) -> Option<PathBuf> {
@@ -140,7 +139,7 @@ fn find_git_src_dir(d: PathBuf, name: &str, sha1: &str) -> Option<PathBuf> {
                     let mut headref = String::new();
                     otry2!(otry2!(File::open(d)).read_to_string(&mut headref));
 
-                    debug!("git headref is {:?}",headref);
+                    debug!("git headref is {:?}", headref);
 
                     if headref.ends_with("\n") {
                         headref.pop();
@@ -153,7 +152,7 @@ fn find_git_src_dir(d: PathBuf, name: &str, sha1: &str) -> Option<PathBuf> {
             }
         }
     }
-    return None;
+    None
 }
 
 fn getstr(t: &toml::Table, k: &str) -> Option<String> {

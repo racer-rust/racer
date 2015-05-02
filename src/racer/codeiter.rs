@@ -1,4 +1,4 @@
-use racer::codecleaner::{code_chunks,CodeIndicesIter};
+use racer::codecleaner::{code_chunks, CodeIndicesIter};
 
 #[cfg(test)] use racer::testutils::{rejustify, slice};
 
@@ -15,7 +15,6 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<(usize, usize)> {
-
         let src_bytes = self.src.as_bytes();
         let mut enddelim = b';';
         let mut bracelevel = 0u16;
@@ -24,7 +23,6 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
 
         // loop on all code_chuncks until we find a relevant open/close pattern
         loop {
-
             // do we need the next chunk?
             if self.end == self.pos {
                 // get the next chunk of code
@@ -60,7 +58,6 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
 
             // iterate through the chunk, looking for stmt end
             for &b in src_bytes[self.pos..self.end].iter() {
-
                 self.pos += 1;
 
                 match b {
@@ -84,7 +81,7 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
                         // macro if followed by at least one space or (
                         // FIXME: test with boolean 'not' expression
                         if parenlevel == 0 && bracelevel == 0
-                            && self.pos < self.end && (self.pos-start)>1 {
+                            && self.pos < self.end && (self.pos-start) > 1 {
                             match src_bytes[self.pos] {
                                 b' ' | b'\r' | b'\n' | b'\t' | b'('  => {
                                     enddelim = b')';
@@ -114,7 +111,7 @@ fn is_a_use_stmt(src: &str, start: usize, pos: usize) -> bool {
 }
 
 pub fn iter_stmts<'a>(src: &'a str) -> StmtIndicesIter<'a> {
-    StmtIndicesIter{src: src, it: code_chunks(src), pos: 0, end: 0}
+    StmtIndicesIter{ src: src, it: code_chunks(src), pos: 0, end: 0 }
 }
 
 
@@ -199,7 +196,6 @@ fn iterates_macro_invocation() {
     assert_eq!("mod bar;", slice(src, it.next().unwrap()));
 }
 
-
 #[test]
 fn iterates_if_else_stmt() {
     let src = "
@@ -207,7 +203,7 @@ fn iterates_if_else_stmt() {
     ";
     let mut it = iter_stmts(src);
     assert_eq!("if self.pos < 3 { }", slice(src, it.next().unwrap()));
-    assert_eq!("else { }",            slice(src, it.next().unwrap()));
+    assert_eq!("else { }", slice(src, it.next().unwrap()));
 }
 
 #[test]

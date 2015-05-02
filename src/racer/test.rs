@@ -10,13 +10,13 @@ use std::thread;
 fn tmpname() -> PathBuf {
     let thread = thread::current();
     let taskname = thread.name().unwrap();
-    let s = taskname.replace("::","_");
+    let s = taskname.replace("::", "_");
     let mut p = "tmpfile.".to_string();
     p.push_str(&s[..]);
     PathBuf::from(p)
 }
 
-fn write_file(tmppath:&Path, s : &str) {
+fn write_file(tmppath: &Path, s: &str) {
     let mut f = File::create(tmppath).unwrap();
     f.write_all(s.as_bytes()).unwrap();
     f.flush().unwrap();
@@ -57,7 +57,7 @@ fn completes_pub_fn_locally() {
 }
 
 #[test]
-fn completes_local_scope_let(){
+fn completes_local_scope_let() {
     let src="
     fn main() {
         let apple = 35;
@@ -131,7 +131,7 @@ fn follows_use_as() {
     let pos = scopes::coords_to_point(src, 5, 10);
     let got = find_definition(src, &path, pos).unwrap();
     fs::remove_file(&path).unwrap();
-    assert_eq!(got.matchstr,"myfn".to_string());
+    assert_eq!(got.matchstr, "myfn".to_string());
 }
 
 #[test]
@@ -153,7 +153,7 @@ fn follows_use_glob() {
     let pos = scopes::coords_to_point(src, 5, 10);
     let got = find_definition(src, &path, pos).unwrap();
     fs::remove_file(&path).unwrap();
-    assert_eq!(got.matchstr,"myfn".to_string());
+    assert_eq!(got.matchstr, "myfn".to_string());
 }
 
 #[test]
@@ -191,7 +191,7 @@ fn finds_defn_of_struct_field() {
     let pos = scopes::coords_to_point(src, 8, 9);
     let got = find_definition(src, &path, pos).unwrap();
     fs::remove_file(&path).unwrap();
-    assert_eq!(got.matchstr,"first".to_string());
+    assert_eq!(got.matchstr, "first".to_string());
 }
 
 #[test]
@@ -209,7 +209,7 @@ fn finds_impl_fn() {
     let pos = scopes::coords_to_point(src, 7, 10);
     let got = find_definition(src, &path, pos).unwrap();
     fs::remove_file(&path).unwrap();
-    assert_eq!(got.matchstr,"new".to_string());
+    assert_eq!(got.matchstr, "new".to_string());
 }
 
 #[test]
@@ -229,7 +229,7 @@ fn follows_use_to_inline_mod() {
     let pos = scopes::coords_to_point(src, 8, 9);
     let got = find_definition(src, &path, pos).unwrap();
     fs::remove_file(&path).unwrap();
-    assert_eq!(got.matchstr,"myfn".to_string());
+    assert_eq!(got.matchstr, "myfn".to_string());
 }
 
 #[test]
@@ -247,7 +247,7 @@ fn finds_enum() {
     let pos = scopes::coords_to_point(src, 6, 16);
     let got = find_definition(src, &path, pos).unwrap();
     fs::remove_file(&path).unwrap();
-    assert_eq!(got.matchstr,"MyEnum".to_string());
+    assert_eq!(got.matchstr, "MyEnum".to_string());
 }
 
 #[test]
@@ -262,7 +262,7 @@ fn finds_type() {
     let pos = scopes::coords_to_point(src, 3, 5);
     let got = find_definition(src, &path, pos).unwrap();
     fs::remove_file(&path).unwrap();
-    assert_eq!(got.matchstr,"SpannedIdent".to_string());
+    assert_eq!(got.matchstr, "SpannedIdent".to_string());
 }
 
 #[test]
@@ -277,9 +277,8 @@ fn finds_trait() {
     let pos = scopes::coords_to_point(src, 3, 5);
     let got = find_definition(src, &path, pos).unwrap();
     fs::remove_file(&path).unwrap();
-    assert_eq!(got.matchstr,"MyTrait".to_string());
+    assert_eq!(got.matchstr, "MyTrait".to_string());
 }
-
 
 #[test]
 fn finds_fn_arg() {
@@ -294,7 +293,7 @@ fn finds_fn_arg() {
     let pos = scopes::coords_to_point(src, 3, 10);
     let got = find_definition(src, &path, pos).unwrap();
     fs::remove_file(&path).unwrap();
-    assert_eq!(got.matchstr,"myarg".to_string());
+    assert_eq!(got.matchstr, "myarg".to_string());
 }
 
 #[test]
@@ -309,9 +308,8 @@ fn finds_fn_arg_in_incomplete_fn() {
     let pos = scopes::coords_to_point(src, 3, 10);
     let got = find_definition(src, &path, pos).unwrap();
     fs::remove_file(&path).unwrap();
-    assert_eq!(got.matchstr,"myarg".to_string());
+    assert_eq!(got.matchstr, "myarg".to_string());
 }
-
 
 #[test]
 fn finds_inline_fn() {
@@ -328,7 +326,7 @@ fn finds_inline_fn() {
     let pos = scopes::coords_to_point(src, 6, 9);
     let got = find_definition(src, &path, pos).unwrap();
     fs::remove_file(&path).unwrap();
-    assert_eq!(got.matchstr,"contains".to_string());
+    assert_eq!(got.matchstr, "contains".to_string());
 }
 
 #[test]
@@ -360,7 +358,7 @@ fn follows_self_use() {
     let pos = scopes::coords_to_point(src, 6, 10);
     let got = find_definition(src, &srcpath, pos).unwrap();
     fs::remove_dir_all(&basedir).unwrap();
-    assert_eq!(got.matchstr,"myfn".to_string());
+    assert_eq!(got.matchstr, "myfn".to_string());
     assert_eq!(moddir.join("src2.rs").display().to_string(),
                got.filepath.display().to_string());
     assert_eq!(28, got.point);
@@ -390,7 +388,7 @@ fn finds_nested_submodule_file() {
     let pos = scopes::coords_to_point(rootsrc, 7, 23);
     let got = find_definition(rootsrc, &srcpath, pos).unwrap();
     fs::remove_dir_all(&basedir).unwrap();
-    assert_eq!(got.matchstr,"myfn".to_string());
+    assert_eq!(got.matchstr, "myfn".to_string());
     assert_eq!(sub2dir.join("sub3.rs").display().to_string(),
                got.filepath.display().to_string());
 }
@@ -453,7 +451,7 @@ fn follows_use_to_impl() {
     let got = find_definition(src, &srcpath, pos).unwrap();
 
     fs::remove_dir_all(&basedir).unwrap();
-    assert_eq!(got.matchstr,"new".to_string());
+    assert_eq!(got.matchstr, "new".to_string());
     assert_eq!(90, got.point);
     assert_eq!(modpath.display().to_string(),
                got.filepath.display().to_string());
@@ -474,7 +472,7 @@ fn finds_templated_impl_fn() {
     let pos = scopes::coords_to_point(src, 7, 10);
     let got = find_definition(src, &path, pos).unwrap();
     fs::remove_file(&path).unwrap();
-    assert_eq!(got.matchstr,"new".to_string());
+    assert_eq!(got.matchstr, "new".to_string());
 }
 
 #[test]
@@ -603,8 +601,8 @@ fn differentiates_type_and_value_namespaces() {
     let pos = scopes::coords_to_point(src, 5, 18);
     let got = find_definition(src, &path, pos).unwrap();
     fs::remove_file(&path).unwrap();
-    println!("{}",got.matchstr);
-    println!("{:?}",got.mtype);
+    println!("{}", got.matchstr);
+    println!("{:?}", got.mtype);
     assert_eq!("new", got.matchstr);
 }
 
@@ -650,7 +648,6 @@ fn follows_self_to_method_when_call_on_new_line() {
     assert_eq!("method", got.matchstr);
 }
 
-
 #[test]
 fn follows_self_to_trait_method() {
     let src= "
@@ -690,7 +687,6 @@ fn finds_trait_method() {
     fs::remove_file(&path).unwrap();
     assert_eq!("trait_method", got.matchstr);
 }
-
 
 #[test]
 fn finds_field_type() {
@@ -795,7 +791,6 @@ fn handles_dotdot_before_searchstr() {
     assert_eq!("MYLEN", got.matchstr);
 }
 
-
 #[test]
 #[ignore]
 fn finds_definition_of_lambda_argument() {
@@ -840,7 +835,6 @@ fn finds_type_of_tuple_member_via_let_type() {
     assert_eq!("subfield", got.matchstr);
 }
 
-
 #[test]
 fn finds_type_of_tuple_member_via_let_expr() {
     let src="
@@ -855,7 +849,6 @@ fn finds_type_of_tuple_member_via_let_expr() {
     fs::remove_file(&path).unwrap();
     assert_eq!("subfield", got.matchstr);
 }
-
 
 #[test]
 fn finds_type_of_tuple_member_via_fn_retval() {
@@ -872,7 +865,6 @@ fn finds_type_of_tuple_member_via_fn_retval() {
     fs::remove_file(&path).unwrap();
     assert_eq!("subfield", got.matchstr);
 }
-
 
 #[test]
 fn finds_type_of_tuple_member_in_fn_arg() {
@@ -971,7 +963,6 @@ fn destructures_a_tuplestruct_with_generic_arg() {
     assert_eq!("subfield", got.matchstr);
 }
 
-
 #[test]
 fn finds_if_let_ident_defn() {
     let src="
@@ -1064,7 +1055,6 @@ fn handles_if_let_as_expression() {
     fs::remove_file(&path).unwrap();
     assert_eq!("subfield", got.matchstr);
 }
-
 
 #[test]
 fn finds_match_arm_var() {

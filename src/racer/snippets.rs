@@ -4,10 +4,10 @@ use racer::typeinf::get_function_declaration;
 
 use syntex_syntax::ast::ImplItem_;
 
-pub fn snippet_for_match(m : &Match) -> String {
+pub fn snippet_for_match(m: &Match) -> String {
     match m.mtype {
         MatchType::Function => {
-            let method= get_function_declaration(&m);
+            let method = get_function_declaration(&m);
             if let Some(m) = MethodInfo::from_source_str(&method) {
                 m.snippet()
             } else {
@@ -25,12 +25,11 @@ struct MethodInfo {
 
 impl MethodInfo {
     ///Parses method declaration as string and returns relevant data
-    fn from_source_str(source : &str) -> Option<MethodInfo> {
+    fn from_source_str(source: &str) -> Option<MethodInfo> {
         let trim: &[_] = &['\n', '\r', '{', ' '];
         let decorated = format!("{} {{}}()", source.trim_right_matches(trim));
 
         with_error_checking_parse(decorated, |p| {
-
             use std::result::Result::{Ok, Err};
             use syntex_syntax::diagnostic::FatalError;
             match p.parse_impl_item() {
@@ -51,7 +50,7 @@ impl MethodInfo {
                             })
                         },
                         _ => {
-                            debug!("Unable to parse method declaration. |{}|",source);
+                            debug!("Unable to parse method declaration. |{}|", source);
                             return None;
                         }
                     }
