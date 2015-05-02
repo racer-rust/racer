@@ -1,4 +1,3 @@
-#![feature(collections)]
 #![feature(str_char)]
 
 #![cfg_attr(not(test), feature(exit_status))] // we don't need exit_status feature when testing
