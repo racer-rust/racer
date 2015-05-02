@@ -54,13 +54,22 @@ fn match_fn(m:Match) {
              );
 }
 
+#[cfg(all(not(test),feature = "nightly"))]
+fn set_exit_status(exit_status: i32) {
+    std::env::set_exit_status(1);
+}
+
+#[cfg(all(not(test),not(feature = "nightly")))]
+fn set_exit_status(_: i32) {
+}
+
 #[cfg(not(test))]
 fn complete(match_found : &Fn(Match)) {
     let args: Vec<String> = std::env::args().collect();
     if args.len() < 3 {
         println!("Provide more arguments!");
         print_usage();
-        std::env::set_exit_status(1);
+        set_exit_status(1);
         return;
     }
     match args[2].parse::<usize>() {
@@ -69,7 +78,7 @@ fn complete(match_found : &Fn(Match)) {
             if args.len() < 5 {
                 println!("Provide more arguments!");
                 print_usage();
-                std::env::set_exit_status(1);
+                set_exit_status(1);
                 return;
             }
             let charnum = args[3].parse::<usize>().unwrap();
@@ -110,7 +119,7 @@ fn prefix() {
     if args.len() < 5 {
         println!("Provide more arguments!");
         print_usage();
-        std::env::set_exit_status(1);
+        set_exit_status(1);
         return;
     }
     let linenum = args[2].parse::<usize>().unwrap();
@@ -130,7 +139,7 @@ fn find_definition() {
     if args.len() < 5 {
         println!("Provide more arguments!");
         print_usage();
-        std::env::set_exit_status(1);
+        set_exit_status(1);
         return;
     }
     let linenum = args[2].parse::<usize>().unwrap();
@@ -162,18 +171,17 @@ fn check_rust_src_env_var() {
             let file_info = std::fs::metadata(&f);
             if file_info.is_err() || !file_info.unwrap().is_dir() {
                 println!("racer can't find the directory pointed to by the RUST_SRC_PATH variable \"{}\". Try using an absolute fully qualified path and make sure it points to the src directory of a rust checkout - e.g. \"/home/foouser/src/rust/src\".", srcpaths);
-
-                std::env::set_exit_status(1);
+                set_exit_status(1);
                 return;
             } else if !f.ends_with("src") {
                 println!("RUST_SRC_PATH variable needs to point to the *src* directory inside a rust checkout e.g. \"/home/foouser/src/rust/src\". Current value \"{}\"", srcpaths);
-                std::env::set_exit_status(1);
+                set_exit_status(1);
                 return;
             }
         }
     } else {
         println!("RUST_SRC_PATH environment variable must be set to point to the src directory of a rust checkout. E.g. \"/home/foouser/src/rust/src\"");
-        std::env::set_exit_status(1);
+        set_exit_status(1);
         return;
     }
 }
@@ -186,7 +194,7 @@ fn main() {
 
     if args.len() == 1 {
         print_usage();
-        std::env::set_exit_status(1);
+        set_exit_status(1);
         return;
     }
 
@@ -200,7 +208,7 @@ fn main() {
         cmd => {
             println!("Sorry, I didn't understand command {}", cmd);
             print_usage();
-            std::env::set_exit_status(1);
+            set_exit_status(1);
             return;
         }
     }
