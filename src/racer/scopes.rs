@@ -132,7 +132,7 @@ pub fn get_start_of_search_expr(src: &str, point: usize) -> usize {
             b')' => { levels += 1; },
             _ => {
                 if levels == 0 &&
-                    !util::is_search_expr_char(src.char_at(i)) ||
+                    !util::is_search_expr_char(src.chars().nth(i).unwrap()) ||
                     util::is_double_dot(src,i) {
                     return i+1;
                 }
@@ -154,7 +154,7 @@ pub fn get_start_of_pattern(src: &str, point: usize) -> usize {
             b')' => { levels += 1; },
             _ => {
                 if levels == 0 &&
-                    !util::is_pattern_char(src.char_at(i)) {
+                    !util::is_pattern_char(src.chars().nth(i).unwrap()) {
                     return i+1;
                 }
             }
@@ -363,7 +363,7 @@ some more
     assert!(src.as_bytes()[5] == r.as_bytes()[5]);
     // characters in the comments are masked
     let commentoffset = coords_to_point(src,3,23);
-    assert!(r.char_at(commentoffset) == ' ');
+    assert!(r.chars().nth(commentoffset).unwrap() == ' ');
     assert!(src.as_bytes()[commentoffset] != r.as_bytes()[commentoffset]);
     // characters afterwards are the same
     assert!(src.as_bytes()[src.len()-3] == r.as_bytes()[src.len()-3]);

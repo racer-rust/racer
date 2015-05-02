@@ -71,7 +71,7 @@ fn find_keyword(src: &str, pattern: &str,
             StartsWith => Some(start),
             ExactMatch => {
                 if src.len() > start+search.len() &&
-                    !is_ident_char(src.char_at(start + search.len())) {
+                    !is_ident_char(src.chars().nth(start + search.len()).unwrap()) {
                     Some(start)
                 } else {
                     None
