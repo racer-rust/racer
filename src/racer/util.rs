@@ -42,11 +42,15 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
                 return true;
             }
 
-            for (n, _) in haystack.match_indices(needle) {
+            // PD: switch to use .match_indices() when that stabilizes
+            let mut n=0;
+            while let Some(n1) = haystack[n..].find(needle) {
+                n += n1;
                 if (n == 0  || !is_ident_char(haystack.char_at(n-1))) &&
                     (n+nlen == hlen || !is_ident_char(haystack.char_at(n+nlen))) {
                     return true;
                 }
+                n += 1;
             }
             return false;
         },
@@ -55,10 +59,14 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
                 return true;
             }
 
-            for (n, _) in haystack.match_indices(needle) {
+            // PD: switch to use .match_indices() when that stabilizes
+            let mut n=0;
+            while let Some(n1) = haystack[n..].find(needle) {
+                n += n1;
                 if n == 0  || !is_ident_char(haystack.char_at(n-1)) {
                     return true;
                 }
+                n += 1;
             }
             return false;
         }

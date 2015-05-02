@@ -451,7 +451,8 @@ pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<PathBuf> {
         // recurse up the directory structure
         if let Some(parentdir) = currentdir.parent() {
             if parentdir != currentdir {
-                res.push_all(&find_possible_crate_root_modules(&parentdir));
+                // PD: this was using the vec.push_all() api, but that is now unstable
+                res.extend(find_possible_crate_root_modules(&parentdir).iter().cloned());
                 return res;   // for now stop at the first match
             }
         }

@@ -1,4 +1,3 @@
-#![feature(collections)]
 #![feature(path_ext)]
 #![feature(str_char)]
 
