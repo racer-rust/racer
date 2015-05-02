@@ -6,10 +6,6 @@
 
 *RACER* = *R*ust *A*uto-*C*omplete-*er*. A utility intended to provide rust code completion for editors and IDEs. Maybe one day the 'er' bit will be exploring + refactoring or something.
 
-## Important - Racer does not work with Rust Beta!
-
-Racer uses unstable features from the standard library, and so currently requires a rust nightly install
-
 ## Installation
 
 1. ```cd racer; cargo build --release```
