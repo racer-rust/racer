@@ -5,6 +5,7 @@ use std::io::{BufRead, BufReader};
 use std::iter::Iterator;
 use std::path::Path;
 use std::str::from_utf8;
+use racer::util::char_at;
 
 fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<usize> where A: Iterator<Item=&'a u8> {
     let mut count = 0usize;
@@ -126,7 +127,7 @@ pub fn get_start_of_search_expr(src: &str, point: usize) -> usize {
             b')' => { levels += 1; },
             _ => {
                 if levels == 0 &&
-                    !util::is_search_expr_char(src.char_at(i)) ||
+                    !util::is_search_expr_char(char_at(src, i)) ||
                     util::is_double_dot(src,i) {
                     return i+1;
                 }
@@ -148,7 +149,7 @@ pub fn get_start_of_pattern(src: &str, point: usize) -> usize {
             b')' => { levels += 1; },
             _ => {
                 if levels == 0 &&
-                    !util::is_pattern_char(src.char_at(i)) {
+                    !util::is_pattern_char(char_at(src, i)) {
                     return i+1;
                 }
             }
@@ -357,7 +358,7 @@ some more
     assert!(src.as_bytes()[5] == r.as_bytes()[5]);
     // characters in the comments are masked
     let commentoffset = coords_to_point(src,3,23);
-    assert!(r.char_at(commentoffset) == ' ');
+    assert!(char_at(&r, commentoffset) == ' ');
     assert!(src.as_bytes()[commentoffset] != r.as_bytes()[commentoffset]);
     // characters afterwards are the same
     assert!(src.as_bytes()[src.len()-3] == r.as_bytes()[src.len()-3]);

@@ -1,5 +1,5 @@
 use racer::{self, scopes, typeinf, ast, Match, PathSegment};
-use racer::util::{symbol_matches, txt_matches, find_ident_end, is_ident_char};
+use racer::util::{symbol_matches, txt_matches, find_ident_end, is_ident_char, char_at};
 use racer::nameres::{get_module_file, get_crate_file, resolve_path};
 use racer::SearchType::{self, StartsWith, ExactMatch};
 use racer::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant, Const, Static, IfLet};
@@ -7,7 +7,6 @@ use racer::Namespace::BothNamespaces;
 use std::cell::Cell;
 use std::path::Path;
 use std::{iter, option, vec};
-
 // Should I return a boxed trait object to make this signature nicer?
 pub fn match_types(src: &str, blobstart: usize, blobend: usize,
                    searchstr: &str, filepath: &Path,
@@ -59,7 +58,7 @@ fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType,
             StartsWith => Some(start),
             ExactMatch => {
                 if src.len() > start+search.len() &&
-                    !is_ident_char(src.char_at(start + search.len())) {
+                    !is_ident_char(char_at(src, start + search.len())) {
                     Some(start)
                 } else {
                     None

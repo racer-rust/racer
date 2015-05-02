@@ -46,8 +46,8 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
             let mut n=0;
             while let Some(n1) = haystack[n..].find(needle) {
                 n += n1;
-                if (n == 0  || !is_ident_char(haystack.char_at(n-1))) &&
-                    (n+nlen == hlen || !is_ident_char(haystack.char_at(n+nlen))) {
+                if (n == 0  || !is_ident_char(char_at(haystack, n-1))) &&
+                    (n+nlen == hlen || !is_ident_char(char_at(haystack, n+nlen))) {
                     return true;
                 }
                 n += 1;
@@ -63,7 +63,7 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
             let mut n=0;
             while let Some(n1) = haystack[n..].find(needle) {
                 n += n1;
-                if n == 0  || !is_ident_char(haystack.char_at(n-1)) {
+                if n == 0  || !is_ident_char(char_at(haystack, n-1)) {
                     return true;
                 }
                 n += 1;
@@ -149,4 +149,10 @@ pub fn find_last_str(needle: &str, mut haystack: &str) -> Option<usize> {
         haystack = &haystack[n+1..];
     }
     res
+}
+
+// PD: short term replacement for .char_at() function. Should be replaced once
+// that stabilizes
+pub fn char_at(src: &str, i: usize) -> char {
+    src[i..].chars().next().unwrap()
 }
