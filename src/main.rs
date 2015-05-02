@@ -1,4 +1,4 @@
-#![cfg_attr(test, feature(test))] // we only need test feature when testing
+#![cfg_attr(all(test, feature = "nightly"), feature(test))] // we only need test feature when testing
 
 #[macro_use] extern crate log;
 
