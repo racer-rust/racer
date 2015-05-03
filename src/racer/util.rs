@@ -160,7 +160,7 @@ pub fn char_at(src: &str, i: usize) -> char {
 // PD: short term replacement for path.exists() (PathExt trait). Replace once
 // that stabilizes
 pub fn path_exists<P: AsRef<Path>>(path: P) -> bool {
-    File::open(path).is_ok()
+    is_dir(path.as_ref()) || File::open(path).is_ok()
 }
 
 // PD: short term replacement for path.is_dir() (PathExt trait). Replace once
