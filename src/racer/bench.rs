@@ -1,5 +1,7 @@
 #[cfg(feature = "nightly")]
 mod racer_bench {
+    extern crate test;
+
     use racer::codecleaner::code_chunks;
     use racer::codeiter::iter_stmts;
     use racer::scopes::{mask_comments, mask_sub_scopes};
