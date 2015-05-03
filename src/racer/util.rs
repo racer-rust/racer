@@ -124,14 +124,25 @@ pub fn expand_ident(s: &str, pos: usize) -> (usize, usize) {
 pub fn find_ident_end(s: &str, pos: usize) -> usize {
     // find end of word
     let sa = &s[pos..];
-    let mut end = pos;
     for (i, c) in sa.char_indices() {
         if !is_ident_char(c) {
-            break;
+            return pos + i;
         }
-        end = pos + i + 1;
     }
-    end
+    s.len()
+}
+
+#[test]
+fn find_ident_end_ascii() {
+    assert_eq!(5, find_ident_end("ident", 0));
+    assert_eq!(6, find_ident_end("(ident)", 1));
+    assert_eq!(17, find_ident_end("let an_identifier = 100;", 4));
+}
+
+#[test]
+fn find_ident_end_unicode() {
+    assert_eq!(7, find_ident_end("num_µs", 0));
+    assert_eq!(10, find_ident_end("ends_in_µ", 0));
 }
 
 pub fn to_refs<'a>(v: &'a Vec<String>) -> Vec<&'a str> {
