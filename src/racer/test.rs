@@ -983,7 +983,7 @@ fn finds_if_let_ident_defn() {
 #[test]
 fn doesnt_find_if_let_if_not_in_the_subscope() {
     let src="
-    let myvar = 3u;
+    let myvar = 3u32;
     if let MyOption(myvar) = myvar {
         myvar
     }

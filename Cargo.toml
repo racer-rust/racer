@@ -17,3 +17,6 @@ debug = true
 log = "*"
 syntex_syntax = "*"
 toml = "*"
+
+[features]
+nightly = []
