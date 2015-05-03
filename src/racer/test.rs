@@ -1,7 +1,9 @@
+use racer;
 use racer::complete_from_file;
 use racer::find_definition;
 use racer::scopes;
 
+use std;
 use std::io::Write;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
@@ -1155,4 +1157,9 @@ fn doesnt_match_rhs_of_let_in_same_stmt() {
     fs::remove_file(&path).unwrap();
     assert_eq!("a", got.matchstr);
     assert_eq!(9, got.point);
+}
+
+#[test]
+fn issue_223() {
+    assert_eq!(true, racer::util::path_exists(std::env::temp_dir()));
 }
