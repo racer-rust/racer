@@ -37,7 +37,7 @@ if !exists('g:racer_insert_paren')
     let g:racer_insert_paren = 1
 endif
 
-function! racer#GetPrefixCol()
+function! RacerGetPrefixCol()
     :w! %.racertmp
     let col = col(".")-1
     let b:racer_col = col
@@ -50,8 +50,8 @@ function! racer#GetPrefixCol()
     return startcol
 endfunction
 
-function! racer#GetExpCompletions()
-    let col = b:racer_col      " use the column from the previous racer#GetPrefixCol() call, since vim ammends it afterwards
+function! RacerGetExpCompletions()
+    let col = b:racer_col      " use the column from the previous RacerGetPrefixCol() call, since vim ammends it afterwards
     let fname = expand("%:p")
     let tmpfname=fname.".racertmp"
     let cmd = g:racer_cmd." complete ".line(".")." ".col." ".tmpfname
@@ -90,8 +90,8 @@ EOF
     call delete(tmpfname)
 endfunction
 
-function! racer#GetCompletions()
-    let col = b:racer_col      " use the column from the previous racer#GetPrefixCol() call, since vim ammends it afterwards
+function! RacerGetCompletions()
+    let col = b:racer_col      " use the column from the previous RacerGetPrefixCol() call, since vim ammends it afterwards
     let fname = expand("%:p")
     let tmpfname=fname.".racertmp"
     let cmd = g:racer_cmd." complete ".line(".")." ".col." ".tmpfname
@@ -108,7 +108,7 @@ function! racer#GetCompletions()
     return out
 endfunction
 
-function! racer#GoToDefinition()
+function! RacerGoToDefinition()
     :w! %.racertmp
     let col = col(".")-1
     let b:racer_col = col
@@ -125,14 +125,14 @@ function! racer#GoToDefinition()
              if fname =~ ".racertmp$"
                  let fname = fname[:-10]
              endif
-             call racer#JumpToLocation(fname, linenum, colnum)
+             call RacerJumpToLocation(fname, linenum, colnum)
              break
         endif
     endfor
     call delete(tmpfname)
 endfunction
 
-function! racer#JumpToLocation(filename, linenum, colnum)
+function! RacerJumpToLocation(filename, linenum, colnum)
     if(a:filename != '')
         if a:filename != bufname('%')
             exec 'e ' . fnameescape(a:filename)
@@ -141,17 +141,17 @@ function! racer#JumpToLocation(filename, linenum, colnum)
     endif
 endfunction
 
-function! racer#Complete(findstart, base)
+function! RacerComplete(findstart, base)
     if a:findstart
-        return racer#GetPrefixCol()
+        return RacerGetPrefixCol()
     else
         if g:racer_experimental_completer == 1
-            return racer#GetExpCompletions()
+            return RacerGetExpCompletions()
         else
-            return racer#GetCompletions()
+            return RacerGetCompletions()
     endif
 endfunction
 
-autocmd FileType rust setlocal omnifunc=racer#Complete
-autocmd FileType rust nnoremap gd :call racer#GoToDefinition()<cr>
+autocmd FileType rust setlocal omnifunc=RacerComplete
+autocmd FileType rust nnoremap gd :call RacerGoToDefinition()<cr>
 
