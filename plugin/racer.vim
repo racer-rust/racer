@@ -149,6 +149,7 @@ function! racer#Complete(findstart, base)
             return racer#GetExpCompletions()
         else
             return racer#GetCompletions()
+        endif
     endif
 endfunction
 
