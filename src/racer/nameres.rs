@@ -620,9 +620,9 @@ pub fn search_scope(start: usize, point: usize, src: &str,
         }
 
         // There's a good chance of a match. Run the matchers
-        out = out + &*run_matchers_on_blob(src, start+blobstart, start+blobend,
-                                      searchstr,
-                                      filepath, search_type, local, namespace);
+        out.extend(run_matchers_on_blob(src, start+blobstart, start+blobend,
+                                        searchstr,
+                                        filepath, search_type, local, namespace));
         if let ExactMatch = search_type {
             if !out.is_empty() {
                 return out.into_iter();
