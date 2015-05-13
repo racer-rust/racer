@@ -3,7 +3,7 @@ name = "racer"
 version = "0.0.1"
 dependencies = [
  "log 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "syntex_syntax 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syntex_syntax 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.1.20 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -22,7 +22,7 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -30,7 +30,7 @@ name = "log"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "libc 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -40,7 +40,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "syntex_fmt_macros"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "unicode-xid 0.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -48,14 +48,14 @@ dependencies = [
 
 [[package]]
 name = "syntex_syntax"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bitflags 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "libc 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
- "syntex_fmt_macros 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syntex_fmt_macros 0.4.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "term 0.2.7 (registry+https://github.com/rust-lang/crates.io-index)",
  "unicode-xid 0.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -87,6 +87,6 @@ name = "winapi"
 version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "libc 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "libc 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
