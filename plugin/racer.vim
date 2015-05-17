@@ -38,11 +38,11 @@ if !exists('g:racer_insert_paren')
 endif
 
 function! racer#GetPrefixCol()
-    :w! %.racertmp
+    let tmpfname = tempname()
+    let b:tmpfname = tmpfname
+    exec 'silent w!' tmpfname
     let col = col(".")-1
     let b:racer_col = col
-    let fname = expand("%:p")
-    let tmpfname=fname.".racertmp"
     let cmd = g:racer_cmd." prefix ".line(".")." ".col." ".tmpfname
     let res = system(cmd)
     let prefixline = split(res, "\\n")[0]
@@ -52,8 +52,7 @@ endfunction
 
 function! racer#GetExpCompletions()
     let col = b:racer_col      " use the column from the previous racer#GetPrefixCol() call, since vim ammends it afterwards
-    let fname = expand("%:p")
-    let tmpfname=fname.".racertmp"
+    let tmpfname = tempname()
     let cmd = g:racer_cmd." complete ".line(".")." ".col." ".tmpfname
     if has('python')
     python << EOF
@@ -92,8 +91,7 @@ endfunction
 
 function! racer#GetCompletions()
     let col = b:racer_col      " use the column from the previous racer#GetPrefixCol() call, since vim ammends it afterwards
-    let fname = expand("%:p")
-    let tmpfname=fname.".racertmp"
+    let tmpfname = b:tmpfname
     let cmd = g:racer_cmd." complete ".line(".")." ".col." ".tmpfname
     let res = system(cmd)
     let lines = split(res, "\\n")
@@ -109,11 +107,10 @@ function! racer#GetCompletions()
 endfunction
 
 function! racer#GoToDefinition()
-    :w! %.racertmp
+    let tmpfname = tempname()
+    exec 'silent w!' tmpfname
     let col = col(".")-1
     let b:racer_col = col
-    let fname = expand("%:p")
-    let tmpfname=fname.".racertmp"
     let cmd = g:racer_cmd." find-definition ".line(".")." ".col." ".tmpfname
     let res = system(cmd)
     let lines = split(res, "\\n")
@@ -122,8 +119,8 @@ function! racer#GoToDefinition()
              let linenum = split(line[6:], ",")[1]
              let colnum = split(line[6:], ",")[2]
              let fname = split(line[6:], ",")[3]
-             if fname =~ ".racertmp$"
-                 let fname = fname[:-10]
+             if fname == tmpfname
+                 let fname = expand('%:p')
              endif
              call racer#JumpToLocation(fname, linenum, colnum)
              break
