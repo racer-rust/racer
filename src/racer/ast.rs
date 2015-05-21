@@ -8,20 +8,20 @@ use std::path::Path;
 use syntex_syntax::ast;
 use syntex_syntax::codemap;
 use syntex_syntax::parse::parser::Parser;
-use syntex_syntax::parse::{lexer, new_parse_sess, ParseSess, string_to_filemap, token};
+use syntex_syntax::parse::{lexer, ParseSess, token};
 use syntex_syntax::ptr::P;
 use syntex_syntax::visit::{self, Visitor};
 
 // This code ripped from libsyntax::util::parser_testing
 pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: String) -> Option<Parser<'a>> {
-    let fm = string_to_filemap(ps, source_str, "bogofile".to_string());
+    let fm = ps.codemap().new_filemap("bogofile".to_string(), source_str);
     let srdr = lexer::StringReader::new(&ps.span_diagnostic, fm);
     let p = Parser::new(ps, Vec::new(), Box::new(srdr));
     Some(p)
 }
 
 pub fn with_error_checking_parse<F, T>(s: String, f: F) -> Option<T> where F: Fn(&mut Parser) -> Option<T> {
-    let ps = new_parse_sess();
+    let ps = ParseSess::new();
     let mut p = match string_to_parser(&ps, s) {
         Some(p) => p,
         None => return None
