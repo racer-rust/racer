@@ -15,6 +15,8 @@ pub mod matchers;
 pub mod snippets;
 pub mod cargo;
 
+pub mod ghetto_logger;
+
 #[cfg(test)] pub mod test;
 #[cfg(test)] pub mod bench;
 
