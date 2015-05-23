@@ -161,9 +161,10 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
     let mut res = None;
     let blob = &msrc[blobstart..blobend];
 
-    if txt_matches(search_type, &format!("extern crate {}", searchstr), blob) ||
-        (blob.starts_with("extern crate") &&
-         txt_matches(search_type, &format!("as {}", searchstr), blob)) {
+    if txt_matches(search_type, &format!("extern crate {};", searchstr), blob) &&
+        !(txt_matches(search_type, &format!("extern crate {} as", searchstr), blob))
+        || (blob.starts_with("extern crate") &&
+            txt_matches(search_type, &format!("as {}", searchstr), blob)) {
 
         debug!("found an extern crate: |{}|", blob);
 
