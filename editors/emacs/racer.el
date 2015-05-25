@@ -1,8 +1,46 @@
 ;;; racer.el --- Rust completion via racer
 
+;; Copyright (c) 2014 Phil Dawes
+
+;; Author: Phil Dawes
+;; URL: https://github.com/phildawes/racer
+;; Version: 0.0.1
+;; Package-Requires: ((emacs "24.3") (company "0.8.0") (rust-mode "0.2.0"))
+;; Keywords: abbrev, convenience, matching, rust, tools
+
+;; This file is not part of GNU Emacs.
+
+;; Permission is hereby granted, free of charge, to any
+;; person obtaining a copy of this software and associated
+;; documentation files (the "Software"), to deal in the
+;; Software without restriction, including without
+;; limitation the rights to use, copy, modify, merge,
+;; publish, distribute, sublicense, and/or sell copies of
+;; the Software, and to permit persons to whom the Software
+;; is furnished to do so, subject to the following
+;; conditions:
+
+;; The above copyright notice and this permission notice
+;; shall be included in all copies or substantial portions
+;; of the Software.
+
+;; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+;; ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+;; TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+;; PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+;; SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+;; CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+;; OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+;; IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+;; DEALINGS IN THE SOFTWARE.
+
 ;;; Commentary:
 
 ;;; Code:
+
+(require 'cl-lib)
+(require 'company)
+(require 'rust-mode)
 
 (defgroup racer nil
   "Support for Rust completion via racer."
@@ -30,12 +68,11 @@
 (defvar racer-start-pos)
 (defvar racer-end-pos)
 
-(require 'company)
-
-(defun racer-get-line-number () 
+(defun racer-get-line-number ()
+  "Gets the current line number at point."
   ; for some reason if the current-column is 0, then the linenumber is off by 1
-  (if (= (current-column) 0) 
-      (1+ (count-lines 1 (point))) 
+  (if (= (current-column) 0)
+      (1+ (count-lines 1 (point)))
     (count-lines 1 (point))))
 
 (defun racer--write-tmp-file (tmp-file-name)
@@ -102,7 +139,7 @@
 	(when (string-match "^MATCH \\([^,]+\\),\\(.+\\)$" line)
 	  (let ((completion (match-string 1 line)))
 	    (push completion racer-completion-results)))
-	
+
 	(when (string-match "^PREFIX \\(.+\\),\\(.+\\),\\(.*\\)$" line)
 	  (setq racer-start-pos (string-to-number (match-string 1 line)))
 	  (setq racer-end-pos (string-to-number (match-string 2 line))))
@@ -120,7 +157,7 @@
 `IGNORED' is unused."
   (interactive)
   ;(message "PHIL racer-company-complete %s %s %s" command arg ignored)
-  (when (looking-back "[a-zA-z1-9:.]")
+  (when (looking-back "[a-zA-z1-9:.]" nil)
     (cl-case command
       (prefix (racer--prefix))
       (candidates (racer--candidates))
@@ -160,7 +197,7 @@
       (company-complete-common)
     (indent-according-to-mode)))
 
-(defun string/ends-with (s ending)
+(defun racer--string-ends-with (s ending)
   "Return non-nil if string S ends with ENDING."
   (cond ((>= (length s) (length ending))
          (let ((elength (length ending)))
@@ -185,7 +222,7 @@
 	(let ((linenum (match-string 2 line))
 	      (charnum (match-string 3 line))
 	      (fname (match-string 4 line)))
-	  (if (string/ends-with fname ".racertmp")
+	  (if (racer--string-ends-with fname ".racertmp")
 	      (find-file (substring fname 0 -9))
 	    (find-file fname))
 	  (goto-char (point-min))
