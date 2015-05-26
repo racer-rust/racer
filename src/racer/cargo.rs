@@ -13,7 +13,7 @@ macro_rules! otry {
 
 // converts errors into None
 macro_rules! otry2 {
-    ($e:expr) => (match $e { Ok(e) => e, Err(_) => return None })
+    ($e:expr) => (match $e { Ok(e) => e, Err(e) => { error!("ERROR!: {:?} {} {}", e, file!(), line!()); return None } })
 }
 
 fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
@@ -40,8 +40,7 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
                     return get_versioned_cratefile(kratename, &version);
                 } else if Some("git") == source.split("+").nth(0) {
                     let sha1 = otry!(source.split("#").last());
-                    let mut d = otry!(env::home_dir());
-                    d.push(".cargo");
+                    let mut d = otry!(get_cargo_rootdir());
                     d.push("git");
                     d.push("checkouts");
                     d = otry!(find_git_src_dir(d, kratename, &sha1));
@@ -55,9 +54,33 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     None
 }
 
-fn get_versioned_cratefile(kratename: &str, version: &str) -> Option<PathBuf> {
+fn get_cargo_rootdir() -> Option<PathBuf> {
     let mut d = otry!(env::home_dir());
     d.push(".cargo");
+    if path_exists(&d) {
+        return Some(d);
+    }
+
+    // try multirust
+    d.pop();
+    d.push(".multirust");
+    d.push("default");
+    if let Ok(mut multirustdefault) = File::open(&d) {
+        let mut s = String::new();
+        otry2!(multirustdefault.read_to_string(&mut s));
+        d.pop();
+        d.push("toolchains");
+        d.push(s.trim());
+        d.push("cargo");
+        debug!("get_cargo_rootdir root is {:?}",d);
+        Some(d)
+    } else {
+        None
+    }
+}
+
+fn get_versioned_cratefile(kratename: &str, version: &str) -> Option<PathBuf> {
+    let mut d = otry!(get_cargo_rootdir());
     d.push("registry");
     d.push("src");
     d = otry!(find_cratesio_src_dir(d));
