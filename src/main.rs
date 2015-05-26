@@ -155,8 +155,8 @@ fn check_rust_src_env_var() {
             if !path_exists(f) {
                 println!("racer can't find the directory pointed to by the RUST_SRC_PATH variable \"{}\". Try using an absolute fully qualified path and make sure it points to the src directory of a rust checkout - e.g. \"/home/foouser/src/rust/src\".", srcpaths);
                 std::process::exit(1);
-            } else if !f.ends_with("src") {
-                println!("RUST_SRC_PATH variable needs to point to the *src* directory inside a rust checkout e.g. \"/home/foouser/src/rust/src\". Current value \"{}\"", srcpaths);
+            } else if !path_exists(f.join("libstd")) {
+                println!("Unable to find libstd under RUST_SRC_PATH. N.B. RUST_SRC_PATH variable needs to point to the *src* directory inside a rust checkout e.g. \"/home/foouser/src/rust/src\". Current value \"{}\"", srcpaths);
                 std::process::exit(1);
             }
         }
