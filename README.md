@@ -38,7 +38,7 @@
    ```
    (setq racer-rust-src-path "<path-to-rust-srcdir>/src/")
    (setq racer-cmd "<path-to-racer>/target/release/racer")
-   (add-to-list 'load-path "<path-to-racer>/editors")
+   (add-to-list 'load-path "<path-to-racer>/editors/emacs")
    (eval-after-load "rust-mode" '(require 'racer))
    ```
 
