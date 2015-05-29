@@ -889,89 +889,85 @@ pub fn get_super_scope(filepath: &Path, pos: usize) -> Option<racer::Scope> {
 }
 
 pub fn resolve_path(path: &racer::Path, filepath: &Path, pos: usize,
-                  search_type: SearchType, namespace: Namespace) -> vec::IntoIter<Match> {
+                    search_type: SearchType, namespace: Namespace) 
+        -> vec::IntoIter<Match> {
+
     debug!("resolve_path {:?} {:?} {} {:?}", path, filepath.to_str(), pos, search_type);
-    let len = path.segments.len();
-    if len == 1 {
-        let ref pathseg = path.segments[0];
-        return resolve_name(pathseg, filepath, pos, search_type, namespace);
-    } else if len != 0 {
-        if path.segments[0].name == "self" {
-            // just remove self
-            let mut newpath: racer::Path = path.clone();
-            newpath.segments.remove(0);
-            return resolve_path(&newpath, filepath, pos, search_type, namespace);
-        }
-
-        if path.segments[0].name == "super" {
-            if let Some(scope) = get_super_scope(filepath, pos) {
-                debug!("PHIL super scope is {:?}", scope);
-
-                let mut newpath: racer::Path = path.clone();
-                newpath.segments.remove(0);
-                return resolve_path(&newpath, &scope.filepath,
-                                    scope.point, search_type, namespace);
-            } else {
-                // can't find super scope. Return no matches
-                debug!("can't resolve path {:?}, returning no matches", path);
-                return Vec::new().into_iter();
-            }
-        }
-
-        let mut out = Vec::new();
-        let mut parent_path: racer::Path = path.clone();
-        parent_path.segments.remove(len-1);
-        let context = resolve_path(&parent_path, filepath, pos, ExactMatch, TypeNamespace).nth(0);
-        context.map(|m| {
-            match m.mtype {
-                Module => {
-                    debug!("searching a module '{}' (whole path: {:?})", m.matchstr, path);
-                    let ref pathseg = path.segments[len-1];
-                    for m in search_next_scope(m.point, pathseg, &m.filepath, search_type, false, namespace) {
-                        out.push(m);
-                    }
-                }
-                Enum => {
-                    let ref pathseg = path.segments[len-1];
-                    debug!("searching an enum '{}' (whole path: {:?}) searchtype: {:?}", m.matchstr, path, search_type);
-
-                    let filesrc = racer::load_file(&m.filepath);
-                    let scopestart = scopes::find_stmt_start(&*filesrc, m.point).unwrap();
-                    let scopesrc = &filesrc[scopestart..];
-                    codeiter::iter_stmts(scopesrc).nth(0).map(|(blobstart,blobend)| {
-                        for m in matchers::match_enum_variants(&*filesrc,
-                                                               scopestart+blobstart,
-                                                               scopestart+blobend,
-                                                      &*pathseg.name, &m.filepath, search_type, true) {
-                            debug!("Found enum variant: {}", m.matchstr);
-                            out.push(m);
-                        }
-                    });
-                }
-                Struct => {
-                    debug!("found a struct. Now need to look for impl");
-                    for m in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, false) {
-                        debug!("found impl!! {:?}", m);
-                        let ref pathseg = path.segments[len-1];
-                        let src = racer::load_file(&m.filepath);
-                        // find the opening brace and skip to it.
-                        (&src[m.point..]).find("{").map(|n| {
-                            let point = m.point + n + 1;
-                            for m in search_scope(point, point, &*src, pathseg, &m.filepath, search_type, m.local, namespace) {
-                                out.push(m);
-                            }
-                        });
-                    };
-                }
-                _ => ()
-            }
-        });
-        debug!("resolve_path returning {:?}", out);
-        out.into_iter()
-    } else {
+    
+    match path.segments.len() {
         // TODO: Should this better be an assertion ? Why do we have a racer::Path
         // with empty segments in the first place ?
-        Vec::new().into_iter()
+        0   => Vec::new().into_iter(),
+        1   => resolve_name(&path.segments[0], filepath, pos, search_type, namespace),
+        len => {
+            match &*path.segments[0].name {
+                "self" => {
+                    let mut newpath: racer::Path = path.clone();
+                    newpath.segments.remove(0);
+                    resolve_path(&newpath, filepath, pos, search_type, namespace)
+                }
+                "super" => {
+                    get_super_scope(filepath, pos)
+                    .map_or(Vec::new().into_iter(), |scope| {
+                        debug!("PHIL super scope is {:?}", scope);
+
+                        let mut newpath: racer::Path = path.clone();
+                        newpath.segments.remove(0);
+                        resolve_path(&newpath, &scope.filepath,
+                                     scope.point, search_type, namespace)
+                    })
+                }
+                _ => {
+                    let mut parent_path: racer::Path = path.clone();
+                    parent_path.segments.pop();          
+                    let ref pathseg = path.segments[len-1];
+                    resolve_path(&parent_path, filepath, pos, ExactMatch, TypeNamespace).next()
+                    .map_or(Vec::new().into_iter(), |m| {
+                        match m.mtype {
+                            Module => {
+                                debug!("searching a module '{}' (whole path: {:?})", m.matchstr, path);
+                                search_next_scope(m.point, pathseg, &m.filepath, 
+                                                  search_type, false, namespace)
+                            }
+                            Enum => {
+                                debug!("searching an enum '{}' (whole path: {:?}) searchtype: {:?}", m.matchstr, path, search_type);
+                                let filesrc = racer::load_file(&m.filepath);
+                                let scopestart = scopes::find_stmt_start(&*filesrc, m.point).unwrap();
+                                let scopesrc = &filesrc[scopestart..];
+                                codeiter::iter_stmts(scopesrc).next()
+                                    .map_or(Vec::new().into_iter(), |(blobstart, blobend)|
+                                        matchers::match_enum_variants(&*filesrc,
+                                                                      scopestart + blobstart, 
+                                                                      scopestart + blobend,
+                                                                      &*pathseg.name, 
+                                                                      &m.filepath, 
+                                                                      search_type, true))
+                            }
+                            Struct => {
+                                debug!("found a struct. Now need to look for impl");
+                                let mut out = Vec::new();
+                                for m in search_for_impls(m.point, &m.matchstr, 
+                                                          &m.filepath, m.local, false) {
+                                    debug!("found impl!! {:?}", m);
+                                    let src = racer::load_file(&m.filepath);
+                                    // find the opening brace and skip to it.
+                                    (&src[m.point..]).find('{').map(|n| {
+                                        let point = m.point + n + 1;
+                                        out.extend(search_scope(point, point, &*src, 
+                                                                pathseg, &m.filepath, 
+                                                                search_type, m.local, 
+                                                                namespace));
+                                    });
+                                }
+                                out.into_iter()
+                            }
+                            _ => Vec::new().into_iter()
+                        }
+                    })
+
+                }
+            }
+        }
     }
 }
 
