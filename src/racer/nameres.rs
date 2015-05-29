@@ -863,28 +863,28 @@ pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: usize,
 
 // Get the scope corresponding to super::
 pub fn get_super_scope(filepath: &Path, pos: usize) -> Option<racer::Scope> {
+
     let msrc = racer::load_file_and_mask_comments(filepath);
     let mut path = scopes::get_local_module_path(&msrc, pos);
+
     if path.is_empty() {
         let filepath = filepath.parent().unwrap();  // safe because file is valid
-        if path_exists(filepath.join("mod.rs")) {
-            Some(racer::Scope{ filepath: filepath.join("mod.rs"), point: 0 })
-        } else if path_exists(filepath.join("lib.rs")) {
-            Some(racer::Scope{ filepath: filepath.join("lib.rs"), point: 0 })
-        } else {
-            None
-        }
+        ["mod.rs", "lib.rs"].into_iter()
+                            .map(|f| filepath.join(f))
+                            .find(|f| path_exists(f))
+                            .map(|f| racer::Scope{ filepath: f, point: 0 })
     } else if path.len() == 1 {
-        Some(racer::Scope{ filepath: filepath.to_path_buf(), point: 0 })
+        Some(racer::Scope{ filepath: filepath.to_owned(), point: 0 })
     } else {
         path.pop();
         let path = racer::Path::from_svec(false, path);
         debug!("get_super_scope looking for local scope {:?}", path);
-        resolve_path(&path, filepath, 0, SearchType::ExactMatch,
-                            Namespace::TypeNamespace).nth(0)
-            .and_then(|m| msrc[m.point..].find("{")
-                      .map(|p| racer::Scope{ filepath: filepath.to_path_buf(),
-                                             point:m.point + p + 1 }))
+        resolve_path(&path, filepath, 0, SearchType::ExactMatch, Namespace::TypeNamespace)
+            .next()
+            .and_then(|m| msrc[m.point..]
+                .find('{')
+                .map(|p| racer::Scope{ filepath: filepath.to_owned(),
+                                       point:m.point + p + 1 }))
     }
 }
 
