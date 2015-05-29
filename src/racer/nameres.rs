@@ -757,7 +757,8 @@ pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType
 }
 
 pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: usize,
-                                   search_type: SearchType, namespace: Namespace) -> vec::IntoIter<Match> {
+                             search_type: SearchType, namespace: Namespace) 
+        -> vec::IntoIter<Match> {
     debug!("resolve_path_with_str {:?}", path);
 
     let mut out = Vec::new();
@@ -820,64 +821,43 @@ pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: usize,
     let mut out = Vec::new();
     let searchstr = &pathseg.name;
 
-    debug!("resolve_name {} {:?} {} {:?} {:?}", searchstr, filepath.to_str(), pos, search_type, namespace);
+    debug!("resolve_name {} {:?} {} {:?} {:?}", searchstr, filepath.to_str(), 
+                                                pos, search_type, namespace);
 
     let msrc = racer::load_file_and_mask_comments(filepath);
-    let is_exact_match = match search_type { ExactMatch => true, StartsWith => false };
 
-    if (is_exact_match && (&searchstr[..]) == "std") || (!is_exact_match && "std".starts_with(searchstr)) {
-        get_crate_file("std", filepath).map(|cratepath| {
-            out.push(Match {
+    let is_std = match search_type {
+        ExactMatch => searchstr == "std",
+        StartsWith => "std".starts_with(searchstr)
+    };
+
+    if is_std {
+        if let Some(crate_path) = get_crate_file("std", filepath) {
+            out.push(Match { 
                         matchstr: "std".to_string(),
-                        filepath: cratepath.to_path_buf(),
+                        filepath: crate_path.to_path_buf(),
                         point: 0,
                         local: false,
                         mtype: Module,
-                        contextstr: cratepath.to_str().unwrap().to_string(),
-                        generic_args: Vec::new(), generic_types: Vec::new()
-            });
-        });
-
-        if let ExactMatch = search_type {
-            if !out.is_empty() {
+                        contextstr: crate_path.to_str().unwrap().to_string(),
+                        generic_args: Vec::new(), 
+                        generic_types: Vec::new() });
+            if let ExactMatch = search_type {
                 return out.into_iter();
             }
         }
     }
 
-    for m in search_local_scopes(pathseg, filepath, &msrc, pos,
-                                          search_type, namespace) {
-        out.push(m);
-        if let ExactMatch = search_type {
-            if !out.is_empty() {
-                return out.into_iter();
-            }
-        }
+    let mut searches = search_local_scopes(pathseg, filepath, &msrc, pos, search_type, namespace)
+                      .chain(search_crate_root(pathseg, filepath, search_type, namespace))
+                      .chain(search_prelude_file(pathseg, search_type, namespace));
+
+    match search_type {
+        ExactMatch => if let Some(m) = searches.next() { out.push(m); },
+        StartsWith => out.extend(searches.chain(
+            do_file_search(searchstr, &filepath.parent().unwrap())))
     }
 
-    for m in search_crate_root(pathseg, filepath, search_type, namespace) {
-        out.push(m);
-        if let ExactMatch = search_type {
-            if !out.is_empty() {
-                return out.into_iter();
-            }
-        }
-    }
-
-    for m in search_prelude_file(pathseg, search_type, namespace) {
-        out.push(m);
-        if let ExactMatch = search_type {
-            if !out.is_empty() {
-                return out.into_iter();
-            }
-        }
-    }
-    // filesearch. Used to complete e.g. extern crate blah or mod foo
-    if let StartsWith = search_type {
-        for m in do_file_search(searchstr, &filepath.parent().unwrap()) {
-            out.push(m);
-        }
-    }
     out.into_iter()
 }
 
