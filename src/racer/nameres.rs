@@ -15,30 +15,25 @@ pub const PATH_SEP: &'static str = ":";
 #[cfg(windows)]
 pub const PATH_SEP: &'static str = ";";
 
- fn search_struct_fields(searchstr: &str, structmatch: &Match,
-                         search_type: SearchType) -> vec::IntoIter<Match> {
+fn search_struct_fields(searchstr: &str, structmatch: &Match,
+                        search_type: SearchType) -> vec::IntoIter<Match> {
     let src = racer::load_file(&structmatch.filepath);
     let opoint = scopes::find_stmt_start(&*src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
 
-    let fields = ast::parse_struct_fields(structsrc.to_string(),
-                                          racer::Scope::from_match(structmatch));
-
-    let mut out = Vec::new();
-
-    for (field, fpos, _) in fields.into_iter() {
+    ast::parse_struct_fields(structsrc.to_string(), racer::Scope::from_match(structmatch))
+    .into_iter().filter_map(|(ref field, fpos, _)| 
         if symbol_matches(search_type, searchstr, &field) {
-            out.push(Match { matchstr: field.to_string(),
-                                filepath: structmatch.filepath.to_path_buf(),
-                                point: fpos + opoint.unwrap(),
-                                local: structmatch.local,
-                                mtype: StructField,
-                                contextstr: field.to_string(),
-                                generic_args: Vec::new(), generic_types: Vec::new()
-            });
-        }
-    }
-    out.into_iter()
+            Some(Match { matchstr: field.to_string(),
+                    filepath: structmatch.filepath.to_path_buf(),
+                    point: fpos + opoint.unwrap(),
+                    local: structmatch.local,
+                    mtype: StructField,
+                    contextstr: field.to_string(),
+                    generic_args: Vec::new(), 
+                    generic_types: Vec::new()
+            })
+        } else { None }).collect::<Vec<_>>().into_iter()
 }
 
 pub fn search_for_impl_methods(implsearchstr: &str,
