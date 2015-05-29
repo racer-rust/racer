@@ -976,7 +976,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize,
         // hack for now
         let pathseg = racer::PathSegment::new(searchstr);
 
-        let mut out: search_next_scope(pos, &pathseg, filepath, search_type, 
+        let mut out = search_next_scope(pos, &pathseg, filepath, search_type, 
                                        false, namespace).collect::<Vec<_>>();
 
         get_module_file(searchstr, &filepath.parent().unwrap()).map(|path| {
@@ -1003,7 +1003,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize,
                     let searchstr = path[path.len()-1];
                     let pathseg = racer::PathSegment::new(searchstr);
                     search_next_scope(m.point, &pathseg, &m.filepath, 
-                                             search_type, false, namespace)
+                                      search_type, false, namespace)
                 }
                 Struct => {
                     debug!("found a pub struct. Now need to look for impl");
@@ -1023,46 +1023,41 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize,
     }
 }
 
-pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: SearchType) -> vec::IntoIter<Match> {
+pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: SearchType) 
+        -> vec::IntoIter<Match> {
     let m = context;
-    let mut out = Vec::new();
     match m.mtype {
         Struct => {
             debug!("got a struct, looking for fields and impl methods!! {}", m.matchstr);
-            for m in search_struct_fields(searchstr, &m, search_type) {
-                out.push(m);
-            }
-            for m in search_for_impl_methods(&m.matchstr,
-                                    searchstr,
-                                    m.point,
-                                    &m.filepath,
-                                    m.local,
-                                    search_type) {
-                out.push(m);
-            }
+            search_struct_fields(searchstr, &m, search_type)
+            .chain(search_for_impl_methods(&m.matchstr,
+                                           searchstr,
+                                           m.point,
+                                           &m.filepath,
+                                           m.local,
+                                           search_type))
+            .collect::<Vec<_>>().into_iter()
         },
         Enum => {
             debug!("got an enum, looking for impl methods {}", m.matchstr);
-            for m in search_for_impl_methods(&m.matchstr,
+            search_for_impl_methods(&m.matchstr,
                                     searchstr,
                                     m.point,
                                     &m.filepath,
                                     m.local,
-                                    search_type) {
-                out.push(m);
-            }
+                                    search_type)
         },
         Trait => {
             debug!("got a trait, looking for methods {}", m.matchstr);
             let src = racer::load_file(&m.filepath);
-            (&src[m.point..]).find("{").map(|n| {
+            (&src[m.point..]).find('{').map_or(Vec::new().into_iter(), |n| {
                 let point = m.point + n + 1;
-                for m in search_scope_for_methods(point, &*src, searchstr, &m.filepath, search_type) {
-                    out.push(m);
-                }
-            });
+                search_scope_for_methods(point, &*src, searchstr, &m.filepath, search_type)
+            })
         }
-        _ => { debug!("WARN!! context wasn't a Struct, Enum or Trait {:?}",m);}
-    };
-    out.into_iter()
+        _ => { 
+            debug!("WARN!! context wasn't a Struct, Enum or Trait {:?}",m);
+            Vec::new().into_iter()
+        }
+    }
 }
