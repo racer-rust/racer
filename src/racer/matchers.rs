@@ -436,7 +436,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
             if follow_glob {
                 ALREADY_GLOBBING.with(|c| { c.set(Some(true)) });
 
-                let seg = PathSegment{ name: searchstr.to_string(), types: Vec::new() };
+                let seg = PathSegment::new(searchstr);
                 let mut path = basepath.clone();
                 path.segments.push(seg);
                 debug!("found a glob: now searching for {:?}", path);

@@ -151,7 +151,7 @@ impl Path {
     pub fn from_vec(global: bool, v: Vec<&str>) -> Path {
         let segs = v
             .iter()
-            .map(|x| PathSegment{ name:x.to_string(), types: Vec::new() })
+            .map(|x| PathSegment::new(x) )
             .collect::<Vec<_>>();
         Path{ global: global, segments: segs }
     }
@@ -199,6 +199,12 @@ impl fmt::Debug for Path {
 pub struct PathSegment {
     pub name: String,
     pub types: Vec<Path>
+}
+
+impl PathSegment {
+    fn new(name: &str) -> PathSegment {
+        PathSegment { name: name.to_owned(), types: Vec::new() }
+    }
 }
 
 #[derive(Clone)]
@@ -310,7 +316,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize) -> Option<
 
             let segs = v
                 .iter()
-                .map(|x| PathSegment{ name: x.to_string(), types: Vec::new() })
+                .map(|x| PathSegment::new(x) )
                 .collect::<Vec<_>>();
             let path = Path{ global: global, segments: segs };
 
