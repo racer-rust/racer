@@ -103,8 +103,8 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                     // find trait
                     if include_traits && implres.trait_path.is_some() {
                         let trait_path = implres.trait_path.unwrap();
-                        let m = resolve_path(&trait_path,
-                                             filepath, pos + start, ExactMatch, TypeNamespace).nth(0);
+                        let m = resolve_path(&trait_path, filepath, 
+                                             pos + start, ExactMatch, TypeNamespace).next();
                         debug!("found trait |{:?}| {:?}", trait_path, m);
                         m.map(|m| out.push(m));
                     }
@@ -120,7 +120,9 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: &str, searchstr: 
                         filepath: &Path, search_type: SearchType,
                         local: bool) -> vec::IntoIter<Match> {
     debug!("search_scope_headers for |{}| pt: {}", searchstr, scopestart);
-    if let Some(stmtstart) = scopes::find_stmt_start(msrc, scopestart) {
+
+    scopes::find_stmt_start(msrc, scopestart).map_or(Vec::new().into_iter(), |stmtstart| {
+
         let preblock = &msrc[stmtstart..scopestart];
         debug!("PHIL search_scope_headers preblock is |{}|", preblock);
 
@@ -137,8 +139,8 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: &str, searchstr: 
                 for m in out.iter_mut() {
                     m.point += ifletstart;
                 }
-                return out.into_iter();
-            }
+                out.into_iter()
+            } else { Vec::new().into_iter() }
         } else if let Some(n) = util::find_last_str("match ", preblock) {
             // TODO: this code is crufty. refactor me!
             let matchstart = stmtstart + n;
@@ -147,7 +149,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: &str, searchstr: 
             debug!("PHIL found a match statement, examining match arms (len {}) |{}|",
                    matchstmt.len(), matchstmt);
 
-            let masked_matchstmt = mask_matchstmt(matchstmt, scopestart+1 - matchstart);
+            let masked_matchstmt = mask_matchstmt(matchstmt, scopestart + 1 - matchstart);
             debug!("PHIL masked match stmt is len {} |{}|", masked_matchstmt.len(), masked_matchstmt);
 
             // Locate the match arm LHS by finding the => just before point and then backtracking
@@ -164,7 +166,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: &str, searchstr: 
             }
             debug!("PHIL matched arm rhs is |{}|", &masked_matchstmt[arm-2..]);
 
-            let lhs_start = scopes::get_start_of_pattern(msrc, matchstart + arm -2);
+            let lhs_start = scopes::get_start_of_pattern(msrc, matchstart + arm - 2);
             let lhs = &msrc[lhs_start..matchstart + arm - 2];
 
             // Now create a pretend match expression with just the one match arm in it
@@ -175,24 +177,33 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: &str, searchstr: 
 
             debug!("PHIL arm lhs is |{}|", lhs);
             debug!("PHIL arm fauxmatchstmt is |{}|, {}", fauxmatchstmt, faux_prefix_size);
-            let mut out = Vec::new();
-            for &(start,end) in ast::parse_pat_idents(fauxmatchstmt).iter() {
-                let (start,end) = (lhs_start + start - faux_prefix_size,
+            let mut matches = ast::parse_pat_idents(fauxmatchstmt)
+            .into_iter().filter_map(|(start,end)| {
+                let (start, end) = (lhs_start + start - faux_prefix_size,
                                    lhs_start + end - faux_prefix_size);
                 let s = &msrc[start..end];
 
                 if symbol_matches(search_type, searchstr, s) {
-                    out.push(Match::new(s, filepath, start, local, MatchArm, lhs.trim()));
-                    if let SearchType::ExactMatch = search_type {
-                        break;
+                    Some(Match::new(s, filepath, start, local, MatchArm, lhs.trim()))
+                } else {
+                    None
+                }
+            });
+            match search_type {
+                ExactMatch => {
+                    if let Some(m) = matches.next() {
+                        vec![m].into_iter()
+                    } else {
+                        Vec::new().into_iter()
                     }
                 }
+                StartsWith => matches.collect::<Vec<_>>().into_iter()
             }
-            return out.into_iter();
+        } else {
+           Vec::new().into_iter()
         }
-    }
+    })
 
-    Vec::new().into_iter()
 }
 
 fn mask_matchstmt(matchstmt_src: &str, innerscope_start: usize) -> String {
