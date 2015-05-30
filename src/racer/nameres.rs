@@ -18,46 +18,34 @@ pub const PATH_SEP: &'static str = ";";
 fn search_struct_fields(searchstr: &str, structmatch: &Match,
                         search_type: SearchType) -> vec::IntoIter<Match> {
     let src = racer::load_file(&structmatch.filepath);
-    let opoint = scopes::find_stmt_start(&*src, structmatch.point);
-    let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
+    let opoint = scopes::find_stmt_start(&*src, structmatch.point).unwrap();
+    let structsrc = scopes::end_of_next_scope(&src[opoint..]);
 
     ast::parse_struct_fields(structsrc.to_string(), racer::Scope::from_match(structmatch))
     .into_iter().filter_map(|(ref field, fpos, _)| 
         if symbol_matches(search_type, searchstr, &field) {
-            Some(Match { matchstr: field.to_string(),
-                    filepath: structmatch.filepath.to_path_buf(),
-                    point: fpos + opoint.unwrap(),
-                    local: structmatch.local,
-                    mtype: StructField,
-                    contextstr: field.to_string(),
-                    generic_args: Vec::new(), 
-                    generic_types: Vec::new()
-            })
+            Some(Match::new(field, &structmatch.filepath, fpos + opoint, 
+                            structmatch.local, StructField, field))
         } else { None }).collect::<Vec<_>>().into_iter()
 }
 
 pub fn search_for_impl_methods(implsearchstr: &str,
-                           fieldsearchstr: &str, point: usize,
-                           fpath: &Path, local: bool,
-                           search_type: SearchType) -> vec::IntoIter<Match> {
+                              fieldsearchstr: &str, point: usize,
+                              fpath: &Path, local: bool,
+                              search_type: SearchType) -> vec::IntoIter<Match> {
 
     debug!("searching for impl methods |{}| |{}| {:?}", implsearchstr, fieldsearchstr, fpath.to_str());
 
-    let mut out = Vec::new();
-
-    for m in search_for_impls(point, implsearchstr, fpath, local, true) {
+    search_for_impls(point, implsearchstr, fpath, local, true).flat_map(|m| {
         debug!("found impl!! |{:?}| looking for methods", m);
         let src = racer::load_file(&m.filepath);
 
         // find the opening brace and skip to it.
-        (&src[m.point..]).find("{").map(|n| {
+        (&src[m.point..]).find('{').map_or(Vec::new().into_iter(), |n| {
             let point = m.point + n + 1;
-            for m in search_scope_for_methods(point, &*src, fieldsearchstr, &m.filepath, search_type) {
-                out.push(m);
-            }
-        });
-    };
-    out.into_iter()
+            search_scope_for_methods(point, &*src, fieldsearchstr, &m.filepath, search_type)
+        })
+    }).collect::<Vec<_>>().into_iter()
 }
 
 fn search_scope_for_methods(point: usize, src:&str, searchstr:&str, filepath:&Path,
@@ -77,18 +65,9 @@ fn search_scope_for_methods(point: usize, src:&str, searchstr:&str, filepath:&Pa
             let end = find_ident_end(blob, start);
             let l = &blob[start..end];
             // TODO: make a better context string for functions
-            blob.find("{").map(|n| { // only matches if is a method implementation
-                let ctxt = &blob[..n -1];
-                let m = Match {
-                           matchstr: l.to_string(),
-                           filepath: filepath.to_path_buf(),
-                           point: point + blobstart + start,
-                           local: true,
-                           mtype: Function,
-                           contextstr: ctxt.to_string(),
-                           generic_args: Vec::new(), generic_types: Vec::new()
-                };
-                out.push(m);
+            blob.find('{').map(|n| { // only matches if is a method implementation
+                out.push(Match::new(l, filepath, point + blobstart + start, 
+                                    true, Function, &blob[..n -1]));
             });
         }
     }
@@ -96,7 +75,8 @@ fn search_scope_for_methods(point: usize, src:&str, searchstr:&str, filepath:&Pa
 }
 
 
-pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: bool, include_traits: bool) -> vec::IntoIter<Match> {
+pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: bool, 
+                        include_traits: bool) -> vec::IntoIter<Match> {
     debug!("search_for_impls {}, {}, {:?}", pos, searchstr, filepath.to_str());
     let s = racer::load_file(filepath);
     let src = &s[pos..];
@@ -106,26 +86,17 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
         let blob = &src[start..end];
 
         if blob.starts_with("impl") {
-            blob.find("{").map(|n| {
+            blob.find('{').map(|n| {
                 let mut decl = (&blob[..n+1]).to_string();
-                decl.push_str("}");
+                decl.push('}');
                 if txt_matches(ExactMatch, searchstr, &decl) {
                     debug!("impl decl {}", decl);
                     let implres = ast::parse_impl(decl);
 
                     implres.name_path.map(|name_path| {
                         name_path.segments.last().map(|name| {
-                            let m = Match {
-                                       matchstr: name.name.clone(),
-                                       filepath: filepath.to_path_buf(),
-                                       point: pos + start + 5,
-                                       local: local,
-                                       mtype: Impl,
-                                       contextstr: "".to_string(),
-                                       generic_args: Vec::new(),
-                                       generic_types: Vec::new()
-                            };
-                            out.push(m);
+                            out.push(Match::new(&name.name.clone(), filepath, 
+                                                pos + start + 5, local, Impl, ""));
                         });
                     });
 
@@ -211,16 +182,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: &str, searchstr: 
                 let s = &msrc[start..end];
 
                 if symbol_matches(search_type, searchstr, s) {
-                    out.push(Match {
-                                    matchstr: s.to_string(),
-                                    filepath: filepath.to_path_buf(),
-                                    point: start,
-                                    local: local,
-                                    mtype: MatchArm,
-                                    contextstr: lhs.trim().to_string(),
-                                    generic_args: Vec::new(),
-                                    generic_types: Vec::new()
-                    });
+                    out.push(Match::new(s, filepath, start, local, MatchArm, lhs.trim()));
                     if let SearchType::ExactMatch = search_type {
                         break;
                     }
@@ -267,16 +229,8 @@ fn search_fn_args(fnstart: usize, open_brace_pos: usize, msrc:&str, searchstr:&s
             debug!("search_fn_args: arg str is |{}|", s);
 
             if symbol_matches(search_type, searchstr, s) {
-                let m = Match {
-                                matchstr: s.to_string(),
-                                filepath: filepath.to_path_buf(),
-                                point: fnstart + start - impl_header_len,
-                                local: local,
-                                mtype: FnArg,
-                                contextstr: s.to_string(),
-                                generic_args: Vec::new(),
-                                generic_types: Vec::new()
-                };
+                let m = Match::new(s, filepath, fnstart + start - impl_header_len, 
+                                   local, FnArg, s);
                 debug!("search_fn_args matched: {:?}", m);
                 out.push(m);
             }
@@ -308,17 +262,8 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                     if fname.starts_with(&format!("lib{}", searchstr)) {
                         let filepath = fpath_buf.deref().join("lib.rs");
                         if File::open(&filepath).is_ok() {
-                            let m = Match {
-                                           matchstr: (&fname[3..]).to_string(),
-                                           filepath: filepath.to_path_buf(),
-                                           point: 0,
-                                           local: false,
-                                           mtype: Module,
-                                           contextstr: (&fname[3..]).to_string(),
-                                           generic_args: Vec::new(),
-                                           generic_types: Vec::new()
-                            };
-                            out.push(m);
+                            out.push(Match::new(&fname[3..], filepath, 0, false, 
+                                                Module, &fname[3..]));
                         }
                     }
 
@@ -328,67 +273,32 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                             let filepath = fpath_buf.deref().join(format!("{}.rs", fname));
 
                             if File::open(&filepath).is_ok() {
-                                let m = Match {
-                                               matchstr: fname.to_string(),
-                                               filepath: filepath.to_path_buf(),
-                                               point: 0,
-                                               local: false,
-                                               mtype: Module,
-                                               contextstr: filepath.to_str().unwrap().to_string(),
-                                               generic_args: Vec::new(),
-                                               generic_types: Vec::new()
-                                };
-                                out.push(m);
+                                let ctxt = filepath.to_str().unwrap();
+                                out.push(Match::new(fname, &filepath, 0, false, Module, ctxt));
                             }
                         }
                         {
                             // try <name>/mod.rs
                             let filepath = fpath_buf.deref().join("mod.rs");
                             if File::open(&filepath).is_ok() {
-                                let m = Match {
-                                               matchstr: fname.to_string(),
-                                               filepath: filepath.to_path_buf(),
-                                               point: 0,
-                                               local: false,
-                                               mtype: Module,
-                                               contextstr: filepath.to_str().unwrap().to_string(),
-                                               generic_args: Vec::new(),
-                                               generic_types: Vec::new()
-                                };
-                                out.push(m);
+                                let ctxt = filepath.to_str().unwrap();
+                                out.push(Match::new(fname, &filepath, 0, false, Module, ctxt));
                             }
                         }
                         {
                             // try <name>/lib.rs
                             let filepath = Path::new(srcpath).join("lib.rs");
                             if File::open(&filepath).is_ok() {
-                                let m = Match {
-                                               matchstr: fname.to_string(),
-                                               filepath: filepath.to_path_buf(),
-                                               point: 0,
-                                               local: false,
-                                               mtype: Module,
-                                               contextstr: filepath.to_str().unwrap().to_string(),
-                                               generic_args: Vec::new(),
-                                               generic_types: Vec::new()
-                                };
-                                out.push(m);
+                                let ctxt = filepath.to_str().unwrap();
+                                out.push(Match::new(fname, &filepath, 0, false, Module, ctxt));
                             }
                         }
                         {
                             // try just <name>.rs
                             if fname.ends_with(".rs") {
-                                let m = Match {
-                                               matchstr: (&fname[..(fname.len()-3)]).to_string(),
-                                               filepath: fpath_buf.clone(),
-                                               point: 0,
-                                               local: false,
-                                               mtype: Module,
-                                               contextstr: fpath_buf.deref().to_str().unwrap().to_string(),
-                                               generic_args: Vec::new(),
-                                               generic_types: Vec::new()
-                                };
-                                out.push(m);
+                                out.push(Match::new(&fname[..(fname.len()-3)], 
+                                                    &fpath_buf, 0, false, Module, 
+                                                    fpath_buf.deref().to_str().unwrap()));
                             }
                         }
                     }
@@ -765,17 +675,8 @@ pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: usize,
 
         str_match.map(|str_match| {
             debug!("found Str, converting to str");
-            let m = Match {
-                           matchstr: "str".to_string(),
-                           filepath: str_match.filepath.to_path_buf(),
-                           point: str_match.point,
-                           local: false,
-                           mtype: Struct,
-                           contextstr: "str".to_string(),
-                           generic_args: Vec::new(),
-                           generic_types: Vec::new()
-            };
-            out.push(m);
+            out.push(Match::new("str", str_match.filepath, str_match.point, 
+                                false, Struct, "str"));
         });
     } else {
         for m in resolve_path(path, filepath, pos, search_type, namespace) {
@@ -825,16 +726,9 @@ pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: usize,
     };
 
     if is_std {
-        if let Some(crate_path) = get_crate_file("std", filepath) {
-            out.push(Match { 
-                        matchstr: "std".to_string(),
-                        filepath: crate_path.to_path_buf(),
-                        point: 0,
-                        local: false,
-                        mtype: Module,
-                        contextstr: crate_path.to_str().unwrap().to_string(),
-                        generic_args: Vec::new(), 
-                        generic_types: Vec::new() });
+        if let Some(ref crate_path) = get_crate_file("std", filepath) {
+            let ctxt = crate_path.to_str().unwrap();
+            out.push(Match::new("std", crate_path, 0, false, Module, ctxt));
             if let ExactMatch = search_type {
                 return out.into_iter();
             }
@@ -975,16 +869,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize,
                                        false, namespace).collect::<Vec<_>>();
 
         get_module_file(searchstr, &filepath.parent().unwrap()).map(|path| {
-            out.push(Match {
-                           matchstr: searchstr.to_string(),
-                           filepath: path.to_path_buf(),
-                           point: 0,
-                           local: false,
-                           mtype: Module,
-                           contextstr: path.to_str().unwrap().to_string(),
-                           generic_args: Vec::new(),
-                           generic_types: Vec::new()
-                       });
+            out.push(Match::new(searchstr, &path, 0, false, Module, path.to_str().unwrap()));
         });
         out.into_iter()
 

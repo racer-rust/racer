@@ -79,6 +79,21 @@ pub struct Match {
 
 
 impl Match {
+
+    fn new<P: AsRef<path::Path>>(matchstr: &str, path: P, point: usize, 
+           local: bool, mtype: MatchType, context: &str) -> Match {
+        Match {
+            matchstr: matchstr.to_owned(),
+            filepath: path.as_ref().to_owned(),
+            point: point,
+            local: local,
+            mtype: mtype,
+            contextstr: context.to_owned(),
+            generic_args: Vec::new(),
+            generic_types: Vec::new()
+        }
+    }
+
     fn with_generic_types(&self, generic_types: Vec<PathSearch>) -> Match {
         Match {
             matchstr: self.matchstr.clone(),
