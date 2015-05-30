@@ -355,11 +355,12 @@ pub fn search_next_scope(mut startpoint: usize, pathseg: &racer::PathSegment,
         let src = &filesrc[startpoint..];
         //debug!("search_next_scope src1 |{}|",src);
         // find the opening brace and skip to it.
-        src.find("{").map(|n| {
+        src.find('{').map(|n| {
             startpoint = startpoint + n + 1;
         });
     }
-    search_scope(startpoint, startpoint, &*filesrc, pathseg, filepath, search_type, local, namespace)
+    search_scope(startpoint, startpoint, &*filesrc, pathseg, filepath, 
+                 search_type, local, namespace)
 }
 
 pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
@@ -368,26 +369,19 @@ pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
         return Some(p);
     }
 
+    let filenames = [&*format!("lib{}", name), name];
     let srcpaths = std::env::var("RUST_SRC_PATH").unwrap();
-    let v = (&srcpaths).split(PATH_SEP).collect::<Vec<_>>();
-    for srcpath in v.into_iter() {
-        {
-            // try lib<name>/lib.rs, like in the rust source dir
-            let cratelibname = format!("lib{}", name);
-            let filepath = Path::new(srcpath).join(cratelibname).join("lib.rs");
+
+    (&srcpaths).split(PATH_SEP).into_iter().map(|srcpath| {
+        filenames.into_iter().filter_map(|path| {
+            let filepath = Path::new(srcpath).join(path).join("lib.rs");
             if File::open(&filepath).is_ok() {
-                return Some(filepath.to_path_buf());
+                Some(filepath.to_path_buf())
+            } else {
+                None
             }
-        }
-        {
-            // try <name>/lib.rs
-            let filepath = Path::new(srcpath).join(name).join("lib.rs");
-            if File::open(&filepath).is_ok() {
-                return Some(filepath.to_path_buf());
-            }
-        }
-    }
-    None
+        }).next()
+    }).next().unwrap_or(None)
 }
 
 pub fn get_module_file(name: &str, parentdir: &Path) -> Option<PathBuf> {
