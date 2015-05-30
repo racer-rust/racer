@@ -224,30 +224,26 @@ fn does_it() {
 fn search_fn_args(fnstart: usize, open_brace_pos: usize, msrc:&str, searchstr:&str,
                    filepath:&Path,
                    search_type: SearchType, local: bool) -> vec::IntoIter<Match> {
-    let mut out = Vec::new();
     let mut fndecl = String::new();
     // wrap in 'impl blah {}' so that methods get parsed correctly too
     fndecl.push_str("impl blah {");
     let impl_header_len = fndecl.len();
-    fndecl.push_str(&msrc[fnstart..(open_brace_pos+1)]);
+    fndecl.push_str(&msrc[fnstart..(open_brace_pos + 1)]);
     fndecl.push_str("}}");
     debug!("search_fn_args: found start of fn!! {} |{}| {}", fnstart, fndecl, searchstr);
     if txt_matches(search_type, searchstr, &fndecl) {
-        let coords = ast::parse_fn_args(fndecl.clone());
-
-        for &(start,end) in coords.iter() {
+        ast::parse_fn_args(fndecl.clone()).into_iter().filter_map(|(start, end)| {
             let s = &fndecl[start..end];
             debug!("search_fn_args: arg str is |{}|", s);
-
             if symbol_matches(search_type, searchstr, s) {
-                let m = Match::new(s, filepath, fnstart + start - impl_header_len, 
-                                   local, FnArg, s);
-                debug!("search_fn_args matched: {:?}", m);
-                out.push(m);
+                Some(Match::new(s, filepath, start + fnstart - impl_header_len, local, FnArg, s))
+            } else {
+                None
             }
-        }
+        }).collect::<Vec<_>>().into_iter()
+    } else {
+        Vec::new().into_iter()
     }
-    out.into_iter()
 }
 
 pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match> {
@@ -260,62 +256,45 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
     v.push(currentdir.to_str().unwrap());
     debug!("do_file_search v is {:?}", v);
     for srcpath in v.into_iter() {
-        match std::fs::read_dir(&Path::new(srcpath)) {
-            Ok(iter) => {
-                let mut v = Vec::new();
-                for dir_entry_result in iter {
-                    if let Ok(dir_entry) = dir_entry_result {
-                        v.push(dir_entry.path());
+        if let Ok(iter) = std::fs::read_dir(&Path::new(srcpath)) {
+
+            let files = iter.filter_map(|dir_entry_result|
+                if let Ok(dir_entry) = dir_entry_result {
+                    Some(dir_entry.path())
+                } else { None });
+
+            for fpath_buf in files {
+                let fname = fpath_buf.deref().file_name().unwrap().to_str().unwrap();
+                if fname.starts_with(&format!("lib{}", searchstr)) {
+                    let filepath = fpath_buf.deref().join("lib.rs");
+                    if File::open(&filepath).is_ok() {
+                        out.push(Match::new(&fname[3..], filepath, 0, false, 
+                                            Module, &fname[3..]));
                     }
-                }
-                for fpath_buf in v.iter() {
-                    let fname = fpath_buf.deref().file_name().unwrap().to_str().unwrap();
-                    if fname.starts_with(&format!("lib{}", searchstr)) {
-                        let filepath = fpath_buf.deref().join("lib.rs");
+                } else if fname.starts_with(searchstr) {
+                    
+                    // try <name>/<name>.rs, like in the servo codebase
+                    // try <name>/mod.rs
+                    // try <name>/lib.rs
+                    out.extend([&*format!("{}.rs", fname), "mod.rs", "lib.rs"].into_iter()
+                    .filter_map(|f| {
+                        let filepath = fpath_buf.deref().join(f);
                         if File::open(&filepath).is_ok() {
-                            out.push(Match::new(&fname[3..], filepath, 0, false, 
-                                                Module, &fname[3..]));
+                            let ctxt = filepath.to_str().unwrap();
+                            Some(Match::new(fname, &filepath, 0, false, Module, ctxt))
+                        } else {
+                            None
                         }
-                    }
+                    }));
 
-                    if fname.starts_with(searchstr) {
-                        {
-                            // try <name>/<name>.rs, like in the servo codebase
-                            let filepath = fpath_buf.deref().join(format!("{}.rs", fname));
-
-                            if File::open(&filepath).is_ok() {
-                                let ctxt = filepath.to_str().unwrap();
-                                out.push(Match::new(fname, &filepath, 0, false, Module, ctxt));
-                            }
-                        }
-                        {
-                            // try <name>/mod.rs
-                            let filepath = fpath_buf.deref().join("mod.rs");
-                            if File::open(&filepath).is_ok() {
-                                let ctxt = filepath.to_str().unwrap();
-                                out.push(Match::new(fname, &filepath, 0, false, Module, ctxt));
-                            }
-                        }
-                        {
-                            // try <name>/lib.rs
-                            let filepath = Path::new(srcpath).join("lib.rs");
-                            if File::open(&filepath).is_ok() {
-                                let ctxt = filepath.to_str().unwrap();
-                                out.push(Match::new(fname, &filepath, 0, false, Module, ctxt));
-                            }
-                        }
-                        {
-                            // try just <name>.rs
-                            if fname.ends_with(".rs") {
-                                out.push(Match::new(&fname[..(fname.len()-3)], 
-                                                    &fpath_buf, 0, false, Module, 
-                                                    fpath_buf.deref().to_str().unwrap()));
-                            }
-                        }
+                    // try just <name>.rs
+                    if fname.ends_with(".rs") {
+                        out.push(Match::new(&fname[..(fname.len()-3)], 
+                                            &fpath_buf, 0, false, Module, 
+                                            fpath_buf.deref().to_str().unwrap()));
                     }
                 }
             }
-            Err(_) => ()
         }
     }
     out.into_iter()
