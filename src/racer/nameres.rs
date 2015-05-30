@@ -272,12 +272,12 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                                             Module, &fname[3..]));
                     }
                 } else if fname.starts_with(searchstr) {
-                    
+
                     // try <name>/<name>.rs, like in the servo codebase
                     // try <name>/mod.rs
                     // try <name>/lib.rs
-                    out.extend([&*format!("{}.rs", fname), "mod.rs", "lib.rs"].into_iter()
-                    .filter_map(|f| {
+                    out.extend([&*format!("{}.rs", fname), "mod.rs", "lib.rs"]
+                               .into_iter().filter_map(|f| {
                         let filepath = fpath_buf.deref().join(f);
                         if File::open(&filepath).is_ok() {
                             let ctxt = filepath.to_str().unwrap();
@@ -305,21 +305,18 @@ pub fn search_crate_root(pathseg: &racer::PathSegment, modfpath: &Path,
     debug!("search_crate_root |{:?}| {:?}", pathseg, modfpath.to_str());
 
     let crateroots = find_possible_crate_root_modules(&modfpath.parent().unwrap());
-    let mut out = Vec::new();
-    for crateroot in crateroots.iter() {
-        if crateroot.deref() == modfpath {
-            continue;
-        }
-        debug!("going to search for {:?} in crateroot {:?}", pathseg, crateroot.to_str());
-        for m in resolve_name(pathseg, crateroot, 0, searchtype, namespace) {
-            out.push(m);
-            if let ExactMatch = searchtype {
-                break;
-            }
-        }
-        break
+
+    let mut matches = crateroots.into_iter()
+        .find(|crateroot| crateroot.deref() != modfpath)
+        .map_or(Vec::new().into_iter(), |ref crateroot| {
+            debug!("going to search for {:?} in crateroot {:?}", pathseg, crateroot.to_str());
+            resolve_name(pathseg, crateroot, 0, searchtype, namespace)
+        });
+
+    match searchtype {
+        ExactMatch => matches.next().map_or(Vec::new().into_iter(), |m| vec![m].into_iter()),
+        StartsWith => matches
     }
-    out.into_iter()
 }
 
 pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<PathBuf> {
