@@ -320,33 +320,29 @@ pub fn search_crate_root(pathseg: &racer::PathSegment, modfpath: &Path,
 }
 
 pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<PathBuf> {
-    let mut res = Vec::new();
+    
+    let filenames = ["lib.rs", "main.rs"];
+    let mut files = filenames.into_iter().filter_map(|f| {        
+        let filepath = currentdir.join(f);
+        if File::open(&filepath).is_ok() {
+            Some(filepath.to_owned())
+        } else {
+            None
+        }
+    });
 
-    {
-        let filepath = currentdir.join("lib.rs");
-        if File::open(&filepath).is_ok() {
-            res.push(filepath.to_path_buf());
-            return res;   // for now stop at the first match
-        }
-    }
-    {
-        let filepath = currentdir.join("main.rs");
-        if File::open(&filepath).is_ok() {
-            res.push(filepath.to_path_buf());
-            return res;   // for now stop at the first match
-        }
-    }
-    {
-        // recurse up the directory structure
-        if let Some(parentdir) = currentdir.parent() {
-            if parentdir != currentdir {
-                // PD: this was using the vec.push_all() api, but that is now unstable
-                res.extend(find_possible_crate_root_modules(&parentdir).iter().cloned());
-                return res;   // for now stop at the first match
+    match files.next() {
+        Some(f) => vec![f], // for now stop at the first match
+        None => {
+            if let Some(parentdir) = currentdir.parent() {
+                if parentdir != currentdir {
+                    // for now stop at the first match so we can return directly
+                    return find_possible_crate_root_modules(&parentdir);
+                }
             }
+            Vec::new()
         }
     }
-    res
 }
 
 pub fn search_next_scope(mut startpoint: usize, pathseg: &racer::PathSegment,
