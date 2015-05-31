@@ -80,3 +80,11 @@
 3. In insert mode use C-x-C-o to search for completions
 
 4. In normal mode type 'gd' to go to a definition
+
+## Kate integration
+
+The Kate community maintains a [plugin](http://quickgit.kde.org/?p=kate.git&a=tree&&f=addons%2Frustcompletion). It will be bundled with future releases of Kate (read more [here](https://blogs.kde.org/2015/05/22/updates-kates-rust-plugin-syntax-highlighting-and-rust-source-mime-type)).
+
+1. Enable 'Rust code completion' in the plugin list in the Kate config dialog
+
+2. On the new 'Rust code completion' dialog page, make sure 'Racer command' and 'Rust source tree location' are set correctly
