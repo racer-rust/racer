@@ -4,6 +4,7 @@
 
 extern crate syntex_syntax;
 extern crate toml;
+extern crate env_logger;
 
 #[cfg(not(test))]
 use racer::Match;
@@ -169,13 +170,8 @@ fn check_rust_src_env_var() {
 
 #[cfg(not(test))]
 fn main() {
+    env_logger::init().unwrap();
     check_rust_src_env_var();
-
-    // PD: for now install a simple logger
-    log::set_logger(|max_log_level| {
-        max_log_level.set(log::LogLevelFilter::Warn);
-        Box::new(racer::ghetto_logger::SimpleLogger)
-    }).unwrap();
 
     let args: Vec<String> = std::env::args().collect();
 

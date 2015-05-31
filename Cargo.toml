@@ -17,6 +17,7 @@ debug = true
 log = "*"
 syntex_syntax = "*"
 toml = "*"
+env_logger = "*"
 
 [features]
 nightly = []
