@@ -566,14 +566,10 @@ pub fn search_scope(start: usize, point: usize, src: &str,
 
     // search backwards from point for let bindings
     for &(blobstart, blobend) in v.iter().rev() {
-        if blobend >= point {
+        if (start+blobend) >= point {
             continue;
         }
 
-        // for m in matchers::match_let_bindings(src, start+blobstart,
-        //                                       start+blobend,
-        //                                       searchstr,
-        //                                       filepath, search_type, local) {
         for m in matchers::match_let(src, start+blobstart,
                                      start+blobend,
                                      searchstr,
