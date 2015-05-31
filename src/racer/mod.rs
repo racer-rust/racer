@@ -219,7 +219,11 @@ impl fmt::Debug for PathSearch {
 
 pub fn load_file(filepath: &path::Path) -> String {
     let mut rawbytes = Vec::new();
-    BufReader::new(File::open(filepath).unwrap()).read_to_end(&mut rawbytes).unwrap();
+    if let Ok(f) = File::open(filepath) {
+        BufReader::new(f).read_to_end(&mut rawbytes).unwrap();
+    } else {
+        return "".to_string();
+    }
 
     // skip BOF bytes, if present
     if rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
