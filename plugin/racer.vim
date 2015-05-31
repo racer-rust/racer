@@ -135,7 +135,7 @@ endfunction
 function! RacerJumpToLocation(filename, linenum, colnum)
     if(a:filename != '')
         if a:filename != bufname('%')
-            exec 'e ' . fnameescape(a:filename)
+            exec 'vsp ' . fnameescape(a:filename)
         endif
         normal! m`
         call cursor(a:linenum, a:colnum+1)
