@@ -2,7 +2,6 @@ use racer::codecleaner::{code_chunks, CodeIndicesIter};
 
 #[cfg(test)] use racer::testutils::{rejustify, slice};
 
-#[derive(Clone,Copy)]
 pub struct StmtIndicesIter<'a> {
     src: &'a str,
     it: CodeIndicesIter<'a>,
@@ -21,7 +20,7 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
         let mut parenlevel = 0i32;
         let mut start = self.pos;
 
-        // loop on all code_chuncks until we find a relevant open/close pattern
+        // loop on all code_chunks until we find a relevant open/close pattern
         loop {
             // do we need the next chunk?
             if self.end == self.pos {
@@ -35,7 +34,7 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
                     None => {
                         // no more chunks. finished
                         return if start < self.end { Some((start, self.end)) }
-                        else { None }
+                               else { None }
                     }
                 }
             }
@@ -113,7 +112,6 @@ fn is_a_use_stmt(src: &str, start: usize, pos: usize) -> bool {
 pub fn iter_stmts<'a>(src: &'a str) -> StmtIndicesIter<'a> {
     StmtIndicesIter{ src: src, it: code_chunks(src), pos: 0, end: 0 }
 }
-
 
 #[test]
 fn iterates_single_use_stmts() {
