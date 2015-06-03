@@ -526,46 +526,35 @@ pub fn search_scope(start: usize, point: usize, src: &str,
 fn run_matchers_on_blob(src: &str, start: usize, end: usize, searchstr: &str,
                          filepath: &Path, search_type: SearchType, local: bool,
                          namespace: Namespace) -> Vec<Match> {
-    let mut out = Vec::new();
+
     match namespace {
-        TypeNamespace =>
-            for m in matchers::match_types(src, start,
-                                           end, searchstr,
-                                           filepath, search_type, local) {
-                out.push(m);
-                if let ExactMatch = search_type {
-                    return out;
-                }
-            },
-        ValueNamespace =>
-            for m in matchers::match_values(src, start,
-                                            end, searchstr,
-                                            filepath, search_type, local) {
-                out.push(m);
-                if let ExactMatch = search_type {
-                    return out;
-                }
-            },
-        BothNamespaces => {
-            for m in matchers::match_types(src, start,
-                                           end, searchstr,
-                                           filepath, search_type, local) {
-                out.push(m);
-                if let ExactMatch = search_type {
-                    return out;
-                }
+        TypeNamespace => {
+            let mut ms = matchers::match_types(src, start, end, searchstr,
+                                               filepath, search_type, local);
+            match search_type {
+                ExactMatch => ms.next().map_or(Vec::new(), |m| vec![m]),
+                StartsWith => ms.collect::<Vec<_>>()
+            }            
+        },
+        ValueNamespace => {
+            let mut ms = matchers::match_values(src, start, end, searchstr,
+                                                filepath, search_type, local);
+            match search_type {
+                ExactMatch => ms.next().map_or(Vec::new(), |m| vec![m]),
+                StartsWith => ms.collect::<Vec<_>>()
             }
-            for m in matchers::match_values(src, start,
-                                            end, searchstr,
-                                            filepath, search_type, local) {
-                out.push(m);
-                if let ExactMatch = search_type {
-                    return out;
-                }
+        },
+        BothNamespaces => {
+            let mut ms = matchers::match_types(src, start, end, searchstr,
+                                               filepath, search_type, local)
+                     .chain(matchers::match_values(src, start, end, searchstr,
+                                                   filepath, search_type, local));
+            match search_type {
+                ExactMatch => ms.next().map_or(Vec::new(), |m| vec![m]),
+                StartsWith => ms.collect::<Vec<_>>()
             }
         }
     }
-    out
 }
 
 fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path,
