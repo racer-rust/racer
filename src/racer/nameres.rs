@@ -592,7 +592,7 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path,
             start -= 1;
 
             // scope headers = fn decls, if let, match, etc..
-            scopes = search_scope_headers(point, start, msrc, pathseg.name, filepath, 
+            scopes = search_scope_headers(point, start, msrc, &pathseg.name, filepath, 
                                           search_type, is_local);
             match search_type {
                 ExactMatch => {
@@ -612,27 +612,20 @@ pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType
     debug!("search_prelude file {:?} {:?} {:?}", pathseg, search_type, namespace);
 //    debug!("PHIL searching prelude file, backtrace: {}",util::get_backtrace());
 
-    let mut out : Vec<Match> = Vec::new();
-
     // find the prelude file from the search path and scan it
     let srcpaths = match std::env::var("RUST_SRC_PATH") {
         Ok(paths) => paths,
-        Err(_) => return out.into_iter()
+        Err(_) => return Vec::new().into_iter()
     };
 
-    let v = srcpaths.split(PATH_SEP).collect::<Vec<_>>();
-
-    for srcpath in v.into_iter() {
+    srcpaths.split(PATH_SEP).filter_map(|srcpath| {
         let filepath = Path::new(srcpath).join("libstd").join("prelude").join("v1.rs");
-        if File::open(&filepath).is_ok() {
-            let msrc = racer::load_file_and_mask_comments(&filepath);
-            let is_local = true;
-            for m in search_scope(0, 0, &msrc, pathseg, &filepath, search_type, is_local, namespace) {
-                out.push(m);
-            }
-        }
-    }
-    out.into_iter()
+        if File::open(&filepath).is_ok() { Some(filepath) } else { None} 
+    }).flat_map(|filepath| {
+        let msrc = racer::load_file_and_mask_comments(&filepath);
+        let is_local = true;
+        search_scope(0, 0, &msrc, pathseg, &filepath, search_type, is_local, namespace)
+    }).collect::<Vec<_>>().into_iter()
 }
 
 pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: usize,
