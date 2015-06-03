@@ -10,7 +10,7 @@ dependencies = [
 
 [[package]]
 name = "bitflags"
-version = "0.1.1"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -48,12 +48,12 @@ name = "regex"
 version = "0.1.33"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "regex-syntax 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "regex-syntax 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "regex-syntax"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -66,7 +66,7 @@ name = "syntex_syntax"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "bitflags 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bitflags 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.1.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
