@@ -631,31 +631,28 @@ pub fn search_prelude_file(pathseg: &racer::PathSegment, search_type: SearchType
 pub fn resolve_path_with_str(path: &racer::Path, filepath: &Path, pos: usize,
                              search_type: SearchType, namespace: Namespace) 
         -> vec::IntoIter<Match> {
+
     debug!("resolve_path_with_str {:?}", path);
 
-    let mut out = Vec::new();
-
     // HACK
-    if path.segments.len() == 1 && path.segments[0].name == "str" {
+    let mut matches = if path.segments.len() == 1 && path.segments[0].name == "str" {
         debug!("{:?} == {:?}", path.segments[0], "str");
         let str_pathseg = racer::PathSegment::new("Str");
-        let str_match = resolve_name(&str_pathseg, filepath, pos, ExactMatch, namespace).nth(0);
+        let str_match = resolve_name(&str_pathseg, filepath, pos, ExactMatch, namespace).next();
         debug!("str_match {:?}", str_match);
 
-        str_match.map(|str_match| {
+        str_match.map_or(Vec::new(), |str_match| {
             debug!("found Str, converting to str");
-            out.push(Match::new("str", str_match.filepath, str_match.point, 
-                                false, Struct, "str"));
-        });
+            vec![Match::new("str", str_match.filepath, str_match.point, false, Struct, "str")]
+        }).into_iter()
     } else {
-        for m in resolve_path(path, filepath, pos, search_type, namespace) {
-            out.push(m);
-            if let ExactMatch = search_type {
-                break;
-            }
-        }
+        resolve_path(path, filepath, pos, search_type, namespace)
+    };
+
+    match search_type {
+        ExactMatch => matches.next().map_or(Vec::new(), |m| vec![m]).into_iter(),
+        StartsWith => matches
     }
-    out.into_iter()
 }
 
 thread_local!(pub static SEARCH_STACK: Vec<Search> = Vec::new());
