@@ -566,31 +566,41 @@ fn search_local_scopes(pathseg: &racer::PathSegment, filepath: &Path,
     let is_local = true;
     if point == 0 {
         // search the whole file
-        return search_scope(0, 0, msrc, pathseg, filepath, search_type, is_local, namespace);
+        search_scope(0, 0, msrc, pathseg, filepath, search_type, is_local, namespace)
     } else {
         let mut out = Vec::new();
         let mut start = point;
         // search each parent scope in turn
         while start > 0 {
             start = scopes::scope_start(msrc, start);
-            for m in search_scope(start, point, msrc, pathseg, filepath, search_type, is_local, namespace) {
-                out.push(m);
-                if let ExactMatch = search_type {
-                    return out.into_iter();
-                }
+
+            let mut scopes = search_scope(start, point, msrc, pathseg, filepath, 
+                                          search_type, is_local, namespace);
+            match search_type {
+                ExactMatch => {
+                    if let Some(m) = scopes.next() {
+                        return vec![m].into_iter();
+                    }
+                },
+                StartsWith => out.extend(scopes)
             }
+
             if start == 0 {
                 break;
             }
-            start = start-1;
-            let searchstr = &pathseg.name;
+
+            start -= 1;
 
             // scope headers = fn decls, if let, match, etc..
-            for m in search_scope_headers(point, start, msrc, searchstr, filepath, search_type, is_local) {
-                out.push(m);
-                if let ExactMatch = search_type {
-                    return out.into_iter();
-                }
+            scopes = search_scope_headers(point, start, msrc, pathseg.name, filepath, 
+                                          search_type, is_local);
+            match search_type {
+                ExactMatch => {
+                    if let Some(m) = scopes.next() {
+                        return vec![m].into_iter();
+                    }
+                },
+                StartsWith => out.extend(scopes)
             }
         }
         out.into_iter()
