@@ -139,8 +139,8 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: &str, searchstr: 
                 for m in out.iter_mut() {
                     m.point += ifletstart;
                 }
-                out.into_iter()
-            } else { Vec::new().into_iter() }
+                out
+            } else { Vec::new() }
         } else if let Some(n) = util::find_last_str("match ", preblock) {
             // TODO: this code is crufty. refactor me!
             let matchstart = stmtstart + n;
@@ -190,18 +190,12 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: &str, searchstr: 
                 }
             });
             match search_type {
-                ExactMatch => {
-                    if let Some(m) = matches.next() {
-                        vec![m].into_iter()
-                    } else {
-                        Vec::new().into_iter()
-                    }
-                }
-                StartsWith => matches.collect::<Vec<_>>().into_iter()
+                ExactMatch => matches.next().map_or(Vec::new(), |m| vec![m]),
+                StartsWith => matches.collect::<Vec<_>>()
             }
         } else {
-           Vec::new().into_iter()
-        }
+           Vec::new()
+        }.into_iter()
     })
 
 }
