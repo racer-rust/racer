@@ -665,15 +665,7 @@ pub struct Search {
 }
 
 pub fn is_a_repeat_search(new_search: &Search) -> bool {
-    SEARCH_STACK.with(|v| {
-        for s in v.iter() {
-            if s == new_search {
-                debug!("is a repeat search {:?} Stack: {:?}", new_search, v);
-                return true;
-            }
-        }
-        false
-    })
+    SEARCH_STACK.with(|v| v.iter().any(|s| s == new_search))
 }
 
 pub fn resolve_name(pathseg: &racer::PathSegment, filepath: &Path, pos: usize,
