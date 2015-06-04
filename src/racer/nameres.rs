@@ -308,7 +308,7 @@ pub fn search_crate_root(pathseg: &racer::PathSegment, modfpath: &Path,
         });
 
     match searchtype {
-        ExactMatch => matches.next().map_or(Vec::new().into_iter(), |m| vec![m].into_iter()),
+        ExactMatch => matches.next().map_or(Vec::new(), |m| vec![m]).into_iter(),
         StartsWith => matches
     }
 }

@@ -32,28 +32,12 @@ pub fn with_error_checking_parse<F, T>(s: String, f: F) -> Option<T> where F: Fn
 
 // parse a string, return a stmt
 pub fn string_to_stmt(source_str: String) -> Option<P<ast::Stmt>> {
-    with_error_checking_parse(source_str, |p| {
-        use syntex_syntax::diagnostic::FatalError;
-        match p.parse_stmt_nopanic() {
-            Ok(p) => p,
-            Err(FatalError) => None
-        }
-    })
+    with_error_checking_parse(source_str, |p| p.parse_stmt_nopanic().unwrap_or(None))
 }
 
 // parse a string, return a crate.
-pub fn string_to_crate (source_str: String) -> Option<ast::Crate> {
-    with_error_checking_parse(source_str.clone(), |p| {
-        use std::result::Result::{Ok, Err};
-        use syntex_syntax::diagnostic::FatalError;
-        match p.parse_crate_mod() {
-            Ok(e) => Some(e),
-            Err(FatalError) => {
-                debug!("unable to parse crate. Returning None |{}|", source_str);
-                None
-            }
-        }
-    })
+pub fn string_to_crate(source_str: String) -> Option<ast::Crate> {
+    with_error_checking_parse(source_str.clone(), |p| p.parse_crate_mod().ok())
 }
 
 
