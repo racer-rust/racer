@@ -104,15 +104,12 @@ impl<'v> visit::Visitor<'v> for LetVisitor {
     }
 
     fn visit_pat(&mut self, p: &'v ast::Pat) {
-        match p.node {
-            ast::PatIdent(_ , ref spannedident, _) => {
-                let codemap::BytePos(lo) = spannedident.span.lo;
-                let codemap::BytePos(hi) = spannedident.span.hi;
-                self.ident_points.push((lo as usize, hi as usize));
-            }
-            _ => {
-                visit::walk_pat(self, p);
-            }
+        if let ast::PatIdent(_ , ref spannedident, _) = p.node {
+            let codemap::BytePos(lo) = spannedident.span.lo;
+            let codemap::BytePos(hi) = spannedident.span.hi;
+            self.ident_points.push((lo as usize, hi as usize));
+        } else {
+            visit::walk_pat(self, p);
         }
     }
 }

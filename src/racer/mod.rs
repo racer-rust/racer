@@ -18,7 +18,7 @@ pub mod cargo;
 #[cfg(test)] pub mod test;
 #[cfg(test)] pub mod bench;
 
-#[derive(Debug,Clone,PartialEq)]
+#[derive(Debug,Copy,Clone,PartialEq)]
 pub enum MatchType {
     Struct,
     Module,
@@ -38,32 +38,24 @@ pub enum MatchType {
     Static
 }
 
-impl Copy for MatchType {}
-
-#[derive(Debug,Clone)]
+#[derive(Debug,Copy,Clone)]
 pub enum SearchType {
     ExactMatch,
     StartsWith
 }
 
-impl Copy for SearchType {}
-
-#[derive(Debug,Clone)]
+#[derive(Debug,Copy,Clone)]
 pub enum Namespace {
     TypeNamespace,
     ValueNamespace,
     BothNamespaces
 }
 
-impl Copy for Namespace {}
-
-#[derive(Debug,Clone)]
+#[derive(Debug,Copy,Clone)]
 pub enum CompletionType {
     CompleteField,
     CompletePath
 }
-
-impl Copy for CompletionType {}
 
 #[derive(Clone)]
 pub struct Match {
@@ -77,14 +69,13 @@ pub struct Match {
     pub generic_types: Vec<PathSearch>  // generic types are evaluated lazily
 }
 
-
 impl Match {
 
-    fn new<P: AsRef<path::Path>>(matchstr: &str, path: P, point: usize, 
-           local: bool, mtype: MatchType, context: &str) -> Match {
+    fn new<P: Into<path::PathBuf>>(matchstr: &str, path: P, point: usize, local: bool, 
+                                   mtype: MatchType, context: &str) -> Match {
         Match {
             matchstr: matchstr.to_owned(),
-            filepath: path.as_ref().to_owned(),
+            filepath: path.into(),
             point: point,
             local: local,
             mtype: mtype,
@@ -163,20 +154,11 @@ impl Path {
         self.segments[self.segments.len()-1].types.iter()
     }
 
-    pub fn from_vec(global: bool, v: Vec<&str>) -> Path {
-        let segs = v
-            .iter()
-            .map(|x| PathSegment::new(x) )
-            .collect::<Vec<_>>();
-        Path{ global: global, segments: segs }
-    }
-
-    pub fn from_svec(global: bool, v: Vec<String>) -> Path {
-        let segs = v
-            .iter()
-            .map(|x| PathSegment{ name:x.clone(), types: Vec::new() })
-            .collect::<Vec<_>>();
-        Path{ global: global, segments: segs }
+    pub fn from_vec<S: Into<String>>(global: bool, v: Vec<S>) -> Path {
+        Path{ 
+            global: global, 
+            segments: v.into_iter().map(|x| PathSegment::new(x)).collect() 
+        }
     }
 }
 
@@ -217,8 +199,8 @@ pub struct PathSegment {
 }
 
 impl PathSegment {
-    fn new(name: &str) -> PathSegment {
-        PathSegment { name: name.to_owned(), types: Vec::new() }
+    fn new<S: Into<String>>(name: S) -> PathSegment {
+        PathSegment { name: name.into(), types: Vec::new() }
     }
 }
 
@@ -331,7 +313,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize) -> Option<
 
             let segs = v
                 .iter()
-                .map(|x| PathSegment::new(x) )
+                .map(|x| PathSegment::new(*x))
                 .collect::<Vec<_>>();
             let path = Path{ global: global, segments: segs };
 

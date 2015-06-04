@@ -716,7 +716,7 @@ pub fn get_super_scope(filepath: &Path, pos: usize) -> Option<racer::Scope> {
         Some(racer::Scope{ filepath: filepath.to_owned(), point: 0 })
     } else {
         path.pop();
-        let path = racer::Path::from_svec(false, path);
+        let path = racer::Path::from_vec(false, path);
         debug!("get_super_scope looking for local scope {:?}", path);
         resolve_path(&path, filepath, 0, SearchType::ExactMatch, Namespace::TypeNamespace)
             .next()
