@@ -244,12 +244,24 @@ pub fn load_file_and_mask_comments(filepath: &path::Path) -> String {
 
 pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize) -> vec::IntoIter<Match> {
     let start = scopes::get_start_of_search_expr(src, pos);
-    let expr = &src[start..pos];
-    let search_type = SearchType::StartsWith;
+    search_expressions(&src[start..pos], filepath, pos, SearchType::StartsWith)
+}
+
+pub fn find_definition(src: &str, filepath: &path::Path, pos: usize) -> Option<Match> {
+    find_definition_(src, filepath, pos)
+}
+
+pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize) -> Option<Match> {
+    let (start, end) = scopes::expand_search_expr(src, pos);
+    search_expressions(&src[start..end], filepath, pos, SearchType::ExactMatch).next()
+}
+
+
+fn search_expressions(expr: &str, filepath: &path::Path, pos: usize, search_type: SearchType)
+        -> vec::IntoIter<Match> {
 
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
-
-    debug!("{:?}: contextstr is |{}|, searchstr is |{}|", completetype, contextstr, searchstr);
+    debug!("search_expr_from_file for |{:?}| |{:?}| {:?}", contextstr, searchstr, completetype);
 
     match completetype {
         CompletionType::CompletePath => {
@@ -260,8 +272,10 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize) -> vec::
         },
         CompletionType::CompleteField => {
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
-            debug!("complete_from_file context is {:?}", context);
+            debug!("context is {:?}", context);
+
             context.map_or(Vec::new().into_iter(), |ty| {
+                // for now, just handle matches
                 if let Ty::TyMatch(m) = ty {
                     nameres::search_for_field_or_method(m, searchstr, search_type)
                 } else {
@@ -269,41 +283,5 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize) -> vec::
                 }
             })
         }
-    }
-}
-
-pub fn find_definition(src: &str, filepath: &path::Path, pos: usize) -> Option<Match> {
-    find_definition_(src, filepath, pos)
-}
-
-pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize) -> Option<Match> {
-    let (start, end) = scopes::expand_search_expr(src, pos);
-    let expr = &src[start..end];
-    let search_type = SearchType::ExactMatch;
-
-    let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
-
-    debug!("find_definition_ for |{:?}| |{:?}| {:?}", contextstr, searchstr, completetype);
-
-    match completetype {
-        CompletionType::CompletePath => {
-            let global = expr.starts_with("::"); // e.g. ::std::old_io::blah
-            let v = (if global { &expr[2..] } else { expr }).split("::").collect();
-            nameres::resolve_path(&Path::from_vec(global, v), filepath, pos,
-                                  search_type, Namespace::BothNamespaces).next()
-        },
-        CompletionType::CompleteField => {
-            let context = ast::get_type_of(contextstr.to_string(), filepath, pos);
-            debug!("context is {:?}", context);
-
-            context.and_then(|ty| {
-                // for now, just handle matches
-                if let Ty::TyMatch(m) = ty {
-                    nameres::search_for_field_or_method(m, searchstr, search_type).next()
-                } else {
-                    None
-                }
-            })
-        }
-    }
+    }     
 }
