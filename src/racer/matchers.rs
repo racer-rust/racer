@@ -80,16 +80,7 @@ fn match_pattern_start(src: &str, blobstart: usize, blobend: usize,
     if let Some(start) = find_keyword(blob, pattern, searchstr, search_type, local) {
         if let Some(end) = blob[start..].find(':') {
             let s = &blob[start..start+end].trim_right();
-            return Some(Match {
-                matchstr: s.to_string(),
-                filepath: filepath.to_path_buf(),
-                point: blobstart+start,
-                local: local,
-                mtype: mtype,
-                contextstr: first_line(blob),
-                generic_args: Vec::new(),
-                generic_types: Vec::new()
-            })
+            return Some(Match::new(s, filepath, blobstart+start, local, mtype, &first_line(blob)));
         }
     }
     None
@@ -120,15 +111,8 @@ fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
             let s = &blob[start..end];
             if symbol_matches(search_type, searchstr, s) {
                 debug!("match_pattern_let point is {}", blobstart + start);
-                out.push(Match { matchstr: s.to_string(),
-                                   filepath: filepath.to_path_buf(),
-                                   point: blobstart + start,
-                                   local: local,
-                                   mtype: mtype,
-                                   contextstr: first_line(blob),
-                                   generic_args: Vec::new(),
-                                   generic_types: Vec::new()
-                         });
+                out.push(Match::new(s, filepath, blobstart + start, local, 
+                                    mtype, &first_line(blob)));
                 if let ExactMatch = search_type {
                     break;
                 }
@@ -192,16 +176,8 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
                 } else {
                     name
                 };
-            get_crate_file(&realname, filepath).map(|cratepath| {
-                res = Some(Match { matchstr: name.clone(),
-                                  filepath: cratepath.to_path_buf(),
-                                  point: 0,
-                                  local: false,
-                                  mtype: Module,
-                                  contextstr: cratepath.to_str().unwrap().to_string(),
-                                  generic_args: Vec::new(),
-                                  generic_types: Vec::new()
-                });
+            get_crate_file(&realname, filepath).map(|ref cratepath| {
+                res = Some(Match::new(name, cratepath, 0, false, Module, cratepath.to_str().unwrap()));
             });
         }
     }
@@ -221,17 +197,8 @@ pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
 
         if blob.find('{').is_some() {
             debug!("found an inline module!");
-
-            return Some(Match {
-                matchstr: l.to_string(),
-                filepath: filepath.to_path_buf(),
-                point: blobstart + start,
-                local: false,
-                mtype: Module,
-                contextstr: filepath.to_str().unwrap().to_string(),
-                generic_args: Vec::new(),
-                generic_types: Vec::new()
-            })
+            return Some(Match::new(l, filepath, blobstart + start, false, Module, 
+                filepath.to_str().unwrap()));
         } else {
             // get internal module nesting
             // e.g. is this in an inline submodule?  mod foo{ mod bar; }
@@ -242,17 +209,9 @@ pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
             for s in internalpath {
                 searchdir.push(&s);
             }
-            if let Some(modpath) = get_module_file(l, &searchdir) {
-                return Some(Match {
-                    matchstr: l.to_string(),
-                    filepath: modpath.to_path_buf(),
-                    point: 0,
-                    local: false,
-                    mtype: Module,
-                    contextstr: modpath.to_str().unwrap().to_string(),
-                    generic_args: Vec::new(),
-                    generic_types: Vec::new()
-                })
+            if let Some(ref modpath) = get_module_file(l, &searchdir) {
+                return Some(Match::new(l, modpath, 0, false, Module, 
+                    modpath.to_str().unwrap()));
             }
         }
     }
@@ -275,17 +234,16 @@ pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize,
             .expect("Can't find end of struct header");
         // structs with no values need to end in ';', not '{}'
         let generics = ast::parse_generics(format!("{};", &blob[..end]));
-
         Some(Match {
-            matchstr: l.to_string(),
-            filepath: filepath.to_path_buf(),
+            matchstr: l.to_owned(),
+            filepath: filepath.to_owned(),
             point: blobstart + start,
             local: local,
             mtype: Struct,
             contextstr: first_line(blob),
             generic_args: generics.generic_args,
             generic_types: Vec::new()
-        })
+        })        
     } else {
         None
     }
@@ -301,16 +259,7 @@ pub fn match_type(msrc: &str, blobstart: usize, blobend: usize,
             StartsWith => &blob[start..find_ident_end(blob, start+searchstr.len())]
         };
         debug!("found!! a type {}", l);
-        Some(Match {
-            matchstr: l.to_string(),
-            filepath: filepath.to_path_buf(),
-            point: blobstart + start,
-            local: local,
-            mtype: Type,
-            contextstr: first_line(blob),
-            generic_args: Vec::new(),
-            generic_types: Vec::new()
-        })
+        Some(Match::new(l, filepath, blobstart + start, local, Type, &first_line(blob)))
     } else {
         None
     }
@@ -326,16 +275,7 @@ pub fn match_trait(msrc: &str, blobstart: usize, blobend: usize,
             StartsWith => &blob[start..find_ident_end(blob, start+searchstr.len())]
         };
         debug!("found!! a trait {}", l);
-        Some(Match {
-            matchstr: l.to_string(),
-            filepath: filepath.to_path_buf(),
-            point: blobstart + start,
-            local: local,
-            mtype: Trait,
-            contextstr: first_line(blob),
-            generic_args: Vec::new(),
-            generic_types: Vec::new()
-        })
+        Some(Match::new(l, filepath, blobstart + start, local, Trait, &first_line(blob)))
     } else {
         None
     }
@@ -353,17 +293,8 @@ pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize,
 
             for (name, offset) in parsed_enum.values.into_iter() {
                 if (&name).starts_with(searchstr) {
-                    let m = Match {
-                        matchstr: name.clone(),
-                        filepath: filepath.to_path_buf(),
-                        point: blobstart + offset,
-                        local: local,
-                        mtype: EnumVariant,
-                        contextstr: first_line(&blob[offset..]),
-                        generic_args: Vec::new(),
-                        generic_types: Vec::new()
-                    };
-                    out.push(m);
+                    out.push(Match::new(&name, filepath, blobstart + offset, local, 
+                                        EnumVariant, &first_line(&blob[offset..])));
                 }
             }
         }
@@ -385,10 +316,9 @@ pub fn match_enum(msrc: &str, blobstart: usize, blobend: usize,
         let end = blob.find('{').or(blob.find(';'))
             .expect("Can't find end of enum header");
         let generics = ast::parse_generics(format!("{}{{}}", &blob[..end]));
-
         Some(Match {
-            matchstr: l.to_string(),
-            filepath: filepath.to_path_buf(),
+            matchstr: l.to_owned(),
+            filepath: filepath.to_owned(),
             point: blobstart + start,
             local: local,
             mtype: Enum,
@@ -436,7 +366,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
             if follow_glob {
                 ALREADY_GLOBBING.with(|c| { c.set(Some(true)) });
 
-                let seg = PathSegment{ name: searchstr.to_string(), types: Vec::new() };
+                let seg = PathSegment::new(searchstr);
                 let mut path = basepath.clone();
                 path.segments.push(seg);
                 debug!("found a glob: now searching for {:?}", path);
@@ -512,16 +442,7 @@ pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize,
                 StartsWith => &blob[start..find_ident_end(blob, start+searchstr.len())]
             };
             debug!("found a fn {}", l);
-            Some(Match {
-                matchstr: l.to_string(),
-                filepath: filepath.to_path_buf(),
-                point: blobstart + start,
-                local: local,
-                mtype: Function,
-                contextstr: first_line(blob),
-                generic_args: Vec::new(),
-                generic_types: Vec::new()
-            })
+            Some(Match::new(l, filepath, blobstart + start, local, Function, &first_line(blob)))
         } else {
             None
         }
