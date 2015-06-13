@@ -185,20 +185,20 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
 
         debug!("found an extern crate: |{}|", blob);
 
-        let extern_crate;
-        if blob.contains("\"") {
-            // Annoyingly the extern crate can use a string literal for the
-            // real crate name (e.g. extern crate collections_core = "collections")
-            // so we need to get the source text without scrubbed strings
+        let extern_crate = 
+            if blob.contains("\"") {
+                // Annoyingly the extern crate can use a string literal for the
+                // real crate name (e.g. extern crate collections_core = "collections")
+                // so we need to get the source text without scrubbed strings
 
-            let rawsrc = racer::load_file(filepath);
-            let rawblob = &rawsrc[blobstart..blobend];
-            debug!("found an extern crate (unscrubbed): |{}|", rawblob);
+                let rawsrc = racer::load_file(filepath);
+                let rawblob = &rawsrc[blobstart..blobend];
+                debug!("found an extern crate (unscrubbed): |{}|", rawblob);
 
-            extern_crate = ast::parse_extern_crate(rawblob.to_string());
-        } else {
-            extern_crate = ast::parse_extern_crate(blob.to_string());
-        }
+                ast::parse_extern_crate(rawblob.to_string())
+            } else {
+                ast::parse_extern_crate(blob.to_string())
+            };
 
         if let Some(ref name) = extern_crate.name {
             debug!("extern crate {}", name);
