@@ -477,7 +477,7 @@ pub fn search_next_scope(mut startpoint: usize, pathseg: &racer::PathSegment,
 }
 
 pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
-    debug!("get_create_file {}", name);
+    debug!("get_crate_file {}", name);
     if let Some(p) = cargo::get_crate_file(name, from_path) {
         return Some(p);
     }

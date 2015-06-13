@@ -32,21 +32,24 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
 
     for item in t {
         if let &toml::Value::Table(ref t) = item {
-            if Some(&toml::Value::String(kratename.to_string())) == t.get("name") {
-                let version = otry!(getstr(t, "version"));
-                let source = otry!(getstr(t, "source"));
+            if let Some(&toml::Value::String(ref name)) = t.get("name") {
+                if name.replace("-", "_") == kratename {
+                    debug!("found matching crate {:?}", t);
+                    let version = otry!(getstr(t, "version"));
+                    let source = otry!(getstr(t, "source"));
 
-                if Some("registry") == source.split("+").nth(0) {
-                    return get_versioned_cratefile(kratename, &version);
-                } else if Some("git") == source.split("+").nth(0) {
-                    let sha1 = otry!(source.split("#").last());
-                    let mut d = otry!(get_cargo_rootdir());
-                    d.push("git");
-                    d.push("checkouts");
-                    d = otry!(find_git_src_dir(d, kratename, &sha1));
-                    d.push("src");
-                    d.push("lib.rs");
-                    return Some(d);
+                    if Some("registry") == source.split("+").nth(0) {
+                        return get_versioned_cratefile(name, &version);
+                    } else if Some("git") == source.split("+").nth(0) {
+                        let sha1 = otry!(source.split("#").last());
+                        let mut d = otry!(get_cargo_rootdir());
+                        d.push("git");
+                        d.push("checkouts");
+                        d = otry!(find_git_src_dir(d, name, &sha1));
+                        d.push("src");
+                        d.push("lib.rs");
+                        return Some(d);
+                    }
                 }
             }
         }
