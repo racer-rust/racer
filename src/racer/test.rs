@@ -1164,7 +1164,6 @@ fn issue_223() {
     assert_eq!(true, racer::util::path_exists(std::env::temp_dir()));
 }
 
-
 #[test]
 fn finds_unsafe_fn() {
     let src="
