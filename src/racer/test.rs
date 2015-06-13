@@ -1163,3 +1163,23 @@ fn doesnt_match_rhs_of_let_in_same_stmt() {
 fn issue_223() {
     assert_eq!(true, racer::util::path_exists(std::env::temp_dir()));
 }
+
+
+#[test]
+fn finds_unsafe_fn() {
+    let src="
+    unsafe fn foo() {}
+
+    fn bar() {
+        foo()
+    }
+    ";
+    write_file(&Path::new("src.rs"), src);
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 5, 9);
+    let got = find_definition(src, &path, pos).unwrap();
+    fs::remove_file(&path).unwrap();
+    assert_eq!(got.matchstr, "foo".to_string());
+    assert_eq!(got.point, 15);
+}
