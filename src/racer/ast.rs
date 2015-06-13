@@ -41,12 +41,12 @@ pub fn string_to_stmt(source_str: String) -> Option<P<ast::Stmt>> {
     })
 }
 
-// returm all possible combinaisons between underscore '_' and hyphen '-'
+// return all possible combinaisons between underscore '_' and hyphen '-'
 fn hyphen_and_underscore(v: &[&str]) -> Vec<String> {
     if v.len() == 1 { return vec![v[0].to_string()]; }
     hyphen_and_underscore(&v[1..]).into_iter()
     .flat_map(|s| vec![format!("{}-{}", v[0], &s), format!("{}_{}", v[0], &s)])
-    .collect::<Vec<_>>()
+    .collect()
 }
 
 // parse a string, return a crate.
@@ -54,10 +54,10 @@ pub fn string_to_crate (source_str: String) -> Option<ast::Crate> {
 
     let crate_names = hyphen_and_underscore(&source_str.split('_').collect::<Vec<_>>());
 
-    let mut krate = crate_names.into_iter().filter_map(|crate_name|
+    let mut krates = crate_names.into_iter().filter_map(|crate_name|
         with_error_checking_parse(crate_name.clone(), |p| p.parse_crate_mod().ok()));
 
-    match krate.next() {
+    match krates.next() {
         Some(k) => Some(k),
         None => {
             debug!("unable to parse crate. Returning None |{}|", source_str);
