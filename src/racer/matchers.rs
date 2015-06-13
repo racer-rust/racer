@@ -478,7 +478,6 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
         for path in use_item.paths.into_iter() {
             let len = path.segments.len();
 
-            // TODO: simplify this:
             if symbol_matches(search_type, searchstr, &*ident) { // i.e. 'use foo::bar as searchstr'
                 if len == 1 && path.segments[0].name == searchstr {
                     // is an exact match of a single use stmt.
@@ -494,14 +493,16 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                         }
                     }
                 }
-            } else if &*ident == "" {
-                // if searching for a symbol and the last bit matches the symbol
-                // then find the fqn
+            } else if &*ident == "" {   // i.e. no 'as'. e.g. 'use foo::{bar, baz}'
+                // if searching for a symbol and the last path segment 
+                // matches the symbol then find the fqn
                 if len == 1 && path.segments[0].name == searchstr {
                     // is an exact match of a single use stmt.
                     // Do nothing because this will be picked up by the module
                     // search in a bit.
-                } else if path.segments[len-1].name.starts_with(searchstr) {
+                } else if symbol_matches(search_type, searchstr, 
+                                         &path.segments.last().unwrap().name) {
+                    // last path segment matches the path. find it!
                     for m in resolve_path(&path, filepath, 0, ExactMatch, BothNamespaces) {
                         out.push(m);
                         if let ExactMatch = search_type  {
