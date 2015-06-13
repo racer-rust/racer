@@ -1,4 +1,7 @@
 
-    type SpannedIdent = Spanned<Ident>
-    SpannedIdent;
+    unsafe fn foo() {}
+
+    fn bar() {
+        foo()
+    }
     
