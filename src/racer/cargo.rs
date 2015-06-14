@@ -87,8 +87,29 @@ fn get_versioned_cratefile(kratename: &str, version: &str) -> Option<PathBuf> {
     d.push("registry");
     d.push("src");
     d = otry!(find_cratesio_src_dir(d));
-    d.push(kratename.to_string() + "-" + &version);
+
+    // if version=* then search for the first matching folder
+    if version == "*" {
+        use std::fs::read_dir;
+        let mut start_path = d.clone();
+        start_path.push(kratename);
+        let start_name = start_path.to_str().unwrap();
+
+        if let Ok(reader) = read_dir(d) {
+            if let Some(path) = reader
+                                .map(|entry| entry.unwrap().path())
+                                .find(|path| path.to_str().unwrap().starts_with(start_name)) {
+                d = path.clone();                        
+            } else {
+                return None;
+            }
+        } else { return None; }
+    } else {
+        d.push(kratename.to_string() + "-" + &version);
+    }
+    
     d.push("src");
+    debug!("crate path {:?}",d);
 
     // First, check for package name at root (src/kratename/lib.rs)
     d.push(kratename.to_string());
@@ -118,7 +139,17 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
         _ => return None
     };
 
-    match t.get(kratename) {
+    let mut name = kratename;
+    let value = if kratename.contains('_') {
+        t.iter().find(|&(k, _)| k.replace("-", "_") == name).map(|(k,v)| {
+            name = k;
+            v
+        })
+    } else {
+        t.get(kratename)
+    };
+
+    match value {
         Some(&toml::Value::Table(ref t)) => {
             // local directory
             let relative_path = otry!(getstr(t, "path"));
@@ -129,7 +160,7 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
         },
         Some(&toml::Value::String(ref version)) => {
             // versioned crate
-            return get_versioned_cratefile(kratename, version);
+            return get_versioned_cratefile(name, version);
         }
         _ => return None
     }
