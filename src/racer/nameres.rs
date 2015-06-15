@@ -193,34 +193,19 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: &str, searchstr: 
             let matchstart = stmtstart + n;
             let matchstmt = typeinf::get_first_stmt(&msrc[matchstart..]);
             // The definition could be in the match LHS arms. Try to find this
-            debug!("PHIL found a match statement, examining match arms (len {}) |{}|",
-                   matchstmt.len(), matchstmt);
-
-            let masked_matchstmt = mask_matchstmt(matchstmt, scopestart+1 - matchstart);
-            debug!("PHIL masked match stmt is len {} |{}|", masked_matchstmt.len(), masked_matchstmt);
+            let masked_matchstmt = mask_matchstmt(matchstmt, scopestart + 1 - matchstart);
+            debug!("found match stmt, masked is len {} |{}|", masked_matchstmt.len(), masked_matchstmt);
 
             // Locate the match arm LHS by finding the => just before point and then backtracking
-            let mut rhs = &*masked_matchstmt;
-            let mut arm = 0;
-            while let Some(n) = rhs.find("=>") {
-                debug!("PHIL match arm n is {}, {}, {}, {}", arm, n, matchstart, point);
-                if arm + n + matchstart > point {
-                    break;
-                } else {
-                    arm += n + 2;
-                    rhs = &rhs[n+2..];
-                }
-            }
-            debug!("PHIL matched arm rhs is |{}|", &masked_matchstmt[arm-2..]);
+            let arm = masked_matchstmt[..point-matchstart].rfind("=>").unwrap_or(0);
+            debug!("PHIL matched arm rhs is |{}|", &masked_matchstmt[arm..]);
 
-            let lhs_start = scopes::get_start_of_pattern(msrc, matchstart + arm -2);
-            let lhs = &msrc[lhs_start..matchstart + arm - 2];
+            let lhs_start = scopes::get_start_of_pattern(msrc, matchstart + arm);
+            let lhs = &msrc[lhs_start..matchstart + arm];
 
-            // Now create a pretend match expression with just the one match arm in it
-            let mut fauxmatchstmt = (&msrc[matchstart..scopestart]).to_string();
-            fauxmatchstmt = fauxmatchstmt + "{";
-            let faux_prefix_size = fauxmatchstmt.len();
-            fauxmatchstmt = fauxmatchstmt + lhs + " => () };";
+            // Now create a pretend match expression with just the one match arm in it            
+            let faux_prefix_size = scopestart - matchstart + 1;
+            let fauxmatchstmt = format!("{}{{{} => () }};", &msrc[matchstart..scopestart], lhs);
 
             debug!("PHIL arm lhs is |{}|", lhs);
             debug!("PHIL arm fauxmatchstmt is |{}|, {}", fauxmatchstmt, faux_prefix_size);
