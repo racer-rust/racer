@@ -42,7 +42,7 @@ pub fn string_to_stmt(source_str: String) -> Option<P<ast::Stmt>> {
 }
 
 // parse a string, return a crate.
-pub fn string_to_crate (source_str: String) -> Option<ast::Crate> {
+pub fn string_to_crate(source_str: String) -> Option<ast::Crate> {
     with_error_checking_parse(source_str.clone(), |p| {
         use std::result::Result::{Ok, Err};
         use syntex_syntax::diagnostic::FatalError;
