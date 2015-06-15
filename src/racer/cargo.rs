@@ -59,13 +59,9 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
 
 fn get_cargo_rootdir() -> Option<PathBuf> {
     let mut d = otry!(env::home_dir());
-    d.push(".cargo");
-    if path_exists(&d) {
-        return Some(d);
-    }
-
-    // try multirust
-    d.pop();
+    
+    // try multirust first, since people with multirust installed will often still 
+    // have an old .cargo directory lying around
     d.push(".multirust");
     d.push("default");
     if let Ok(mut multirustdefault) = File::open(&d) {
@@ -76,6 +72,13 @@ fn get_cargo_rootdir() -> Option<PathBuf> {
         d.push(s.trim());
         d.push("cargo");
         debug!("get_cargo_rootdir root is {:?}",d);
+        return Some(d)
+    }
+
+    d.pop();
+    d.pop();
+    d.push(".cargo");
+    if path_exists(&d) {
         Some(d)
     } else {
         None
