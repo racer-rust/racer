@@ -21,25 +21,22 @@ fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<usi
 }
 
 pub fn find_closing_paren(src: &str, pos: usize) -> usize {
-    match find_close(src.as_bytes()[pos..].iter(), b'(', b')', 0) {
-        Some(count) => pos + count,
-        None => src.len()
-    }
+    find_close(src.as_bytes()[pos..].iter(), b'(', b')', 0)
+    .map_or(src.len(), |count| pos + count)
 }
 
 pub fn scope_start(src: &str, point: usize) -> usize {
     let masked_src = mask_comments(&src[..point]);
-    match find_close(masked_src.as_bytes().iter().rev(), b'}', b'{', 0) {
-        Some(count) => point - count,
-        None => 0
-    }
+    find_close(masked_src.as_bytes().iter().rev(), b'}', b'{', 0)
+    .map_or(0, |count| point - count)
 }
 
 pub fn find_stmt_start(msrc: &str, point: usize) -> Option<usize> {
     // iterate the scope to find the start of the statement
     let scopestart = scope_start(msrc, point);
-    codeiter::iter_stmts(&msrc[scopestart..]).filter_map(|(start, end)|
-        if scopestart+end > point { Some(scopestart+start) } else { None }).next()
+    codeiter::iter_stmts(&msrc[scopestart..])
+    .find(|&(_, end)| scopestart + end > point)
+    .map(|(start, _)| scopestart + start)
 }
 
 pub fn get_local_module_path(msrc: &str, point: usize) -> Vec<String> {
