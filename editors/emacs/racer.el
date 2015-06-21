@@ -146,7 +146,6 @@
 	)
       )
     )
-  ;(message "start %s end %s" start end)
   (list (- (point) (- racer-end-pos racer-start-pos))
         (point)
         racer-completion-results)
@@ -156,7 +155,6 @@
   "Run the racer command for `COMMAND' and format using `ARG'.
 `IGNORED' is unused."
   (interactive)
-  ;(message "PHIL racer-company-complete %s %s %s" command arg ignored)
   (when (looking-back "[a-zA-z1-9:.]" nil)
     (cl-case command
       (prefix (racer--prefix))
@@ -170,25 +168,7 @@
 		 (get-text-property 0 'matchtype arg)
 		 (get-text-property 0 'contextstr arg))))
       (meta (format "%s" (get-text-property 0 'contextstr arg)))
-;      (doc-buffer (company-doc-buffer "PHil hello Yeah"))
       )))
-
-;; (defun racer-complete (command &optional arg &rest ignored)
-;;   (interactive)
-;;   (message "PHIL racer-company-complete %s %s %s" command arg ignored)
-;;   (when (looking-back "[a-zA-z1-9:.]")
-;;     (case command
-;;       (prefix (racer--prefix))
-;;       (candidates (racer--candidates))
-;;       (duplicates t)
-;;       (sorted nil)
-;;       (annotation (format ":%s yeah mother" arg))
-;;       (meta (format "This value is named %s" arg))
-;; ;      (doc-buffer (company-doc-buffer "PHil hello Yeah"))
-;;       )))
-
-
-;; (add-hook 'completion-at-point-functions 'racer-complete nil)
 
 (defun racer--complete-or-indent ()
   "Complete with company-mode or indent."
