@@ -176,6 +176,7 @@
 		 (get-text-property 0 'contextstr arg))))
       (meta (format "%s" (get-text-property 0 'contextstr arg))))))
 
+;;;###autoload
 (defun racer-complete-or-indent ()
   "Complete with company-mode or indent."
   (interactive)
@@ -190,6 +191,7 @@
            (string= (substring s (- 0 elength)) ending)))
         (t nil)))
 
+;;;###autoload
 (defun racer-find-definition ()
   "Run the racer find-definition command and process the results."
   (interactive)
