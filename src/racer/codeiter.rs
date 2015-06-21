@@ -132,23 +132,24 @@ mod test {
     #[test]
     fn iterates_use_stmt_over_two_lines() {
         let src = &rejustify("
-            use std::{Foo,
-            Bar}; // a comment
+        use std::{Foo,
+                  Bar}; // a comment
         ");
         let mut it = iter_stmts(src);
         assert_eq!("use std::{Foo,
-            Bar};", slice(src, it.next().unwrap()));
+              Bar};",slice(src, it.next().unwrap()));
     }
 
     #[test]
     fn iterates_use_stmt_without_the_prefix() {
         let src = &rejustify("
-            pub use {Foo,
-            Bar}; // this is also legit apparently
+        pub use {Foo,
+                 Bar}; // this is also legit apparently
         ");
         let mut it = iter_stmts(src);
         assert_eq!("pub use {Foo,
-            Bar};", slice(src, it.next().unwrap()));
+             Bar};", slice(src, it.next().unwrap())
+        );
     }
 
     #[test]
@@ -172,11 +173,11 @@ mod test {
     #[test]
     fn iterates_macro() {
         let src = "
-            mod foo;
-            macro_rules! otry(
-                ($e:expr) => (match $e { Some(e) => e, None => return })
-            )
-            mod bar;
+        mod foo;
+        macro_rules! otry(
+            ($e:expr) => (match $e { Some(e) => e, None => return })
+        )
+        mod bar;
         ";
         let mut it = iter_stmts(src);
         assert_eq!("mod foo;", slice(src, it.next().unwrap()));
@@ -212,16 +213,16 @@ mod test {
     #[test]
     fn iterates_inner_scope() {
         let src = "
-            while self.pos < 3 {
-                let a = 35;
-                return a + 35;  // should iterate this
-            }
-            {
-                b = foo;       // but not this
-            }
+        while self.pos < 3 {
+            let a = 35;
+            return a + 35;  // should iterate this
+        }
+        {
+            b = foo;       // but not this
+        }
         ";
 
-        let scope = &src[25..];
+        let scope = &src[29..];
         let mut it = iter_stmts(scope);
 
         assert_eq!("let a = 35;", slice(scope, it.next().unwrap()));
