@@ -60,14 +60,6 @@
   :type 'file
   :group 'racer)
 
-(defvar racer-file-name)
-(defvar racer-tmp-file-name)
-(defvar racer-line-number)
-(defvar racer-column-number)
-(defvar racer-completion-results)
-(defvar racer-start-pos)
-(defvar racer-end-pos)
-
 (defun racer-get-line-number ()
   "Gets the current line number at point."
   ; for some reason if the current-column is 0, then the linenumber is off by 1
@@ -78,74 +70,73 @@
 (defun racer--write-tmp-file (tmp-file-name)
   "Write the racer temporary file to `TMP-FILE-NAME'."
     (push-mark)
-    (setq racer-file-name (buffer-file-name))
-    (setq racer-tmp-file-name tmp-file-name)
-    (setq racer-line-number (racer-get-line-number))
-    (setq racer-column-number (current-column))
-    (setq racer-completion-results `())
     (write-region nil nil tmp-file-name))
 
 (defun racer--candidates ()
   "Run the racer complete command and process the results."
-  (setq racer-tmp-file-name (concat (buffer-file-name) ".racertmp"))
-  (racer--write-tmp-file racer-tmp-file-name)
-  (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
+  (let ((racer-tmp-file-name (concat (buffer-file-name) ".racertmp")))
+    (racer--write-tmp-file racer-tmp-file-name)
+    (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
     (let ((lines (process-lines racer-cmd
-				"complete"
-				(number-to-string racer-line-number)
-				(number-to-string racer-column-number)
-				racer-tmp-file-name)))
+                                "complete"
+                                (number-to-string (racer-get-line-number))
+                                (number-to-string (current-column))
+                                racer-tmp-file-name))
+          (racer-completion-results '()))
       (delete-file racer-tmp-file-name)
       (dolist (line lines)
-	(when (string-match "^MATCH \\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\(.+\\)$" line)
-	  (let ((completion (match-string 1 line))
-		(linenum (match-string 2 line))
-		(colnum (match-string 3 line))
-		(fname (match-string 4 line))
-		(matchtype (match-string 5 line))
-		(contextstr (match-string 6 line)))
-	    (put-text-property 0 1 'contextstr contextstr completion)
-	    (put-text-property 0 1 'matchtype matchtype completion)
-	    (push completion racer-completion-results))))
-      racer-completion-results))
+        (when (string-match "^MATCH \\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\(.+\\)$" line)
+          (let ((completion (match-string 1 line))
+                (linenum (match-string 2 line))
+                (colnum (match-string 3 line))
+                (fname (match-string 4 line))
+                (matchtype (match-string 5 line))
+                (contextstr (match-string 6 line)))
+            (put-text-property 0 1 'contextstr contextstr completion)
+            (put-text-property 0 1 'matchtype matchtype completion)
+            (push completion racer-completion-results))))
+      racer-completion-results)))
 
 (defun racer--prefix ()
   "Run the racer prefix command and process the results."
-  (setq racer-tmp-file-name (concat (buffer-file-name) ".racertmp"))
-  (racer--write-tmp-file racer-tmp-file-name)
-  (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
-  (let ((lines (process-lines racer-cmd
-			      "prefix"
-			      (number-to-string racer-line-number)
-			      (number-to-string racer-column-number)
-			      racer-tmp-file-name)))
-    (delete-file racer-tmp-file-name)
-    (when (string-match "^PREFIX \\(.+\\),\\(.+\\),\\(.*\\)$" (nth 0 lines))
-      (match-string 3 (nth 0 lines)))))
+  (let ((racer-tmp-file-name (concat (buffer-file-name) ".racertmp")))
+    (racer--write-tmp-file racer-tmp-file-name)
+    (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
+    (let ((lines (process-lines racer-cmd
+                                "prefix"
+                                (number-to-string (racer-get-line-number))
+                                (number-to-string (current-column))
+                                racer-tmp-file-name)))
+      (delete-file racer-tmp-file-name)
+      (when (string-match "^PREFIX \\(.+\\),\\(.+\\),\\(.*\\)$" (nth 0 lines))
+        (match-string 3 (nth 0 lines))))))
 
 (defun racer--complete-at-point-fn ()
   "Run the racer complete command and process the results."
-  (setq racer-tmp-file-name (concat (buffer-file-name) ".racertmp"))
-  (racer--write-tmp-file racer-tmp-file-name)
-  (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
-  (save-excursion
-    (let ((lines (process-lines racer-cmd
-				"complete"
-				(number-to-string racer-line-number)
-				(number-to-string racer-column-number)
-				racer-tmp-file-name)))
-      (delete-file racer-tmp-file-name)
-      (dolist (line lines)
-	(when (string-match "^MATCH \\([^,]+\\),\\(.+\\)$" line)
-	  (let ((completion (match-string 1 line)))
-	    (push completion racer-completion-results)))
+  (let ((racer-tmp-file-name (concat (buffer-file-name) ".racertmp"))
+        (racer-completion-results '()))
+    (racer--write-tmp-file racer-tmp-file-name)
+    (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
+    (save-excursion
+      (let ((lines (process-lines racer-cmd
+                                  "complete"
+                                  (number-to-string (racer-get-line-number))
+                                  (number-to-string (current-column))
+                                  racer-tmp-file-name))
+            racer-start-pos
+            racer-end-pos)
+        (delete-file racer-tmp-file-name)
+        (dolist (line lines)
+          (when (string-match "^MATCH \\([^,]+\\),\\(.+\\)$" line)
+            (let ((completion (match-string 1 line)))
+              (push completion racer-completion-results)))
 
-	(when (string-match "^PREFIX \\(.+\\),\\(.+\\),\\(.*\\)$" line)
-	  (setq racer-start-pos (string-to-number (match-string 1 line)))
-	  (setq racer-end-pos (string-to-number (match-string 2 line)))))))
-  (list (- (point) (- racer-end-pos racer-start-pos))
-        (point)
-        racer-completion-results))
+          (when (string-match "^PREFIX \\(.+\\),\\(.+\\),\\(.*\\)$" line)
+            (setq racer-start-pos (string-to-number (match-string 1 line)))
+            (setq racer-end-pos (string-to-number (match-string 2 line))))))
+      (list (- (point) (- racer-end-pos racer-start-pos))
+            (point)
+            racer-completion-results))))
 
 (defun racer-company-complete (command &optional arg &rest ignored)
   "Run the racer command for `COMMAND' and format using `ARG'.
@@ -182,27 +173,27 @@
 (defun racer-find-definition ()
   "Run the racer find-definition command and process the results."
   (interactive)
-  (setq racer-tmp-file-name (concat (buffer-file-name) ".racertmp"))
-  (racer--write-tmp-file racer-tmp-file-name)
-  (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
-  (push-mark)
-  (let ((lines (process-lines racer-cmd
-			      "find-definition"
-			      (number-to-string racer-line-number)
-			      (number-to-string racer-column-number)
-			      racer-tmp-file-name)))
-    (delete-file racer-tmp-file-name)
-    (dolist (line lines)
-      (when (string-match "^MATCH \\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\).*$" line)
-	(let ((linenum (match-string 2 line))
-	      (charnum (match-string 3 line))
-	      (fname (match-string 4 line)))
-	  (if (racer--string-ends-with fname ".racertmp")
-	      (find-file (substring fname 0 -9))
-	    (find-file fname))
-	  (goto-char (point-min))
-	  (forward-line (1- (string-to-number linenum)))
-	  (forward-char (string-to-number charnum)))))))
+  (let ((racer-tmp-file-name (concat (buffer-file-name) ".racertmp")))
+    (racer--write-tmp-file racer-tmp-file-name)
+    (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
+    (push-mark)
+    (let ((lines (process-lines racer-cmd
+                                "find-definition"
+                                (number-to-string (racer-get-line-number))
+                                (number-to-string (current-column))
+                                racer-tmp-file-name)))
+      (delete-file racer-tmp-file-name)
+      (dolist (line lines)
+        (when (string-match "^MATCH \\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\).*$" line)
+          (let ((linenum (match-string 2 line))
+                (charnum (match-string 3 line))
+                (fname (match-string 4 line)))
+            (if (racer--string-ends-with fname ".racertmp")
+                (find-file (substring fname 0 -9))
+              (find-file fname))
+            (goto-char (point-min))
+            (forward-line (1- (string-to-number linenum)))
+            (forward-char (string-to-number charnum))))))))
 
 (add-hook 'rust-mode-hook
 	  '(lambda ()
