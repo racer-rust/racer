@@ -36,6 +36,26 @@
 
 ;;; Commentary:
 
+;; You will need to configure Emacs to find racer:
+;;
+;; (setq racer-rust-src-path "<path-to-rust-srcdir>/src/")
+;; (setq racer-cmd "<path-to-racer>/target/release/racer")
+;;
+;; To set up racer for completion in Rust buffers, add it
+;; `rust-mode-hook':
+;;
+;; (add-hook 'rust-mode-hook #'racer-activate)
+;;
+;; To use TAB for both indent and completion in Rust:
+;;
+;; (require 'rust-mode)
+;; (define-key rust-mode-map (kbd "TAB") #'racer--complete-or-indent)
+;;
+;; You can also use racer to find definitions. To bind this to a key:
+;;
+;; (require 'rust-mode)
+;; (define-key rust-mode-map (kbd "M-.") #'racer-find-definition)
+
 ;;; Code:
 
 (require 'cl-lib)
@@ -195,14 +215,12 @@
             (forward-line (1- (string-to-number linenum)))
             (forward-char (string-to-number charnum))))))))
 
-(add-hook 'rust-mode-hook
-	  '(lambda ()
-	     (company-mode)
-	     (set (make-local-variable 'company-backends) '(racer-company-complete))
-	     (local-set-key "\t" 'racer--complete-or-indent)
-	     (local-set-key "\M-." 'racer-find-definition)
-	     (setq-local company-idle-delay nil))
-	  nil)
+;;;###autoload
+(defun racer-activate ()
+  "Add Racer as the completion backend for the current buffer."
+  (company-mode)
+  (set (make-local-variable 'company-backends) '(racer-company-complete))
+  (setq-local company-idle-delay nil))
 
 (provide 'racer)
 ;;; racer.el ends here
