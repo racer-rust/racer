@@ -1,11 +1,11 @@
-use racer::{self, ast, codecleaner, codeiter, typeinf, util};
+use {core, ast, codecleaner, codeiter, typeinf, util};
 
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::iter::Iterator;
 use std::path::Path;
 use std::str::from_utf8;
-use racer::util::char_at;
+use util::char_at;
 
 fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<usize> where A: Iterator<Item=&'a u8> {
     let mut count = 0usize;
@@ -101,16 +101,16 @@ fn finds_subnested_module() {
 }
 
 
-pub fn split_into_context_and_completion<'a>(s: &'a str) -> (&'a str, &'a str, racer::CompletionType) {
+pub fn split_into_context_and_completion<'a>(s: &'a str) -> (&'a str, &'a str, core::CompletionType) {
     match s.char_indices().rev().find(|&(_, c)| !util::is_ident_char(c)) {
         Some((i,c)) => {
             match c {
-                '.' => (&s[..i], &s[(i+1)..], racer::CompletionType::CompleteField),
-                ':' => (&s[..(i-1)], &s[(i+1)..], racer::CompletionType::CompletePath),
-                _   => (&s[..(i+1)], &s[(i+1)..], racer::CompletionType::CompletePath)
+                '.' => (&s[..i], &s[(i+1)..], core::CompletionType::CompleteField),
+                ':' => (&s[..(i-1)], &s[(i+1)..], core::CompletionType::CompletePath),
+                _   => (&s[..(i+1)], &s[(i+1)..], core::CompletionType::CompletePath)
             }
         },
-        None => ("", s, racer::CompletionType::CompletePath)
+        None => ("", s, core::CompletionType::CompletePath)
     }
 }
 

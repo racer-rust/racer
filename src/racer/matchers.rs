@@ -1,9 +1,10 @@
-use racer::{self, scopes, typeinf, ast, Match, PathSegment};
-use racer::util::{symbol_matches, txt_matches, find_ident_end, is_ident_char, char_at};
-use racer::nameres::{get_module_file, get_crate_file, resolve_path};
-use racer::SearchType::{self, StartsWith, ExactMatch};
-use racer::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant, Const, Static, IfLet};
-use racer::Namespace::BothNamespaces;
+use {core, scopes, typeinf, ast};
+use core::{Match, PathSegment};
+use util::{symbol_matches, txt_matches, find_ident_end, is_ident_char, char_at};
+use nameres::{get_module_file, get_crate_file, resolve_path};
+use core::SearchType::{self, StartsWith, ExactMatch};
+use core::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant, Const, Static, IfLet};
+use core::Namespace::BothNamespaces;
 use std::cell::Cell;
 use std::path::Path;
 use std::{iter, option, vec};
@@ -23,7 +24,7 @@ pub fn match_types(src: &str, blobstart: usize, blobend: usize,
 
 pub fn match_values(src: &str, blobstart: usize, blobend: usize,
                   searchstr: &str, filepath: &Path, search_type: SearchType,
-                  local: bool) -> iter::Chain<iter::Chain<option::IntoIter<racer::Match>, option::IntoIter<racer::Match>>, option::IntoIter<racer::Match>> {
+                  local: bool) -> iter::Chain<iter::Chain<option::IntoIter<core::Match>, option::IntoIter<core::Match>>, option::IntoIter<core::Match>> {
     let it = match_const(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
     let it = it.chain(match_static(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     it.chain(match_fn(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter())
@@ -191,7 +192,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
             // real crate name (e.g. extern crate collections_core = "collections")
             // so we need to get the source text without scrubbed strings
 
-            let rawsrc = racer::load_file(filepath);
+            let rawsrc = core::load_file(filepath);
             let rawblob = &rawsrc[blobstart..blobend];
             debug!("found an extern crate (unscrubbed): |{}|", rawblob);
 

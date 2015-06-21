@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::Read;
 use std::env;
 use std::path::{Path,PathBuf};
-use racer::util::{path_exists, is_dir};
+use util::{path_exists, is_dir};
 use std::fs::{read_dir};
 use toml;
 

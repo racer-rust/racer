@@ -3,20 +3,9 @@ use std::io::{BufReader, Read};
 use std::{str, vec, fmt};
 use std::path;
 
-pub mod scopes;
-pub mod ast;
-pub mod typeinf;
-pub mod nameres;
-pub mod codeiter;
-pub mod codecleaner;
-pub mod testutils;
-pub mod util;
-pub mod matchers;
-pub mod snippets;
-pub mod cargo;
-
-#[cfg(test)] pub mod test;
-#[cfg(test)] pub mod bench;
+use scopes;
+use nameres;
+use ast;
 
 #[derive(Debug,Clone,PartialEq)]
 pub enum MatchType {
@@ -79,7 +68,7 @@ pub struct Match {
 
 
 impl Match {
-    fn with_generic_types(&self, generic_types: Vec<PathSearch>) -> Match {
+    pub fn with_generic_types(&self, generic_types: Vec<PathSearch>) -> Match {
         Match {
             matchstr: self.matchstr.clone(),
             filepath: self.filepath.clone(),
@@ -139,8 +128,8 @@ pub enum Ty {
 // The racer implementation of an ast::Path. Difference is that it is Send-able
 #[derive(Clone)]
 pub struct Path {
-    global: bool,
-    segments: Vec<PathSegment>
+    pub global: bool,
+    pub segments: Vec<PathSegment>
 }
 
 impl Path {
@@ -203,9 +192,9 @@ pub struct PathSegment {
 
 #[derive(Clone)]
 pub struct PathSearch {
-    path: Path,
-    filepath: path::PathBuf,
-    point: usize
+    pub path: Path,
+    pub filepath: path::PathBuf,
+    pub point: usize
 }
 
 impl fmt::Debug for PathSearch {

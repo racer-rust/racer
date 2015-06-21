@@ -1,9 +1,11 @@
-use racer;
-use racer::complete_from_file;
-use racer::find_definition;
+extern crate racer;
+use racer::core::complete_from_file;
+use racer::core::find_definition;
 use racer::scopes;
+use racer::util;
 
-use std;
+
+use std::env;
 use std::io::Write;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
@@ -1161,7 +1163,7 @@ fn doesnt_match_rhs_of_let_in_same_stmt() {
 
 #[test]
 fn issue_223() {
-    assert_eq!(true, racer::util::path_exists(std::env::temp_dir()));
+    assert_eq!(true, util::path_exists(env::temp_dir()));
 }
 
 
@@ -1183,3 +1185,4 @@ fn finds_unsafe_fn() {
     assert_eq!(got.matchstr, "foo".to_string());
     assert_eq!(got.point, 15);
 }
+
