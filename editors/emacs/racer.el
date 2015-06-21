@@ -142,14 +142,10 @@
 
 	(when (string-match "^PREFIX \\(.+\\),\\(.+\\),\\(.*\\)$" line)
 	  (setq racer-start-pos (string-to-number (match-string 1 line)))
-	  (setq racer-end-pos (string-to-number (match-string 2 line))))
-	)
-      )
-    )
+	  (setq racer-end-pos (string-to-number (match-string 2 line)))))))
   (list (- (point) (- racer-end-pos racer-start-pos))
         (point)
-        racer-completion-results)
-  )
+        racer-completion-results))
 
 (defun racer-company-complete (command &optional arg &rest ignored)
   "Run the racer command for `COMMAND' and format using `ARG'.
@@ -167,8 +163,7 @@
 		 (make-string (max 0 (- 20 (length arg))) ? )
 		 (get-text-property 0 'matchtype arg)
 		 (get-text-property 0 'contextstr arg))))
-      (meta (format "%s" (get-text-property 0 'contextstr arg)))
-      )))
+      (meta (format "%s" (get-text-property 0 'contextstr arg))))))
 
 (defun racer--complete-or-indent ()
   "Complete with company-mode or indent."
@@ -207,8 +202,7 @@
 	    (find-file fname))
 	  (goto-char (point-min))
 	  (forward-line (1- (string-to-number linenum)))
-	  (forward-char (string-to-number charnum))
-	  )))))
+	  (forward-char (string-to-number charnum)))))))
 
 (add-hook 'rust-mode-hook
 	  '(lambda ()
@@ -216,8 +210,7 @@
 	     (set (make-local-variable 'company-backends) '(racer-company-complete))
 	     (local-set-key "\t" 'racer--complete-or-indent)
 	     (local-set-key "\M-." 'racer-find-definition)
-	     (setq-local company-idle-delay nil)
-	     )
+	     (setq-local company-idle-delay nil))
 	  nil)
 
 (provide 'racer)
