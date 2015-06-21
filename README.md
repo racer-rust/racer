@@ -47,7 +47,7 @@
 6. You may wish to set up keybindings:
 
    ```
-   (define-key rust-mode-map (kbd "TAB") #'racer--complete-or-indent)
+   (define-key rust-mode-map (kbd "TAB") #'racer-complete-or-indent)
    (define-key rust-mode-map (kbd "M-.") #'racer-find-definition)
    ```
 

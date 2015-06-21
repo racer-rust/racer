@@ -4,7 +4,7 @@
 
 ;; Author: Phil Dawes
 ;; URL: https://github.com/phildawes/racer
-;; Version: 0.0.1
+;; Version: 0.0.2
 ;; Package-Requires: ((emacs "24.3") (company "0.8.0") (rust-mode "0.2.0"))
 ;; Keywords: abbrev, convenience, matching, rust, tools
 
@@ -49,7 +49,7 @@
 ;; To use TAB for both indent and completion in Rust:
 ;;
 ;; (require 'rust-mode)
-;; (define-key rust-mode-map (kbd "TAB") #'racer--complete-or-indent)
+;; (define-key rust-mode-map (kbd "TAB") #'racer-complete-or-indent)
 ;;
 ;; You can also use racer to find definitions. To bind this to a key:
 ;;
@@ -176,7 +176,7 @@
 		 (get-text-property 0 'contextstr arg))))
       (meta (format "%s" (get-text-property 0 'contextstr arg))))))
 
-(defun racer--complete-or-indent ()
+(defun racer-complete-or-indent ()
   "Complete with company-mode or indent."
   (interactive)
   (if (company-manual-begin)
