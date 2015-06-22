@@ -137,6 +137,24 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     otry2!(file.read_to_string(&mut string));
     let mut parser = toml::Parser::new(&string);
     let table = otry!(parser.parse());
+
+
+    // is it this lib?  (e.g. you're searching from tests to find the main library crate)
+    if let Some(&toml::Value::Table(ref t)) = table.get("lib") {
+        if let Some(&toml::Value::String(ref name)) = t.get("name") {
+            if name == kratename {
+                debug!("found {} as lib entry in Cargo.toml", kratename);
+                if let Some(&toml::Value::String(ref pathstr)) = t.get("path") {
+                    let p = Path::new(pathstr);
+                    let libpath = otry!(cargofile.parent()).join(p);
+                    return Some(libpath);
+                }
+            }
+        }
+    }
+
+
+    // otherwise search the dependencies
     let t = match table.get("dependencies") {
         Some(&toml::Value::Table(ref t)) => t,
         _ => return None
