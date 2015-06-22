@@ -1,6 +1,6 @@
-use racer::ast::with_error_checking_parse;
-use racer::{Match, MatchType};
-use racer::typeinf::get_function_declaration;
+use ast::with_error_checking_parse;
+use core::{Match, MatchType};
+use typeinf::get_function_declaration;
 
 use syntex_syntax::ast::ImplItem_;
 

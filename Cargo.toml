@@ -6,9 +6,13 @@ license = "MIT"
 description = "Code completion for Rust"
 authors = ["Phil Dawes <phil@phildawes.net>"]
 
+[lib]
+name = "racer"
+path = "src/racer/lib.rs"
+
 [[bin]]
 name = "racer"
-path = "src/main.rs"
+path = "src/bin/main.rs"
 
 [profile.release]
 debug = true

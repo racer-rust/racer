@@ -1,6 +1,8 @@
-use racer::{self, typeinf, Match, MatchType, Scope, Ty};
-use racer::nameres::{self, resolve_path_with_str};
-use racer::Ty::{TyTuple, TyPathSearch, TyMatch, TyUnsupported};
+use core::{self, Match, MatchType, Scope, Ty};
+use typeinf;
+use nameres::{self, resolve_path_with_str};
+use core::Ty::{TyTuple, TyPathSearch, TyMatch, TyUnsupported};
+use codeiter;
 
 use std::ops::Deref;
 use std::path::Path;
@@ -60,7 +62,7 @@ pub fn string_to_crate(source_str: String) -> Option<ast::Crate> {
 #[derive(Debug)]
 pub struct UseVisitor {
     pub ident : Option<String>,
-    pub paths : Vec<racer::Path>,
+    pub paths : Vec<core::Path>,
     pub is_glob: bool
 }
 
@@ -78,7 +80,7 @@ impl<'v> visit::Visitor<'v> for UseVisitor {
                         match path.node {
                             ast::PathListIdent{name, ..} => {
                                 let name = token::get_ident(name).to_string();
-                                let seg = racer::PathSegment{ name: name, types: Vec::new() };
+                                let seg = core::PathSegment{ name: name, types: Vec::new() };
                                 let mut newpath = basepath.clone();
 
                                 newpath.segments.push(seg);
@@ -323,10 +325,10 @@ impl<'v> visit::Visitor<'v> for MatchTypeVisitor {
 
 fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: usize) -> Option<Match> {
     debug!("resolve_ast_path {:?}", to_racer_path(path));
-    nameres::resolve_path_with_str(&to_racer_path(path), filepath, pos, racer::SearchType::ExactMatch, racer::Namespace::BothNamespaces).nth(0)
+    nameres::resolve_path_with_str(&to_racer_path(path), filepath, pos, core::SearchType::ExactMatch, core::Namespace::BothNamespaces).nth(0)
 }
 
-fn to_racer_path(pth: &ast::Path) -> racer::Path {
+fn to_racer_path(pth: &ast::Path) -> core::Path {
     let mut v = Vec::new();
     for seg in pth.segments.iter() {
         let name = token::get_ident(seg.identifier).to_string();
@@ -336,9 +338,9 @@ fn to_racer_path(pth: &ast::Path) -> racer::Path {
                 types.push(to_racer_path(path));
             }
         }
-        v.push(racer::PathSegment{ name: name, types: types });
+        v.push(core::PathSegment{ name: name, types: types });
     }
-    racer::Path{ global: pth.global, segments: v }
+    core::Path{ global: pth.global, segments: v }
 }
 
 fn path_to_match(ty: Ty) -> Option<Ty> {
@@ -349,21 +351,21 @@ fn path_to_match(ty: Ty) -> Option<Ty> {
     }
 }
 
-fn find_type_match(path: &racer::Path, fpath: &Path, pos: usize) -> Option<Ty> {
+fn find_type_match(path: &core::Path, fpath: &Path, pos: usize) -> Option<Ty> {
     debug!("find_type_match {:?}", path);
-    let res = resolve_path_with_str(path, fpath, pos, racer::SearchType::ExactMatch,
-               racer::Namespace::TypeNamespace).nth(0).and_then(|m| {
+    let res = resolve_path_with_str(path, fpath, pos, core::SearchType::ExactMatch,
+               core::Namespace::TypeNamespace).nth(0).and_then(|m| {
                    match m.mtype {
-                       racer::MatchType::Type => get_type_of_typedef(m),
+                       core::MatchType::Type => get_type_of_typedef(m),
                        _ => Some(m)
                    }
                });
 
     return res.and_then(|m| {
         // add generic types to match (if any)
-        let types: Vec<racer::PathSearch> = path.generic_types()
+        let types: Vec<core::PathSearch> = path.generic_types()
             .map(|typepath|
-                 racer::PathSearch{
+                 core::PathSearch{
                      path: typepath.clone(),
                      filepath: fpath.to_path_buf(),
                      point: pos
@@ -379,18 +381,18 @@ fn find_type_match(path: &racer::Path, fpath: &Path, pos: usize) -> Option<Ty> {
 
 fn get_type_of_typedef(m: Match) -> Option<Match> {
     debug!("get_type_of_typedef match is {:?}", m);
-    let msrc = racer::load_file_and_mask_comments(m.filepath.deref());
+    let msrc = core::load_file_and_mask_comments(m.filepath.deref());
     let blobstart = m.point - 5;  // - 5 because 'type '
     let blob = &msrc[blobstart..];
 
-    return racer::codeiter::iter_stmts(blob).nth(0).and_then(|(start, end)| {
+    return codeiter::iter_stmts(blob).nth(0).and_then(|(start, end)| {
         let blob = msrc[blobstart + start..blobstart+end].to_string();
         debug!("get_type_of_typedef blob string {}", blob);
         let res = parse_type(blob);
         debug!("get_type_of_typedef parsed type {:?}", res.type_);
         return res.type_;
     }).and_then(|type_| {
-        nameres::resolve_path_with_str(&type_, &m.filepath, m.point, racer::SearchType::ExactMatch, racer::Namespace::TypeNamespace).nth(0)
+        nameres::resolve_path_with_str(&type_, &m.filepath, m.point, core::SearchType::ExactMatch, core::Namespace::TypeNamespace).nth(0)
     });
 }
 
@@ -410,7 +412,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                 self.result = resolve_ast_path(path,
                                  &self.scope.filepath,
                                  self.scope.point).and_then(|m| {
-                   let msrc = racer::load_file_and_mask_comments(&m.filepath);
+                   let msrc = core::load_file_and_mask_comments(&m.filepath);
                    typeinf::get_type_of_match(m, &msrc)
                                  });
             }
@@ -461,10 +463,10 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                                 contextm.point,
                                 &contextm.filepath,
                                 contextm.local,
-                                racer::SearchType::ExactMatch).nth(0);
+                                core::SearchType::ExactMatch).nth(0);
                             omethod
                                 .and_then(|method|
-                                          racer::typeinf::get_return_type_of_function(&method))
+                                          typeinf::get_return_type_of_function(&method))
                                 .and_then(|ty| path_to_match_including_generics(ty, contextm))
                         }
                         _ => None
@@ -518,7 +520,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
 }
 
 // gets generics info from the context match
-fn path_to_match_including_generics(ty: Ty, contextm: &racer::Match) -> Option<Ty> {
+fn path_to_match_including_generics(ty: Ty, contextm: &core::Match) -> Option<Ty> {
     return match ty {
         TyPathSearch(ref fieldtypepath, ref scope) => {
 
@@ -544,10 +546,10 @@ fn path_to_match_including_generics(ty: Ty, contextm: &racer::Match) -> Option<T
 }
 
 
-fn find_type_match_including_generics(fieldtype: &racer::Ty,
+fn find_type_match_including_generics(fieldtype: &core::Ty,
                                       filepath: &Path,
                                       pos: usize,
-                                      structm: &racer::Match) -> Option<Ty>{
+                                      structm: &core::Match) -> Option<Ty>{
 
     let fieldtypepath = match fieldtype {
         &TyPathSearch(ref path, _) => path,
@@ -578,7 +580,7 @@ fn find_type_match_including_generics(fieldtype: &racer::Ty,
 
 struct StructVisitor {
     pub scope: Scope,
-    pub fields: Vec<(String, usize, Option<racer::Ty>)>
+    pub fields: Vec<(String, usize, Option<core::Ty>)>
 }
 
 impl<'v> visit::Visitor<'v> for StructVisitor {
@@ -603,7 +605,7 @@ impl<'v> visit::Visitor<'v> for StructVisitor {
 
 pub struct TypeVisitor {
     pub name: Option<String>,
-    pub type_: Option<racer::Path>
+    pub type_: Option<core::Path>
 }
 
 impl<'v> visit::Visitor<'v> for TypeVisitor {
@@ -655,8 +657,8 @@ impl<'v> visit::Visitor<'v> for TraitVisitor {
 
 #[derive(Debug)]
 pub struct ImplVisitor {
-    pub name_path: Option<racer::Path>,
-    pub trait_path: Option<racer::Path>,
+    pub name_path: Option<core::Path>,
+    pub trait_path: Option<core::Path>,
 }
 
 impl<'v> visit::Visitor<'v> for ImplVisitor {
@@ -783,7 +785,7 @@ pub fn parse_let(s: String) -> Vec<(usize, usize)> {
     v.ident_points
 }
 
-pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, usize, Option<racer::Ty>)> {
+pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, usize, Option<core::Ty>)> {
     let mut v = StructVisitor{ scope: scope, fields: Vec::new() };
     if let Some(stmt) = string_to_stmt(s) {
         visit::walk_stmt(&mut v, &*stmt);
@@ -846,7 +848,7 @@ pub fn parse_pat_idents(s: String) -> Vec<(usize, usize)> {
 }
 
 
-pub fn parse_fn_output(s: String, scope: Scope) -> Option<racer::Ty> {
+pub fn parse_fn_output(s: String, scope: Scope) -> Option<core::Ty> {
     let mut v = FnOutputVisitor { result: None, scope: scope };
     if let Some(stmt) = string_to_stmt(s) {
         visit::walk_stmt(&mut v, &*stmt);
@@ -854,7 +856,7 @@ pub fn parse_fn_output(s: String, scope: Scope) -> Option<racer::Ty> {
     v.result
 }
 
-pub fn parse_fn_arg_type(s: String, argpos: usize, scope: Scope) -> Option<racer::Ty> {
+pub fn parse_fn_arg_type(s: String, argpos: usize, scope: Scope) -> Option<core::Ty> {
     debug!("parse_fn_arg {} |{}|", argpos, s);
     let mut v = FnArgTypeVisitor { argpos: argpos, scope: scope, result: None };
     if let Some(stmt) = string_to_stmt(s) {
@@ -1097,7 +1099,7 @@ fn ast_sandbox() {
     //     point: 0,
     //     linetxt: "".to_owned(),
     //     local: true,
-    //     mtype: racer::Module
+    //     mtype: core::Module
     // };
 
     // let startscope = Scope {

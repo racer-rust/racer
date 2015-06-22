@@ -6,8 +6,14 @@ extern crate syntex_syntax;
 extern crate toml;
 extern crate env_logger;
 
+extern crate racer;
+
 #[cfg(not(test))]
-use racer::Match;
+use racer::core;
+#[cfg(not(test))]
+use racer::util;
+#[cfg(not(test))]
+use racer::core::Match;
 #[cfg(not(test))]
 use racer::util::{getline, path_exists};
 #[cfg(not(test))]
@@ -17,7 +23,6 @@ use racer::scopes;
 #[cfg(not(test))]
 use std::path::Path;
 
-pub mod racer;
 
 #[cfg(not(test))]
 fn match_with_snippet_fn(m: Match) {
@@ -71,13 +76,13 @@ fn complete(match_found: &Fn(Match)) {
             let charnum = args[3].parse::<usize>().unwrap();
             let fname = &args[4];
             let fpath = Path::new(fname);
-            let src = racer::load_file(&fpath);
+            let src = core::load_file(&fpath);
             let line = &*getline(&fpath, linenum);
-            let (start, pos) = racer::util::expand_ident(line, charnum);
+            let (start, pos) = util::expand_ident(line, charnum);
             println!("PREFIX {},{},{}", start, pos, &line[start..pos]);
 
             let point = scopes::coords_to_point(&*src, linenum, charnum);
-            for m in racer::complete_from_file(&*src, &fpath, point) {
+            for m in core::complete_from_file(&*src, &fpath, point) {
                 match_found(m);
             }
         }
@@ -91,7 +96,7 @@ fn complete(match_found: &Fn(Match)) {
                 if p.len() == 1 {
                     match_found(m);
                 } else {
-                    for m in do_external_search(&p[1..], &m.filepath, m.point, racer::SearchType::StartsWith, racer::Namespace::BothNamespaces) {
+                    for m in do_external_search(&p[1..], &m.filepath, m.point, core::SearchType::StartsWith, core::Namespace::BothNamespaces) {
                         match_found(m);
                     }
                 }
@@ -115,7 +120,7 @@ fn prefix() {
     // print the start, end, and the identifier prefix being matched
     let path = Path::new(fname);
     let line = &*getline(&path, linenum);
-    let (start, pos) = racer::util::expand_ident(line, charnum);
+    let (start, pos) = util::expand_ident(line, charnum);
     println!("PREFIX {},{},{}", start, pos, &line[start..pos]);
 }
 
@@ -131,10 +136,10 @@ fn find_definition() {
     let charnum = args[3].parse::<usize>().unwrap();
     let fname = &args[4];
     let fpath = Path::new(fname);
-    let src = racer::load_file(&fpath);
+    let src = core::load_file(&fpath);
     let pos = scopes::coords_to_point(&*src, linenum, charnum);
 
-    racer::find_definition(&*src, &fpath, pos).map(match_fn);
+    core::find_definition(&*src, &fpath, pos).map(match_fn);
 }
 
 #[cfg(not(test))]

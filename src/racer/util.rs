@@ -1,6 +1,6 @@
 // Small functions of utility
 
-use racer::SearchType::{self, ExactMatch, StartsWith};
+use core::SearchType::{self, ExactMatch, StartsWith};
 
 use std;
 use std::cmp;
