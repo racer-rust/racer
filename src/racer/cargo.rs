@@ -116,11 +116,15 @@ fn get_versioned_cratefile(kratename: &str, version: &str) -> Option<PathBuf> {
 
     // First, check for package name at root (src/kratename/lib.rs)
     d.push(kratename.to_string());
+    d.push("lib.rs");
     if let Err(_) = File::open(&d) {
         // It doesn't exist, so assume src/lib.rs
         d.pop();
+        d.pop();
+        d.push("lib.rs");
     }
-    d.push("lib.rs");
+    debug!("crate path with lib.rs {:?}",d);
+
     if let Err(_) = File::open(&d) {
         return None;
     }
