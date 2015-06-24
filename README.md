@@ -23,17 +23,11 @@
 
 1. Install emacs 24
 
-2. Install [rust-mode](https://github.com/rust-lang/rust-mode). E.g. add the following to .emacs:
-
-   ```
-   (add-to-list 'load-path "<path-to-rust-mode-srcdir>/")
-   (autoload 'rust-mode "rust-mode" nil t)
-   (add-to-list 'auto-mode-alist '("\\.rs\\'" . rust-mode))
-   ```
+2. Install [rust-mode](https://github.com/rust-lang/rust-mode).
 
 3. Install company mode. (e.g. via ELPA: ```M-x list-packages```, select ```'company'```)
 
-4. Set some variables and install racer. E.g. add this to .emacs:
+4. Configure Emacs to find racer:
 
    ```
    (setq racer-rust-src-path "<path-to-rust-srcdir>/src/")
@@ -42,13 +36,25 @@
    (eval-after-load "rust-mode" '(require 'racer))
    ```
 
-(N.B. racer.el currenly relies on 'company'. The reason for all the 'eval-after-load' stuff is to ensure rust-mode and racer evaluate after company has been loaded)
+5. Configure Emacs to use racer.el:
 
-5. Open a rust file and try typing ```use std::io::B``` and press \<tab\>
+   ```
+   (add-to-list 'load-path "<path-to-racer>/editors/emacs")
+   (require 'racer)
+   (add-hook 'rust-mode-hook #'racer-activate)
+   ```
 
-6. Place your cursor over a symbol and hit M-. to jump to the definition
+6. You may wish to set up keybindings:
 
+   ```
+   (require 'rust-mode)
+   (define-key rust-mode-map (kbd "TAB") #'racer-complete-or-indent)
+   (define-key rust-mode-map (kbd "M-.") #'racer-find-definition)
+   ```
 
+7. Open a rust file and try typing ```use std::io::B``` and press \<tab\>
+
+8. Place your cursor over a symbol and hit M-. to jump to the definition.
 
 ## Vim integration
 
