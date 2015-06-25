@@ -75,14 +75,19 @@ fn complete(match_found: &Fn(Match)) {
             }
             let charnum = args[3].parse::<usize>().unwrap();
             let fname = &args[4];
+            let substitute_file = Path::new(match args.len() > 5 {
+                true => &args[5],
+                false => fname
+            });
             let fpath = Path::new(fname);
-            let src = core::load_file(&fpath);
-            let line = &*getline(&fpath, linenum);
+            let src = core::load_file(&substitute_file);
+            let line = &*getline(&substitute_file, linenum);
             let (start, pos) = util::expand_ident(line, charnum);
             println!("PREFIX {},{},{}", start, pos, &line[start..pos]);
 
+            let session = core::Session::from_path(&fpath, &substitute_file);
             let point = scopes::coords_to_point(&*src, linenum, charnum);
-            for m in core::complete_from_file(&*src, &fpath, point) {
+            for m in core::complete_from_file(&*src, &fpath, point, &session) {
                 match_found(m);
             }
         }
@@ -96,7 +101,7 @@ fn complete(match_found: &Fn(Match)) {
                 if p.len() == 1 {
                     match_found(m);
                 } else {
-                    for m in do_external_search(&p[1..], &m.filepath, m.point, core::SearchType::StartsWith, core::Namespace::BothNamespaces) {
+                    for m in do_external_search(&p[1..], &m.filepath, m.point, core::SearchType::StartsWith, core::Namespace::BothNamespaces, &m.session) {
                         match_found(m);
                     }
                 }
@@ -135,18 +140,23 @@ fn find_definition() {
     let linenum = args[2].parse::<usize>().unwrap();
     let charnum = args[3].parse::<usize>().unwrap();
     let fname = &args[4];
-    let fpath = Path::new(fname);
-    let src = core::load_file(&fpath);
+    let substitute_file = Path::new(match args.len() > 5 {
+        true => &args[5],
+        false => fname
+    });
+    let fpath = Path::new(&fname);
+    let session = core::Session::from_path(&fpath, &substitute_file);
+    let src = core::load_file(&substitute_file);
     let pos = scopes::coords_to_point(&*src, linenum, charnum);
 
-    core::find_definition(&*src, &fpath, pos).map(match_fn);
+    core::find_definition(&*src, &fpath, pos, &session).map(match_fn);
 }
 
 #[cfg(not(test))]
 fn print_usage() {
     let program = std::env::args().next().unwrap().clone();
-    println!("usage: {} complete linenum charnum fname", program);
-    println!("or:    {} find-definition linenum charnum fname", program);
+    println!("usage: {} complete linenum charnum fname [substitute_file]", program);
+    println!("or:    {} find-definition linenum charnum fname [substitute_file]", program);
     println!("or:    {} complete fullyqualifiedname   (e.g. std::io::)", program);
     println!("or:    {} prefix linenum charnum fname", program);
     println!("or replace complete with complete-with-snippet for more detailed completions.");
