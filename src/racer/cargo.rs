@@ -58,6 +58,19 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
 }
 
 fn get_cargo_rootdir() -> Option<PathBuf> {
+    match env::var_os("CARGO_HOME") {
+        Some(x) =>
+        {
+            let d = PathBuf::from(x);
+            if path_exists(&d) {
+                return Some(d)
+            } else {
+                return None
+            };
+        },
+        None => ()
+    };
+    
     let mut d = otry!(env::home_dir());
     
     // try multirust first, since people with multirust installed will often still 
