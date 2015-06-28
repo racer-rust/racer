@@ -12,22 +12,24 @@ use std::{iter, option, vec};
 pub fn match_types(src: &str, blobstart: usize, blobend: usize,
                    searchstr: &str, filepath: &Path,
                    search_type: SearchType,
-                   local: bool) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::IntoIter<Match>, option::IntoIter<Match>>, option::IntoIter<Match>>, option::IntoIter<Match>>, option::IntoIter<Match>>, option::IntoIter<Match>>, vec::IntoIter<Match>> {
-    let it = match_extern_crate(src, blobstart, blobend, searchstr, filepath, search_type).into_iter();
-    let it = it.chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    let it = it.chain(match_struct(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    let it = it.chain(match_type(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    let it = it.chain(match_trait(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    let it = it.chain(match_enum(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    it.chain(match_use(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter())
+                   local: bool, session: &core::Session) -> iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<iter::Chain<option::IntoIter<Match>, option::IntoIter<Match>>, option::IntoIter<Match>>, option::IntoIter<Match>>, option::IntoIter<Match>>, option::IntoIter<Match>>, vec::IntoIter<Match>> {
+    assert_eq!(&filepath, &session.query_path.as_path());
+    let it = match_extern_crate(src, blobstart, blobend, searchstr, filepath, search_type, session).into_iter();
+    let it = it.chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local, session).into_iter());
+    let it = it.chain(match_struct(src, blobstart, blobend, searchstr, filepath, search_type, local, session).into_iter());
+    let it = it.chain(match_type(src, blobstart, blobend, searchstr, filepath, search_type, local, session).into_iter());
+    let it = it.chain(match_trait(src, blobstart, blobend, searchstr, filepath, search_type, local, session).into_iter());
+    let it = it.chain(match_enum(src, blobstart, blobend, searchstr, filepath, search_type, local, session).into_iter());
+    it.chain(match_use(src, blobstart, blobend, searchstr, filepath, search_type, local, session).into_iter())
 }
 
 pub fn match_values(src: &str, blobstart: usize, blobend: usize,
                   searchstr: &str, filepath: &Path, search_type: SearchType,
-                  local: bool) -> iter::Chain<iter::Chain<option::IntoIter<core::Match>, option::IntoIter<core::Match>>, option::IntoIter<core::Match>> {
-    let it = match_const(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
-    let it = it.chain(match_static(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    it.chain(match_fn(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter())
+                  local: bool, session: &core::Session) -> iter::Chain<iter::Chain<option::IntoIter<core::Match>, option::IntoIter<core::Match>>, option::IntoIter<core::Match>> {
+    assert_eq!(&filepath, &session.query_path.as_path());
+    let it = match_const(src, blobstart, blobend, searchstr, filepath, search_type, local, session).into_iter();
+    let it = it.chain(match_static(src, blobstart, blobend, searchstr, filepath, search_type, local, session).into_iter());
+    it.chain(match_fn(src, blobstart, blobend, searchstr, filepath, search_type, local, session).into_iter())
 }
 
 fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType, local: bool) 
@@ -90,7 +92,9 @@ fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType,
 
 fn match_pattern_start(src: &str, blobstart: usize, blobend: usize,
                        searchstr: &str, filepath: &Path, search_type: SearchType,
-                       local: bool, pattern: &str, mtype: MatchType) -> Option<Match> {
+                       local: bool, pattern: &str, mtype: MatchType,
+                       session: &core::Session) -> Option<Match> {
+    assert_eq!(&filepath, &session.query_path.as_path());
     // ast currently doesn't contain the ident coords, so match them with a hacky
     // string search
 
@@ -106,7 +110,8 @@ fn match_pattern_start(src: &str, blobstart: usize, blobend: usize,
                 mtype: mtype,
                 contextstr: first_line(blob),
                 generic_args: Vec::new(),
-                generic_types: Vec::new()
+                generic_types: Vec::new(),
+                session: session.clone()
             })
         }
     }
@@ -115,21 +120,24 @@ fn match_pattern_start(src: &str, blobstart: usize, blobend: usize,
 
 pub fn match_const(msrc: &str, blobstart: usize, blobend: usize,
                    searchstr: &str, filepath: &Path, search_type: SearchType,
-                   local: bool) -> Option<Match> {
+                   local: bool, session: &core::Session) -> Option<Match> {
+    assert_eq!(&filepath, &session.query_path.as_path());
     match_pattern_start(msrc, blobstart, blobend, searchstr, filepath,
-                        search_type, local, "const", Const)
+                        search_type, local, "const", Const, session)
 }
 
 pub fn match_static(msrc: &str, blobstart: usize, blobend: usize,
                     searchstr: &str, filepath: &Path, search_type: SearchType,
-                    local: bool) -> Option<Match> {
+                    local: bool, session: &core::Session) -> Option<Match> {
+    assert_eq!(&filepath, &session.query_path.as_path());
     match_pattern_start(msrc, blobstart, blobend, searchstr, filepath,
-                        search_type, local, "static", Static)
+                        search_type, local, "static", Static, session)
 }
 
 fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
                  searchstr: &str, filepath: &Path, search_type: SearchType,
-                 local: bool, pattern: &str, mtype: MatchType) -> Vec<Match> {
+                 local: bool, pattern: &str, mtype: MatchType, session: &core::Session) -> Vec<Match> {
+    assert_eq!(&filepath, &session.query_path.as_path());
     let mut out = Vec::new();
     let blob = &msrc[blobstart..blobend];
     if blob.starts_with(pattern) && txt_matches(search_type, searchstr, blob) {
@@ -145,7 +153,8 @@ fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
                                    mtype: mtype,
                                    contextstr: first_line(blob),
                                    generic_args: Vec::new(),
-                                   generic_types: Vec::new()
+                                   generic_types: Vec::new(),
+                                   session: session.clone()
                          });
                 if let ExactMatch = search_type {
                     break;
@@ -158,16 +167,18 @@ fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
 
 pub fn match_if_let(msrc: &str, blobstart: usize, blobend: usize,
                  searchstr: &str, filepath: &Path, search_type: SearchType,
-                 local: bool) -> Vec<Match> {
+                 local: bool, session: &core::Session) -> Vec<Match> {
+    assert_eq!(&filepath, &session.query_path.as_path());
     match_pattern_let(msrc, blobstart, blobend, searchstr, filepath,
-                      search_type, local, "if let ", IfLet)
+                      search_type, local, "if let ", IfLet, session)
 }
 
 pub fn match_let(msrc: &str, blobstart: usize, blobend: usize,
                  searchstr: &str, filepath: &Path, search_type: SearchType,
-                 local: bool) -> Vec<Match> {
+                 local: bool, session: &core::Session) -> Vec<Match> {
+    assert_eq!(&filepath, &session.query_path.as_path());
     match_pattern_let(msrc, blobstart, blobend, searchstr, filepath,
-                      search_type, local, "let ", Let)
+                      search_type, local, "let ", Let, session)
 }
 
 pub fn first_line(blob: &str) -> String {
@@ -175,7 +186,8 @@ pub fn first_line(blob: &str) -> String {
 }
 
 pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
-         searchstr: &str, filepath: &Path, search_type: SearchType) -> Option<Match> {
+         searchstr: &str, filepath: &Path, search_type: SearchType, session: &core::Session) -> Option<Match> {
+    assert_eq!(&filepath, &session.query_path.as_path());
     let mut res = None;
     let blob = &msrc[blobstart..blobend];
 
@@ -192,7 +204,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
             // real crate name (e.g. extern crate collections_core = "collections")
             // so we need to get the source text without scrubbed strings
 
-            let rawsrc = core::load_file(filepath);
+            let rawsrc = core::load_file(&session.substitute_file);
             let rawblob = &rawsrc[blobstart..blobend];
             debug!("found an extern crate (unscrubbed): |{}|", rawblob);
 
@@ -218,7 +230,8 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
                                   mtype: Module,
                                   contextstr: cratepath.to_str().unwrap().to_string(),
                                   generic_args: Vec::new(),
-                                  generic_types: Vec::new()
+                                  generic_types: Vec::new(),
+                                  session: core::Session::from_path(&cratepath.as_path(), &cratepath.as_path())
                 });
             });
         }
@@ -228,7 +241,8 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
 
 pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
              searchstr: &str, filepath: &Path, search_type: SearchType,
-             local: bool) -> Option<Match> {
+             local: bool, session: &core::Session) -> Option<Match> {
+    assert_eq!(&filepath, &session.query_path.as_path());
     let blob = &msrc[blobstart..blobend];
     if let Some(start) = find_keyword(blob, "mod", searchstr, search_type, local) {
         debug!("found a module: |{}|", blob);
@@ -248,7 +262,8 @@ pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
                 mtype: Module,
                 contextstr: filepath.to_str().unwrap().to_string(),
                 generic_args: Vec::new(),
-                generic_types: Vec::new()
+                generic_types: Vec::new(),
+                session: session.clone()
             })
         } else {
             // get internal module nesting
@@ -269,7 +284,8 @@ pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
                     mtype: Module,
                     contextstr: modpath.to_str().unwrap().to_string(),
                     generic_args: Vec::new(),
-                    generic_types: Vec::new()
+                    generic_types: Vec::new(),
+                    session: core::Session::from_path(&modpath, &modpath)
                 })
             }
         }
@@ -279,7 +295,8 @@ pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
 
 pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize,
                 searchstr: &str, filepath: &Path, search_type: SearchType,
-                local: bool) -> Option<Match> {
+                local: bool, session: &core::Session) -> Option<Match> {
+    assert_eq!(&filepath, &session.query_path.as_path());
     let blob = &msrc[blobstart..blobend];
     if let Some(start) = find_keyword(blob, "struct", searchstr, search_type, local) {
         let l = match search_type {
@@ -302,7 +319,8 @@ pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize,
             mtype: Struct,
             contextstr: first_line(blob),
             generic_args: generics.generic_args,
-            generic_types: Vec::new()
+            generic_types: Vec::new(),
+            session: session.clone()
         })
     } else {
         None
@@ -311,7 +329,8 @@ pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize,
 
 pub fn match_type(msrc: &str, blobstart: usize, blobend: usize,
              searchstr: &str, filepath: &Path, search_type: SearchType,
-             local: bool) -> Option<Match> {
+             local: bool, session: &core::Session) -> Option<Match> {
+    assert_eq!(&filepath, &session.query_path.as_path());
     let blob = &msrc[blobstart..blobend];
     if let Some(start) = find_keyword(blob, "type", searchstr, search_type, local) {
         let l = match search_type {
@@ -327,7 +346,8 @@ pub fn match_type(msrc: &str, blobstart: usize, blobend: usize,
             mtype: Type,
             contextstr: first_line(blob),
             generic_args: Vec::new(),
-            generic_types: Vec::new()
+            generic_types: Vec::new(),
+            session: session.clone()
         })
     } else {
         None
@@ -336,7 +356,8 @@ pub fn match_type(msrc: &str, blobstart: usize, blobend: usize,
 
 pub fn match_trait(msrc: &str, blobstart: usize, blobend: usize,
              searchstr: &str, filepath: &Path, search_type: SearchType,
-             local: bool) -> Option<Match> {
+             local: bool, session: &core::Session) -> Option<Match> {
+    assert_eq!(&filepath, &session.query_path.as_path());
     let blob = &msrc[blobstart..blobend];
     if let Some(start) = find_keyword(blob, "trait", searchstr, search_type, local) {
         let l = match search_type {
@@ -352,7 +373,8 @@ pub fn match_trait(msrc: &str, blobstart: usize, blobend: usize,
             mtype: Trait,
             contextstr: first_line(blob),
             generic_args: Vec::new(),
-            generic_types: Vec::new()
+            generic_types: Vec::new(),
+            session: session.clone()
         })
     } else {
         None
@@ -361,7 +383,8 @@ pub fn match_trait(msrc: &str, blobstart: usize, blobend: usize,
 
 pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize,
              searchstr: &str, filepath: &Path, search_type: SearchType,
-             local: bool) -> vec::IntoIter<Match> {
+             local: bool, session: &core::Session) -> vec::IntoIter<Match> {
+    assert_eq!(&filepath, &session.query_path.as_path());
     let blob = &msrc[blobstart..blobend];
     let mut out = Vec::new();
     if blob.starts_with("pub enum") || (local && blob.starts_with("enum")) {
@@ -379,7 +402,8 @@ pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize,
                         mtype: EnumVariant,
                         contextstr: first_line(&blob[offset..]),
                         generic_args: Vec::new(),
-                        generic_types: Vec::new()
+                        generic_types: Vec::new(),
+                        session: session.clone()
                     };
                     out.push(m);
                 }
@@ -391,7 +415,8 @@ pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize,
 
 pub fn match_enum(msrc: &str, blobstart: usize, blobend: usize,
              searchstr: &str, filepath: &Path, search_type: SearchType,
-             local: bool) -> Option<Match> {
+             local: bool, session: &core::Session) -> Option<Match> {
+    assert_eq!(&filepath, &session.query_path.as_path());
     let blob = &msrc[blobstart..blobend];
     if let Some(start) = find_keyword(blob, "enum", searchstr, search_type, local) {
         let l = match search_type {
@@ -412,7 +437,8 @@ pub fn match_enum(msrc: &str, blobstart: usize, blobend: usize,
             mtype: Enum,
             contextstr: first_line(blob),
             generic_args: generics.generic_args,
-            generic_types: Vec::new()
+            generic_types: Vec::new(),
+            session: session.clone()
         })
     } else {
         None
@@ -427,7 +453,8 @@ thread_local!(static ALREADY_GLOBBING: Cell<Option<bool>> = Cell::new(None));
 
 pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
              searchstr: &str, filepath: &Path, search_type: SearchType,
-             local: bool) -> Vec<Match> {
+             local: bool, session: &core::Session) -> Vec<Match> {
+    assert_eq!(&filepath, &session.query_path.as_path());
     let mut out = Vec::new();
     let blob = &msrc[blobstart..blobend];
 
@@ -458,7 +485,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                 let mut path = basepath.clone();
                 path.segments.push(seg);
                 debug!("found a glob: now searching for {:?}", path);
-                let iter_path = resolve_path(&path, filepath, 0, search_type, BothNamespaces);
+                let iter_path = resolve_path(&path, filepath, 0, search_type, BothNamespaces, session);
                 if let StartsWith = search_type {
                     return iter_path.collect();
                 }
@@ -485,7 +512,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                     // Do nothing because this will be picked up by the module
                     // search in a bit.
                 } else {
-                    for m in resolve_path(&path, filepath, 0, ExactMatch, BothNamespaces) {
+                    for m in resolve_path(&path, filepath, 0, ExactMatch, BothNamespaces, session) {
                         out.push(m);
                         if let ExactMatch = search_type  {
                             return out;
@@ -504,7 +531,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                 } else if symbol_matches(search_type, searchstr, 
                                          &path.segments.last().unwrap().name) {
                     // last path segment matches the path. find it!
-                    for m in resolve_path(&path, filepath, 0, ExactMatch, BothNamespaces) {
+                    for m in resolve_path(&path, filepath, 0, ExactMatch, BothNamespaces, session) {
                         out.push(m);
                         if let ExactMatch = search_type  {
                             return out;
@@ -521,7 +548,8 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
 
 pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize,
              searchstr: &str, filepath: &Path, search_type: SearchType,
-             local: bool) -> Option<Match> {
+             local: bool, session: &core::Session) -> Option<Match> {
+    assert_eq!(&filepath, &session.query_path.as_path());
     let blob = &msrc[blobstart..blobend];
     if let Some(start) = find_keyword(blob, "fn", searchstr, search_type, local) {
         if !typeinf::first_param_is_self(blob) {
@@ -539,7 +567,8 @@ pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize,
                 mtype: Function,
                 contextstr: first_line(blob),
                 generic_args: Vec::new(),
-                generic_types: Vec::new()
+                generic_types: Vec::new(),
+                session: session.clone()
             })
         } else {
             None
