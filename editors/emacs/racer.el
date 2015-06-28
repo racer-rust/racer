@@ -1,4 +1,4 @@
-;;; racer.el --- Rust completion via racer
+;;; racer.el --- Rust completion via racer with company
 
 ;; Copyright (c) 2014 Phil Dawes
 
