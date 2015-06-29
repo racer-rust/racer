@@ -1,4 +1,4 @@
-;;; racer.el --- Rust completion via racer
+;;; racer.el --- Rust completion via racer with company
 
 ;; Copyright (c) 2014 Phil Dawes
 
@@ -153,10 +153,10 @@
 
           (when (string-match "^PREFIX \\(.+\\),\\(.+\\),\\(.*\\)$" line)
             (setq racer-start-pos (string-to-number (match-string 1 line)))
-            (setq racer-end-pos (string-to-number (match-string 2 line))))))
-      (list (- (point) (- racer-end-pos racer-start-pos))
-            (point)
-            racer-completion-results))))
+            (setq racer-end-pos (string-to-number (match-string 2 line)))))
+        (list (- (point) (- racer-end-pos racer-start-pos))
+              (point)
+              racer-completion-results)))))
 
 (defun racer-company-complete (command &optional arg &rest ignored)
   "Run the racer command for `COMMAND' and format using `ARG'.
