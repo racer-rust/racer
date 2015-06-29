@@ -1103,7 +1103,7 @@ fn finds_match_arm_enum() {
     let path = tmpname();
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 7, 18);
-    let got = find_definition(src, &path, pos).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("Foo", got.matchstr);
 }
