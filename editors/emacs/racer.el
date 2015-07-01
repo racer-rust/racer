@@ -67,7 +67,10 @@
   :link '(url-link "https://github.com/phildawes/racer/")
   :group 'rust-mode)
 
-(defcustom racer-cmd "/usr/local/bin/racer"
+(defcustom racer-cmd
+  (if (locate-file "racer" exec-path)
+      (locate-file "racer" exec-path)
+    "/usr/local/bin/racer")
   "Path to the racer binary."
   :type 'file
   :group 'racer)
