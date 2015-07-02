@@ -38,7 +38,7 @@ if !exists('g:racer_insert_paren')
 endif
 
 function! RacerGetPrefixCol()
-    :w! %.racertmp
+    silent write! %.racertmp
     let col = col(".")-1
     let b:racer_col = col
     let fname = expand("%:p")
@@ -109,7 +109,7 @@ function! RacerGetCompletions()
 endfunction
 
 function! RacerGoToDefinition()
-    :w! %.racertmp
+    silent write! %.racertmp
     let col = col(".")-1
     let b:racer_col = col
     let fname = expand("%:p")
