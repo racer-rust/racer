@@ -10,16 +10,25 @@
 
 
 if !exists('g:racer_cmd')
-    let g:racer_cmd = escape(expand('<sfile>:p:h'), '\') . '/../target/release/racer'
+    let path = escape(expand('<sfile>:p:h'), '\') . '/../target/release/'
+    if isdirectory(path)
+        let $PATH .= ':' . path
+    endif
+    let g:racer_cmd = 'racer'
 
-    if !(filereadable(g:racer_cmd))
-      echohl WarningMsg | echomsg "No racer executable present in " . g:racer_cmd
+    if !(executable(g:racer_cmd))
+      echohl WarningMsg | echomsg "No racer executable found in $PATH (" . $PATH . ")"
     endif
 endif
 
 if !exists('$RUST_SRC_PATH')
     let s:rust_src_default = 1
-    let $RUST_SRC_PATH="/usr/local/src/rust/src"
+    if isdirectory("/usr/local/src/rust/src")
+        let $RUST_SRC_PATH="/usr/local/src/rust/src"
+    endif
+    if isdirectory("/usr/src/rust/src")
+        let $RUST_SRC_PATH="/usr/src/rust/src"
+    endif
 endif
 if !isdirectory($RUST_SRC_PATH)
     if exists('s:rust_src_default')
