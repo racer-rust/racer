@@ -36,20 +36,14 @@
    (eval-after-load "rust-mode" '(require 'racer))
    ```
 
-5. Configure Emacs to use racer.el:
+5. Configure Emacs to activate racer and setup some key bindings when rust-mode starts:
 
    ```
-   (add-to-list 'load-path "<path-to-racer>/editors/emacs")
-   (require 'racer)
-   (add-hook 'rust-mode-hook #'racer-activate)
-   ```
-
-6. You may wish to set up keybindings:
-
-   ```
-   (require 'rust-mode)
-   (define-key rust-mode-map (kbd "TAB") #'racer-complete-or-indent)
-   (define-key rust-mode-map (kbd "M-.") #'racer-find-definition)
+   (add-hook 'rust-mode-hook 
+	  '(lambda () 
+	     (racer-activate)
+	     (local-set-key (kbd "M-.") #'racer-find-definition)
+	     (local-set-key (kbd "TAB") #'racer-complete-or-indent)))
    ```
 
 7. Open a rust file and try typing ```use std::io::B``` and press \<tab\>
