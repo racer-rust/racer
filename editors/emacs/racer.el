@@ -93,7 +93,7 @@
 (defun racer--write-tmp-file (tmp-file-name)
   "Write the racer temporary file to `TMP-FILE-NAME'."
     (push-mark)
-    (write-region nil nil tmp-file-name))
+    (write-region nil nil tmp-file-name nil 'silent))
 
 (defun racer--candidates ()
   "Run the racer complete command and process the results."
