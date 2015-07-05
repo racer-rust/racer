@@ -367,7 +367,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                         }
                         {
                             // try just <name>.rs
-                            if fname.ends_with(".rs") {
+                            if fname.ends_with(".rs") && File::open(&fpath_buf).is_ok() {
                                 let m = Match {
                                                matchstr: (&fname[..(fname.len()-3)]).to_string(),
                                                filepath: fpath_buf.clone(),
