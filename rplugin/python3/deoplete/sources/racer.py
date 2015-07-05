@@ -25,10 +25,8 @@
 
 import re
 import os
-import os.path
 import subprocess
 import tempfile
-import deoplete.util
 from .base import Base
 
 class Source(Base):
