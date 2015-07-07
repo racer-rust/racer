@@ -347,9 +347,8 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                     }
 
                     if fname.starts_with(searchstr) {
-                        {
-                            // try <name>/<name>.rs, like in the servo codebase
-                            let filepath = fpath_buf.deref().join(format!("{}.rs", fname));
+                        for name in &[&format!("{}.rs", fname)[..], "mod.rs", "lib.rs"] {
+                            let filepath = fpath_buf.deref().join(name);
 
                             if File::open(&filepath).is_ok() {
                                 let m = Match {
@@ -367,44 +366,8 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                             }
                         }
                         {
-                            // try <name>/mod.rs
-                            let filepath = fpath_buf.deref().join("mod.rs");
-                            if File::open(&filepath).is_ok() {
-                                let m = Match {
-                                               matchstr: fname.to_string(),
-                                               filepath: filepath.to_path_buf(),
-                                               point: 0,
-                                               local: false,
-                                               mtype: Module,
-                                               contextstr: filepath.to_str().unwrap().to_string(),
-                                               generic_args: Vec::new(),
-                                               generic_types: Vec::new(),
-                                               session: core::Session::from_path(&filepath, &filepath)
-                                };
-                                out.push(m);
-                            }
-                        }
-                        {
-                            // try <name>/lib.rs
-                            let filepath = Path::new(srcpath).join("lib.rs");
-                            if File::open(&filepath).is_ok() {
-                                let m = Match {
-                                               matchstr: fname.to_string(),
-                                               filepath: filepath.to_path_buf(),
-                                               point: 0,
-                                               local: false,
-                                               mtype: Module,
-                                               contextstr: filepath.to_str().unwrap().to_string(),
-                                               generic_args: Vec::new(),
-                                               generic_types: Vec::new(),
-                                               session: core::Session::from_path(&filepath, &filepath)
-                                };
-                                out.push(m);
-                            }
-                        }
-                        {
                             // try just <name>.rs
-                            if fname.ends_with(".rs") {
+                            if fname.ends_with(".rs") && File::open(&fpath_buf).is_ok() {
                                 let m = Match {
                                                matchstr: (&fname[..(fname.len()-3)]).to_string(),
                                                filepath: fpath_buf.clone(),
