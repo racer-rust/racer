@@ -5,3 +5,4 @@ src/scopes
 *tmpfile*
 *.racertmp
 target/
+*.py[cod]
