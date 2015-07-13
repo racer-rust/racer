@@ -59,6 +59,7 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'etags)
 (require 'company)
 (require 'rust-mode)
 
@@ -201,7 +202,7 @@
   (let ((racer-tmp-file-name (concat (buffer-file-name) ".racertmp")))
     (racer--write-tmp-file racer-tmp-file-name)
     (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
-    (push-mark)
+    (ring-insert find-tag-marker-ring (point-marker))
     (let ((lines (process-lines racer-cmd
                                 "find-definition"
                                 (number-to-string (racer-get-line-number))
