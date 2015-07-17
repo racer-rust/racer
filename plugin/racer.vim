@@ -47,11 +47,20 @@ if !exists('g:racer_insert_paren')
 endif
 
 function! RacerGetPrefixCol()
-    silent write! %.racertmp
     let col = col(".")-1
     let b:racer_col = col
+    let scratch = expand("%") == ""
     let fname = expand("%:p")
     let tmpfname=fname.".racertmp"
+    exec "silent keepalt write! ".tmpfname
+    if scratch
+        " Where there was no filename before, :write sets the filename and the
+        " last saved time; I don't think we can prevent this, and I don't
+        " think we can undo the latter (so undoing to buffer creation will no
+        " longer leave an unmodified file), but we can fix the former, which
+        " is the much more important one anyway.
+        keepalt 0file
+    endif
     let cmd = g:racer_cmd." prefix ".line(".")." ".col." ".tmpfname
     let res = system(cmd)
     let prefixline = split(res, "\\n")[0]
