@@ -886,10 +886,20 @@ pub fn get_super_scope(filepath: &Path, pos: usize, session: &core::Session) -> 
     assert_eq!(&filepath, &session.query_path.as_path());
     let msrc = core::load_file_and_mask_comments(&session.substitute_file);
     let mut path = scopes::get_local_module_path(&msrc, pos);
+    debug!("get_super_scope: path: {:?} filepath: {:?} {} {:?}", path, filepath, pos, session);
     if path.is_empty() {
-        let filepath = filepath.parent().unwrap();  // safe because file is valid
+        let moduledir;
+        if filepath.ends_with("mod.rs") || filepath.ends_with("lib.rs"){
+            // Need to go up to directory above
+            // TODO(PD): fix: will crash if mod.rs is in the root fs directory 
+            moduledir = filepath.parent().unwrap().parent().unwrap();
+        } else {
+            // module is in current directory
+            moduledir = filepath.parent().unwrap(); 
+        }
+
         for filename in &[ "mod.rs", "lib.rs" ] {
-            let fpath = filepath.join(&filename);
+            let fpath = moduledir.join(&filename);
             if path_exists(&fpath) {
                 let newsession = core::Session::from_path(fpath.as_path(), fpath.as_path());
                 return Some(core::Scope{ filepath: fpath, point: 0, session: newsession })
