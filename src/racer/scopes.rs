@@ -246,6 +246,9 @@ pub fn mask_sub_scopes(src: &str) -> String {
             _ => {}
         }
     }
+    if start > pos { 
+        start = pos; 
+    } 
     if levels > 0 {
         for _ in 0..((pos - start)/128) { result.push_str(buffer); }
         result.push_str(&buffer[..((pos-start)%128)]);

@@ -410,6 +410,9 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
         debug!("visit_expr {:?}", expr);
         //walk_expr(self, ex, e)
         match expr.node {
+            ast::ExprUnary(_, ref expr) => {
+                self.visit_expr(expr);
+            }
             ast::ExprAddrOf(_, ref expr) => {
                 self.visit_expr(expr);
             }
