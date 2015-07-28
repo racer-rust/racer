@@ -614,7 +614,9 @@ impl<'v> visit::Visitor<'v> for StructVisitor {
                 }
                 ast::UnnamedField(_) => {
                     let ty = to_racer_ty(&*field.node.ty, &self.scope);
-                    self.fields.push(("".to_string(), point as usize, ty));
+                    // name unnamed field by its ordinal, since self.0 works
+                    let name = format!("{}",self.fields.len());
+                    self.fields.push((name, point as usize, ty));
                 }
             }
         }
