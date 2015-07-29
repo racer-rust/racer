@@ -98,13 +98,14 @@
 
 (defun racer--candidates ()
   "Run the racer complete command and process the results."
-  (let ((racer-tmp-file-name (concat (buffer-file-name) ".racertmp")))
+  (let ((racer-tmp-file-name (make-temp-file "racer")))
     (racer--write-tmp-file racer-tmp-file-name)
     (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
     (let ((lines (process-lines racer-cmd
                                 "complete"
                                 (number-to-string (racer-get-line-number))
                                 (number-to-string (current-column))
+				(buffer-file-name)
                                 racer-tmp-file-name))
           (racer-completion-results '()))
       (delete-file racer-tmp-file-name)
@@ -123,7 +124,7 @@
 
 (defun racer--prefix ()
   "Run the racer prefix command and process the results."
-  (let ((racer-tmp-file-name (concat (buffer-file-name) ".racertmp")))
+  (let ((racer-tmp-file-name (make-temp-file "racer")))
     (racer--write-tmp-file racer-tmp-file-name)
     (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
     (let ((lines (process-lines racer-cmd
@@ -137,7 +138,7 @@
 
 (defun racer--complete-at-point-fn ()
   "Run the racer complete command and process the results."
-  (let ((racer-tmp-file-name (concat (buffer-file-name) ".racertmp"))
+  (let ((racer-tmp-file-name (make-temp-file "racer"))
         (racer-completion-results '()))
     (racer--write-tmp-file racer-tmp-file-name)
     (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
@@ -146,6 +147,7 @@
                                   "complete"
                                   (number-to-string (racer-get-line-number))
                                   (number-to-string (current-column))
+				  (buffer-file-name)
                                   racer-tmp-file-name))
             racer-start-pos
             racer-end-pos)
@@ -199,7 +201,7 @@
 (defun racer-find-definition ()
   "Run the racer find-definition command and process the results."
   (interactive)
-  (let ((racer-tmp-file-name (concat (buffer-file-name) ".racertmp")))
+  (let ((racer-tmp-file-name (make-temp-file "racer")))
     (racer--write-tmp-file racer-tmp-file-name)
     (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
     (ring-insert find-tag-marker-ring (point-marker))
@@ -207,6 +209,7 @@
                                 "find-definition"
                                 (number-to-string (racer-get-line-number))
                                 (number-to-string (current-column))
+				(buffer-file-name)
                                 racer-tmp-file-name)))
       (delete-file racer-tmp-file-name)
       (dolist (line lines)
@@ -214,9 +217,7 @@
           (let ((linenum (match-string 2 line))
                 (charnum (match-string 3 line))
                 (fname (match-string 4 line)))
-            (if (racer--string-ends-with fname ".racertmp")
-                (find-file (substring fname 0 -9))
-              (find-file fname))
+	    (find-file fname)
             (goto-char (point-min))
             (forward-line (1- (string-to-number linenum)))
             (forward-char (string-to-number charnum))))))))
