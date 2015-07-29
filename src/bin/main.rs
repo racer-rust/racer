@@ -211,6 +211,7 @@ fn main() {
     run(args);
 }
 
+#[cfg(not(test))]
 fn run(args: &[String]) {
     let command  = &args[0];
     match &command[..] {
