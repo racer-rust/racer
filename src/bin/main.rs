@@ -55,25 +55,24 @@ fn match_fn(m: Match) {
 }
 
 #[cfg(not(test))]
-fn complete(match_found: &Fn(Match)) {
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() < 3 {
+fn complete(match_found: &Fn(Match), args: &[String]) {
+    if args.len() < 1 {
         println!("Provide more arguments!");
         print_usage();
         std::process::exit(1);
     }
-    match args[2].parse::<usize>() {
+    match args[1].parse::<usize>() {
         Ok(linenum) => {
             // input: linenum, colnum, fname
-            if args.len() < 5 {
+            if args.len() < 4 {
                 println!("Provide more arguments!");
                 print_usage();
                 std::process::exit(1);
             }
-            let charnum = args[3].parse::<usize>().unwrap();
-            let fname = &args[4];
-            let substitute_file = Path::new(match args.len() > 5 {
-                true => &args[5],
+            let charnum = args[2].parse::<usize>().unwrap();
+            let fname = &args[3];
+            let substitute_file = Path::new(match args.len() > 4 {
+                true => &args[4],
                 false => fname
             });
             let fpath = Path::new(fname);
@@ -87,10 +86,11 @@ fn complete(match_found: &Fn(Match)) {
             for m in core::complete_from_file(&*src, &fpath, point, &session) {
                 match_found(m);
             }
+            println!("END");
         }
         Err(_) => {
             // input: a command line string passed in
-            let arg = &args[2];
+            let arg = &args[1];
             let it = arg.split("::");
             let p: Vec<&str> = it.collect();
 
@@ -108,16 +108,15 @@ fn complete(match_found: &Fn(Match)) {
 }
 
 #[cfg(not(test))]
-fn prefix() {
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() < 5 {
+fn prefix(args: &[String]) {
+    if args.len() < 4 {
         println!("Provide more arguments!");
         print_usage();
         std::process::exit(1);
     }
-    let linenum = args[2].parse::<usize>().unwrap();
-    let charnum = args[3].parse::<usize>().unwrap();
-    let fname = &args[4];
+    let linenum = args[1].parse::<usize>().unwrap();
+    let charnum = args[2].parse::<usize>().unwrap();
+    let fname = &args[3];
 
     // print the start, end, and the identifier prefix being matched
     let path = Path::new(fname);
@@ -127,18 +126,17 @@ fn prefix() {
 }
 
 #[cfg(not(test))]
-fn find_definition() {
-    let args: Vec<String> = std::env::args().collect();
-    if args.len() < 5 {
+fn find_definition(args: &[String]) {
+    if args.len() < 4 {
         println!("Provide more arguments!");
         print_usage();
         std::process::exit(1);
     }
-    let linenum = args[2].parse::<usize>().unwrap();
-    let charnum = args[3].parse::<usize>().unwrap();
-    let fname = &args[4];
-    let substitute_file = Path::new(match args.len() > 5 {
-        true => &args[5],
+    let linenum = args[1].parse::<usize>().unwrap();
+    let charnum = args[2].parse::<usize>().unwrap();
+    let fname = &args[3];
+    let substitute_file = Path::new(match args.len() > 4 {
+        true => &args[4],
         false => fname
     });
     let fpath = Path::new(&fname);
@@ -147,6 +145,7 @@ fn find_definition() {
     let pos = scopes::coords_to_point(&*src, linenum, charnum);
 
     core::find_definition(&*src, &fpath, pos, &session).map(match_fn);
+    println!("END");
 }
 
 #[cfg(not(test))]
@@ -157,6 +156,7 @@ fn print_usage() {
     println!("or:    {} complete fullyqualifiedname   (e.g. std::io::)", program);
     println!("or:    {} prefix linenum charnum fname", program);
     println!("or replace complete with complete-with-snippet for more detailed completions.");
+    println!("or:    {} daemon     - to start a process that receives the above commands via stdin", program);
 }
 
 #[cfg(not(test))]
@@ -179,6 +179,21 @@ fn check_rust_src_env_var() {
     }
 }
 
+#[cfg(not(test))]
+fn daemon() {
+    use std::io;
+    let mut input = String::new();
+    while let Ok(n) = io::stdin().read_line(&mut input) {
+        if n == 0 {
+            break;
+        }
+        let args: Vec<String> = input.split(" ").map(|s| s.trim().to_string()).collect();
+        run(&args);
+        
+        input.clear();
+    }
+}
+
 
 #[cfg(not(test))]
 fn main() {
@@ -192,12 +207,18 @@ fn main() {
         std::process::exit(1);
     }
 
-    let command = &args[1][..];
-    match command {
-        "prefix" => prefix(),
-        "complete" => complete(&match_fn),
-        "complete-with-snippet" => complete(&match_with_snippet_fn),
-        "find-definition" => find_definition(),
+    let args = &args[1..];
+    run(args);
+}
+
+fn run(args: &[String]) {
+    let command  = &args[0];
+    match &command[..] {
+        "daemon" => daemon(),
+        "prefix" => prefix(&args),
+        "complete" => complete(&match_fn, &args),
+        "complete-with-snippet" => complete(&match_with_snippet_fn, &args),
+        "find-definition" => find_definition(&args),
         "help" => print_usage(),
         cmd => {
             println!("Sorry, I didn't understand command {}", cmd);
