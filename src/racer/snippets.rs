@@ -39,7 +39,7 @@ impl MethodInfo {
                             let ref decl = msig.decl;
                             Some(MethodInfo {
                                 // ident.as_str calls Ident.name.as_str
-                                name: method.ident.as_str().to_string(),
+                                name: method.ident.name.as_str().to_string(),
                                 args: decl.inputs.iter().map(|arg| {
                                     let ref codemap = p.sess.span_diagnostic.cm;
                                     match codemap.span_to_snippet(arg.pat.span) {
