@@ -56,7 +56,7 @@
 
   Vundle users:
   ```
-  Vundle 'phildawes/racer'
+  Plugin 'phildawes/racer'
   ```
 
   NeoBundle users:
