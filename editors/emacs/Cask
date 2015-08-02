@@ -3,5 +3,4 @@
 
 (package-file "racer.el")
 
-(depends-on "rust-mode")
 (depends-on "company")
