@@ -1,11 +1,11 @@
-;;; racer.el --- Rust completion via racer with company
+;;; racer.el --- Support for Rust completion via racer      -*- lexical-binding: t; -*-
 
 ;; Copyright (c) 2014 Phil Dawes
 
 ;; Author: Phil Dawes
 ;; URL: https://github.com/phildawes/racer
 ;; Version: 0.0.2
-;; Package-Requires: ((emacs "24.3") (company "0.8.0") (rust-mode "0.2.0"))
+;; Package-Requires: ((emacs "24") (cl-lib "0.5") (deferred "0.3.1"))
 ;; Keywords: abbrev, convenience, matching, rust, tools
 
 ;; This file is not part of GNU Emacs.
@@ -38,196 +38,158 @@
 
 ;; You will need to configure Emacs to find racer:
 ;;
-;; (setq racer-rust-src-path "<path-to-rust-srcdir>/src/")
-;; (setq racer-cmd "<path-to-racer>/target/release/racer")
+;;     (require 'racer)
+;;
+;;     (setq racer-cmd "/path/to/executable/racer")
+;;     (setq racer-rust-src-path "/path/to/rust/src")
 ;;
 ;; To set up racer for completion in Rust buffers, add it
 ;; `rust-mode-hook':
 ;;
-;; (add-hook 'rust-mode-hook #'racer-activate)
-;;
-;; To use TAB for both indent and completion in Rust:
-;;
-;; (require 'rust-mode)
-;; (define-key rust-mode-map (kbd "TAB") #'racer-complete-or-indent)
-;;
-;; You can also use racer to find definitions. To bind this to a key:
-;;
-;; (require 'rust-mode)
-;; (define-key rust-mode-map (kbd "M-.") #'racer-find-definition)
+;;     (add-hook 'rust-mode-hook #'racer-mode)
 
 ;;; Code:
+(eval-when-compile (require 'cl-lib))
 
-(require 'cl-lib)
-(require 'etags)
-(require 'company)
-(require 'rust-mode)
+(require 'ring)
+(require 'deferred)
 
 (defgroup racer nil
   "Support for Rust completion via racer."
   :link '(url-link "https://github.com/phildawes/racer/")
+  :prefix "racer-"
   :group 'rust-mode)
 
-(defcustom racer-cmd
-  (if (locate-file "racer" exec-path)
-      (locate-file "racer" exec-path)
-    "/usr/local/bin/racer")
-  "Path to the racer binary."
+(defcustom racer-cmd "racer"
+  "Path to the racer executable."
   :type 'file
   :group 'racer)
 
-(defcustom racer-rust-src-path
-  (if (getenv "RUST_SRC_PATH")
-      (getenv "RUST_SRC_PATH")
-    "/usr/local/src/rust/src")
-  "Path to the rust source tree."
-  :type 'file
+(defcustom racer-rust-src-path (getenv "RUST_SRC_PATH")
+  "Path to rust lang sources, needs to be an absolute path.
+
+If non nil overwrites the value of the environment variable 'RUST_SRC_PATH'."
+  :type 'directory
   :group 'racer)
 
-(defun racer-get-line-number ()
-  "Gets the current line number at point."
-  ; for some reason if the current-column is 0, then the linenumber is off by 1
-  (if (= (current-column) 0)
-      (1+ (count-lines 1 (point)))
-    (count-lines 1 (point))))
+(defcustom racer-goto-definition-marker-ring-length 16
+  "Length of marker ring to store `racer-goto-definition' call positions."
+  :type 'integer
+  :group 'racer)
 
-(defun racer--write-tmp-file (tmp-file-name)
-  "Write the racer temporary file to `TMP-FILE-NAME'."
-    (push-mark)
-    (write-region nil nil tmp-file-name nil 'silent))
+(defvar racer-temp-file (make-temp-file "company-racer")
+  "Temporal file used to call racer.")
 
-(defun racer--candidates ()
-  "Run the racer complete command and process the results."
-  (let ((racer-tmp-file-name (make-temp-file "racer")))
-    (racer--write-tmp-file racer-tmp-file-name)
-    (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
-    (let ((lines (process-lines racer-cmd
-                                "complete"
-                                (number-to-string (racer-get-line-number))
-                                (number-to-string (current-column))
-				(buffer-file-name)
-                                racer-tmp-file-name))
-          (racer-completion-results '()))
-      (delete-file racer-tmp-file-name)
-      (dolist (line lines)
-        (when (string-match "^MATCH \\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\(.+\\)$" line)
-          (let ((completion (match-string 1 line))
-                (linenum (match-string 2 line))
-                (colnum (match-string 3 line))
-                (fname (match-string 4 line))
-                (matchtype (match-string 5 line))
-                (contextstr (match-string 6 line)))
-            (put-text-property 0 1 'contextstr contextstr completion)
-            (put-text-property 0 1 'matchtype matchtype completion)
-            (push completion racer-completion-results))))
-      racer-completion-results)))
+(defun racer-process (&rest args)
+  "Call `racer-cmd' with ARGS, return a deferred object."
+  (let ((process-environment (if racer-rust-src-path
+                                 (append (list
+                                          (format "RUST_SRC_PATH=%s" (expand-file-name racer-rust-src-path)))
+                                         process-environment)
+                               process-environment)))
+    (apply 'deferred:process racer-cmd args)))
 
-(defun racer--prefix ()
-  "Run the racer prefix command and process the results."
-  (let ((racer-tmp-file-name (make-temp-file "racer")))
-    (racer--write-tmp-file racer-tmp-file-name)
-    (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
-    (let ((lines (process-lines racer-cmd
-                                "prefix"
-                                (number-to-string (racer-get-line-number))
-                                (number-to-string (current-column))
-                                racer-tmp-file-name)))
-      (delete-file racer-tmp-file-name)
-      (when (string-match "^PREFIX \\(.+\\),\\(.+\\),\\(.*\\)$" (nth 0 lines))
-        (match-string 3 (nth 0 lines))))))
+(defun racer-current-line ()
+  "Return a string of the current line number."
+  (number-to-string (count-lines (point-min)
+                                 (min (1+ (point)) (point-max)))))
 
-(defun racer--complete-at-point-fn ()
-  "Run the racer complete command and process the results."
-  (let ((racer-tmp-file-name (make-temp-file "racer"))
-        (racer-completion-results '()))
-    (racer--write-tmp-file racer-tmp-file-name)
-    (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
-    (save-excursion
-      (let ((lines (process-lines racer-cmd
-                                  "complete"
-                                  (number-to-string (racer-get-line-number))
-                                  (number-to-string (current-column))
-				  (buffer-file-name)
-                                  racer-tmp-file-name))
-            racer-start-pos
-            racer-end-pos)
-        (delete-file racer-tmp-file-name)
-        (dolist (line lines)
-          (when (string-match "^MATCH \\([^,]+\\),\\(.+\\)$" line)
-            (let ((completion (match-string 1 line)))
-              (push completion racer-completion-results)))
+(defun racer-current-column ()
+  "Return a string of the current column number."
+  (number-to-string (current-column)))
 
-          (when (string-match "^PREFIX \\(.+\\),\\(.+\\),\\(.*\\)$" line)
-            (setq racer-start-pos (string-to-number (match-string 1 line)))
-            (setq racer-end-pos (string-to-number (match-string 2 line)))))
-        (list (- (point) (- racer-end-pos racer-start-pos))
-              (point)
-              racer-completion-results)))))
+(defun racer-collect-response (prefix output)
+  "Collect lines which start with PREFIX from a racer OUTPUT."
+  (delq nil
+        (mapcar (lambda (line)
+                  (let ((match (and (string-prefix-p prefix line)
+                                    (cadr (split-string line " ")))))
+                    (and match (split-string match ","))))
+                (split-string output "\n"))))
 
-(defun racer-company-complete (command &optional arg &rest ignored)
-  "Run the racer command for `COMMAND' and format using `ARG'.
-`IGNORED' is unused."
-  (interactive)
-  (when (looking-back "[a-zA-z1-9:.]" nil)
-    (cl-case command
-      (prefix (racer--prefix))
-      (candidates (racer--candidates))
-      (duplicates t)
-      (sorted nil)
-      (annotation
-       (progn
-	 (format "%s %10s : %s"
-		 (make-string (max 0 (- 20 (length arg))) ? )
-		 (get-text-property 0 'matchtype arg)
-		 (get-text-property 0 'contextstr arg))))
-      (meta (format "%s" (get-text-property 0 'contextstr arg))))))
+
+(defun racer-prefix ()
+  "Call racer prefix command."
+  (let ((line (racer-current-line))
+        (column (racer-current-column))
+        (fname (or (buffer-file-name) "")))
+    (write-region nil nil racer-temp-file nil 0)
+    (deferred:nextc
+      (racer-process "find-definition" line column fname racer-temp-file)
+      (lambda (output) (racer-collect-response "PREFIX" output)))))
 
-;;;###autoload
-(defun racer-complete-or-indent ()
-  "Complete with company-mode or indent."
-  (interactive)
-  (if (company-manual-begin)
-      (company-complete-common)
-    (indent-according-to-mode)))
+(defun racer-complete ()
+  "Call racer complete command."
+  (let ((line (racer-current-line))
+        (column (racer-current-column))
+        (fname (or (buffer-file-name) "")))
+    (write-region nil nil racer-temp-file nil 0)
+    (deferred:nextc
+      (racer-process "complete" line column fname racer-temp-file)
+      (lambda (output) (racer-collect-response "MATCH" output)))))
 
-(defun racer--string-ends-with (s ending)
-  "Return non-nil if string S ends with ENDING."
-  (cond ((>= (length s) (length ending))
-         (let ((elength (length ending)))
-           (string= (substring s (- 0 elength)) ending)))
-        (t nil)))
-
-;;;###autoload
 (defun racer-find-definition ()
-  "Run the racer find-definition command and process the results."
-  (interactive)
-  (let ((racer-tmp-file-name (make-temp-file "racer")))
-    (racer--write-tmp-file racer-tmp-file-name)
-    (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
-    (ring-insert find-tag-marker-ring (point-marker))
-    (let ((lines (process-lines racer-cmd
-                                "find-definition"
-                                (number-to-string (racer-get-line-number))
-                                (number-to-string (current-column))
-				(buffer-file-name)
-                                racer-tmp-file-name)))
-      (delete-file racer-tmp-file-name)
-      (dolist (line lines)
-        (when (string-match "^MATCH \\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\).*$" line)
-          (let ((linenum (match-string 2 line))
-                (charnum (match-string 3 line))
-                (fname (match-string 4 line)))
-	    (find-file fname)
-            (goto-char (point-min))
-            (forward-line (1- (string-to-number linenum)))
-            (forward-char (string-to-number charnum))))))))
+  "Call find-definition racer command."
+  (let ((line (racer-current-line))
+        (column (racer-current-column))
+        (fname (or (buffer-file-name) "")))
+    (write-region nil nil racer-temp-file nil 0)
+    (deferred:nextc
+      (racer-process "find-definition" line column fname racer-temp-file)
+      (lambda (output) (racer-collect-response "MATCH" output)))))
+
+
+(defvar racer-goto-definition-marker-ring (make-ring racer-goto-definition-marker-ring-length)
+  "Marker ring that stores `racer-goto-definition' call positions.")
+
+(defun racer-goto-definition-push-marker ()
+  "Push point onto goto-definition marker ring."
+  (ring-insert racer-goto-definition-marker-ring (point-marker)))
 
 ;;;###autoload
-(defun racer-activate ()
-  "Add Racer as the completion backend for the current buffer."
-  (company-mode)
-  (set (make-local-variable 'company-backends) '(racer-company-complete))
-  (setq-local company-idle-delay nil))
+(defun racer-goto-definition ()
+  "Go to the definition of the object at point."
+  (interactive)
+  (deferred:nextc
+    (racer-find-definition)
+    (lambda (values)
+      (and values (cl-multiple-value-bind (_ linenum charnum filepath _ _) (car values)
+                    (racer-goto-definition-push-marker)
+                    (find-file filepath)
+                    (goto-char (point-min))
+                    (forward-line (1- (string-to-number linenum)))
+                    (forward-char (string-to-number charnum)))))))
+
+;;;###autoload
+(defun racer-goto-definition-pop-marker ()
+  "Pop racer marker."
+  (interactive)
+  (if (ring-empty-p racer-goto-definition-marker-ring)
+      (error "Marker ring is empty, can't pop")
+    (let ((marker (ring-remove racer-goto-definition-marker-ring 0)))
+      (switch-to-buffer (or (marker-buffer marker)
+                            (error "Buffer has been deleted")))
+      (goto-char (marker-position marker))
+      (set-marker marker nil nil))))
+
+(defvar racer-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "M-.") 'racer-goto-definition)
+    (define-key map (kbd "M-,") 'racer-goto-definition-pop-marker)
+    map))
+
+;;;###autoload
+(define-minor-mode racer-mode
+  "racer mode.
+
+\\{racer-mode-map}"
+  :keymap racer-mode-map
+  :group 'racer)
 
 (provide 'racer)
+
+;; Local Variables:
+;; indent-tabs-mode: nil
+;; End:
+
 ;;; racer.el ends here
