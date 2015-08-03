@@ -16,6 +16,11 @@ macro_rules! otry2 {
     ($e:expr) => (match $e { Ok(e) => e, Err(e) => { error!("ERROR!: {:?} {} {}", e, file!(), line!()); return None } })
 }
 
+// converts errors into message + empty vec
+macro_rules! vectry {
+    ($e:expr) => (match $e { Ok(e) => e, Err(e) => { error!("ERROR!: {:?} {} {}", e, file!(), line!()); return Vec::new() } })
+}
+
 fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     let mut file = otry2!(File::open(cargofile));
     let mut string = String::new();
@@ -39,10 +44,10 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
                     let source = otry!(getstr(t, "source"));
 
                     if Some("registry") == source.split("+").nth(0) {
-                        return get_versioned_cratefile(name, &version);
+                        return get_versioned_cratefile(name, &version, cargofile);
                     } else if Some("git") == source.split("+").nth(0) {
                         let sha1 = otry!(source.split("#").last());
-                        let mut d = otry!(get_cargo_rootdir());
+                        let mut d = otry!(get_cargo_rootdir(cargofile));
                         d.push("git");
                         d.push("checkouts");
                         d = otry!(find_git_src_dir(d, name, &sha1));
@@ -57,7 +62,7 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     None
 }
 
-fn get_cargo_rootdir() -> Option<PathBuf> {
+fn get_cargo_rootdir(cargofile: &Path) -> Option<PathBuf> {
     match env::var_os("CARGO_HOME") {
         Some(x) =>
         {
@@ -76,6 +81,26 @@ fn get_cargo_rootdir() -> Option<PathBuf> {
     // try multirust first, since people with multirust installed will often still 
     // have an old .cargo directory lying around
     d.push(".multirust");
+
+    d.push("overrides");
+    if let Ok(mut multirust_overides) = File::open(&d) {
+        let mut s = String::new();
+        otry2!(multirust_overides.read_to_string(&mut s));
+        for line in s.lines() {
+            let overridepath = line.split(";").nth(0).unwrap();
+            if cargofile.starts_with(overridepath) {
+                let overridepath = line.split(";").nth(1).unwrap();
+                d.pop();
+                d.push("toolchains");
+                d.push(overridepath.trim());
+                d.push("cargo");
+                debug!("get_cargo_rootdir override root is {:?}",d);
+                return Some(d)
+            }
+        }
+    }
+
+    d.pop();
     d.push("default");
     if let Ok(mut multirustdefault) = File::open(&d) {
         let mut s = String::new();
@@ -98,51 +123,56 @@ fn get_cargo_rootdir() -> Option<PathBuf> {
     }
 }
 
-fn get_versioned_cratefile(kratename: &str, version: &str) -> Option<PathBuf> {
-    let mut d = otry!(get_cargo_rootdir());
+fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> Option<PathBuf> {
+    let mut d = otry!(get_cargo_rootdir(cargofile));
     d.push("registry");
     d.push("src");
-    d = otry!(find_cratesio_src_dir(d));
 
-    // if version=* then search for the first matching folder
-    if version == "*" {
-        use std::fs::read_dir;
-        let mut start_path = d.clone();
-        start_path.push(kratename);
-        let start_name = start_path.to_str().unwrap();
+    for mut d in find_cratesio_src_dirs(d) {
 
-        if let Ok(reader) = read_dir(d) {
-            if let Some(path) = reader
-                                .map(|entry| entry.unwrap().path())
-                                .find(|path| path.to_str().unwrap().starts_with(start_name)) {
-                d = path.clone();                        
+        // if version=* then search for the first matching folder
+        if version == "*" {
+            use std::fs::read_dir;
+            let mut start_path = d.clone();
+            start_path.push(kratename);
+            let start_name = start_path.to_str().unwrap();
+
+            if let Ok(reader) = read_dir(d) {
+                if let Some(path) = reader
+                    .map(|entry| entry.unwrap().path())
+                    .find(|path| path.to_str().unwrap().starts_with(start_name)) {
+                        d = path.clone();                        
+                    } else {
+                        continue;
+                    }
             } else {
-                return None;
+                continue;
             }
-        } else { return None; }
-    } else {
-        d.push(kratename.to_string() + "-" + &version);
-    }
-    
-    d.push("src");
-    debug!("crate path {:?}",d);
+        } else {
+            d.push(kratename.to_string() + "-" + &version);
+        }
+        
+        d.push("src");
+        debug!("crate path {:?}",d);
 
-    // First, check for package name at root (src/kratename/lib.rs)
-    d.push(kratename.to_string());
-    d.push("lib.rs");
-    if let Err(_) = File::open(&d) {
-        // It doesn't exist, so assume src/lib.rs
-        d.pop();
-        d.pop();
+        // First, check for package name at root (src/kratename/lib.rs)
+        d.push(kratename.to_string());
         d.push("lib.rs");
-    }
-    debug!("crate path with lib.rs {:?}",d);
+        if let Err(_) = File::open(&d) {
+            // It doesn't exist, so assume src/lib.rs
+            d.pop();
+            d.pop();
+            d.push("lib.rs");
+        }
+        debug!("crate path with lib.rs {:?}",d);
 
-    if let Err(_) = File::open(&d) {
-        return None;
-    }
+        if let Err(_) = File::open(&d) {
+            return continue;
+        }
 
-    Some(d)
+        return Some(d)
+    }
+    return None;
  }
 
 fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
@@ -198,24 +228,25 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
         },
         Some(&toml::Value::String(ref version)) => {
             // versioned crate
-            return get_versioned_cratefile(name, version);
+            return get_versioned_cratefile(name, version, cargofile);
         }
         _ => return None
     }
 }
 
-fn find_cratesio_src_dir(d: PathBuf) -> Option<PathBuf> {
-    for entry in otry2!(read_dir(d)) {
-        let path = otry2!(entry).path();
+fn find_cratesio_src_dirs(d: PathBuf) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    for entry in vectry!(read_dir(d)) {
+        let path = vectry!(entry).path();
         if is_dir(path.as_path()) {
             if let Some(ref fname) = path.file_name().and_then(|s| s.to_str()) {
                 if fname.starts_with("github.com-") {
-                    return Some(path.clone());
+                    out.push(path.clone());
                 }
             }
         }
     }
-    None
+    out
 }
 
 fn find_git_src_dir(d: PathBuf, name: &str, sha1: &str) -> Option<PathBuf> {
