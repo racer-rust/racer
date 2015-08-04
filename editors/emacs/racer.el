@@ -188,7 +188,7 @@
   (interactive)
   (if (company-manual-begin)
       (company-complete-common)
-    (indent-according-to-mode)))
+    (indent-for-tab-command)))
 
 (defun racer--string-ends-with (s ending)
   "Return non-nil if string S ends with ENDING."
