@@ -485,7 +485,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                 let mut path = basepath.clone();
                 path.segments.push(seg);
                 debug!("found a glob: now searching for {:?}", path);
-                let iter_path = resolve_path(&path, filepath, 0, search_type, BothNamespaces, session);
+                let iter_path = resolve_path(&path, filepath, blobstart, search_type, BothNamespaces, session);
                 if let StartsWith = search_type {
                     return iter_path.collect();
                 }
@@ -512,7 +512,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                     // Do nothing because this will be picked up by the module
                     // search in a bit.
                 } else {
-                    for m in resolve_path(&path, filepath, 0, ExactMatch, BothNamespaces, session) {
+                    for m in resolve_path(&path, filepath, blobstart, ExactMatch, BothNamespaces, session) {
                         out.push(m);
                         if let ExactMatch = search_type  {
                             return out;
@@ -531,7 +531,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                 } else if symbol_matches(search_type, searchstr, 
                                          &path.segments.last().unwrap().name) {
                     // last path segment matches the path. find it!
-                    for m in resolve_path(&path, filepath, 0, ExactMatch, BothNamespaces, session) {
+                    for m in resolve_path(&path, filepath, blobstart, ExactMatch, BothNamespaces, session) {
                         out.push(m);
                         if let ExactMatch = search_type  {
                             return out;

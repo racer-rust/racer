@@ -960,8 +960,8 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
         context.map(|m| {
             match m.mtype {
                 Module => {
-                    debug!("searching a module '{}' (whole path: {:?})", m.matchstr, path);
                     let ref pathseg = path.segments[len-1];
+                    debug!("searching a module '{}' for {} (whole path: {:?})", m.matchstr, pathseg.name, path);
                     for m in search_next_scope(m.point, pathseg, &m.filepath, search_type, false, namespace, &m.session) {
                         out.push(m);
                     }
