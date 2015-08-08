@@ -101,9 +101,10 @@ fn finds_subnested_module() {
 pub fn split_into_context_and_completion<'a>(s: &'a str) -> (&'a str, &'a str, core::CompletionType) {
     match s.char_indices().rev().find(|&(_, c)| !util::is_ident_char(c)) {
         Some((i,c)) => {
+            //println!("PHIL s '{}' i {} c '{}'",s,i,c);
             match c {
                 '.' => (&s[..i], &s[(i+1)..], core::CompletionType::CompleteField),
-                ':' => (&s[..(i-1)], &s[(i+1)..], core::CompletionType::CompletePath),
+                ':' if s.len() > 1 => (&s[..(i-1)], &s[(i+1)..], core::CompletionType::CompletePath),
                 _   => (&s[..(i+1)], &s[(i+1)..], core::CompletionType::CompletePath)
             }
         },
