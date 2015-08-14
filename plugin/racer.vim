@@ -12,7 +12,8 @@
 if !exists('g:racer_cmd')
     let path = escape(expand('<sfile>:p:h'), '\') . '/../target/release/'
     if isdirectory(path)
-        let $PATH .= ':' . path
+        let s:pathsep = has("win32") ? ';' : ':'
+        let $PATH .= s:pathsep . path
     endif
     let g:racer_cmd = 'racer'
 
@@ -28,6 +29,9 @@ if !exists('$RUST_SRC_PATH')
     endif
     if isdirectory("/usr/src/rust/src")
         let $RUST_SRC_PATH="/usr/src/rust/src"
+    endif
+    if isdirectory("C:\\rust\\src")
+        let $RUST_SRC_PATH="C:\\rust\\src"
     endif
 endif
 if !isdirectory($RUST_SRC_PATH)
