@@ -23,41 +23,31 @@
 
 ## Emacs integration
 
-1. Install emacs 24
+1. Install emacs 24.
 
-2. Install [rust-mode](https://github.com/rust-lang/rust-mode).
-
-3. Install company mode. (e.g. via ELPA: ```M-x list-packages```, select ```'company'```)
-
-4. Configure Emacs to find racer:
+2. Allow Emacs to install packages from MELPA:
 
    ```
-   (setq racer-rust-src-path "<path-to-rust-srcdir>/src/")
-   (setq racer-cmd "<path-to-racer>/target/release/racer")
-   (add-to-list 'load-path "<path-to-racer>/editors/emacs")
-   (eval-after-load "rust-mode" '(require 'racer))
+   (add-to-list 'package-archives '("melpa" . "http://melpa.milkbox.net/packages/"))
    ```
 
-5. Configure Emacs to activate racer and setup some key bindings when rust-mode starts:
+2. Install racer: ```M-x package-install RET racer RET```
+
+3. Configure Emacs to activate racer and setup some key bindings when rust-mode starts:
 
    ```
    (add-hook 'rust-mode-hook 
 	  '(lambda () 
 	     (racer-activate)
+         (racer-turn-on-eldoc)
 	     (local-set-key (kbd "M-.") #'racer-find-definition)
 	     (local-set-key (kbd "TAB") #'racer-complete-or-indent)))
    ```
 
-7. Open a rust file and try typing ```use std::io::B``` and press \<tab\>
+4. Open a rust file and try typing ```use std::io::B``` and press \<tab\>
 
-8. Place your cursor over a symbol and hit M-. to jump to the
+5. Place your cursor over a symbol and hit M-. to jump to the
 definition.
-
-9. You may also wish to use Racer for eldoc:
-
-    ```
-    (add-hook 'rust-mode-hook #'racer-turn-on-eldoc)
-    ```
 
 ## Vim integration
 
