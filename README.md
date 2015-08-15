@@ -48,7 +48,14 @@
 
 7. Open a rust file and try typing ```use std::io::B``` and press \<tab\>
 
-8. Place your cursor over a symbol and hit M-. to jump to the definition.
+8. Place your cursor over a symbol and hit M-. to jump to the
+definition.
+
+9. You may also wish to use Racer for eldoc:
+
+    ```
+    (add-hook 'rust-mode-hook #'racer-turn-on-eldoc)
+    ```
 
 ## Vim integration
 
