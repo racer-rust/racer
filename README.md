@@ -2,7 +2,9 @@
 
 [![Build Status](https://travis-ci.org/phildawes/racer.svg?branch=master)](https://travis-ci.org/phildawes/racer)
 
-![alt text](https://github.com/phildawes/racer/raw/master/images/racer1.png "Racer emacs session")
+![racer completion screenshot](images/racer_completion.png)
+
+![racer eldoc screenshot](images/racer_eldoc.png)
 
 *RACER* = *R*ust *A*uto-*C*omplete-*er*. A utility intended to provide rust code completion for editors and IDEs. Maybe one day the 'er' bit will be exploring + refactoring or something.
 
