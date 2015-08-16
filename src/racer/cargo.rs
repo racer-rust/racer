@@ -63,10 +63,12 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
 }
 
 fn get_cargo_rootdir(cargofile: &Path) -> Option<PathBuf> {
+    debug!("get_cargo_rootdir. {:?}",cargofile);
     match env::var_os("CARGO_HOME") {
-        Some(x) =>
+        Some(cargohome) =>
         {
-            let d = PathBuf::from(x);
+            debug!("get_cargo_rootdir. CARGO_HOME is set: {:?}",cargohome);
+            let d = PathBuf::from(cargohome);
             if path_exists(&d) {
                 return Some(d)
             } else {
@@ -83,7 +85,9 @@ fn get_cargo_rootdir(cargofile: &Path) -> Option<PathBuf> {
     d.push(".multirust");
 
     d.push("overrides");
+    debug!("get_cargo_rootdir: looking for overrides file. {:?}", d);
     if let Ok(mut multirust_overides) = File::open(&d) {
+        debug!("get_cargo_rootdir: found overrides file! {:?}", d);
         let mut s = String::new();
         otry2!(multirust_overides.read_to_string(&mut s));
         for line in s.lines() {
@@ -125,6 +129,8 @@ fn get_cargo_rootdir(cargofile: &Path) -> Option<PathBuf> {
 
 fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> Option<PathBuf> {
     let mut d = otry!(get_cargo_rootdir(cargofile));
+
+    debug!("get_versioned_cratefile: cargo rootdir is {:?}",d);
     d.push("registry");
     d.push("src");
 

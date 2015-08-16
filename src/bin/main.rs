@@ -44,14 +44,17 @@ fn match_with_snippet_fn(m: Match) {
 
 #[cfg(not(test))]
 fn match_fn(m: Match) {
-    let (linenum, charnum) = scopes::point_to_coords_from_file(&m.filepath, m.point).unwrap();
-    println!("MATCH {},{},{},{},{:?},{}", m.matchstr,
+    if let Some((linenum, charnum)) = scopes::point_to_coords_from_file(&m.filepath, m.point) {
+        println!("MATCH {},{},{},{},{:?},{}", m.matchstr,
                                     linenum.to_string(),
                                     charnum.to_string(),
                                     m.filepath.to_str().unwrap(),
                                     m.mtype,
                                     m.contextstr
-             );
+                 );
+    } else {
+        error!("Could not resolve file coords for match {:?}", m);
+    }
 }
 
 #[cfg(not(test))]
