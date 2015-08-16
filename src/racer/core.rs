@@ -237,7 +237,7 @@ pub fn load_file(filepath: &path::Path) -> String {
     }
 
     // skip BOF bytes, if present
-    if rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
+    if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
         let mut it = rawbytes.into_iter();
         it.next(); it.next(); it.next();
         return String::from_utf8(it.collect::<Vec<_>>()).unwrap();
