@@ -200,6 +200,9 @@ fn daemon() {
 
 #[cfg(not(test))]
 fn main() {
+    // make sure we get a stack trace ifwe panic
+    ::std::env::set_var("RUST_BACKTRACE","1");
+
     env_logger::init().unwrap();
     check_rust_src_env_var();
 
