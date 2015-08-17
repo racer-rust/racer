@@ -601,6 +601,22 @@ pub fn search_scope(start: usize, point: usize, src: &str,
             continue;
         }
 
+        if searchstr == "core" && blob.starts_with("#![no_std]") {
+            debug!("Looking for core and found #![no_std], which implicitly imports it");
+            get_crate_file("core", filepath).map(|cratepath| {
+                out.push(Match { matchstr: "core".to_string(),
+                                  filepath: cratepath.to_path_buf(),
+                                  point: 0,
+                                  local: false,
+                                  mtype: Module,
+                                  contextstr: cratepath.to_str().unwrap().to_string(),
+                                  generic_args: Vec::new(),
+                                  generic_types: Vec::new(),
+                                  session: core::Session::from_path(&cratepath.as_path(), &cratepath.as_path())
+                });
+            });
+        }
+
         // Optimisation: if the search string is not in the blob and it is not
         // a 'use glob', this cannot match so fail fast!
         if blob.find(searchstr).is_none() {
@@ -825,7 +841,7 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
     let msrc = core::load_file_and_mask_comments(&session.substitute_file);
     let is_exact_match = match search_type { ExactMatch => true, StartsWith => false };
 
-    if (is_exact_match && (&searchstr[..]) == "std") || 
+    if (is_exact_match && &searchstr[..] == "std") || 
        (!is_exact_match && "std".starts_with(searchstr)) {
         get_crate_file("std", filepath).map(|cratepath| {
             out.push(Match {
@@ -846,6 +862,8 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
             }
         }
     }
+
+
 
     for m in search_local_scopes(pathseg, filepath, &msrc, pos, search_type, namespace, session) {
         out.push(m);
