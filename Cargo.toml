@@ -1,17 +1,27 @@
 [package]
 
 name = "racer"
-version = "0.0.1"
+version = "1.0.0"
 license = "MIT"
 description = "Code completion for Rust"
 authors = ["Phil Dawes <phil@phildawes.net>"]
 
+[lib]
+name = "racer"
+path = "src/racer/lib.rs"
+
 [[bin]]
 name = "racer"
-path = "src/main.rs"
+path = "src/bin/main.rs"
 
 [profile.release]
 debug = true
 
 [dependencies]
-toml = "0.1.19"
+log = "*"
+syntex_syntax = "*"
+toml = "*"
+env_logger = "*"
+
+[features]
+nightly = []

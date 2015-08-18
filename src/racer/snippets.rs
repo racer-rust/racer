@@ -1,14 +1,13 @@
-use racer::ast::with_error_checking_parse;
-use racer::{Match, MatchType};
-use racer::typeinf::get_function_declaration;
+use ast::with_error_checking_parse;
+use core::{Match, MatchType};
+use typeinf::get_function_declaration;
 
-use syntax::ast::{ImplItem_};
-use syntax::ext::quote::rt::ToSource;
+use syntex_syntax::ast::ImplItem_;
 
-pub fn snippet_for_match(m : &Match) -> String {
+pub fn snippet_for_match(m: &Match) -> String {
     match m.mtype {
         MatchType::Function => {
-            let method= get_function_declaration(&m);
+            let method = get_function_declaration(&m);
             if let Some(m) = MethodInfo::from_source_str(&method) {
                 m.snippet()
             } else {
@@ -25,29 +24,33 @@ struct MethodInfo {
 }
 
 impl MethodInfo {
-
     ///Parses method declaration as string and returns relevant data
-    fn from_source_str(source : &str) -> Option<MethodInfo> {
-
+    fn from_source_str(source: &str) -> Option<MethodInfo> {
         let trim: &[_] = &['\n', '\r', '{', ' '];
         let decorated = format!("{} {{}}()", source.trim_right_matches(trim));
 
         with_error_checking_parse(decorated, |p| {
-
             use std::result::Result::{Ok, Err};
-            use syntax::diagnostic::FatalError;
+            use syntex_syntax::diagnostic::FatalError;
             match p.parse_impl_item() {
                 Ok(method) => {
                     match method.node {
                         ImplItem_::MethodImplItem(ref msig, _) => {
                             let ref decl = msig.decl;
                             Some(MethodInfo {
-                                name: method.ident.to_source(),
-                                args: decl.inputs.iter().map(|a| (*a).to_source()).collect(),
+                                // ident.as_str calls Ident.name.as_str
+                                name: method.ident.name.as_str().to_string(),
+                                args: decl.inputs.iter().map(|arg| {
+                                    let ref codemap = p.sess.span_diagnostic.cm;
+                                    match codemap.span_to_snippet(arg.pat.span) {
+                                        Ok(name) => name,
+                                        _ => "".to_string()
+                                    }
+                                }).collect(),
                             })
                         },
                         _ => {
-                            debug!("Unable to parse method declaration. |{}|",source);
+                            debug!("Unable to parse method declaration. |{}|", source);
                             return None;
                         }
                     }
@@ -75,7 +78,6 @@ impl MethodInfo {
 
 #[test]
 fn method_info_test() {
-
     let info = MethodInfo::from_source_str("pub fn new() -> Vec<T>").unwrap();
     assert_eq!(info.name, "new");
     assert_eq!(info.args.len(), 0);
@@ -85,5 +87,5 @@ fn method_info_test() {
     assert_eq!(info.name, "reserve");
     assert_eq!(info.args.len(), 2);
     assert_eq!(info.args[0], "self");
-    assert_eq!(info.snippet(), "reserve(${1:additional: uint})");
+    assert_eq!(info.snippet(), "reserve(${1:additional})");
 }

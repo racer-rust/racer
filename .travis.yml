@@ -1,1 +1,4 @@
 language: rust
+rust:
+  - nightly
+  - stable

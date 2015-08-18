@@ -1,4 +1,3 @@
-bin
 .*
 \#*
 src/scopes
@@ -6,3 +5,4 @@ src/scopes
 *tmpfile*
 *.racertmp
 target/
+*.py[cod]
