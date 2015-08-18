@@ -26,7 +26,7 @@ use std::path::Path;
 
 #[cfg(not(test))]
 fn match_with_snippet_fn(m: Match) {
-    let (linenum, charnum) = scopes::point_to_coords_from_file(&m.filepath, m.point).unwrap();
+    let (linenum, charnum) = scopes::point_to_coords_from_file(&m.filepath, m.point, &m.session).unwrap();
     if m.matchstr == "" {
         panic!("MATCHSTR is empty - waddup?");
     }
@@ -44,7 +44,9 @@ fn match_with_snippet_fn(m: Match) {
 
 #[cfg(not(test))]
 fn match_fn(m: Match) {
-    if let Some((linenum, charnum)) = scopes::point_to_coords_from_file(&m.filepath, m.point) {
+    if let Some((linenum, charnum)) = scopes::point_to_coords_from_file(&m.filepath, 
+                                                                        m.point,
+                                                                        &m.session) {
         println!("MATCH {},{},{},{},{:?},{}", m.matchstr,
                                     linenum.to_string(),
                                     charnum.to_string(),
@@ -79,12 +81,12 @@ fn complete(match_found: &Fn(Match), args: &[String]) {
                 false => fname
             });
             let fpath = Path::new(fname);
-            let src = core::load_file(&substitute_file);
-            let line = &*getline(&substitute_file, linenum);
+            let session = core::Session::from_path(&fpath, &substitute_file);
+            let src = core::load_file(&fpath, &session);
+            let line = &*getline(&substitute_file, linenum, &session);
             let (start, pos) = util::expand_ident(line, charnum);
             println!("PREFIX {},{},{}", start, pos, &line[start..pos]);
 
-            let session = core::Session::from_path(&fpath, &substitute_file);
             let point = scopes::coords_to_point(&*src, linenum, charnum);
             for m in core::complete_from_file(&*src, &fpath, point, &session) {
                 match_found(m);
@@ -120,10 +122,16 @@ fn prefix(args: &[String]) {
     let linenum = args[1].parse::<usize>().unwrap();
     let charnum = args[2].parse::<usize>().unwrap();
     let fname = &args[3];
+    let substitute_file = Path::new(match args.len() > 4 {
+        true => &args[4],
+        false => fname
+    });
+    let fpath = Path::new(&fname);
+    let session = core::Session::from_path(&fpath, &substitute_file);
 
     // print the start, end, and the identifier prefix being matched
     let path = Path::new(fname);
-    let line = &*getline(&path, linenum);
+    let line = &*getline(&path, linenum, &session);
     let (start, pos) = util::expand_ident(line, charnum);
     println!("PREFIX {},{},{}", start, pos, &line[start..pos]);
 }
@@ -144,7 +152,7 @@ fn find_definition(args: &[String]) {
     });
     let fpath = Path::new(&fname);
     let session = core::Session::from_path(&fpath, &substitute_file);
-    let src = core::load_file(&substitute_file);
+    let src = core::load_file(&fpath, &session);
     let pos = scopes::coords_to_point(&*src, linenum, charnum);
 
     core::find_definition(&*src, &fpath, pos, &session).map(match_fn);

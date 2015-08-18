@@ -186,7 +186,8 @@ pub fn first_line(blob: &str) -> String {
 }
 
 pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
-         searchstr: &str, filepath: &Path, search_type: SearchType, session: &core::Session) -> Option<Match> {
+                          searchstr: &str, filepath: &Path, search_type: SearchType, 
+                          session: &core::Session) -> Option<Match> {
     assert_eq!(&filepath, &session.query_path.as_path());
     let mut res = None;
     let blob = &msrc[blobstart..blobend];
@@ -204,7 +205,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
             // real crate name (e.g. extern crate collections_core = "collections")
             // so we need to get the source text without scrubbed strings
 
-            let rawsrc = core::load_file(&session.substitute_file);
+            let rawsrc = core::load_file(filepath, &session);
             let rawblob = &rawsrc[blobstart..blobend];
             debug!("found an extern crate (unscrubbed): |{}|", rawblob);
 

@@ -7,7 +7,6 @@ use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField,
 use core::Namespace::{self, TypeNamespace, ValueNamespace, BothNamespaces};
 use util::{symbol_matches, txt_matches, find_ident_end, path_exists};
 use cargo;
-use std::fs::{File};
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::{self, vec};
@@ -17,10 +16,10 @@ pub const PATH_SEP: &'static str = ":";
 #[cfg(windows)]
 pub const PATH_SEP: &'static str = ";";
 
- fn search_struct_fields(searchstr: &str, structmatch: &Match,
+fn search_struct_fields(searchstr: &str, structmatch: &Match,
                          search_type: SearchType) -> vec::IntoIter<Match> {
      assert_eq!(&structmatch.filepath, &structmatch.session.query_path);
-    let src = core::load_file(&structmatch.session.substitute_file);
+    let src = core::load_file(&structmatch.filepath, &structmatch.session);
     let opoint = scopes::find_stmt_start(&*src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
 
@@ -58,7 +57,7 @@ pub fn search_for_impl_methods(implsearchstr: &str,
     for m in search_for_impls(point, implsearchstr, fpath, local, true, session) {
         assert_eq!(&m.filepath, &m.session.query_path);
         debug!("found impl!! |{:?}| looking for methods", m);
-        let src = core::load_file(&m.session.substitute_file);
+        let src = core::load_file(&m.filepath, &m.session);
 
         // find the opening brace and skip to it.
         (&src[m.point..]).find("{").map(|n| {
@@ -114,7 +113,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                         session: &core::Session) -> vec::IntoIter<Match> {
     assert_eq!(&filepath, &session.query_path.as_path());
     debug!("search_for_impls {}, {}, {:?}", pos, searchstr, filepath.to_str());
-    let s = core::load_file(&session.substitute_file);
+    let s = core::load_file(filepath, &session);
     let src = &s[pos..];
 
     let mut out = Vec::new();
@@ -330,7 +329,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                     let fname = fpath_buf.deref().file_name().unwrap().to_str().unwrap();
                     if fname.starts_with(&format!("lib{}", searchstr)) {
                         let filepath = fpath_buf.deref().join("lib.rs");
-                        if File::open(&filepath).is_ok() {
+                        if path_exists(&filepath) {
                             let m = Match {
                                            matchstr: (&fname[3..]).to_string(),
                                            filepath: filepath.to_path_buf(),
@@ -350,7 +349,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                         for name in &[&format!("{}.rs", fname)[..], "mod.rs", "lib.rs"] {
                             let filepath = fpath_buf.deref().join(name);
 
-                            if File::open(&filepath).is_ok() {
+                            if path_exists(&filepath) {
                                 let m = Match {
                                                matchstr: fname.to_string(),
                                                filepath: filepath.to_path_buf(),
@@ -367,7 +366,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                         }
                         {
                             // try just <name>.rs
-                            if fname.ends_with(".rs") && File::open(&fpath_buf).is_ok() {
+                            if fname.ends_with(".rs") && path_exists(&fpath_buf) {
                                 let m = Match {
                                                matchstr: (&fname[..(fname.len()-3)]).to_string(),
                                                filepath: fpath_buf.clone(),
@@ -421,14 +420,14 @@ pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<PathBuf> {
 
     {
         let filepath = currentdir.join("lib.rs");
-        if File::open(&filepath).is_ok() {
+        if path_exists(&filepath) {
             res.push(filepath.to_path_buf());
             return res;   // for now stop at the first match
         }
     }
     {
         let filepath = currentdir.join("main.rs");
-        if File::open(&filepath).is_ok() {
+        if path_exists(&filepath) {
             res.push(filepath.to_path_buf());
             return res;   // for now stop at the first match
         }
@@ -451,7 +450,7 @@ pub fn search_next_scope(mut startpoint: usize, pathseg: &core::PathSegment,
                          namespace: Namespace,
                          session: &core::Session) -> vec::IntoIter<Match> {
     assert_eq!(&filepath, &session.query_path.as_path());
-    let filesrc = core::load_file(&session.substitute_file);
+    let filesrc = core::load_file(filepath, &session);
     if startpoint != 0 {
         // is a scope inside the file. Point should point to the definition
         // (e.g. mod blah {...}), so the actual scope is past the first open brace.
@@ -479,14 +478,14 @@ pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
             // try lib<name>/lib.rs, like in the rust source dir
             let cratelibname = format!("lib{}", name);
             let filepath = Path::new(srcpath).join(cratelibname).join("lib.rs");
-            if File::open(&filepath).is_ok() {
+            if path_exists(&filepath) {
                 return Some(filepath.to_path_buf());
             }
         }
         {
             // try <name>/lib.rs
             let filepath = Path::new(srcpath).join(name).join("lib.rs");
-            if File::open(&filepath).is_ok() {
+            if path_exists(&filepath) {
                 return Some(filepath.to_path_buf());
             }
         }
@@ -498,14 +497,14 @@ pub fn get_module_file(name: &str, parentdir: &Path) -> Option<PathBuf> {
     {
         // try just <name>.rs
         let filepath = parentdir.join(format!("{}.rs", name));
-        if File::open(&filepath).is_ok() {
+        if path_exists(&filepath) {
             return Some(filepath.to_path_buf());
         }
     }
     {
         // try <name>/mod.rs
         let filepath = parentdir.join(name).join("mod.rs");
-        if File::open(&filepath).is_ok() {
+        if path_exists(&filepath) {
             return Some(filepath.to_path_buf());
         }
     }
@@ -755,9 +754,9 @@ pub fn search_prelude_file(pathseg: &core::PathSegment, search_type: SearchType,
 
     for srcpath in v.into_iter() {
         let filepath = Path::new(srcpath).join("libstd").join("prelude").join("v1.rs");
-        if File::open(&filepath).is_ok() {
+        if path_exists(&filepath) {
             let session = core::Session::from_path(&filepath, &filepath);
-            let msrc = core::load_file_and_mask_comments(&session.substitute_file);
+            let msrc = core::load_file_and_mask_comments(&filepath, &session);
             let is_local = true;
             for m in search_scope(0, 0, &msrc, pathseg, &filepath, search_type, is_local, namespace, &session) {
                 out.push(m);
@@ -838,7 +837,7 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
 
     debug!("resolve_name {} {:?} {} {:?} {:?}", searchstr, filepath.to_str(), pos, search_type, namespace);
 
-    let msrc = core::load_file_and_mask_comments(&session.substitute_file);
+    let msrc = core::load_file_and_mask_comments(filepath, &session);
     let is_exact_match = match search_type { ExactMatch => true, StartsWith => false };
 
     if (is_exact_match && &searchstr[..] == "std") || 
@@ -903,7 +902,7 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
 // Get the scope corresponding to super::
 pub fn get_super_scope(filepath: &Path, pos: usize, session: &core::Session) -> Option<core::Scope> {
     assert_eq!(&filepath, &session.query_path.as_path());
-    let msrc = core::load_file_and_mask_comments(&session.substitute_file);
+    let msrc = core::load_file_and_mask_comments(filepath, session);
     let mut path = scopes::get_local_module_path(&msrc, pos);
     debug!("get_super_scope: path: {:?} filepath: {:?} {} {:?}", path, filepath, pos, session);
     if path.is_empty() {
@@ -989,7 +988,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                     let ref pathseg = path.segments[len-1];
                     debug!("searching an enum '{}' (whole path: {:?}) searchtype: {:?}", m.matchstr, path, search_type);
 
-                    let filesrc = core::load_file(&m.session.substitute_file);
+                    let filesrc = core::load_file(&m.filepath, &m.session);
                     let scopestart = scopes::find_stmt_start(&*filesrc, m.point).unwrap();
                     let scopesrc = &filesrc[scopestart..];
                     codeiter::iter_stmts(scopesrc).nth(0).map(|(blobstart,blobend)| {
@@ -1007,7 +1006,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                     for m in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, false, &m.session) {
                         debug!("found impl!! {:?}", m);
                         let ref pathseg = path.segments[len-1];
-                        let src = core::load_file(&m.session.substitute_file);
+                        let src = core::load_file(&m.filepath, &m.session);
                         // find the opening brace and skip to it.
                         (&src[m.point..]).find("{").map(|n| {
                             let point = m.point + n + 1;
@@ -1125,7 +1124,7 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
         },
         Trait => {
             debug!("got a trait, looking for methods {}", m.matchstr);
-            let src = core::load_file(&m.session.substitute_file);
+            let src = core::load_file(&m.filepath, &m.session);
             (&src[m.point..]).find("{").map(|n| {
                 let point = m.point + n + 1;
                 for m in search_scope_for_methods(point, &*src, searchstr, &m.filepath, search_type, &m.session) {

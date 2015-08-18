@@ -384,7 +384,7 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &core::
 fn get_type_of_typedef(m: Match) -> Option<Match> {
     assert_eq!(&m.filepath, &m.session.query_path);
     debug!("get_type_of_typedef match is {:?}", m);
-    let msrc = core::load_file_and_mask_comments(&m.session.substitute_file);
+    let msrc = core::load_file_and_mask_comments(&m.filepath, &m.session);
     let blobstart = m.point - 5;  // - 5 because 'type '
     let blob = &msrc[blobstart..];
 
@@ -422,7 +422,8 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                                  &self.scope.filepath,
                                  self.scope.point,
                                  &self.scope.session).and_then(|m| {
-                   let msrc = core::load_file_and_mask_comments(&m.session.substitute_file);
+                   let msrc = core::load_file_and_mask_comments(
+                       &m.filepath, &m.session);
                    typeinf::get_type_of_match(m, &msrc)
                                  });
             }

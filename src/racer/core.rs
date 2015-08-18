@@ -2,6 +2,8 @@ use std::fs::File;
 use std::io::{BufReader, Read};
 use std::{str, vec, fmt};
 use std::path;
+use std::io;
+
 
 use scopes;
 use nameres;
@@ -226,13 +228,22 @@ impl Session {
             substitute_file: substitute_file.to_path_buf()
         }
     }
+
+    pub fn open_file(&self, path: &path::Path) -> io::Result<File> {
+        if path == self.query_path.as_path() {
+            File::open(&self.substitute_file)
+        } else {
+            File::open(path)
+        }
+    }
 }
 
-pub fn load_file(filepath: &path::Path) -> String {
+pub fn load_file(filepath: &path::Path, session: &Session) -> String {
     let mut rawbytes = Vec::new();
-    if let Ok(f) = File::open(filepath) {
+    if let Ok(f) = session.open_file(filepath) {
         BufReader::new(f).read_to_end(&mut rawbytes).unwrap();
     } else {
+        error!("load_file couldn't open {:?}. Returning empty string",filepath);
         return "".to_string();
     }
 
@@ -246,9 +257,9 @@ pub fn load_file(filepath: &path::Path) -> String {
     }
 }
 
-pub fn load_file_and_mask_comments(filepath: &path::Path) -> String {
+pub fn load_file_and_mask_comments(filepath: &path::Path, session: &Session) -> String {
     let mut filetxt = Vec::new();
-    BufReader::new(File::open(filepath).unwrap()).read_to_end(&mut filetxt).unwrap();
+    BufReader::new(session.open_file(filepath).unwrap()).read_to_end(&mut filetxt).unwrap();
     let src = str::from_utf8(&filetxt).unwrap();
 
     scopes::mask_comments(src)

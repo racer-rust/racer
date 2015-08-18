@@ -1,6 +1,6 @@
 use {core, ast, codecleaner, codeiter, typeinf, util};
+use core::Session;
 
-use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::iter::Iterator;
 use std::path::Path;
@@ -290,9 +290,9 @@ pub fn point_to_coords(src: &str, point: usize) -> (usize, usize) {
     (nlines, point - linestart)
 }
 
-pub fn point_to_coords_from_file(path: &Path, point: usize) -> Option<(usize, usize)> {
+pub fn point_to_coords_from_file(path: &Path, point: usize, session: &Session) -> Option<(usize, usize)> {
     let mut lineno = 0;
-    if let Ok(f) = File::open(path) {
+    if let Ok(f) = session.open_file(path) {
         let reader = BufReader::new(f);
         let mut p = 0;
         for line_r in reader.lines() {

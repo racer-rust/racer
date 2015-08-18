@@ -140,7 +140,7 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<cor
     assert_eq!(&structmatch.filepath, &structmatch.session.query_path);
     assert!(structmatch.mtype == core::MatchType::Struct);
 
-    let src = core::load_file(&structmatch.session.substitute_file);
+    let src = core::load_file(&structmatch.filepath, &structmatch.session);
 
     let opoint = scopes::find_stmt_start(&*src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
@@ -156,7 +156,8 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<cor
 
 pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match) -> Option<core::Ty> {
     assert_eq!(&structmatch.filepath, &structmatch.session.query_path);
-    let src = core::load_file(&structmatch.session.substitute_file);
+    let src = core::load_file(&structmatch.filepath, 
+                              &structmatch.session);
 
     let structsrc = if let core::MatchType::EnumVariant = structmatch.mtype {
         // decorate the enum variant src to make it look like a tuple struct
@@ -248,7 +249,7 @@ pub fn get_type_from_match_arm(m: &Match, msrc: &str) -> Option<core::Ty> {
 
 pub fn get_function_declaration(fnmatch: &Match) -> String {
     assert_eq!(&fnmatch.filepath, &fnmatch.session.query_path);
-    let src = core::load_file(&fnmatch.session.substitute_file);
+    let src = core::load_file(&fnmatch.filepath, &fnmatch.session);
     let start = scopes::find_stmt_start(&*src, fnmatch.point).unwrap();
     let end = (&src[start..]).find('{').unwrap();
     (&src[start..end+start]).to_string()
@@ -256,7 +257,7 @@ pub fn get_function_declaration(fnmatch: &Match) -> String {
 
 pub fn get_return_type_of_function(fnmatch: &Match) -> Option<core::Ty> {
     assert_eq!(&fnmatch.filepath, &fnmatch.session.query_path);
-    let src = core::load_file(&fnmatch.session.substitute_file);
+    let src = core::load_file(&fnmatch.filepath, &fnmatch.session);
     let point = scopes::find_stmt_start(&*src, fnmatch.point).unwrap();
     (&src[point..]).find("{").and_then(|n| {
         // wrap in "impl blah { }" so that methods get parsed correctly too
