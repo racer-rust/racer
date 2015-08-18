@@ -213,7 +213,7 @@ begins completion automatically if the cursor is followed by a dot or ::."
       (location (racer--company-location arg))
       (sorted nil)
       (annotation (racer--company-annotation arg))
-      (meta (format "%s" (get-text-property 0 'contextstr arg)))))
+      (meta (racer--syntax-highlight (format "%s" (get-text-property 0 'contextstr arg))))))
 
 ;;;###autoload
 (defun racer-complete-or-indent ()
