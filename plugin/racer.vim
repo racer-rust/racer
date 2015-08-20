@@ -55,16 +55,8 @@ function! RacerGetPrefixCol()
     let b:racer_col = col
     let scratch = expand("%") == ""
     let fname = expand("%:p")
-    let tmpfname=fname.".racertmp"
-    exec "silent keepalt write! ".tmpfname
-    if scratch
-        " Where there was no filename before, :write sets the filename and the
-        " last saved time; I don't think we can prevent this, and I don't
-        " think we can undo the latter (so undoing to buffer creation will no
-        " longer leave an unmodified file), but we can fix the former, which
-        " is the much more important one anyway.
-        keepalt 0file
-    endif
+    let tmpfname = tempname()
+    call writefile(getline(1, '$'), tmpfname)
     let cmd = g:racer_cmd." prefix ".line(".")." ".col." ".tmpfname
     let res = system(cmd)
     let prefixline = split(res, "\\n")[0]
@@ -75,7 +67,8 @@ endfunction
 function! RacerGetExpCompletions()
     let col = b:racer_col      " use the column from the previous RacerGetPrefixCol() call, since vim ammends it afterwards
     let fname = expand("%:p")
-    let tmpfname=fname.".racertmp"
+    let tmpfname = tempname()
+    call writefile(getline(1, '$'), tmpfname)
     let cmd = g:racer_cmd." complete ".line(".")." ".col." ".tmpfname
     if has('python')
     python << EOF
@@ -115,7 +108,8 @@ endfunction
 function! RacerGetCompletions()
     let col = b:racer_col      " use the column from the previous RacerGetPrefixCol() call, since vim ammends it afterwards
     let fname = expand("%:p")
-    let tmpfname=fname.".racertmp"
+    let tmpfname = tempname()
+    call writefile(getline(1, '$'), tmpfname)
     let cmd = g:racer_cmd." complete ".line(".")." ".col." ".tmpfname
     let res = system(cmd)
     let lines = split(res, "\\n")
@@ -131,11 +125,10 @@ function! RacerGetCompletions()
 endfunction
 
 function! RacerGoToDefinition()
-    silent write! %.racertmp
     let col = col(".")-1
     let b:racer_col = col
-    let fname = expand("%:p")
-    let tmpfname=fname.".racertmp"
+    let tmpfname = tempname()
+    call writefile(getline(1, '$'), tmpfname)
     let cmd = g:racer_cmd." find-definition ".line(".")." ".col." ".tmpfname
     let res = system(cmd)
     let lines = split(res, "\\n")
@@ -144,8 +137,8 @@ function! RacerGoToDefinition()
              let linenum = split(line[6:], ",")[1]
              let colnum = split(line[6:], ",")[2]
              let fname = split(line[6:], ",")[3]
-             if fname =~ ".racertmp$"
-                 let fname = fname[:-10]
+             if fname ==# tmpfname
+               let fname = fname
              endif
              call RacerJumpToLocation(fname, linenum, colnum)
              break
