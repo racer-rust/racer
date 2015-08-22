@@ -232,7 +232,7 @@ foo(bar, |baz); -> foo|(bar, baz);"
         ;; foo|(bar, baz);
         (goto-char start-pos)))))
 
-(defun racer--eldoc ()
+(defun racer-eldoc ()
   "Show eldoc for context at point."
   (save-excursion
     (racer--goto-func-name)
@@ -249,18 +249,16 @@ foo(bar, |baz); -> foo|(bar, baz);"
        ;; Finally, apply syntax highlighting for the minibuffer.
        (racer--syntax-highlight)))))
 
-;;;###autoload
-(defun racer-turn-on-eldoc ()
-  "Enable eldoc using Racer."
-  (make-local-variable 'eldoc-documentation-function)
-  (setq-local eldoc-documentation-function #'racer--eldoc)
-  (eldoc-mode))
+(defvar racer-mode-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "M-.") #'racer-find-definition)
+    map))
 
-;;;###autoload
-(defun racer-turn-off-eldoc ()
-  "Disable eldoc using Racer."
-  (kill-local-variable 'eldoc-documentation-function)
-  (eldoc-mode -1))
+(define-minor-mode racer-mode
+  "Minor mode for racer."
+  :lighter " racer"
+  :keymap racer-mode-map
+  (setq-local eldoc-documentation-function #'racer-eldoc))
 
 (provide 'racer)
 ;;; racer.el ends here
