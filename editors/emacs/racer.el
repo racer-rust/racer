@@ -75,17 +75,13 @@
   :group 'rust-mode)
 
 (defcustom racer-cmd
-  (if (locate-file "racer" exec-path)
-      (locate-file "racer" exec-path)
-    "/usr/local/bin/racer")
+  (or (executable-find "racer") "/usr/local/bin/racer")
   "Path to the racer binary."
   :type 'file
   :group 'racer)
 
 (defcustom racer-rust-src-path
-  (if (getenv "RUST_SRC_PATH")
-      (getenv "RUST_SRC_PATH")
-    "/usr/local/src/rust/src")
+  (or (getenv "RUST_SRC_PATH") "/usr/local/src/rust/src")
   "Path to the rust source tree."
   :type 'file
   :group 'racer)
@@ -135,20 +131,6 @@ by :: or ."
             (push completion racer-completion-results))))
       racer-completion-results)))
 
-(defun racer--prefix ()
-  "Run the racer prefix command and process the results."
-  (let ((racer-tmp-file-name (make-temp-file "racer")))
-    (racer--write-tmp-file racer-tmp-file-name)
-    (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
-    (let ((lines (process-lines racer-cmd
-                                "prefix"
-                                (number-to-string (racer-get-line-number))
-                                (number-to-string (current-column))
-                                racer-tmp-file-name)))
-      (delete-file racer-tmp-file-name)
-      (when (string-match "^PREFIX \\(.+\\),\\(.+\\),\\(.*\\)$" (nth 0 lines))
-        (match-string 3 (nth 0 lines))))))
-
 (defun racer--company-prefix ()
     "Returns the symbol to complete. If racer-begin-after-member-access is t,
 begins completion automatically if the cursor is followed by a dot or ::."
@@ -160,34 +142,6 @@ begins completion automatically if the cursor is followed by a dot or ::."
   (let ((fname (get-text-property 0 'fname arg))
         (linenum (get-text-property 0 'linenum arg)))
     (cons fname (string-to-number linenum))))
-
-(defun racer--complete-at-point-fn ()
-  "Run the racer complete command and process the results."
-  (let ((racer-tmp-file-name (make-temp-file "racer"))
-        (racer-completion-results '()))
-    (racer--write-tmp-file racer-tmp-file-name)
-    (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
-    (save-excursion
-      (let ((lines (process-lines racer-cmd
-                                  "complete"
-                                  (number-to-string (racer-get-line-number))
-                                  (number-to-string (current-column))
-				  (buffer-file-name)
-                                  racer-tmp-file-name))
-            racer-start-pos
-            racer-end-pos)
-        (delete-file racer-tmp-file-name)
-        (dolist (line lines)
-          (when (string-match "^MATCH \\([^,]+\\),\\(.+\\)$" line)
-            (let ((completion (match-string 1 line)))
-              (push completion racer-completion-results)))
-
-          (when (string-match "^PREFIX \\(.+\\),\\(.+\\),\\(.*\\)$" line)
-            (setq racer-start-pos (string-to-number (match-string 1 line)))
-            (setq racer-end-pos (string-to-number (match-string 2 line)))))
-        (list (- (point) (- racer-end-pos racer-start-pos))
-              (point)
-              racer-completion-results)))))
 
 (defun racer--company-annotation (arg)
   "Gets and formats annotation data from the arg match."
@@ -223,13 +177,6 @@ begins completion automatically if the cursor is followed by a dot or ::."
       (company-complete-common)
     (indent-for-tab-command)))
 
-(defun racer--string-ends-with (s ending)
-  "Return non-nil if string S ends with ENDING."
-  (cond ((>= (length s) (length ending))
-         (let ((elength (length ending)))
-           (string= (substring s (- 0 elength)) ending)))
-        (t nil)))
-
 ;;;###autoload
 (defun racer-find-definition ()
   "Run the racer find-definition command and process the results."
@@ -262,15 +209,12 @@ begins completion automatically if the cursor is followed by a dot or ::."
   (set (make-local-variable 'company-backends) '(racer-company-complete)))
 
 (defun racer--syntax-highlight (str)
-  "Apply font-lock properties to a string of Rust code."
+  "Apply font-lock properties to a string STR of Rust code."
   (with-temp-buffer
     (insert str)
-    ;; Use rust-mode for syntax highlighting, but don't run any of its
-    ;; hooks.
-    (let ((rust-mode-hook))
-      (rust-mode))
+    (delay-mode-hooks (rust-mode))
     (font-lock-fontify-buffer)
-    (buffer-substring (point-min) (point-max))))
+    (buffer-string)))
 
 (defun racer--goto-func-name ()
   "If point is inside a function call, move to the function name.
