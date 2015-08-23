@@ -12,11 +12,13 @@
 
 1. ```cd racer; cargo build --release```.  The binary will now be in ```./target/release/racer```
 
-2. Set the ```RUST_SRC_PATH``` env variable to point to the 'src' dir in your rust source installation
+2. Fetch the rust sourcecode from git, or download from https://www.rust-lang.org/install.html
+
+3. Set the ```RUST_SRC_PATH``` env variable to point to the 'src' dir in the rust source installation
 
    (e.g. ```% export RUST_SRC_PATH=/usr/local/src/rust/src``` )
 
-3. Test on the command line:
+4. Test on the command line:
 
    ```./target/release/racer complete std::io::B ```  (should show some completions)
 
