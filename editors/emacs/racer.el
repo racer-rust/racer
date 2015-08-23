@@ -148,7 +148,10 @@
                              (racer--call-at-point "find-definition")))
     (-let [(_name line col file _matchtype _ctx)
            (s-split-up-to "," (s-chop-prefix "MATCH " match) 5)]
-      (ring-insert find-tag-marker-ring (point-marker))
+      (if (fboundp 'xref-push-marker-stack)
+          (xref-push-marker-stack)
+        (with-no-warnings
+          (ring-insert find-tag-marker-ring (point-marker))))
       (find-file file)
       (goto-char (point-min))
       (forward-line (1- (string-to-number line)))
@@ -159,7 +162,10 @@
   (with-temp-buffer
     (insert str)
     (delay-mode-hooks (rust-mode))
-    (font-lock-fontify-buffer)
+    (if (fboundp 'font-lock-ensure)
+        (font-lock-ensure)
+      (with-no-warnings
+        (font-lock-fontify-buffer)))
     (buffer-string)))
 
 (defun racer--goto-func-name ()
