@@ -86,16 +86,21 @@
   :type 'file
   :group 'racer)
 
-(defun racer-get-line-number ()
-  "Gets the current line number at point."
-  ; for some reason if the current-column is 0, then the linenumber is off by 1
-  (if (= (current-column) 0)
-      (1+ (count-lines 1 (point)))
-    (count-lines 1 (point))))
+(defun racer--call (command &rest args)
+  "Call racer command COMMAND with args ARGS."
+  (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
+  (apply #'process-lines racer-cmd command args))
 
-(defun racer--write-tmp-file (tmp-file-name)
-  "Write the racer temporary file to `TMP-FILE-NAME'."
-  (write-region nil nil tmp-file-name nil 'silent))
+(defun racer--call-at-point (command)
+  "Call racer command COMMAND at point of current buffer."
+  (let ((tmp-file (make-temp-file "racer")))
+    (write-region nil nil tmp-file nil 'silent)
+    (prog1 (racer--call command
+                        (number-to-string (line-number-at-pos))
+                        (number-to-string (current-column))
+                        (buffer-file-name)
+                        tmp-file)
+      (delete-file tmp-file))))
 
 (defun racer-complete-at-point ()
   "Complete the symbol at point."
@@ -109,26 +114,16 @@
 
 (defun racer-complete (&optional _ignore)
   "Completion candidates at point."
-  (let ((racer-tmp-file-name (make-temp-file "racer")))
-    (racer--write-tmp-file racer-tmp-file-name)
-    (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
-    (let ((lines (process-lines racer-cmd
-                                "complete"
-                                (number-to-string (racer-get-line-number))
-                                (number-to-string (current-column))
-                                (buffer-file-name)
-                                racer-tmp-file-name)))
-      (delete-file racer-tmp-file-name)
-      (->> lines
-           (--filter (s-starts-with? "MATCH" it))
-           (--map (-let [(name line col file matchtype ctx)
-                         (s-split-up-to "," (s-chop-prefix "MATCH " it) 5)]
-                    (put-text-property 0 1 'line (string-to-number line) name)
-                    (put-text-property 0 1 'col (string-to-number col) name)
-                    (put-text-property 0 1 'file file name)
-                    (put-text-property 0 1 'matchtype matchtype name)
-                    (put-text-property 0 1 'ctx ctx name)
-                    name))))))
+  (->> (racer--call-at-point "complete")
+       (--filter (s-starts-with? "MATCH" it))
+       (--map (-let [(name line col file matchtype ctx)
+                     (s-split-up-to "," (s-chop-prefix "MATCH " it) 5)]
+                (put-text-property 0 1 'line (string-to-number line) name)
+                (put-text-property 0 1 'col (string-to-number col) name)
+                (put-text-property 0 1 'file file name)
+                (put-text-property 0 1 'matchtype matchtype name)
+                (put-text-property 0 1 'ctx ctx name)
+                name))))
 
 (defun racer-complete--annotation (arg)
   "Return an annotation for completion candidate ARG."
@@ -149,26 +144,15 @@
 (defun racer-find-definition ()
   "Run the racer find-definition command and process the results."
   (interactive)
-  (let ((racer-tmp-file-name (make-temp-file "racer")))
-    (racer--write-tmp-file racer-tmp-file-name)
-    (setenv "RUST_SRC_PATH" (expand-file-name racer-rust-src-path))
-    (ring-insert find-tag-marker-ring (point-marker))
-    (let ((lines (process-lines racer-cmd
-                                "find-definition"
-                                (number-to-string (racer-get-line-number))
-                                (number-to-string (current-column))
-				(buffer-file-name)
-                                racer-tmp-file-name)))
-      (delete-file racer-tmp-file-name)
-      (dolist (line lines)
-        (when (string-match "^MATCH \\([^,]+\\),\\([^,]+\\),\\([^,]+\\),\\([^,]+\\).*$" line)
-          (let ((linenum (match-string 2 line))
-                (charnum (match-string 3 line))
-                (fname (match-string 4 line)))
-	    (find-file fname)
-            (goto-char (point-min))
-            (forward-line (1- (string-to-number linenum)))
-            (forward-char (string-to-number charnum))))))))
+  (-when-let (match (--first (s-starts-with? "MATCH" it)
+                             (racer--call-at-point "find-definition")))
+    (-let [(_name line col file _matchtype _ctx)
+           (s-split-up-to "," (s-chop-prefix "MATCH " match) 5)]
+      (ring-insert find-tag-marker-ring (point-marker))
+      (find-file file)
+      (goto-char (point-min))
+      (forward-line (1- (string-to-number line)))
+      (forward-char (string-to-number col)))))
 
 (defun racer--syntax-highlight (str)
   "Apply font-lock properties to a string STR of Rust code."
