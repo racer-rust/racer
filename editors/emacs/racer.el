@@ -206,5 +206,8 @@ foo(bar, |baz); -> foo|(bar, baz);"
   (make-local-variable 'completion-at-point-functions)
   (add-to-list 'completion-at-point-functions #'racer-complete-at-point))
 
+(define-obsolete-function-alias 'racer-turn-on-eldoc 'eldoc-mode)
+(define-obsolete-function-alias 'racer-activate 'racer-mode)
+
 (provide 'racer)
 ;;; racer.el ends here
