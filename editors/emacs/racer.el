@@ -1,4 +1,4 @@
-;;; racer.el --- Rust completion via racer with company
+;;; racer.el --- Rust completion and code navigation via racer
 
 ;; Copyright (c) 2014 Phil Dawes
 
@@ -41,25 +41,17 @@
 ;; (setq racer-rust-src-path "<path-to-rust-srcdir>/src/")
 ;; (setq racer-cmd "<path-to-racer>/target/release/racer")
 ;;
-;; To set up racer for completion in Rust buffers, add it
-;; `rust-mode-hook':
+;; To activate racer in Rust buffers, run:
 ;;
-;; (add-hook 'rust-mode-hook #'racer-activate)
+;; (add-hook 'rust-mode-hook #'racer-mode)
 ;;
-;; To use TAB for both indent and completion in Rust:
-;;
-;; (require 'rust-mode)
-;; (define-key rust-mode-map (kbd "TAB") #'racer-complete-or-indent)
-;;
-;; You can also use racer to find definitions. To bind this to a key:
-;;
-;; (require 'rust-mode)
-;; (define-key rust-mode-map (kbd "M-.") #'racer-find-definition)
+;; You can also use racer to find definition at point via
+;; `racer-find-definition', bound to `M-.' by default.
 ;;
 ;; Finally, you can also use Racer to show the signature of the
 ;; current function in the minibuffer:
 ;;
-;; (add-hook 'rust-mode-hook #'racer-turn-on-eldoc)
+;; (add-hook 'racer-mode-hook #'eldoc-mode)
 
 ;;; Code:
 
