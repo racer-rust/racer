@@ -136,18 +136,19 @@
 (defun racer-find-definition ()
   "Run the racer find-definition command and process the results."
   (interactive)
-  (-when-let (match (--first (s-starts-with? "MATCH" it)
-                             (racer--call-at-point "find-definition")))
-    (-let [(_name line col file _matchtype _ctx)
-           (s-split-up-to "," (s-chop-prefix "MATCH " match) 5)]
-      (if (fboundp 'xref-push-marker-stack)
-          (xref-push-marker-stack)
-        (with-no-warnings
-          (ring-insert find-tag-marker-ring (point-marker))))
-      (find-file file)
-      (goto-char (point-min))
-      (forward-line (1- (string-to-number line)))
-      (forward-char (string-to-number col)))))
+  (-if-let (match (--first (s-starts-with? "MATCH" it)
+                           (racer--call-at-point "find-definition")))
+      (-let [(_name line col file _matchtype _ctx)
+             (s-split-up-to "," (s-chop-prefix "MATCH " match) 5)]
+        (if (fboundp 'xref-push-marker-stack)
+            (xref-push-marker-stack)
+          (with-no-warnings
+            (ring-insert find-tag-marker-ring (point-marker))))
+        (find-file file)
+        (goto-char (point-min))
+        (forward-line (1- (string-to-number line)))
+        (forward-char (string-to-number col)))
+    (error "No definition found")))
 
 (defun racer--syntax-highlight (str)
   "Apply font-lock properties to a string STR of Rust code."
