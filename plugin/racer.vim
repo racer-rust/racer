@@ -57,7 +57,7 @@ function! RacerGetPrefixCol()
     let fname = expand("%:p")
     let tmpfname = tempname()
     call writefile(getline(1, '$'), tmpfname)
-    let cmd = g:racer_cmd." prefix ".line(".")." ".col." ".tmpfname
+    let cmd = g:racer_cmd." prefix ".line(".")." ".col." ".fname." ".tmpfname
     let res = system(cmd)
     let prefixline = split(res, "\\n")[0]
     let startcol = split(prefixline[7:], ",")[0]
@@ -69,7 +69,7 @@ function! RacerGetExpCompletions()
     let fname = expand("%:p")
     let tmpfname = tempname()
     call writefile(getline(1, '$'), tmpfname)
-    let cmd = g:racer_cmd." complete ".line(".")." ".col." ".tmpfname
+    let cmd = g:racer_cmd." complete ".line(".")." ".col." ".fname." ".tmpfname
     if has('python')
     python << EOF
 from subprocess import check_output
@@ -110,7 +110,7 @@ function! RacerGetCompletions()
     let fname = expand("%:p")
     let tmpfname = tempname()
     call writefile(getline(1, '$'), tmpfname)
-    let cmd = g:racer_cmd." complete ".line(".")." ".col." ".tmpfname
+    let cmd = g:racer_cmd." complete ".line(".")." ".col." ".fname." ".tmpfname
     let res = system(cmd)
     let lines = split(res, "\\n")
     let out = []
@@ -127,9 +127,10 @@ endfunction
 function! RacerGoToDefinition()
     let col = col(".")-1
     let b:racer_col = col
+    let fname = expand("%:p")
     let tmpfname = tempname()
     call writefile(getline(1, '$'), tmpfname)
-    let cmd = g:racer_cmd." find-definition ".line(".")." ".col." ".tmpfname
+    let cmd = g:racer_cmd." find-definition ".line(".")." ".col." ".fname." ".tmpfname
     let res = system(cmd)
     let lines = split(res, "\\n")
     for line in lines
@@ -137,9 +138,6 @@ function! RacerGoToDefinition()
              let linenum = split(line[6:], ",")[1]
              let colnum = split(line[6:], ",")[2]
              let fname = split(line[6:], ",")[3]
-             if fname ==# tmpfname
-               let fname = fname
-             endif
              call RacerJumpToLocation(fname, linenum, colnum)
              break
         endif
