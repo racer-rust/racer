@@ -98,7 +98,7 @@ fn finds_subnested_module() {
 }
 
 
-pub fn split_into_context_and_completion<'a>(s: &'a str) -> (&'a str, &'a str, core::CompletionType) {
+pub fn split_into_context_and_completion(s: &str) -> (&str, &str, core::CompletionType) {
     match s.char_indices().rev().find(|&(_, c)| !util::is_ident_char(c)) {
         Some((i,c)) => {
             //println!("PHIL s '{}' i {} c '{}'",s,i,c);
@@ -259,7 +259,7 @@ pub fn mask_sub_scopes(src: &str) -> String {
     result
 }
 
-pub fn end_of_next_scope<'a>(src: &'a str) -> &'a str {
+pub fn end_of_next_scope(src: &str) -> &str {
     match find_close(src.as_bytes().iter(), b'{', b'}', 1) {
         Some(count) => &src[..count+1],
         None => ""

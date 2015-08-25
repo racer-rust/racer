@@ -146,12 +146,8 @@ fn find_ident_end_unicode() {
     assert_eq!(10, find_ident_end("ends_in_µ", 0));
 }
 
-pub fn to_refs<'a>(v: &'a Vec<String>) -> Vec<&'a str> {
-    let mut out = Vec::new();
-    for item in v.iter() {
-        out.push(&item[..]);
-    }
-    out
+pub fn to_refs(v: &Vec<String>) -> Vec<&str> {
+    v.iter().map(|s| s.as_ref()).collect()
 }
 
 pub fn find_last_str(needle: &str, mut haystack: &str) -> Option<usize> {

@@ -165,7 +165,7 @@ fn char(self_: &mut CodeIndicesIter) -> (usize, usize) {
 }
 
 /// Returns indices of chunks of code (minus comments and string contents)
-pub fn code_chunks<'a>(src: &'a str) -> CodeIndicesIter<'a> {
+pub fn code_chunks(src: &str) -> CodeIndicesIter {
     CodeIndicesIter { src: src, state: State::StateCode, pos: 0 }
 }
 

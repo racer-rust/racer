@@ -14,7 +14,7 @@ use syntex_syntax::ptr::P;
 use syntex_syntax::visit::{self, Visitor};
 
 // This code ripped from libsyntax::util::parser_testing
-pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: String) -> Option<Parser<'a>> {
+pub fn string_to_parser(ps: &ParseSess, source_str: String) -> Option<Parser> {
     let fm = ps.codemap().new_filemap("bogofile".to_string(), source_str);
     let srdr = lexer::StringReader::new(&ps.span_diagnostic, fm);
     let p = Parser::new(ps, Vec::new(), Box::new(srdr));

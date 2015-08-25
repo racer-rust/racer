@@ -107,7 +107,7 @@ fn is_a_use_stmt(src: &str, start: usize, pos: usize) -> bool {
      whitespace.contains(&src_bytes[start+7]))
 }
 
-pub fn iter_stmts<'a>(src: &'a str) -> StmtIndicesIter<'a> {
+pub fn iter_stmts(src: &str) -> StmtIndicesIter {
     StmtIndicesIter{ src: src, it: code_chunks(src), pos: 0, end: 0 }
 }
 
