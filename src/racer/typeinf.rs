@@ -56,7 +56,7 @@ fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<core::Ty> {
             return resolve_path_with_str(&implres.name_path.expect("failed parsing impl name"),
                                          &m.filepath, start,
                                          ExactMatch, TypeNamespace,
-                                         &m.session).nth(0).map(|m| core::Ty::TyMatch(m));
+                                         &m.session).nth(0).map(core::Ty::TyMatch);
         } else {
             // // must be a trait
             return ast::parse_trait(decl).name.and_then(|name| {

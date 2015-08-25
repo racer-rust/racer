@@ -27,8 +27,7 @@ pub fn with_error_checking_parse<F, T>(s: String, f: F) -> Option<T> where F: Fn
         Some(p) => p,
         None => return None
     };
-    let x = f(&mut p);
-    x
+    f(&mut p)
 }
 
 // parse a string, return a stmt
@@ -263,7 +262,7 @@ impl<'v> visit::Visitor<'v> for LetTypeVisitor {
             v.visit_expr(&**expr);
             self.result = v.result.and_then(|ty|
                    destructure_pattern_to_ty(&**pattern, self.pos, &ty, &self.scope))
-                .and_then(|ty| path_to_match(ty));
+                .and_then(path_to_match);
         } else {
             visit::walk_expr(self, ex)
         }
@@ -288,7 +287,7 @@ impl<'v> visit::Visitor<'v> for LetTypeVisitor {
         debug!("LetTypeVisitor: ty is {:?}. pos is {}, src is |{}|", ty, self.pos, self.srctxt);
         self.result = ty.and_then(|ty|
            destructure_pattern_to_ty(&*local.pat, self.pos, &ty, &self.scope))
-            .and_then(|ty| path_to_match(ty));
+            .and_then(path_to_match);
     }
 }
 
@@ -314,7 +313,7 @@ impl<'v> visit::Visitor<'v> for MatchTypeVisitor {
                         debug!("PHIL point is in pattern |{:?}|", pattern);
                         self.result = v.result.as_ref().and_then(|ty|
                                destructure_pattern_to_ty(&**pattern, self.pos, ty, &self.scope))
-                            .and_then(|ty| path_to_match(ty));
+                            .and_then(path_to_match);
                     }
                 }
             }
@@ -982,7 +981,7 @@ impl<'v> visit::Visitor<'v> for FnArgTypeVisitor {
                 self.result = to_racer_ty(&*arg.ty, &self.scope)
                     .and_then(|ty| destructure_pattern_to_ty(&*arg.pat, self.argpos,
                                                    &ty, &self.scope))
-                    .and_then(|ty| path_to_match(ty));
+                    .and_then(path_to_match);
                 break;
             }
         }

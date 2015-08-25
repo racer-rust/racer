@@ -41,15 +41,14 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
 
     #[inline]
     fn next(&mut self) -> Option<(usize, usize)> {
-        let res = match self.state {
+        match self.state {
             State::StateCode => Some(code(self)),
             State::StateComment => Some(comment(self)),
             State::StateCommentBlock  => Some(comment_block(self)),
             State::StateString => Some(string(self)),
             State::StateChar => Some(char(self)),
             State::StateFinished => None
-        };
-        res
+        }
     }
 }
 
