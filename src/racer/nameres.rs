@@ -326,7 +326,11 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                     }
                 }
                 for fpath_buf in v.iter() {
-                    let fname = fpath_buf.deref().file_name().unwrap().to_str().unwrap();
+                    // skip filenames that can't be decoded
+                    let fname = match fpath_buf.file_name().and_then(|n| n.to_str()) {
+                        Some(fname) => fname,
+                        None => continue,
+                    };
                     if fname.starts_with(&format!("lib{}", searchstr)) {
                         let filepath = fpath_buf.deref().join("lib.rs");
                         if path_exists(&filepath) {
