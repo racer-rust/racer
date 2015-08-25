@@ -594,6 +594,29 @@ fn follows_chained_method_call() {
 }
 
 #[test]
+fn discards_inner_fns() {
+    let src="
+    struct Foo;
+    impl<T> Foo<T> {
+        fn mymethod(&self) -> Bar {
+            fn inner() {
+            }
+        }
+    }
+
+    fn myfn(v: &Foo) {
+        v.i
+    }
+    ";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 11, 11);
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&path, &path)).nth(0);
+    fs::remove_file(&path).unwrap();
+    assert!(got.is_none(), "should not match inner function");
+}
+
+#[test]
 fn differentiates_type_and_value_namespaces() {
     let src = "
     enum MyEnum{ Foo }
