@@ -15,10 +15,10 @@ pub fn getline(filepath: &Path, linenum: usize, session: &Session) -> String {
         //print!("{}", line);
         i += 1;
         if i == linenum {
-            return line.unwrap().to_string();
+            return line.unwrap();
         }
     }
-    "not found".to_string()
+    "not found".to_owned()
 }
 
 pub fn is_pattern_char(c: char) -> bool {

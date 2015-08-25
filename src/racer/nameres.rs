@@ -30,12 +30,12 @@ fn search_struct_fields(searchstr: &str, structmatch: &Match,
 
     for (field, fpos, _) in fields.into_iter() {
         if symbol_matches(search_type, searchstr, &field) {
-            out.push(Match { matchstr: field.to_string(),
+            out.push(Match { matchstr: field.clone(),
                                 filepath: structmatch.filepath.to_path_buf(),
                                 point: fpos + opoint.unwrap(),
                                 local: structmatch.local,
                                 mtype: StructField,
-                                contextstr: field.to_string(),
+                                contextstr: field,
                                 generic_args: Vec::new(), generic_types: Vec::new(),
                                 session: structmatch.session.clone()
             });
