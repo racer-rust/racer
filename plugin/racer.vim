@@ -8,6 +8,14 @@
 "
 " (This plugin is best used with the 'hidden' option enabled so that switching buffers doesn't force you to save) 
 
+if exists('g:loaded_racer')
+  finish
+endif
+
+let g:loaded_racer = 1
+
+let s:save_cpo = &cpo
+set cpo&vim
 
 if !exists('g:racer_cmd')
     let path = escape(expand('<sfile>:p:h'), '\') . '/../target/release/'
@@ -169,4 +177,7 @@ endfunction
 
 autocmd FileType rust setlocal omnifunc=RacerComplete
 autocmd FileType rust nnoremap gd :call RacerGoToDefinition()<cr>
+
+let &cpo = s:save_cpo
+unlet s:save_cpo
 
