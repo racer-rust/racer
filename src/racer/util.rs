@@ -18,7 +18,7 @@ pub fn getline(filepath: &Path, linenum: usize, session: &Session) -> String {
             return line.unwrap();
         }
     }
-    "not found".to_owned()
+    "not found".into()
 }
 
 pub fn is_pattern_char(c: char) -> bool {

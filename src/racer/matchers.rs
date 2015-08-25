@@ -101,9 +101,9 @@ fn match_pattern_start(src: &str, blobstart: usize, blobend: usize,
     let blob = &src[blobstart..blobend];
     if let Some(start) = find_keyword(blob, pattern, searchstr, search_type, local) {
         if let Some(end) = blob[start..].find(':') {
-            let s = &blob[start..start+end].trim_right();
+            let s = blob[start..start+end].trim_right();
             return Some(Match {
-                matchstr: s.to_string(),
+                matchstr: s.to_owned(),
                 filepath: filepath.to_path_buf(),
                 point: blobstart+start,
                 local: local,
@@ -141,12 +141,12 @@ fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
     let mut out = Vec::new();
     let blob = &msrc[blobstart..blobend];
     if blob.starts_with(pattern) && txt_matches(search_type, searchstr, blob) {
-        let coords = ast::parse_let(blob.to_string());
+        let coords = ast::parse_let(blob.to_owned());
         for &(start, end) in coords.iter() {
             let s = &blob[start..end];
             if symbol_matches(search_type, searchstr, s) {
                 debug!("match_pattern_let point is {}", blobstart + start);
-                out.push(Match { matchstr: s.to_string(),
+                out.push(Match { matchstr: s.to_owned(),
                                    filepath: filepath.to_path_buf(),
                                    point: blobstart + start,
                                    local: local,
@@ -182,7 +182,7 @@ pub fn match_let(msrc: &str, blobstart: usize, blobend: usize,
 }
 
 pub fn first_line(blob: &str) -> String {
-    (&blob[..blob.find('\n').unwrap_or(blob.len())]).to_string()
+    (&blob[..blob.find('\n').unwrap_or(blob.len())]).to_owned()
 }
 
 pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
@@ -209,9 +209,9 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
             let rawblob = &rawsrc[blobstart..blobend];
             debug!("found an extern crate (unscrubbed): |{}|", rawblob);
 
-            extern_crate = ast::parse_extern_crate(rawblob.to_string());
+            extern_crate = ast::parse_extern_crate(rawblob.to_owned());
         } else {
-            extern_crate = ast::parse_extern_crate(blob.to_string());
+            extern_crate = ast::parse_extern_crate(blob.to_owned());
         }
 
         if let Some(ref name) = extern_crate.name {
@@ -229,7 +229,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
                                   point: 0,
                                   local: false,
                                   mtype: Module,
-                                  contextstr: cratepath.to_str().unwrap().to_string(),
+                                  contextstr: cratepath.to_str().unwrap().to_owned(),
                                   generic_args: Vec::new(),
                                   generic_types: Vec::new(),
                                   session: core::Session::from_path(&cratepath.as_path(), &cratepath.as_path())
@@ -256,12 +256,12 @@ pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
             debug!("found an inline module!");
 
             return Some(Match {
-                matchstr: l.to_string(),
+                matchstr: l.to_owned(),
                 filepath: filepath.to_path_buf(),
                 point: blobstart + start,
                 local: false,
                 mtype: Module,
-                contextstr: filepath.to_str().unwrap().to_string(),
+                contextstr: filepath.to_str().unwrap().to_owned(),
                 generic_args: Vec::new(),
                 generic_types: Vec::new(),
                 session: session.clone()
@@ -278,12 +278,12 @@ pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
             }
             if let Some(modpath) = get_module_file(l, &searchdir) {
                 return Some(Match {
-                    matchstr: l.to_string(),
+                    matchstr: l.to_owned(),
                     filepath: modpath.to_path_buf(),
                     point: 0,
                     local: false,
                     mtype: Module,
-                    contextstr: modpath.to_str().unwrap().to_string(),
+                    contextstr: modpath.to_str().unwrap().to_owned(),
                     generic_args: Vec::new(),
                     generic_types: Vec::new(),
                     session: core::Session::from_path(&modpath, &modpath)
@@ -313,7 +313,7 @@ pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize,
         let generics = ast::parse_generics(format!("{};", &blob[..end]));
 
         Some(Match {
-            matchstr: l.to_string(),
+            matchstr: l.to_owned(),
             filepath: filepath.to_path_buf(),
             point: blobstart + start,
             local: local,
@@ -340,7 +340,7 @@ pub fn match_type(msrc: &str, blobstart: usize, blobend: usize,
         };
         debug!("found!! a type {}", l);
         Some(Match {
-            matchstr: l.to_string(),
+            matchstr: l.to_owned(),
             filepath: filepath.to_path_buf(),
             point: blobstart + start,
             local: local,
@@ -367,7 +367,7 @@ pub fn match_trait(msrc: &str, blobstart: usize, blobend: usize,
         };
         debug!("found!! a trait {}", l);
         Some(Match {
-            matchstr: l.to_string(),
+            matchstr: l.to_owned(),
             filepath: filepath.to_path_buf(),
             point: blobstart + start,
             local: local,
@@ -391,7 +391,7 @@ pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize,
     if blob.starts_with("pub enum") || (local && blob.starts_with("enum")) {
         if txt_matches(search_type, searchstr, blob) {
             // parse the enum
-            let parsed_enum = ast::parse_enum(blob.to_string());
+            let parsed_enum = ast::parse_enum(blob.to_owned());
 
             for (name, offset) in parsed_enum.values.into_iter() {
                 if (&name).starts_with(searchstr) {
@@ -431,7 +431,7 @@ pub fn match_enum(msrc: &str, blobstart: usize, blobend: usize,
         let generics = ast::parse_generics(format!("{}{{}}", &blob[..end]));
 
         Some(Match {
-            matchstr: l.to_string(),
+            matchstr: l.to_owned(),
             filepath: filepath.to_path_buf(),
             point: blobstart + start,
             local: local,
@@ -463,7 +463,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
 
     if blob.contains("*") {
         // uh oh! a glob. Need to search the module for the searchstr
-        let use_item = ast::parse_use(blob.to_string());
+        let use_item = ast::parse_use(blob.to_owned());
         debug!("found a glob!! {:?}", use_item);
 
         if use_item.is_glob {
@@ -482,7 +482,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
             if follow_glob {
                 ALREADY_GLOBBING.with(|c| { c.set(Some(true)) });
 
-                let seg = PathSegment{ name: searchstr.to_string(), types: Vec::new() };
+                let seg = PathSegment{ name: searchstr.to_owned(), types: Vec::new() };
                 let mut path = basepath.clone();
                 path.segments.push(seg);
                 debug!("found a glob: now searching for {:?}", path);
@@ -501,9 +501,9 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
         }
     } else if txt_matches(search_type, searchstr, blob) {
         debug!("found use: {} in |{}|", searchstr, blob);
-        let use_item = ast::parse_use(blob.to_string());
+        let use_item = ast::parse_use(blob.to_owned());
 
-        let ident = use_item.ident.unwrap_or("".to_string());
+        let ident = use_item.ident.unwrap_or("".into());
         for path in use_item.paths.into_iter() {
             let len = path.segments.len();
 
@@ -561,7 +561,7 @@ pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize,
             };
             debug!("found a fn {}", l);
             Some(Match {
-                matchstr: l.to_string(),
+                matchstr: l.to_owned(),
                 filepath: filepath.to_path_buf(),
                 point: blobstart + start,
                 local: local,

@@ -109,7 +109,7 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<core::Ty> {
 
         let pos = m.point - point - start;
         let scope = core::Scope{ filepath: m.filepath.clone(), point: m.point, session: m.session.clone()};
-        ast::get_let_type(blob.to_string(), pos, scope)
+        ast::get_let_type(blob.to_owned(), pos, scope)
     } else {
         None
     }
@@ -130,7 +130,7 @@ fn get_type_of_if_let_expr(m: &Match, msrc: &str) -> Option<core::Ty> {
 
         let pos = m.point - stmtstart - point - start;
         let scope = core::Scope{ filepath: m.filepath.clone(), point: m.point, session: m.session.clone()};
-        ast::get_let_type(blob.to_string(), pos, scope)
+        ast::get_let_type(blob.to_owned(), pos, scope)
     } else {
         None
     }
@@ -145,7 +145,7 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<cor
     let opoint = scopes::find_stmt_start(&*src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
 
-    let fields = ast::parse_struct_fields(structsrc.to_string(), core::Scope::from_match(structmatch));
+    let fields = ast::parse_struct_fields(structsrc.to_owned(), core::Scope::from_match(structmatch));
     for (field, _, ty) in fields.into_iter() {
         if fieldname == field {
             return ty;
@@ -164,11 +164,11 @@ pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match) -> Option<
         let to = (&src[structmatch.point..]).find("(")
             .map(|n| scopes::find_closing_paren(&*src, structmatch.point + n+1))
             .unwrap();
-        "struct ".to_string() + &src[structmatch.point..(to+1)] + ";"
+        "struct ".to_owned() + &src[structmatch.point..(to+1)] + ";"
     } else {
         assert!(structmatch.mtype == core::MatchType::Struct);
         let opoint = scopes::find_stmt_start(&*src, structmatch.point);
-        get_first_stmt(&src[opoint.unwrap()..]).to_string()
+        get_first_stmt(&src[opoint.unwrap()..]).to_owned()
     };
 
     debug!("get_tuplestruct_field_type structsrc=|{}|", structsrc);
@@ -230,7 +230,7 @@ pub fn get_type_from_match_arm(m: &Match, msrc: &str) -> Option<core::Ty> {
     let lhs_start = scopes::get_start_of_pattern(msrc, arm);
     let lhs = &msrc[lhs_start..arm];
     // construct faux match statement and recreate point
-    let mut fauxmatchstmt = (&msrc[matchstart..scopestart]).to_string();
+    let mut fauxmatchstmt = (&msrc[matchstart..scopestart]).to_owned();
     let faux_prefix_size = fauxmatchstmt.len();
     fauxmatchstmt = fauxmatchstmt + lhs + " => () };";
     let faux_point = faux_prefix_size + (m.point - lhs_start);
@@ -252,7 +252,7 @@ pub fn get_function_declaration(fnmatch: &Match) -> String {
     let src = core::load_file(&fnmatch.filepath, &fnmatch.session);
     let start = scopes::find_stmt_start(&*src, fnmatch.point).unwrap();
     let end = (&src[start..]).find('{').unwrap();
-    (&src[start..end+start]).to_string()
+    (&src[start..end+start]).to_owned()
 }
 
 pub fn get_return_type_of_function(fnmatch: &Match) -> Option<core::Ty> {

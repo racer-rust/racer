@@ -146,16 +146,16 @@ impl Path {
 
     pub fn from_vec(global: bool, v: Vec<&str>) -> Path {
         let segs = v
-            .iter()
-            .map(|x| PathSegment{ name:x.to_string(), types: Vec::new() })
+            .into_iter()
+            .map(|x| PathSegment{ name: x.to_owned(), types: Vec::new() })
             .collect::<Vec<_>>();
         Path{ global: global, segments: segs }
     }
 
     pub fn from_svec(global: bool, v: Vec<String>) -> Path {
         let segs = v
-            .iter()
-            .map(|x| PathSegment{ name:x.clone(), types: Vec::new() })
+            .into_iter()
+            .map(|x| PathSegment{ name: x, types: Vec::new() })
             .collect::<Vec<_>>();
         Path{ global: global, segments: segs }
     }
@@ -244,7 +244,7 @@ pub fn load_file(filepath: &path::Path, session: &Session) -> String {
         BufReader::new(f).read_to_end(&mut rawbytes).unwrap();
     } else {
         error!("load_file couldn't open {:?}. Returning empty string",filepath);
-        return "".to_string();
+        return "".into();
     }
 
     // skip BOF bytes, if present
@@ -292,7 +292,7 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session:
             }
         },
         CompletionType::CompleteField => {
-            let context = ast::get_type_of(contextstr.to_string(), filepath, pos, session);
+            let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("complete_from_file context is {:?}", context);
             context.map(|ty| {
                 if let Ty::TyMatch(m) = ty {
@@ -329,8 +329,8 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &
             }
 
             let segs = v
-                .iter()
-                .map(|x| PathSegment{ name: x.to_string(), types: Vec::new() })
+                .into_iter()
+                .map(|x| PathSegment{ name: x.to_owned(), types: Vec::new() })
                 .collect::<Vec<_>>();
             let path = Path{ global: global, segments: segs };
 
@@ -339,7 +339,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &
                                          session).nth(0);
         },
         CompletionType::CompleteField => {
-            let context = ast::get_type_of(contextstr.to_string(), filepath, pos, session);
+            let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("context is {:?}", context);
 
             return context.and_then(|ty| {

@@ -11,7 +11,7 @@ pub fn snippet_for_match(m: &Match) -> String {
             if let Some(m) = MethodInfo::from_source_str(&method) {
                 m.snippet()
             } else {
-                "".to_string()
+                "".into()
             }
         }
         _ => m.matchstr.clone()
@@ -44,7 +44,7 @@ impl MethodInfo {
                                     let ref codemap = p.sess.span_diagnostic.cm;
                                     match codemap.span_to_snippet(arg.pat.span) {
                                         Ok(name) => name,
-                                        _ => "".to_string()
+                                        _ => "".into()
                                     }
                                 }).collect(),
                             })

@@ -155,14 +155,14 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
                 continue;
             }
         } else {
-            d.push(kratename.to_string() + "-" + &version);
+            d.push(kratename.to_owned() + "-" + &version);
         }
         
         d.push("src");
         debug!("crate path {:?}",d);
 
         // First, check for package name at root (src/kratename/lib.rs)
-        d.push(kratename.to_string());
+        d.push(kratename);
         d.push("lib.rs");
         if let Err(_) = File::open(&d) {
             // It doesn't exist, so assume src/lib.rs

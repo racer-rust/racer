@@ -15,7 +15,7 @@ use syntex_syntax::visit::{self, Visitor};
 
 // This code ripped from libsyntax::util::parser_testing
 pub fn string_to_parser(ps: &ParseSess, source_str: String) -> Option<Parser> {
-    let fm = ps.codemap().new_filemap("bogofile".to_string(), source_str);
+    let fm = ps.codemap().new_filemap("bogofile".into(), source_str);
     let srdr = lexer::StringReader::new(&ps.span_diagnostic, fm);
     let p = Parser::new(ps, Vec::new(), Box::new(srdr));
     Some(p)
@@ -388,7 +388,7 @@ fn get_type_of_typedef(m: Match) -> Option<Match> {
     let blob = &msrc[blobstart..];
 
     return codeiter::iter_stmts(blob).nth(0).and_then(|(start, end)| {
-        let blob = msrc[blobstart + start..blobstart+end].to_string();
+        let blob = msrc[blobstart + start..blobstart+end].to_owned();
         debug!("get_type_of_typedef blob string {}", blob);
         let res = parse_type(blob);
         debug!("get_type_of_typedef parsed type {:?}", res.type_);
