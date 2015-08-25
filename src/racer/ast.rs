@@ -194,8 +194,8 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
             }
         }
         ast::PatTup(ref tuple_elements) => {
-            return match ty {
-                &TyTuple(ref typeelems) => {
+            return match *ty {
+                TyTuple(ref typeelems) => {
                     let mut i = 0usize;
                     let mut res = None;
                     for p in tuple_elements.iter() {
@@ -430,8 +430,8 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                 self.visit_expr(&**callee_expression);
 
                 self.result = self.result.as_ref().and_then(|m|
-                    match m {
-                        &TyMatch(ref m) =>  {
+                    match *m {
+                        TyMatch(ref m) =>  {
 
                             match m.mtype {
                                 MatchType::Function => typeinf::get_return_type_of_function(m)
@@ -466,8 +466,8 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                 self.visit_expr(&**objexpr);
 
                 self.result = self.result.as_ref().and_then(|contextm| {
-                    match contextm {
-                        &TyMatch(ref contextm) => {
+                    match *contextm {
+                        TyMatch(ref contextm) => {
                             let omethod = nameres::search_for_impl_methods(
                                 &contextm.matchstr,
                                 &methodname,
@@ -492,8 +492,8 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                 self.visit_expr(&**subexpression);
                 self.result = self.result.as_ref()
                       .and_then(|structm|
-                                match structm {
-                                    &TyMatch(ref structm) => {
+                                match *structm {
+                                    TyMatch(ref structm) => {
                                 typeinf::get_struct_field_type(&fieldname, structm)
                                 .and_then(|fieldtypepath|
                                           find_type_match_including_generics(&fieldtypepath,
@@ -568,8 +568,8 @@ fn find_type_match_including_generics(fieldtype: &core::Ty,
                                       session: &core::Session) -> Option<Ty>{
     assert_eq!(&structm.filepath, &structm.session.query_path);
     assert_eq!(&filepath, &session.query_path.as_path());
-    let fieldtypepath = match fieldtype {
-        &TyPathSearch(ref path, _) => path,
+    let fieldtypepath = match *fieldtype {
+        TyPathSearch(ref path, _) => path,
         _ => {
             debug!("EXPECTING A PATH!! Cannot handle other types yet. {:?}", fieldtype);
             return None
