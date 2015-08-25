@@ -31,7 +31,7 @@
 
    ```el
    (require 'package)
-   (add-to-list 'package-archives '("melpa" . "http://melpa.milkbox.net/packages/"))
+   (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/"))
    ```
 
 2. Install racer: `M-x package-list` Find the racer package and install it
