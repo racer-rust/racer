@@ -198,6 +198,7 @@ foo(bar, |baz); -> foo|(bar, baz);"
     (define-key map (kbd "M-.") #'racer-find-definition)
     map))
 
+;;;###autoload
 (define-minor-mode racer-mode
   "Minor mode for racer."
   :lighter " racer"
