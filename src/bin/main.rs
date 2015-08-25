@@ -83,12 +83,12 @@ fn complete(match_found: &Fn(Match), args: &[String]) {
             let fpath = Path::new(fname);
             let session = core::Session::from_path(&fpath, &substitute_file);
             let src = core::load_file(&fpath, &session);
-            let line = &*getline(&substitute_file, linenum, &session);
+            let line = &getline(&substitute_file, linenum, &session);
             let (start, pos) = util::expand_ident(line, charnum);
             println!("PREFIX {},{},{}", start, pos, &line[start..pos]);
 
-            let point = scopes::coords_to_point(&*src, linenum, charnum);
-            for m in core::complete_from_file(&*src, &fpath, point, &session) {
+            let point = scopes::coords_to_point(&src, linenum, charnum);
+            for m in core::complete_from_file(&src, &fpath, point, &session) {
                 match_found(m);
             }
             println!("END");
@@ -131,7 +131,7 @@ fn prefix(args: &[String]) {
 
     // print the start, end, and the identifier prefix being matched
     let path = Path::new(fname);
-    let line = &*getline(&path, linenum, &session);
+    let line = &getline(&path, linenum, &session);
     let (start, pos) = util::expand_ident(line, charnum);
     println!("PREFIX {},{},{}", start, pos, &line[start..pos]);
 }
@@ -153,9 +153,9 @@ fn find_definition(args: &[String]) {
     let fpath = Path::new(&fname);
     let session = core::Session::from_path(&fpath, &substitute_file);
     let src = core::load_file(&fpath, &session);
-    let pos = scopes::coords_to_point(&*src, linenum, charnum);
+    let pos = scopes::coords_to_point(&src, linenum, charnum);
 
-    core::find_definition(&*src, &fpath, pos, &session).map(match_fn);
+    core::find_definition(&src, &fpath, pos, &session).map(match_fn);
     println!("END");
 }
 

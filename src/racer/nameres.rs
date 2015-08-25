@@ -20,7 +20,7 @@ fn search_struct_fields(searchstr: &str, structmatch: &Match,
                          search_type: SearchType) -> vec::IntoIter<Match> {
      assert_eq!(&structmatch.filepath, &structmatch.session.query_path);
     let src = core::load_file(&structmatch.filepath, &structmatch.session);
-    let opoint = scopes::find_stmt_start(&*src, structmatch.point);
+    let opoint = scopes::find_stmt_start(&src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
 
     let fields = ast::parse_struct_fields(structsrc.to_owned(),
@@ -62,7 +62,7 @@ pub fn search_for_impl_methods(implsearchstr: &str,
         // find the opening brace and skip to it.
         (&src[m.point..]).find("{").map(|n| {
             let point = m.point + n + 1;
-            for m in search_scope_for_methods(point, &*src, fieldsearchstr, &m.filepath, search_type, &m.session) {
+            for m in search_scope_for_methods(point, &src, fieldsearchstr, &m.filepath, search_type, &m.session) {
                 out.push(m);
             }
         });
@@ -178,8 +178,8 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: &str, searchstr: 
         } else if let Some(n) = preblock.find("if let") {
             let ifletstart = stmtstart + n;
             let s = (&msrc[ifletstart..scopestart+1]).to_owned() + "}";
-            if txt_matches(search_type, searchstr, &*s) {
-                let mut out = matchers::match_if_let(&*s, 0, s.len(), searchstr,
+            if txt_matches(search_type, searchstr, &s) {
+                let mut out = matchers::match_if_let(&s, 0, s.len(), searchstr,
                                                      filepath, search_type, true, &session);
                 for m in &mut out {
                     m.point += ifletstart;
@@ -204,7 +204,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: &str, searchstr: 
                 Some(arm) => {
                     // be sure not to be in the next arm enum
                     if let Some(next_arm) = masked_matchstmt[arm+2..].find("=>") {
-                        let enum_start = scopes::get_start_of_pattern(&*masked_matchstmt, arm+next_arm+1);
+                        let enum_start = scopes::get_start_of_pattern(&masked_matchstmt, arm+next_arm+1);
                         if point > matchstart+enum_start { return Vec::new().into_iter(); }
                     }
                     arm
@@ -254,7 +254,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: &str, searchstr: 
 
 fn mask_matchstmt(matchstmt_src: &str, innerscope_start: usize) -> String {
     let s = scopes::mask_sub_scopes(&matchstmt_src[innerscope_start..]);
-    (&matchstmt_src[..innerscope_start]).to_owned() + &*s
+    (&matchstmt_src[..innerscope_start]).to_owned() + &s
 }
 
 #[test]
@@ -465,7 +465,7 @@ pub fn search_next_scope(mut startpoint: usize, pathseg: &core::PathSegment,
             startpoint = startpoint + n + 1;
         });
     }
-    search_scope(startpoint, startpoint, &*filesrc, pathseg, filepath, search_type, local, namespace, session)
+    search_scope(startpoint, startpoint, &filesrc, pathseg, filepath, search_type, local, namespace, session)
 }
 
 pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
@@ -993,13 +993,13 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                     debug!("searching an enum '{}' (whole path: {:?}) searchtype: {:?}", m.matchstr, path, search_type);
 
                     let filesrc = core::load_file(&m.filepath, &m.session);
-                    let scopestart = scopes::find_stmt_start(&*filesrc, m.point).unwrap();
+                    let scopestart = scopes::find_stmt_start(&filesrc, m.point).unwrap();
                     let scopesrc = &filesrc[scopestart..];
                     codeiter::iter_stmts(scopesrc).nth(0).map(|(blobstart,blobend)| {
-                        for m in matchers::match_enum_variants(&*filesrc,
+                        for m in matchers::match_enum_variants(&filesrc,
                                                                scopestart+blobstart,
                                                                scopestart+blobend,
-                                                      &*pathseg.name, &m.filepath, search_type, true, &m.session) {
+                                                      &pathseg.name, &m.filepath, search_type, true, &m.session) {
                             debug!("Found enum variant: {}", m.matchstr);
                             out.push(m);
                         }
@@ -1014,7 +1014,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                         // find the opening brace and skip to it.
                         (&src[m.point..]).find("{").map(|n| {
                             let point = m.point + n + 1;
-                            for m in search_scope(point, point, &*src, pathseg, &m.filepath, search_type, m.local, namespace, &m.session) {
+                            for m in search_scope(point, point, &src, pathseg, &m.filepath, search_type, m.local, namespace, &m.session) {
                                 out.push(m);
                             }
                         });
@@ -1131,7 +1131,7 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
             let src = core::load_file(&m.filepath, &m.session);
             (&src[m.point..]).find("{").map(|n| {
                 let point = m.point + n + 1;
-                for m in search_scope_for_methods(point, &*src, searchstr, &m.filepath, search_type, &m.session) {
+                for m in search_scope_for_methods(point, &src, searchstr, &m.filepath, search_type, &m.session) {
                     out.push(m);
                 }
             });

@@ -113,7 +113,7 @@ impl<'v> visit::Visitor<'v> for LetVisitor {
     fn visit_expr(&mut self, ex: &'v ast::Expr) {
         // don't visit the RHS or block of an 'if let' stmt
         if let ast::ExprIfLet(ref pattern, _,_,_) = ex.node {
-            self.visit_pat(&**pattern);
+            self.visit_pat(pattern);
         } else {
             visit::walk_expr(self, ex)
         }
@@ -155,7 +155,7 @@ fn to_racer_ty(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
         ast::TyTup(ref items) => {
             let mut res = Vec::new();
             for t in items {
-                res.push(match to_racer_ty(&**t, scope) {
+                res.push(match to_racer_ty(t, scope) {
                     Some(t) => t,
                     None => return None
                 });
@@ -201,7 +201,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
                     for p in tuple_elements {
                         if point_is_in_span(point as u32, &p.span) {
                             let ref ty = typeelems[i];
-                            res = destructure_pattern_to_ty(&**p, point, ty, scope);
+                            res = destructure_pattern_to_ty(p, point, ty, scope);
                             break;
                         }
                         i += 1;
@@ -230,7 +230,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
                                 } else {
                                     path_to_match(ty)
                                 })
-                            .and_then(|ty| destructure_pattern_to_ty(&**p, point, &ty, scope));
+                            .and_then(|ty| destructure_pattern_to_ty(p, point, &ty, scope));
 
                         break;
                     }
@@ -259,9 +259,9 @@ impl<'v> visit::Visitor<'v> for LetTypeVisitor {
     fn visit_expr(&mut self, ex: &'v ast::Expr) {
         if let ast::ExprIfLet(ref pattern, ref expr, _, _) = ex.node {
             let mut v = ExprTypeVisitor{ scope: self.scope.clone(), result: None };
-            v.visit_expr(&**expr);
+            v.visit_expr(expr);
             self.result = v.result.and_then(|ty|
-                   destructure_pattern_to_ty(&**pattern, self.pos, &ty, &self.scope))
+                   destructure_pattern_to_ty(pattern, self.pos, &ty, &self.scope))
                 .and_then(path_to_match);
         } else {
             visit::walk_expr(self, ex)
@@ -271,7 +271,7 @@ impl<'v> visit::Visitor<'v> for LetTypeVisitor {
     fn visit_local(&mut self, local: &'v ast::Local) {
         let mut ty = None;
         if let Some(ref local_ty) = local.ty {
-            ty = to_racer_ty(&**local_ty, &self.scope);
+            ty = to_racer_ty(local_ty, &self.scope);
         }
 
         if ty.is_none() {
@@ -279,7 +279,7 @@ impl<'v> visit::Visitor<'v> for LetTypeVisitor {
             ty = local.init.as_ref().and_then(|initexpr| {
                 debug!("init node is {:?}", initexpr.node);
                 let mut v = ExprTypeVisitor{ scope: self.scope.clone(), result: None };
-                v.visit_expr(&**initexpr);
+                v.visit_expr(initexpr);
                 v.result
             });
         }
@@ -303,7 +303,7 @@ impl<'v> visit::Visitor<'v> for MatchTypeVisitor {
             debug!("PHIL sub expr is {:?}", subexpression);
 
             let mut v = ExprTypeVisitor{ scope: self.scope.clone(), result: None };
-            v.visit_expr(&**subexpression);
+            v.visit_expr(subexpression);
 
             debug!("PHIL sub type is {:?}", v.result);
 
@@ -312,7 +312,7 @@ impl<'v> visit::Visitor<'v> for MatchTypeVisitor {
                     if point_is_in_span(self.pos as u32, &pattern.span) {
                         debug!("PHIL point is in pattern |{:?}|", pattern);
                         self.result = v.result.as_ref().and_then(|ty|
-                               destructure_pattern_to_ty(&**pattern, self.pos, ty, &self.scope))
+                               destructure_pattern_to_ty(pattern, self.pos, ty, &self.scope))
                             .and_then(path_to_match);
                     }
                 }
@@ -427,7 +427,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
                                  });
             }
             ast::ExprCall(ref callee_expression, _/*ref arguments*/) => {
-                self.visit_expr(&**callee_expression);
+                self.visit_expr(callee_expression);
 
                 self.result = self.result.as_ref().and_then(|m|
                     match *m {
@@ -463,7 +463,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
 
                 let objexpr = &arguments[0];
                 //println!("obj expr is {:?}",objexpr);
-                self.visit_expr(&**objexpr);
+                self.visit_expr(objexpr);
 
                 self.result = self.result.as_ref().and_then(|contextm| {
                     match *contextm {
@@ -489,7 +489,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
             ast::ExprField(ref subexpression, spannedident) => {
                 let fieldname = spannedident.node.name.to_string();
                 debug!("exprfield {}", fieldname);
-                self.visit_expr(&**subexpression);
+                self.visit_expr(subexpression);
                 self.result = self.result.as_ref()
                       .and_then(|structm|
                                 match *structm {
@@ -509,7 +509,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
             ast::ExprTup(ref exprs) => {
                 let mut v = Vec::new();
                 for expr in exprs {
-                    self.visit_expr(&**expr);
+                    self.visit_expr(expr);
                     match self.result {
                         Some(ref t) => v.push(t.clone()),
                         None => {
@@ -952,7 +952,7 @@ pub struct FnOutputVisitor {
 impl<'v> visit::Visitor<'v> for FnOutputVisitor {
     fn visit_fn(&mut self,  _: visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId) {
         self.result = match fd.output {
-            ast::Return(ref ty) => to_racer_ty(&**ty, &self.scope),
+            ast::Return(ref ty) => to_racer_ty(ty, &self.scope),
             ast::NoReturn(_) => None,
             ast::DefaultReturn(_) => None
         };

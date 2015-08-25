@@ -475,8 +475,8 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                 follow_glob &= ALREADY_GLOBBING.with(|c| { c.get().is_none() });
 
                 // don't follow the glob if the path base is the searchstr
-                follow_glob &= !(&*basepath.segments[0].name == searchstr ||
-                    (&*basepath.segments[0].name == "self" && &*basepath.segments[1].name == searchstr));
+                follow_glob &= !(basepath.segments[0].name == searchstr ||
+                    (basepath.segments[0].name == "self" && basepath.segments[1].name == searchstr));
             }
 
             if follow_glob {
@@ -507,7 +507,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
         for path in use_item.paths.into_iter() {
             let len = path.segments.len();
 
-            if symbol_matches(search_type, searchstr, &*ident) { // i.e. 'use foo::bar as searchstr'
+            if symbol_matches(search_type, searchstr, &ident) { // i.e. 'use foo::bar as searchstr'
                 if len == 1 && path.segments[0].name == searchstr {
                     // is an exact match of a single use stmt.
                     // Do nothing because this will be picked up by the module
@@ -522,7 +522,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                         }
                     }
                 }
-            } else if &*ident == "" {   // i.e. no 'as'. e.g. 'use foo::{bar, baz}'
+            } else if ident == "" {   // i.e. no 'as'. e.g. 'use foo::{bar, baz}'
                 // if searching for a symbol and the last path segment 
                 // matches the symbol then find the fqn
                 if len == 1 && path.segments[0].name == searchstr {

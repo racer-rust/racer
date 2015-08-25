@@ -124,7 +124,7 @@ fn get_type_of_if_let_expr(m: &Match, msrc: &str) -> Option<core::Ty> {
     let src = &stmt[point..];
     let src = generate_skeleton_for_parsing(src);
 
-    if let Some((start, end)) = codeiter::iter_stmts(&*src).next() {
+    if let Some((start, end)) = codeiter::iter_stmts(&src).next() {
         let blob = &src[start..end];
         debug!("get_type_of_if_let_expr calling parse_if_let |{}|", blob);
 
@@ -142,7 +142,7 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<cor
 
     let src = core::load_file(&structmatch.filepath, &structmatch.session);
 
-    let opoint = scopes::find_stmt_start(&*src, structmatch.point);
+    let opoint = scopes::find_stmt_start(&src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
 
     let fields = ast::parse_struct_fields(structsrc.to_owned(), core::Scope::from_match(structmatch));
@@ -162,12 +162,12 @@ pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match) -> Option<
     let structsrc = if let core::MatchType::EnumVariant = structmatch.mtype {
         // decorate the enum variant src to make it look like a tuple struct
         let to = (&src[structmatch.point..]).find("(")
-            .map(|n| scopes::find_closing_paren(&*src, structmatch.point + n+1))
+            .map(|n| scopes::find_closing_paren(&src, structmatch.point + n+1))
             .unwrap();
         "struct ".to_owned() + &src[structmatch.point..(to+1)] + ";"
     } else {
         assert!(structmatch.mtype == core::MatchType::Struct);
-        let opoint = scopes::find_stmt_start(&*src, structmatch.point);
+        let opoint = scopes::find_stmt_start(&src, structmatch.point);
         get_first_stmt(&src[opoint.unwrap()..]).to_owned()
     };
 
@@ -250,7 +250,7 @@ pub fn get_type_from_match_arm(m: &Match, msrc: &str) -> Option<core::Ty> {
 pub fn get_function_declaration(fnmatch: &Match) -> String {
     assert_eq!(&fnmatch.filepath, &fnmatch.session.query_path);
     let src = core::load_file(&fnmatch.filepath, &fnmatch.session);
-    let start = scopes::find_stmt_start(&*src, fnmatch.point).unwrap();
+    let start = scopes::find_stmt_start(&src, fnmatch.point).unwrap();
     let end = (&src[start..]).find('{').unwrap();
     (&src[start..end+start]).to_owned()
 }
@@ -258,7 +258,7 @@ pub fn get_function_declaration(fnmatch: &Match) -> String {
 pub fn get_return_type_of_function(fnmatch: &Match) -> Option<core::Ty> {
     assert_eq!(&fnmatch.filepath, &fnmatch.session.query_path);
     let src = core::load_file(&fnmatch.filepath, &fnmatch.session);
-    let point = scopes::find_stmt_start(&*src, fnmatch.point).unwrap();
+    let point = scopes::find_stmt_start(&src, fnmatch.point).unwrap();
     (&src[point..]).find("{").and_then(|n| {
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut decl = String::new();
