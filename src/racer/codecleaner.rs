@@ -59,7 +59,7 @@ fn code(self_: &mut CodeIndicesIter) -> (usize, usize) {
         _ => { self_.pos }
     };
     let src_bytes = self_.src.as_bytes();
-    for &b in src_bytes[self_.pos..].iter() {
+    for &b in &src_bytes[self_.pos..] {
         self_.pos += 1;
         match b {
             b'/' => match src_bytes[self_.pos] {
@@ -99,7 +99,7 @@ fn code(self_: &mut CodeIndicesIter) -> (usize, usize) {
 }
 
 fn comment(self_: &mut CodeIndicesIter) -> (usize, usize) {
-    for &b in self_.src.as_bytes()[self_.pos..].iter() {
+    for &b in &self_.src.as_bytes()[self_.pos..] {
         self_.pos += 1;
         if b == b'\n' { break; }
     }
@@ -109,7 +109,7 @@ fn comment(self_: &mut CodeIndicesIter) -> (usize, usize) {
 fn comment_block(self_: &mut CodeIndicesIter) -> (usize, usize) {
     let mut nesting_level = 0u16; // should be enough
     let mut prev = b' ';
-    for &b in self_.src.as_bytes()[self_.pos..].iter() {
+    for &b in &self_.src.as_bytes()[self_.pos..] {
         self_.pos += 1;
         match b {
             b'/' if prev == b'*' => {
@@ -138,7 +138,7 @@ fn string(self_: &mut CodeIndicesIter) -> (usize, usize) {
         }
     } else {
         let mut is_not_escaped = true;
-        for &b in src_bytes[self_.pos..].iter() {
+        for &b in &src_bytes[self_.pos..] {
             self_.pos += 1;
             match b {
                 b'"' if is_not_escaped  => { break; }, // "
@@ -152,7 +152,7 @@ fn string(self_: &mut CodeIndicesIter) -> (usize, usize) {
 
 fn char(self_: &mut CodeIndicesIter) -> (usize, usize) {
     let mut is_not_escaped = true;
-    for &b in self_.src.as_bytes()[self_.pos..].iter() {
+    for &b in &self_.src.as_bytes()[self_.pos..] {
         self_.pos += 1;
         match b {
             b'\'' if is_not_escaped  => { break; },

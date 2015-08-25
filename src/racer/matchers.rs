@@ -47,7 +47,7 @@ fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType,
             // remove whitespaces ... must have one at least
             start += pat.len();
             let oldstart = start;
-            for &b in src[start..].as_bytes().iter() {
+            for &b in src[start..].as_bytes() {
                 match b {
                     b' '|b'\r'|b'\n'|b'\t' => start += 1,
                     _ => break
@@ -62,7 +62,7 @@ fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType,
         // remove whitespaces ... must have one at least
         start += pattern.len();
         let oldstart = start;
-        for &b in src[start..].as_bytes().iter() {
+        for &b in src[start..].as_bytes() {
             match b {
                 b' '|b'\r'|b'\n'|b'\t' => start += 1,
                 _ => break
@@ -142,7 +142,7 @@ fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
     let blob = &msrc[blobstart..blobend];
     if blob.starts_with(pattern) && txt_matches(search_type, searchstr, blob) {
         let coords = ast::parse_let(blob.to_owned());
-        for &(start, end) in coords.iter() {
+        for (start, end) in coords {
             let s = &blob[start..end];
             if symbol_matches(search_type, searchstr, s) {
                 debug!("match_pattern_let point is {}", blobstart + start);

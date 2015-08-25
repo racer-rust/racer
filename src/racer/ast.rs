@@ -74,7 +74,7 @@ impl<'v> visit::Visitor<'v> for UseVisitor {
                 },
                 ast::ViewPathList(ref pth, ref paths) => {
                     let basepath = to_racer_path(pth);
-                    for path in paths.iter() {
+                    for path in paths {
                         match path.node {
                             ast::PathListIdent{name, ..} => {
                                 let name = name.name.to_string();
@@ -154,7 +154,7 @@ fn to_racer_ty(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
     return match ty.node {
         ast::TyTup(ref items) => {
             let mut res = Vec::new();
-            for t in items.iter() {
+            for t in items {
                 res.push(match to_racer_ty(&**t, scope) {
                     Some(t) => t,
                     None => return None
@@ -198,7 +198,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
                 TyTuple(ref typeelems) => {
                     let mut i = 0usize;
                     let mut res = None;
-                    for p in tuple_elements.iter() {
+                    for p in tuple_elements {
                         if point_is_in_span(point as u32, &p.span) {
                             let ref ty = typeelems[i];
                             res = destructure_pattern_to_ty(&**p, point, ty, scope);
@@ -219,7 +219,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
             let contextty = path_to_match(ty.clone());
             if let (Some(m), Some(children)) = (m, children.as_ref()) {
                 let mut res = None;
-                for p in children.iter() {
+                for p in children {
                     if point_is_in_span(point as u32, &p.span) {
 
                         res = typeinf::get_tuplestruct_field_type(i, &m)
@@ -307,8 +307,8 @@ impl<'v> visit::Visitor<'v> for MatchTypeVisitor {
 
             debug!("PHIL sub type is {:?}", v.result);
 
-            for arm in arms.iter() {
-                for pattern in arm.pats.iter() {
+            for arm in arms {
+                for pattern in &arm.pats {
                     if point_is_in_span(self.pos as u32, &pattern.span) {
                         debug!("PHIL point is in pattern |{:?}|", pattern);
                         self.result = v.result.as_ref().and_then(|ty|
@@ -329,10 +329,10 @@ fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: usize, session: &cor
 
 fn to_racer_path(pth: &ast::Path) -> core::Path {
     let mut v = Vec::new();
-    for seg in pth.segments.iter() {
+    for seg in &pth.segments {
         let name = seg.identifier.name.to_string();
         let mut types = Vec::new();
-        for ty in seg.parameters.types().iter() {
+        for ty in seg.parameters.types() {
             if let ast::TyPath(_, ref path) = ty.node {
                 types.push(to_racer_path(path));
             }
@@ -508,7 +508,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
 
             ast::ExprTup(ref exprs) => {
                 let mut v = Vec::new();
-                for expr in exprs.iter() {
+                for expr in exprs {
                     self.visit_expr(&**expr);
                     match self.result {
                         Some(ref t) => v.push(t.clone()),
@@ -603,7 +603,7 @@ struct StructVisitor {
 
 impl<'v> visit::Visitor<'v> for StructVisitor {
     fn visit_struct_def(&mut self, struct_definition: &ast::StructDef, _: ast::Ident, _: &ast::Generics, _: ast::NodeId) {
-        for field in struct_definition.fields.iter() {
+        for field in &struct_definition.fields {
             let codemap::BytePos(point) = field.span.lo;
 
             match field.node.kind {
@@ -774,7 +774,7 @@ impl<'v> visit::Visitor<'v> for EnumVisitor {
             let codemap::BytePos(point2) = i.span.hi;
             debug!("name point is {} {}", point, point2);
 
-            for variant in enum_definition.variants.iter() {
+            for variant in &enum_definition.variants {
                 let codemap::BytePos(point) = variant.span.lo;
                 self.values.push(((&variant.node.name).to_string(), point as usize));
             }
@@ -967,7 +967,7 @@ pub struct FnArgTypeVisitor {
 
 impl<'v> visit::Visitor<'v> for FnArgTypeVisitor {
     fn visit_fn(&mut self, _: visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId) {
-        for arg in fd.inputs.iter() {
+        for arg in &fd.inputs {
             let codemap::BytePos(lo) = arg.pat.span.lo;
             let codemap::BytePos(hi) = arg.pat.span.hi;
             if self.argpos >= (lo as usize) && self.argpos <= (hi as usize) {

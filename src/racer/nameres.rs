@@ -181,7 +181,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: &str, searchstr: 
             if txt_matches(search_type, searchstr, &*s) {
                 let mut out = matchers::match_if_let(&*s, 0, s.len(), searchstr,
                                                      filepath, search_type, true, &session);
-                for m in out.iter_mut() {
+                for m in &mut out {
                     m.point += ifletstart;
                 }
                 return out.into_iter();
@@ -223,7 +223,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: &str, searchstr: 
             debug!("PHIL arm lhs is |{}|", lhs);
             debug!("PHIL arm fauxmatchstmt is |{}|, {}", fauxmatchstmt, faux_prefix_size);
             let mut out = Vec::new();
-            for &(start,end) in ast::parse_pat_idents(fauxmatchstmt).iter() {
+            for (start,end) in ast::parse_pat_idents(fauxmatchstmt) {
                 let (start,end) = (lhs_start + start - faux_prefix_size,
                                    lhs_start + end - faux_prefix_size);
                 let s = &msrc[start..end];
@@ -283,7 +283,7 @@ fn search_fn_args(fnstart: usize, open_brace_pos: usize, msrc:&str, searchstr:&s
     if txt_matches(search_type, searchstr, &fndecl) {
         let coords = ast::parse_fn_args(fndecl.clone());
 
-        for &(start,end) in coords.iter() {
+        for (start,end) in coords {
             let s = &fndecl[start..end];
             debug!("search_fn_args: arg str is |{}|", s);
 
@@ -325,7 +325,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                         v.push(dir_entry.path());
                     }
                 }
-                for fpath_buf in v.iter() {
+                for fpath_buf in v {
                     // skip filenames that can't be decoded
                     let fname = match fpath_buf.file_name().and_then(|n| n.to_str()) {
                         Some(fname) => fname,
@@ -402,7 +402,7 @@ pub fn search_crate_root(pathseg: &core::PathSegment, modfpath: &Path,
 
     let crateroots = find_possible_crate_root_modules(modfpath.parent().unwrap());
     let mut out = Vec::new();
-    for crateroot in crateroots.iter() {
+    for crateroot in &crateroots {
         if crateroot.deref() == modfpath {
             continue;
         }
@@ -638,7 +638,7 @@ pub fn search_scope(start: usize, point: usize, src: &str,
     }
 
     // finally process any use-globs that we skipped before
-    for &(blobstart, blobend) in delayed_use_globs.iter() {
+    for (blobstart, blobend) in delayed_use_globs {
         // There's a good chance of a match. Run the matchers
         for m in run_matchers_on_blob(src, start+blobstart, start+blobend,
                                       searchstr, filepath, search_type,
@@ -822,7 +822,7 @@ pub struct Search {
 
 pub fn is_a_repeat_search(new_search: &Search) -> bool {
     SEARCH_STACK.with(|v| {
-        for s in v.iter() {
+        for s in v {
             if s == new_search {
                 debug!("is a repeat search {:?} Stack: {:?}", new_search, v);
                 return true;

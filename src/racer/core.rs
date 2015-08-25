@@ -165,7 +165,7 @@ impl fmt::Debug for Path {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(write!(f, "P["));
         let mut first = true;
-        for seg in self.segments.iter() {
+        for seg in &self.segments {
             if first {
                 try!(write!(f, "{}", seg.name));
                 first = false;
@@ -176,7 +176,7 @@ impl fmt::Debug for Path {
             if !seg.types.is_empty() {
                 try!(write!(f, "<"));
                 let mut tfirst = true;
-                for typath in seg.types.iter() {
+                for typath in &seg.types {
                     if tfirst {
                         try!(write!(f, "{:?}", typath));
                         tfirst = false;

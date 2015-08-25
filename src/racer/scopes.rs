@@ -218,7 +218,7 @@ pub fn mask_sub_scopes(src: &str) -> String {
     let mut start = 0usize;
     let mut pos = 0usize;
 
-    for &b in src.as_bytes().iter() {
+    for &b in src.as_bytes() {
         pos += 1;
         match b {
             b'{' => {
@@ -280,7 +280,7 @@ pub fn point_to_coords(src: &str, point: usize) -> (usize, usize) {
     let mut i = 0;
     let mut linestart = 0;
     let mut nlines = 1;  // lines start at 1
-    for &b in src[..point].as_bytes().iter() {
+    for &b in src[..point].as_bytes() {
         i += 1;
         if b == b'\n' {
             nlines += 1;
