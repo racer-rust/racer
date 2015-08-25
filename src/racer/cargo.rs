@@ -178,7 +178,7 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
 
         return Some(d)
     }
-    return None;
+    None
  }
 
 fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
@@ -227,16 +227,16 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
         Some(&toml::Value::Table(ref t)) => {
             // local directory
             let relative_path = otry!(getstr(t, "path"));
-            return Some(otry!(cargofile.parent())
-                        .join(relative_path)
-                        .join("src")
-                        .join("lib.rs"));
+            Some(otry!(cargofile.parent())
+                 .join(relative_path)
+                 .join("src")
+                 .join("lib.rs"))
         },
         Some(&toml::Value::String(ref version)) => {
             // versioned crate
-            return get_versioned_cratefile(name, version, cargofile);
+            get_versioned_cratefile(name, version, cargofile)
         }
-        _ => return None
+        _ => None
     }
 }
 
@@ -309,10 +309,10 @@ fn find_cargo_tomlfile(currentfile: &Path) -> Option<PathBuf> {
     let mut f = currentfile.to_path_buf();
     f.push("Cargo.toml");
     if path_exists(f.as_path()) {
-        return Some(f);
+        Some(f)
     } else {
         if f.pop() && f.pop() {
-            return find_cargo_tomlfile(&f);
+            find_cargo_tomlfile(&f)
         } else {
             None
         }

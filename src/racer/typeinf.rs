@@ -32,7 +32,7 @@ pub fn first_param_is_self(blob: &str) -> bool {
     blob.find("(").map_or(false, |start| {
         let end = scopes::find_closing_paren(blob, start+1);
         debug!("searching fn args: |{}| {}", &blob[(start+1)..end], txt_matches(ExactMatch, "self", &blob[(start+1)..end]));
-        return txt_matches(ExactMatch, "self", &blob[(start+1)..end]);
+        txt_matches(ExactMatch, "self", &blob[(start+1)..end])
     })
 }
 
@@ -46,20 +46,20 @@ fn generates_skeleton_for_mod() {
 fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<core::Ty> {
     assert_eq!(&m.filepath, &m.session.query_path);
     debug!("get_type_of_self_arg {:?}", m);
-    return scopes::find_impl_start(msrc, m.point, 0).and_then(|start| {
+    scopes::find_impl_start(msrc, m.point, 0).and_then(|start| {
         let decl = generate_skeleton_for_parsing(&msrc[start..]);
         debug!("get_type_of_self_arg impl skeleton |{}|", decl);
 
         if (&decl).starts_with("impl") {
             let implres = ast::parse_impl(decl);
             debug!("get_type_of_self_arg implres |{:?}|", implres);
-            return resolve_path_with_str(&implres.name_path.expect("failed parsing impl name"),
-                                         &m.filepath, start,
-                                         ExactMatch, TypeNamespace,
-                                         &m.session).nth(0).map(core::Ty::TyMatch);
+            resolve_path_with_str(&implres.name_path.expect("failed parsing impl name"),
+                                  &m.filepath, start,
+                                  ExactMatch, TypeNamespace,
+                                  &m.session).nth(0).map(core::Ty::TyMatch)
         } else {
             // // must be a trait
-            return ast::parse_trait(decl).name.and_then(|name| {
+            ast::parse_trait(decl).name.and_then(|name| {
                 Some(core::Ty::TyMatch(Match {
                            matchstr: name,
                            filepath: m.filepath.clone(),
@@ -70,9 +70,9 @@ fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<core::Ty> {
                            generic_args: Vec::new(), generic_types: Vec::new(),
                            session: m.session.clone()
                 }))
-            });
+            })
         }
-    });
+    })
 }
 
 fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<core::Ty> {
@@ -195,7 +195,7 @@ pub fn get_type_of_match(m: Match, msrc: &str) -> Option<core::Ty> {
     assert_eq!(&m.filepath, &m.session.query_path);
     debug!("get_type_of match {:?} ", m);
 
-    return match m.mtype {
+    match m.mtype {
         core::MatchType::Let => get_type_of_let_expr(&m, msrc),
         core::MatchType::IfLet => get_type_of_if_let_expr(&m, msrc),
         core::MatchType::FnArg => get_type_of_fnarg(&m, msrc),
@@ -237,14 +237,14 @@ pub fn get_type_from_match_arm(m: &Match, msrc: &str) -> Option<core::Ty> {
 
     debug!("fauxmatchstmt for parsing is pt:{} src:|{}|", faux_point, fauxmatchstmt);
 
-    return ast::get_match_arm_type(fauxmatchstmt, faux_point,
-                                   // scope is used to locate expression, so send
-                                   // it the start of the match expr
-                                   core::Scope {
-                                       filepath: m.filepath.clone(),
-                                       point: matchstart,
-                                       session: m.session.clone()
-                                   });
+    ast::get_match_arm_type(fauxmatchstmt, faux_point,
+                            // scope is used to locate expression, so send
+                            // it the start of the match expr
+                            core::Scope {
+                                filepath: m.filepath.clone(),
+                                point: matchstart,
+                                session: m.session.clone()
+                            })
 }
 
 pub fn get_function_declaration(fnmatch: &Match) -> String {
@@ -266,6 +266,6 @@ pub fn get_return_type_of_function(fnmatch: &Match) -> Option<core::Ty> {
         decl.push_str(&src[point..(point+n+1)]);
         decl.push_str("}}");
         debug!("get_return_type_of_function: passing in |{}|", decl);
-        return ast::parse_fn_output(decl, core::Scope::from_match(fnmatch));
+        ast::parse_fn_output(decl, core::Scope::from_match(fnmatch))
     })
 }

@@ -710,7 +710,7 @@ fn search_local_scopes(pathseg: &core::PathSegment, filepath: &Path,
 
     if point == 0 {
         // search the whole file
-        return search_scope(0, 0, msrc, pathseg, filepath, search_type, true, namespace, session);
+        search_scope(0, 0, msrc, pathseg, filepath, search_type, true, namespace, session)
     } else {
         let mut out = Vec::new();
         let mut start = point;
@@ -951,7 +951,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
     let len = path.segments.len();
     if len == 1 {
         let ref pathseg = path.segments[0];
-        return resolve_name(pathseg, filepath, pos, search_type, namespace, session);
+        resolve_name(pathseg, filepath, pos, search_type, namespace, session)
     } else if len != 0 {
         if path.segments[0].name == "self" {
             // just remove self

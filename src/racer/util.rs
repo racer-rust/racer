@@ -34,7 +34,7 @@ pub fn is_ident_char(c: char) -> bool {
 }
 
 pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
-    return match stype {
+    match stype {
         ExactMatch => {
             let nlen = needle.len();
             let hlen = haystack.len();
@@ -53,7 +53,7 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
                 }
                 n += 1;
             }
-            return false;
+            false
         },
         StartsWith => {
             if needle.is_empty() {
@@ -69,7 +69,7 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
                 }
                 n += 1;
             }
-            return false;
+            false
         }
     }
 }

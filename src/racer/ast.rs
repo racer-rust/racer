@@ -151,7 +151,7 @@ impl<'v> visit::Visitor<'v> for PatVisitor {
 }
 
 fn to_racer_ty(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
-    return match ty.node {
+    match ty.node {
         ast::TyTup(ref items) => {
             let mut res = Vec::new();
             for t in items {
@@ -188,13 +188,13 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
         ast::PatIdent(_ , ref spannedident, _) => {
             if point_is_in_span(point as u32, &spannedident.span) {
                 debug!("destructure_pattern_to_ty matched an ident!");
-                return Some(ty.clone());
+                Some(ty.clone())
             } else {
                 panic!("Expecting the point to be in the patident span. pt: {}", point);
             }
         }
         ast::PatTup(ref tuple_elements) => {
-            return match *ty {
+            match *ty {
                 TyTuple(ref typeelems) => {
                     let mut i = 0usize;
                     let mut res = None;
@@ -361,7 +361,7 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &core::
                    }
                });
 
-    return res.and_then(|m| {
+    res.and_then(|m| {
         // add generic types to match (if any)
         let types: Vec<core::PathSearch> = path.generic_types()
             .map(|typepath|
@@ -373,11 +373,11 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &core::
                  }).collect();
 
         if types.is_empty() {
-            return Some(TyMatch(m));
+            Some(TyMatch(m))
         } else {
-            return Some(TyMatch(m.with_generic_types(types.clone())));
+            Some(TyMatch(m.with_generic_types(types.clone())))
         }
-    });
+    })
 }
 
 fn get_type_of_typedef(m: Match) -> Option<Match> {
@@ -387,15 +387,15 @@ fn get_type_of_typedef(m: Match) -> Option<Match> {
     let blobstart = m.point - 5;  // - 5 because 'type '
     let blob = &msrc[blobstart..];
 
-    return codeiter::iter_stmts(blob).nth(0).and_then(|(start, end)| {
+    codeiter::iter_stmts(blob).nth(0).and_then(|(start, end)| {
         let blob = msrc[blobstart + start..blobstart+end].to_owned();
         debug!("get_type_of_typedef blob string {}", blob);
         let res = parse_type(blob);
         debug!("get_type_of_typedef parsed type {:?}", res.type_);
-        return res.type_;
+        res.type_
     }).and_then(|type_| {
         nameres::resolve_path_with_str(&type_, &m.filepath, m.point, core::SearchType::ExactMatch, core::Namespace::TypeNamespace, &m.session).nth(0)
-    });
+    })
 }
 
 
@@ -535,7 +535,7 @@ impl<'v> visit::Visitor<'v> for ExprTypeVisitor {
 // gets generics info from the context match
 fn path_to_match_including_generics(ty: Ty, contextm: &core::Match) -> Option<Ty> {
     assert_eq!(&contextm.filepath, &contextm.session.query_path);
-    return match ty {
+    match ty {
         TyPathSearch(ref fieldtypepath, ref scope) => {
 
             if fieldtypepath.segments.len() == 1 {
@@ -557,7 +557,7 @@ fn path_to_match_including_generics(ty: Ty, contextm: &core::Match) -> Option<Ty
             find_type_match(fieldtypepath, &scope.filepath, scope.point, &scope.session)
         }
         _ => Some(ty)
-    };
+    }
 }
 
 

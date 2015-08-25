@@ -251,9 +251,9 @@ pub fn load_file(filepath: &path::Path, session: &Session) -> String {
     if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
         let mut it = rawbytes.into_iter();
         it.next(); it.next(); it.next();
-        return String::from_utf8(it.collect::<Vec<_>>()).unwrap();
+        String::from_utf8(it.collect::<Vec<_>>()).unwrap()
     } else {
-        return String::from_utf8(rawbytes).unwrap();
+        String::from_utf8(rawbytes).unwrap()
     }
 }
 
@@ -319,7 +319,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &
 
     debug!("find_definition_ for |{:?}| |{:?}| {:?}", contextstr, searchstr, completetype);
 
-    return match completetype {
+    match completetype {
         CompletionType::CompletePath => {
             let mut v = expr.split("::").collect::<Vec<_>>();
             let mut global = false;
@@ -334,23 +334,23 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &
                 .collect::<Vec<_>>();
             let path = Path{ global: global, segments: segs };
 
-            return nameres::resolve_path(&path, filepath, pos,
-                                         SearchType::ExactMatch, Namespace::BothNamespaces,
-                                         session).nth(0);
+            nameres::resolve_path(&path, filepath, pos,
+                                  SearchType::ExactMatch, Namespace::BothNamespaces,
+                                  session).nth(0)
         },
         CompletionType::CompleteField => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("context is {:?}", context);
 
-            return context.and_then(|ty| {
+            context.and_then(|ty| {
                 // for now, just handle matches
                 match ty {
                     Ty::TyMatch(m) => {
-                        return nameres::search_for_field_or_method(m, searchstr, SearchType::ExactMatch).nth(0);
+                        nameres::search_for_field_or_method(m, searchstr, SearchType::ExactMatch).nth(0)
                     }
                     _ => None
                 }
-            });
+            })
         }
     }
 }

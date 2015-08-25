@@ -51,13 +51,13 @@ impl MethodInfo {
                         },
                         _ => {
                             debug!("Unable to parse method declaration. |{}|", source);
-                            return None;
+                            None
                         }
                     }
                 },
                 Err(FatalError) => {
                     debug!("Unable to parse method declaration. |{}|",source);
-                    return None;
+                    None
                 }
             }
         })
