@@ -629,32 +629,29 @@ pub struct TypeVisitor {
 
 impl<'v> visit::Visitor<'v> for TypeVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
-        match item.node {
-            ast::ItemTy(ref ty, _) => {
-                self.name = Some(item.ident.name.to_string());
+        if let ast::ItemTy(ref ty, _) = item.node {
+            self.name = Some(item.ident.name.to_string());
 
-                let typepath = match ty.node {
-                    ast::TyRptr(_, ref ty) => {
-                        match ty.ty.node {
-                            ast::TyPath(_, ref path) => {
-                                let type_ = to_racer_path(path);
-                                debug!("type type is {:?}", type_);
-                                Some(type_)
-                            }
-                            _ => None
+            let typepath = match ty.node {
+                ast::TyRptr(_, ref ty) => {
+                    match ty.ty.node {
+                        ast::TyPath(_, ref path) => {
+                            let type_ = to_racer_path(path);
+                            debug!("type type is {:?}", type_);
+                            Some(type_)
                         }
+                        _ => None
                     }
-                    ast::TyPath(_, ref path) => {
-                        let type_ = to_racer_path(path);
-                        debug!("type type is {:?}", type_);
-                        Some(type_)
-                    }
-                    _ => None
-                };
-                self.type_ = typepath;
-                debug!("typevisitor type is {:?}", self.type_);
-            }
-            _ => ()
+                }
+                ast::TyPath(_, ref path) => {
+                    let type_ = to_racer_path(path);
+                    debug!("type type is {:?}", type_);
+                    Some(type_)
+                }
+                _ => None
+            };
+            self.type_ = typepath;
+            debug!("typevisitor type is {:?}", self.type_);
         }
     }
 }
@@ -665,11 +662,8 @@ pub struct TraitVisitor {
 
 impl<'v> visit::Visitor<'v> for TraitVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
-        match item.node {
-            ast::ItemTrait(_, _, _, _) => {
-                self.name = Some(item.ident.name.to_string());
-            }
-            _ => ()
+        if let ast::ItemTrait(_, _, _, _) = item.node {
+            self.name = Some(item.ident.name.to_string());
         }
     }
 }

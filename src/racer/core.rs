@@ -295,13 +295,10 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session:
             let context = ast::get_type_of(contextstr.to_string(), filepath, pos, session);
             debug!("complete_from_file context is {:?}", context);
             context.map(|ty| {
-                match ty {
-                    Ty::TyMatch(m) => {
-                        for m in nameres::search_for_field_or_method(m, searchstr, SearchType::StartsWith) {
-                            out.push(m)
-                        }
+                if let Ty::TyMatch(m) = ty {
+                    for m in nameres::search_for_field_or_method(m, searchstr, SearchType::StartsWith) {
+                        out.push(m)
                     }
-                    _ => {}
                 }
             });
         }
