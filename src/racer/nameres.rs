@@ -80,30 +80,30 @@ fn search_scope_for_methods(point: usize, src:&str, searchstr:&str, filepath:&Pa
     let mut out = Vec::new();
     for (blobstart,blobend) in codeiter::iter_stmts(scopesrc) {
         let blob = &scopesrc[blobstart..blobend];
+        blob.find("{").map(|n| { // only matches if is a method implementation
+            let signature = &blob[..n -1];
 
-        if txt_matches(search_type, &format!("fn {}", searchstr), blob)
-            && typeinf::first_param_is_self(blob) {
-            debug!("found a method starting |{}| |{}|", searchstr, blob);
-            // TODO: parse this properly
-            let start = blob.find(&format!("fn {}", searchstr)).unwrap() + 3;
-            let end = find_ident_end(blob, start);
-            let l = &blob[start..end];
-            // TODO: make a better context string for functions
-            blob.find("{").map(|n| { // only matches if is a method implementation
-                let ctxt = &blob[..n -1];
+            if txt_matches(search_type, &format!("fn {}", searchstr), signature)
+                && typeinf::first_param_is_self(blob) {
+                debug!("found a method starting |{}| |{}|", searchstr, blob);
+                // TODO: parse this properly
+                let start = blob.find(&format!("fn {}", searchstr)).unwrap() + 3;
+                let end = find_ident_end(blob, start);
+                let l = &blob[start..end];
+                // TODO: make a better context string for functions
                 let m = Match {
                            matchstr: l.to_string(),
                            filepath: filepath.to_path_buf(),
                            point: point + blobstart + start,
                            local: true,
                            mtype: Function,
-                           contextstr: ctxt.to_string(),
+                           contextstr: signature.to_owned(),
                            generic_args: Vec::new(), generic_types: Vec::new(),
                            session: session.clone()
                 };
                 out.push(m);
-            });
-        }
+            }
+        });
     }
     out.into_iter()
 }
