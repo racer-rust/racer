@@ -63,7 +63,7 @@ impl<'a> CodeIndicesIter<'a> {
         for &b in &src_bytes[self.pos..] {
             self.pos += 1;
             match b {
-                b'/' => match src_bytes[self.pos] {
+                b'/' if src_bytes.len() > self.pos => match src_bytes[self.pos] {
                     b'/' => {
                         self.state = State::StateComment;
                         self.pos += 1;
