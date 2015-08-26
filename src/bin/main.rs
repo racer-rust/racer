@@ -61,7 +61,7 @@ fn match_fn(m: Match) {
 
 #[cfg(not(test))]
 fn complete(match_found: &Fn(Match), args: &[String]) {
-    if args.len() < 1 {
+    if args.len() < 2 {
         println!("Provide more arguments!");
         print_usage();
         std::process::exit(1);
