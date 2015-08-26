@@ -64,7 +64,7 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
                         // if we are top level and stmt is not a 'use' then
                         // closebrace finishes the stmt
                         if bracelevel == 0 && parenlevel == 0
-                            && !(is_a_use_stmt(self.src, start, self.pos)) {
+                            && !is_a_use_stmt(src_bytes, start, self.pos) {
                             enddelim = b'}';
                         }
                         bracelevel += 1;
@@ -98,9 +98,8 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
     }
 }
 
-fn is_a_use_stmt(src: &str, start: usize, pos: usize) -> bool {
-    let src_bytes = src.as_bytes();
-    let whitespace = " {\t\r\n".as_bytes();
+fn is_a_use_stmt(src_bytes: &[u8], start: usize, pos: usize) -> bool {
+    let whitespace = b" {\t\r\n";
     (pos > 3 && &src_bytes[start..start+3] == b"use" &&
      whitespace.contains(&src_bytes[start+3])) ||
     (pos > 7 && &src_bytes[start..(start+7)] == b"pub use" &&
