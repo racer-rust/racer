@@ -9,7 +9,7 @@ use scopes;
 use nameres;
 use ast;
 
-#[derive(Debug,Clone,PartialEq)]
+#[derive(Debug,Clone,Copy,PartialEq)]
 pub enum MatchType {
     Struct,
     Module,
@@ -29,32 +29,24 @@ pub enum MatchType {
     Static
 }
 
-impl Copy for MatchType {}
-
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Copy)]
 pub enum SearchType {
     ExactMatch,
     StartsWith
 }
 
-impl Copy for SearchType {}
-
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Copy)]
 pub enum Namespace {
     TypeNamespace,
     ValueNamespace,
     BothNamespaces
 }
 
-impl Copy for Namespace {}
-
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Copy)]
 pub enum CompletionType {
     CompleteField,
     CompletePath
 }
-
-impl Copy for CompletionType {}
 
 #[derive(Clone)]
 pub struct Match {
