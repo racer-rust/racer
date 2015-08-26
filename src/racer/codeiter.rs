@@ -14,8 +14,8 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
     fn next(&mut self) -> Option<(usize, usize)> {
         let src_bytes = self.src.as_bytes();
         let mut enddelim = b';';
-        let mut bracelevel = 0u16;
-        let mut parenlevel = 0i32;
+        let mut bracelevel = 0isize;
+        let mut parenlevel = 0isize;
         let mut start = self.pos;
 
         // loop on all code_chunks until we find a relevant open/close pattern

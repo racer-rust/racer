@@ -108,7 +108,7 @@ impl<'a> CodeIndicesIter<'a> {
     }
 
     fn comment_block(&mut self) -> (usize, usize) {
-        let mut nesting_level = 0u16; // should be enough
+        let mut nesting_level = 0usize;
         let mut prev = b' ';
         for &b in &self.src.as_bytes()[self.pos..] {
             self.pos += 1;
