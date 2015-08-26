@@ -210,7 +210,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
             // real crate name (e.g. extern crate collections_core = "collections")
             // so we need to get the source text without scrubbed strings
 
-            let rawsrc = core::load_file(filepath, &session);
+            let rawsrc = session.load_file(filepath);
             let rawblob = &rawsrc[blobstart..blobend];
             debug!("found an extern crate (unscrubbed): |{}|", rawblob);
 

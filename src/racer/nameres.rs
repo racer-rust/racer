@@ -19,7 +19,7 @@ pub const PATH_SEP: &'static str = ";";
 fn search_struct_fields(searchstr: &str, structmatch: &Match,
                          search_type: SearchType) -> vec::IntoIter<Match> {
      assert_eq!(&structmatch.filepath, &structmatch.session.query_path);
-    let src = core::load_file(&structmatch.filepath, &structmatch.session);
+    let src = structmatch.session.load_file(&structmatch.filepath);
     let opoint = scopes::find_stmt_start(&src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
 
@@ -57,7 +57,7 @@ pub fn search_for_impl_methods(implsearchstr: &str,
     for m in search_for_impls(point, implsearchstr, fpath, local, true, session) {
         assert_eq!(&m.filepath, &m.session.query_path);
         debug!("found impl!! |{:?}| looking for methods", m);
-        let src = core::load_file(&m.filepath, &m.session);
+        let src = m.session.load_file(&m.filepath);
 
         // find the opening brace and skip to it.
         (&src[m.point..]).find("{").map(|n| {
@@ -113,7 +113,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                         session: &Rc<core::Session>) -> vec::IntoIter<Match> {
     assert_eq!(&filepath, &session.query_path.as_path());
     debug!("search_for_impls {}, {}, {:?}", pos, searchstr, filepath.to_str());
-    let s = core::load_file(filepath, &session);
+    let s = session.load_file(filepath);
     let src = &s[pos..];
 
     let mut out = Vec::new();
@@ -443,7 +443,7 @@ pub fn search_next_scope(mut startpoint: usize, pathseg: &core::PathSegment,
                          namespace: Namespace,
                          session: &Rc<core::Session>) -> vec::IntoIter<Match> {
     assert_eq!(&filepath, &session.query_path.as_path());
-    let filesrc = core::load_file(filepath, &session);
+    let filesrc = session.load_file(filepath);
     if startpoint != 0 {
         // is a scope inside the file. Point should point to the definition
         // (e.g. mod blah {...}), so the actual scope is past the first open brace.
@@ -749,7 +749,7 @@ pub fn search_prelude_file(pathseg: &core::PathSegment, search_type: SearchType,
         let filepath = Path::new(srcpath).join("libstd").join("prelude").join("v1.rs");
         if path_exists(&filepath) {
             let session = core::Session::from_path(&filepath, &filepath);
-            let msrc = core::load_file_and_mask_comments(&filepath, &session);
+            let msrc = session.load_file_and_mask_comments(&filepath);
             let is_local = true;
             for m in search_scope(0, 0, &msrc, pathseg, &filepath, search_type, is_local, namespace, &session) {
                 out.push(m);
@@ -830,7 +830,7 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
 
     debug!("resolve_name {} {:?} {} {:?} {:?}", searchstr, filepath.to_str(), pos, search_type, namespace);
 
-    let msrc = core::load_file_and_mask_comments(filepath, &session);
+    let msrc = session.load_file_and_mask_comments(filepath);
     let is_exact_match = match search_type { ExactMatch => true, StartsWith => false };
 
     if (is_exact_match && &searchstr[..] == "std") ||
@@ -895,7 +895,7 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
 // Get the scope corresponding to super::
 pub fn get_super_scope(filepath: &Path, pos: usize, session: &Rc<core::Session>) -> Option<core::Scope> {
     assert_eq!(&filepath, &session.query_path.as_path());
-    let msrc = core::load_file_and_mask_comments(filepath, session);
+    let msrc = session.load_file_and_mask_comments(filepath);
     let mut path = scopes::get_local_module_path(&msrc, pos);
     debug!("get_super_scope: path: {:?} filepath: {:?} {} {:?}", path, filepath, pos, session);
     if path.is_empty() {
@@ -981,7 +981,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                     let ref pathseg = path.segments[len-1];
                     debug!("searching an enum '{}' (whole path: {:?}) searchtype: {:?}", m.matchstr, path, search_type);
 
-                    let filesrc = core::load_file(&m.filepath, &m.session);
+                    let filesrc = m.session.load_file(&m.filepath);
                     let scopestart = scopes::find_stmt_start(&filesrc, m.point).unwrap();
                     let scopesrc = &filesrc[scopestart..];
                     codeiter::iter_stmts(scopesrc).nth(0).map(|(blobstart,blobend)| {
@@ -999,7 +999,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                     for m in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, false, &m.session) {
                         debug!("found impl!! {:?}", m);
                         let ref pathseg = path.segments[len-1];
-                        let src = core::load_file(&m.filepath, &m.session);
+                        let src = m.session.load_file(&m.filepath);
                         // find the opening brace and skip to it.
                         (&src[m.point..]).find("{").map(|n| {
                             let point = m.point + n + 1;
@@ -1117,7 +1117,7 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
         },
         Trait => {
             debug!("got a trait, looking for methods {}", m.matchstr);
-            let src = core::load_file(&m.filepath, &m.session);
+            let src = m.session.load_file(&m.filepath);
             (&src[m.point..]).find("{").map(|n| {
                 let point = m.point + n + 1;
                 for m in search_scope_for_methods(point, &src, searchstr, &m.filepath, search_type, &m.session) {

@@ -229,34 +229,35 @@ impl Session {
             File::open(path)
         }
     }
-}
 
-pub fn load_file(filepath: &path::Path, session: &Session) -> String {
-    let mut rawbytes = Vec::new();
-    if let Ok(f) = session.open_file(filepath) {
-        BufReader::new(f).read_to_end(&mut rawbytes).unwrap();
-    } else {
-        error!("load_file couldn't open {:?}. Returning empty string",filepath);
-        return "".into();
+    pub fn load_file(&self, filepath: &path::Path) -> String {
+        let mut rawbytes = Vec::new();
+        if let Ok(f) = self.open_file(filepath) {
+            BufReader::new(f).read_to_end(&mut rawbytes).unwrap();
+        } else {
+            error!("load_file couldn't open {:?}. Returning empty string",filepath);
+            return "".into();
+        }
+
+        // skip BOF bytes, if present
+        if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
+            let mut it = rawbytes.into_iter();
+            it.next(); it.next(); it.next();
+            String::from_utf8(it.collect::<Vec<_>>()).unwrap()
+        } else {
+            String::from_utf8(rawbytes).unwrap()
+        }
     }
 
-    // skip BOF bytes, if present
-    if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
-        let mut it = rawbytes.into_iter();
-        it.next(); it.next(); it.next();
-        String::from_utf8(it.collect::<Vec<_>>()).unwrap()
-    } else {
-        String::from_utf8(rawbytes).unwrap()
+    pub fn load_file_and_mask_comments(&self, filepath: &path::Path) -> String {
+        let mut filetxt = Vec::new();
+        BufReader::new(self.open_file(filepath).unwrap()).read_to_end(&mut filetxt).unwrap();
+        let src = str::from_utf8(&filetxt).unwrap();
+
+        scopes::mask_comments(src)
     }
 }
 
-pub fn load_file_and_mask_comments(filepath: &path::Path, session: &Session) -> String {
-    let mut filetxt = Vec::new();
-    BufReader::new(session.open_file(filepath).unwrap()).read_to_end(&mut filetxt).unwrap();
-    let src = str::from_utf8(&filetxt).unwrap();
-
-    scopes::mask_comments(src)
-}
 
 pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session: &Rc<Session>) -> vec::IntoIter<Match> {
     let start = scopes::get_start_of_search_expr(src, pos);
@@ -298,7 +299,6 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session:
     }
     out.into_iter()
 }
-
 
 pub fn find_definition(src: &str, filepath: &path::Path, pos: usize, session: &Rc<Session>) -> Option<Match> {
     find_definition_(src, filepath, pos, session)
