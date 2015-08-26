@@ -117,11 +117,27 @@
                 (put-text-property 0 1 'ctx ctx name)
                 name))))
 
+(defun racer--trim-up-to (needle s)
+  "Return content after the occurrence of NEEDLE in S."
+  (-if-let (idx (s-index-of needle s))
+      (substring s (+ idx (length needle)))
+    s))
+
 (defun racer-complete--annotation (arg)
   "Return an annotation for completion candidate ARG."
-  (format "%s : %s"
-          (s-chop-suffix " {" (get-text-property 0 'ctx arg))
-          (get-text-property 0 'matchtype arg)))
+  (let* ((ctx (get-text-property 0 'ctx arg))
+         (type (get-text-property 0 'matchtype arg))
+         (pretty-ctx
+          (pcase type
+            ("Module"
+             (if (string= arg ctx)
+                 ""
+               (concat " " ctx)))
+            (_
+             (->> ctx
+                  (racer--trim-up-to arg)
+                  (s-chop-suffixes '(" {" "," ";")))))))
+    (format "%s : %s" pretty-ctx type)))
 
 (defun racer-complete--docsig (arg)
   "Return a signature for completion candidate ARG."
