@@ -39,7 +39,7 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
 
             if start == self.pos {
                 // if this is a new stmt block, skip the whitespace
-                for &b in src_bytes[self.pos..self.end].iter() {
+                for &b in &src_bytes[self.pos..self.end] {
                     match b {
                         b' ' | b'\r' | b'\n' | b'\t' => { self.pos += 1; },
                         _ => { break; }
@@ -54,7 +54,7 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
             }
 
             // iterate through the chunk, looking for stmt end
-            for &b in src_bytes[self.pos..self.end].iter() {
+            for &b in &src_bytes[self.pos..self.end] {
                 self.pos += 1;
 
                 match b {
@@ -107,7 +107,7 @@ fn is_a_use_stmt(src: &str, start: usize, pos: usize) -> bool {
      whitespace.contains(&src_bytes[start+7]))
 }
 
-pub fn iter_stmts<'a>(src: &'a str) -> StmtIndicesIter<'a> {
+pub fn iter_stmts(src: &str) -> StmtIndicesIter {
     StmtIndicesIter{ src: src, it: code_chunks(src), pos: 0, end: 0 }
 }
 

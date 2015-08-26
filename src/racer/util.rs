@@ -15,10 +15,10 @@ pub fn getline(filepath: &Path, linenum: usize, session: &Session) -> String {
         //print!("{}", line);
         i += 1;
         if i == linenum {
-            return line.unwrap().to_string();
+            return line.unwrap();
         }
     }
-    "not found".to_string()
+    "not found".into()
 }
 
 pub fn is_pattern_char(c: char) -> bool {
@@ -34,7 +34,7 @@ pub fn is_ident_char(c: char) -> bool {
 }
 
 pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
-    return match stype {
+    match stype {
         ExactMatch => {
             let nlen = needle.len();
             let hlen = haystack.len();
@@ -53,7 +53,7 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
                 }
                 n += 1;
             }
-            return false;
+            false
         },
         StartsWith => {
             if needle.is_empty() {
@@ -69,7 +69,7 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
                 }
                 n += 1;
             }
-            return false;
+            false
         }
     }
 }
@@ -146,12 +146,8 @@ fn find_ident_end_unicode() {
     assert_eq!(10, find_ident_end("ends_in_µ", 0));
 }
 
-pub fn to_refs<'a>(v: &'a Vec<String>) -> Vec<&'a str> {
-    let mut out = Vec::new();
-    for item in v.iter() {
-        out.push(&item[..]);
-    }
-    out
+pub fn to_refs(v: &Vec<String>) -> Vec<&str> {
+    v.iter().map(|s| s.as_ref()).collect()
 }
 
 pub fn find_last_str(needle: &str, mut haystack: &str) -> Option<usize> {
