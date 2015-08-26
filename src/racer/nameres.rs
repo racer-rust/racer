@@ -317,30 +317,43 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
     v.push(currentdir.to_str().unwrap());
     debug!("do_file_search v is {:?}", v);
     for srcpath in v.into_iter() {
-        match std::fs::read_dir(&Path::new(srcpath)) {
-            Ok(iter) => {
-                let mut v = Vec::new();
-                for dir_entry_result in iter {
-                    if let Ok(dir_entry) = dir_entry_result {
-                        v.push(dir_entry.path());
+        if let Ok(iter) = std::fs::read_dir(&Path::new(srcpath)) {
+            for fpath_buf in iter.filter_map(|res| res.ok().map(|entry| entry.path())) {
+                // skip filenames that can't be decoded
+                let fname = match fpath_buf.file_name().and_then(|n| n.to_str()) {
+                    Some(fname) => fname,
+                    None => continue,
+                };
+                if fname.starts_with(&format!("lib{}", searchstr)) {
+                    let filepath = fpath_buf.join("lib.rs");
+                    if path_exists(&filepath) {
+                        let m = Match {
+                                       matchstr: (&fname[3..]).to_owned(),
+                                       filepath: filepath.to_path_buf(),
+                                       point: 0,
+                                       local: false,
+                                       mtype: Module,
+                                       contextstr: (&fname[3..]).to_owned(),
+                                       generic_args: Vec::new(),
+                                       generic_types: Vec::new(),
+                                       session: core::Session::from_path(&filepath, &filepath)
+                        };
+                        out.push(m);
                     }
                 }
-                for fpath_buf in v {
-                    // skip filenames that can't be decoded
-                    let fname = match fpath_buf.file_name().and_then(|n| n.to_str()) {
-                        Some(fname) => fname,
-                        None => continue,
-                    };
-                    if fname.starts_with(&format!("lib{}", searchstr)) {
-                        let filepath = fpath_buf.deref().join("lib.rs");
+
+                if fname.starts_with(searchstr) {
+                    for name in &[&format!("{}.rs", fname)[..], "mod.rs", "lib.rs"] {
+                        let filepath = fpath_buf.join(name);
+
                         if path_exists(&filepath) {
                             let m = Match {
-                                           matchstr: (&fname[3..]).to_owned(),
+                                           matchstr: fname.to_owned(),
                                            filepath: filepath.to_path_buf(),
                                            point: 0,
                                            local: false,
                                            mtype: Module,
-                                           contextstr: (&fname[3..]).to_owned(),
+                                           contextstr: filepath.to_str().unwrap().to_owned(),
                                            generic_args: Vec::new(),
                                            generic_types: Vec::new(),
                                            session: core::Session::from_path(&filepath, &filepath)
@@ -348,47 +361,23 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                             out.push(m);
                         }
                     }
-
-                    if fname.starts_with(searchstr) {
-                        for name in &[&format!("{}.rs", fname)[..], "mod.rs", "lib.rs"] {
-                            let filepath = fpath_buf.deref().join(name);
-
-                            if path_exists(&filepath) {
-                                let m = Match {
-                                               matchstr: fname.to_owned(),
-                                               filepath: filepath.to_path_buf(),
-                                               point: 0,
-                                               local: false,
-                                               mtype: Module,
-                                               contextstr: filepath.to_str().unwrap().to_owned(),
-                                               generic_args: Vec::new(),
-                                               generic_types: Vec::new(),
-                                               session: core::Session::from_path(&filepath, &filepath)
-                                };
-                                out.push(m);
-                            }
-                        }
-                        {
-                            // try just <name>.rs
-                            if fname.ends_with(".rs") && path_exists(&fpath_buf) {
-                                let m = Match {
-                                               matchstr: (&fname[..(fname.len()-3)]).to_owned(),
-                                               filepath: fpath_buf.clone(),
-                                               point: 0,
-                                               local: false,
-                                               mtype: Module,
-                                               contextstr: fpath_buf.deref().to_str().unwrap().to_owned(),
-                                               generic_args: Vec::new(),
-                                               generic_types: Vec::new(),
-                                               session: core::Session::from_path(fpath_buf.as_path(), fpath_buf.as_path())
-                                };
-                                out.push(m);
-                            }
-                        }
+                    // try just <name>.rs
+                    if fname.ends_with(".rs") && path_exists(&fpath_buf) {
+                        let m = Match {
+                                       matchstr: (&fname[..(fname.len()-3)]).to_owned(),
+                                       filepath: fpath_buf.clone(),
+                                       point: 0,
+                                       local: false,
+                                       mtype: Module,
+                                       contextstr: fpath_buf.to_str().unwrap().to_owned(),
+                                       generic_args: Vec::new(),
+                                       generic_types: Vec::new(),
+                                       session: core::Session::from_path(fpath_buf.as_path(), fpath_buf.as_path())
+                        };
+                        out.push(m);
                     }
                 }
             }
-            Err(_) => ()
         }
     }
     out.into_iter()
