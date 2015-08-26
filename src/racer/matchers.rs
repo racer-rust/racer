@@ -237,7 +237,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
                                   contextstr: cratepath.to_str().unwrap().to_owned(),
                                   generic_args: Vec::new(),
                                   generic_types: Vec::new(),
-                                  session: core::Session::from_path(&cratepath.as_path(), &cratepath.as_path())
+                                  session: session.derived(&cratepath.as_path())
                 });
             });
         }
@@ -291,7 +291,7 @@ pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
                     contextstr: modpath.to_str().unwrap().to_owned(),
                     generic_args: Vec::new(),
                     generic_types: Vec::new(),
-                    session: core::Session::from_path(&modpath, &modpath)
+                    session: session.derived(&modpath)
                 })
             }
         }

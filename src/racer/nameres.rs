@@ -316,6 +316,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
     let mut v = srcpaths.split(PATH_SEP).collect::<Vec<_>>();
     v.push(currentdir.to_str().unwrap());
     debug!("do_file_search v is {:?}", v);
+    let session = core::Session::from_path(&currentdir, &currentdir);
     for srcpath in v.into_iter() {
         if let Ok(iter) = std::fs::read_dir(&Path::new(srcpath)) {
             for fpath_buf in iter.filter_map(|res| res.ok().map(|entry| entry.path())) {
@@ -336,7 +337,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                                        contextstr: (&fname[3..]).to_owned(),
                                        generic_args: Vec::new(),
                                        generic_types: Vec::new(),
-                                       session: core::Session::from_path(&filepath, &filepath)
+                                       session: session.derived(&filepath)
                         };
                         out.push(m);
                     }
@@ -356,7 +357,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                                            contextstr: filepath.to_str().unwrap().to_owned(),
                                            generic_args: Vec::new(),
                                            generic_types: Vec::new(),
-                                           session: core::Session::from_path(&filepath, &filepath)
+                                           session: session.derived(&filepath)
                             };
                             out.push(m);
                         }
@@ -372,7 +373,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                                        contextstr: fpath_buf.to_str().unwrap().to_owned(),
                                        generic_args: Vec::new(),
                                        generic_types: Vec::new(),
-                                       session: core::Session::from_path(fpath_buf.as_path(), fpath_buf.as_path())
+                                       session: session.derived(fpath_buf.as_path())
                         };
                         out.push(m);
                     }
@@ -396,7 +397,7 @@ pub fn search_crate_root(pathseg: &core::PathSegment, modfpath: &Path,
             continue;
         }
         debug!("going to search for {:?} in crateroot {:?}", pathseg, crateroot.to_str());
-        let newsession = core::Session::from_path(&crateroot, &crateroot);
+        let newsession = session.derived(&crateroot);
         for m in resolve_name(pathseg, &crateroot, 0, searchtype, namespace, &newsession) {
             out.push(m);
             if let ExactMatch = searchtype {
@@ -604,7 +605,7 @@ pub fn search_scope(start: usize, point: usize, src: &str,
                                   contextstr: cratepath.to_str().unwrap().to_owned(),
                                   generic_args: Vec::new(),
                                   generic_types: Vec::new(),
-                                  session: core::Session::from_path(&cratepath.as_path(), &cratepath.as_path())
+                                  session: session.derived(&cratepath.as_path())
                 });
             });
         }
@@ -731,7 +732,7 @@ fn search_local_scopes(pathseg: &core::PathSegment, filepath: &Path,
 }
 
 pub fn search_prelude_file(pathseg: &core::PathSegment, search_type: SearchType,
-                           namespace: Namespace) -> vec::IntoIter<Match> {
+                           namespace: Namespace, session: &Rc<core::Session>) -> vec::IntoIter<Match> {
     debug!("search_prelude file {:?} {:?} {:?}", pathseg, search_type, namespace);
 //    debug!("PHIL searching prelude file, backtrace: {}",util::get_backtrace());
 
@@ -748,7 +749,7 @@ pub fn search_prelude_file(pathseg: &core::PathSegment, search_type: SearchType,
     for srcpath in v.into_iter() {
         let filepath = Path::new(srcpath).join("libstd").join("prelude").join("v1.rs");
         if path_exists(&filepath) {
-            let session = core::Session::from_path(&filepath, &filepath);
+            let session = session.derived(&filepath);
             let msrc = session.load_file_and_mask_comments(&filepath);
             let is_local = true;
             for m in search_scope(0, 0, &msrc, pathseg, &filepath, search_type, is_local, namespace, &session) {
@@ -785,7 +786,7 @@ pub fn resolve_path_with_str(path: &core::Path, filepath: &Path, pos: usize,
                            contextstr: "str".into(),
                            generic_args: Vec::new(),
                            generic_types: Vec::new(),
-                           session: core::Session::from_path(&str_match.filepath, &str_match.filepath)
+                           session: session.derived(&str_match.filepath)
             };
             out.push(m);
         });
@@ -844,7 +845,7 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
                         mtype: Module,
                         contextstr: cratepath.to_str().unwrap().to_owned(),
                         generic_args: Vec::new(), generic_types: Vec::new(),
-                        session: core::Session::from_path(&cratepath, &cratepath)
+                        session: session.derived(&cratepath)
             });
         });
 
@@ -875,7 +876,7 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
         }
     }
 
-    for m in search_prelude_file(pathseg, search_type, namespace) {
+    for m in search_prelude_file(pathseg, search_type, namespace, session) {
         out.push(m);
         if let ExactMatch = search_type {
             if !out.is_empty() {
@@ -912,7 +913,7 @@ pub fn get_super_scope(filepath: &Path, pos: usize, session: &Rc<core::Session>)
         for filename in &[ "mod.rs", "lib.rs" ] {
             let fpath = moduledir.join(&filename);
             if path_exists(&fpath) {
-                let newsession = core::Session::from_path(fpath.as_path(), fpath.as_path());
+                let newsession = session.derived(fpath.as_path());
                 return Some(core::Scope{ filepath: fpath, point: 0, session: newsession })
             }
         }
@@ -1046,7 +1047,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
                            contextstr: path.to_str().unwrap().to_owned(),
                            generic_args: Vec::new(),
                            generic_types: Vec::new(),
-                           session: core::Session::from_path(&path, &path)
+                           session: session.derived(&path)
                        });
         });
     } else {

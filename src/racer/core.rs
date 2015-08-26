@@ -4,6 +4,8 @@ use std::{str, vec, fmt};
 use std::path;
 use std::io;
 use std::rc::Rc;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 
 use scopes;
@@ -209,16 +211,41 @@ impl fmt::Debug for PathSearch {
 }
 
 #[derive(Debug)]
+pub struct FileCache {
+    raw_cache: RefCell<HashMap<path::PathBuf, Rc<String>>>,
+    masked_cache: RefCell<HashMap<path::PathBuf, Rc<String>>>
+}
+
+impl FileCache {
+    pub fn new() -> FileCache {
+        FileCache {
+            raw_cache: RefCell::new(HashMap::new()),
+            masked_cache: RefCell::new(HashMap::new())
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Session {
     pub query_path: path::PathBuf,            // the input path of the query
-    pub substitute_file: path::PathBuf        // the temporary file
+    pub substitute_file: path::PathBuf,       // the temporary file
+    file_cache: Rc<FileCache>                 // cache for file contents
 }
 
 impl Session {
     pub fn from_path(query_path: &path::Path, substitute_file: &path::Path) -> Rc<Session> {
         Rc::new(Session {
             query_path: query_path.to_path_buf(),
-            substitute_file: substitute_file.to_path_buf()
+            substitute_file: substitute_file.to_path_buf(),
+            file_cache: Rc::new(FileCache::new())
+        })
+    }
+
+    pub fn derived(&self, path: &path::Path) -> Rc<Session> {
+        Rc::new(Session {
+            query_path: path.to_path_buf(),
+            substitute_file: path.to_path_buf(),
+            file_cache: self.file_cache.clone()
         })
     }
 
@@ -230,31 +257,39 @@ impl Session {
         }
     }
 
-    pub fn load_file(&self, filepath: &path::Path) -> String {
+    pub fn read_file(&self, path: &path::Path) -> Vec<u8> {
         let mut rawbytes = Vec::new();
-        if let Ok(f) = self.open_file(filepath) {
+        if let Ok(f) = self.open_file(path) {
             BufReader::new(f).read_to_end(&mut rawbytes).unwrap();
+            rawbytes
         } else {
-            error!("load_file couldn't open {:?}. Returning empty string",filepath);
-            return "".into();
-        }
-
-        // skip BOF bytes, if present
-        if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
-            let mut it = rawbytes.into_iter();
-            it.next(); it.next(); it.next();
-            String::from_utf8(it.collect::<Vec<_>>()).unwrap()
-        } else {
-            String::from_utf8(rawbytes).unwrap()
+            error!("read_file couldn't open {:?}. Returning empty string", path);
+            Vec::new()
         }
     }
 
-    pub fn load_file_and_mask_comments(&self, filepath: &path::Path) -> String {
-        let mut filetxt = Vec::new();
-        BufReader::new(self.open_file(filepath).unwrap()).read_to_end(&mut filetxt).unwrap();
-        let src = str::from_utf8(&filetxt).unwrap();
+    pub fn load_file(&self, filepath: &path::Path) -> Rc<String> {
+        let mut cache = self.file_cache.raw_cache.borrow_mut();
+        cache.entry(filepath.to_path_buf()).or_insert_with(|| {
+            let rawbytes = self.read_file(filepath);
+            // skip BOM bytes, if present
+            if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
+                let mut it = rawbytes.into_iter();
+                it.next(); it.next(); it.next();
+                Rc::new(String::from_utf8(it.collect::<Vec<_>>()).unwrap())
+            } else {
+                Rc::new(String::from_utf8(rawbytes).unwrap())
+            }
+        }).clone()
+    }
 
-        scopes::mask_comments(src)
+    pub fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Rc<String> {
+        let mut cache = self.file_cache.masked_cache.borrow_mut();
+        cache.entry(filepath.to_path_buf()).or_insert_with(|| {
+            let rawbytes = self.read_file(filepath);
+            let src = str::from_utf8(&rawbytes).unwrap();
+            Rc::new(scopes::mask_comments(src))
+        }).clone()
     }
 }
 
