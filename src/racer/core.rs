@@ -146,16 +146,16 @@ impl Path {
 
     pub fn from_vec(global: bool, v: Vec<&str>) -> Path {
         let segs = v
-            .iter()
-            .map(|x| PathSegment{ name:x.to_string(), types: Vec::new() })
+            .into_iter()
+            .map(|x| PathSegment{ name: x.to_owned(), types: Vec::new() })
             .collect::<Vec<_>>();
         Path{ global: global, segments: segs }
     }
 
     pub fn from_svec(global: bool, v: Vec<String>) -> Path {
         let segs = v
-            .iter()
-            .map(|x| PathSegment{ name:x.clone(), types: Vec::new() })
+            .into_iter()
+            .map(|x| PathSegment{ name: x, types: Vec::new() })
             .collect::<Vec<_>>();
         Path{ global: global, segments: segs }
     }
@@ -165,7 +165,7 @@ impl fmt::Debug for Path {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(write!(f, "P["));
         let mut first = true;
-        for seg in self.segments.iter() {
+        for seg in &self.segments {
             if first {
                 try!(write!(f, "{}", seg.name));
                 first = false;
@@ -176,7 +176,7 @@ impl fmt::Debug for Path {
             if !seg.types.is_empty() {
                 try!(write!(f, "<"));
                 let mut tfirst = true;
-                for typath in seg.types.iter() {
+                for typath in &seg.types {
                     if tfirst {
                         try!(write!(f, "{:?}", typath));
                         tfirst = false;
@@ -244,16 +244,16 @@ pub fn load_file(filepath: &path::Path, session: &Session) -> String {
         BufReader::new(f).read_to_end(&mut rawbytes).unwrap();
     } else {
         error!("load_file couldn't open {:?}. Returning empty string",filepath);
-        return "".to_string();
+        return "".into();
     }
 
     // skip BOF bytes, if present
     if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
         let mut it = rawbytes.into_iter();
         it.next(); it.next(); it.next();
-        return String::from_utf8(it.collect::<Vec<_>>()).unwrap();
+        String::from_utf8(it.collect::<Vec<_>>()).unwrap()
     } else {
-        return String::from_utf8(rawbytes).unwrap();
+        String::from_utf8(rawbytes).unwrap()
     }
 }
 
@@ -292,16 +292,13 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session:
             }
         },
         CompletionType::CompleteField => {
-            let context = ast::get_type_of(contextstr.to_string(), filepath, pos, session);
+            let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("complete_from_file context is {:?}", context);
             context.map(|ty| {
-                match ty {
-                    Ty::TyMatch(m) => {
-                        for m in nameres::search_for_field_or_method(m, searchstr, SearchType::StartsWith) {
-                            out.push(m)
-                        }
+                if let Ty::TyMatch(m) = ty {
+                    for m in nameres::search_for_field_or_method(m, searchstr, SearchType::StartsWith) {
+                        out.push(m)
                     }
-                    _ => {}
                 }
             });
         }
@@ -322,7 +319,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &
 
     debug!("find_definition_ for |{:?}| |{:?}| {:?}", contextstr, searchstr, completetype);
 
-    return match completetype {
+    match completetype {
         CompletionType::CompletePath => {
             let mut v = expr.split("::").collect::<Vec<_>>();
             let mut global = false;
@@ -332,28 +329,28 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &
             }
 
             let segs = v
-                .iter()
-                .map(|x| PathSegment{ name: x.to_string(), types: Vec::new() })
+                .into_iter()
+                .map(|x| PathSegment{ name: x.to_owned(), types: Vec::new() })
                 .collect::<Vec<_>>();
             let path = Path{ global: global, segments: segs };
 
-            return nameres::resolve_path(&path, filepath, pos,
-                                         SearchType::ExactMatch, Namespace::BothNamespaces,
-                                         session).nth(0);
+            nameres::resolve_path(&path, filepath, pos,
+                                  SearchType::ExactMatch, Namespace::BothNamespaces,
+                                  session).nth(0)
         },
         CompletionType::CompleteField => {
-            let context = ast::get_type_of(contextstr.to_string(), filepath, pos, session);
+            let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("context is {:?}", context);
 
-            return context.and_then(|ty| {
+            context.and_then(|ty| {
                 // for now, just handle matches
                 match ty {
                     Ty::TyMatch(m) => {
-                        return nameres::search_for_field_or_method(m, searchstr, SearchType::ExactMatch).nth(0);
+                        nameres::search_for_field_or_method(m, searchstr, SearchType::ExactMatch).nth(0)
                     }
                     _ => None
                 }
-            });
+            })
         }
     }
 }
