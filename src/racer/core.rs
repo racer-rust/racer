@@ -3,6 +3,7 @@ use std::io::{BufReader, Read};
 use std::{str, vec, fmt};
 use std::path;
 use std::io;
+use std::rc::Rc;
 
 
 use scopes;
@@ -58,7 +59,7 @@ pub struct Match {
     pub contextstr: String,
     pub generic_args: Vec<String>,
     pub generic_types: Vec<PathSearch>,  // generic types are evaluated lazily
-    pub session: Session
+    pub session: Rc<Session>,
 }
 
 
@@ -97,7 +98,7 @@ impl fmt::Debug for Match {
 pub struct Scope {
     pub filepath: path::PathBuf,
     pub point: usize,
-    pub session: Session
+    pub session: Rc<Session>
 }
 
 impl Scope {
@@ -194,7 +195,7 @@ pub struct PathSearch {
     pub path: Path,
     pub filepath: path::PathBuf,
     pub point: usize,
-    pub session: Session
+    pub session: Rc<Session>
 }
 
 impl fmt::Debug for PathSearch {
@@ -207,18 +208,18 @@ impl fmt::Debug for PathSearch {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug)]
 pub struct Session {
     pub query_path: path::PathBuf,            // the input path of the query
     pub substitute_file: path::PathBuf        // the temporary file
 }
 
 impl Session {
-    pub fn from_path(query_path: &path::Path, substitute_file: &path::Path) -> Session {
-        Session {
+    pub fn from_path(query_path: &path::Path, substitute_file: &path::Path) -> Rc<Session> {
+        Rc::new(Session {
             query_path: query_path.to_path_buf(),
             substitute_file: substitute_file.to_path_buf()
-        }
+        })
     }
 
     pub fn open_file(&self, path: &path::Path) -> io::Result<File> {
@@ -257,7 +258,7 @@ pub fn load_file_and_mask_comments(filepath: &path::Path, session: &Session) -> 
     scopes::mask_comments(src)
 }
 
-pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> vec::IntoIter<Match> {
+pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session: &Rc<Session>) -> vec::IntoIter<Match> {
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = &src[start..pos];
 
@@ -299,11 +300,11 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session:
 }
 
 
-pub fn find_definition(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> Option<Match> {
+pub fn find_definition(src: &str, filepath: &path::Path, pos: usize, session: &Rc<Session>) -> Option<Match> {
     find_definition_(src, filepath, pos, session)
 }
 
-pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> Option<Match> {
+pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &Rc<Session>) -> Option<Match> {
     let (start, end) = scopes::expand_search_expr(src, pos);
     let expr = &src[start..end];
 

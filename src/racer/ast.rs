@@ -5,6 +5,7 @@ use core::Ty::{TyTuple, TyPathSearch, TyMatch, TyUnsupported};
 use codeiter;
 
 use std::path::Path;
+use std::rc::Rc;
 
 use syntex_syntax::ast;
 use syntex_syntax::codemap;
@@ -321,7 +322,7 @@ impl<'v> visit::Visitor<'v> for MatchTypeVisitor {
     }
 }
 
-fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: usize, session: &core::Session) -> Option<Match> {
+fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: usize, session: &Rc<core::Session>) -> Option<Match> {
     assert_eq!(&filepath, &session.query_path.as_path());
     debug!("resolve_ast_path {:?}", to_racer_path(path));
     nameres::resolve_path_with_str(&to_racer_path(path), filepath, pos, core::SearchType::ExactMatch, core::Namespace::BothNamespaces, session).nth(0)
@@ -350,7 +351,7 @@ fn path_to_match(ty: Ty) -> Option<Ty> {
     }
 }
 
-fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &core::Session) -> Option<Ty> {
+fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &Rc<core::Session>) -> Option<Ty> {
     assert_eq!(&fpath, &session.query_path.as_path());
     debug!("find_type_match {:?}", path);
     let res = resolve_path_with_str(path, fpath, pos, core::SearchType::ExactMatch,
@@ -565,7 +566,7 @@ fn find_type_match_including_generics(fieldtype: &core::Ty,
                                       filepath: &Path,
                                       pos: usize,
                                       structm: &core::Match,
-                                      session: &core::Session) -> Option<Ty>{
+                                      session: &Rc<core::Session>) -> Option<Ty>{
     assert_eq!(&structm.filepath, &structm.session.query_path);
     assert_eq!(&filepath, &session.query_path.as_path());
     let fieldtypepath = match *fieldtype {
@@ -902,7 +903,7 @@ pub fn parse_enum(s: String) -> EnumVisitor {
     v
 }
 
-pub fn get_type_of(exprstr: String, fpath: &Path, pos: usize, session: &core::Session) -> Option<Ty> {
+pub fn get_type_of(exprstr: String, fpath: &Path, pos: usize, session: &Rc<core::Session>) -> Option<Ty> {
     assert_eq!(&fpath, &session.query_path.as_path());
     let myfpath = fpath.clone();
     let startscope = Scope {
