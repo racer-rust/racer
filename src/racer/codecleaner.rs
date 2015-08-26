@@ -54,41 +54,44 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
 
 impl<'a> CodeIndicesIter<'a> {
     fn code(&mut self) -> (usize, usize) {
+        let mut pos = self.pos;
         let start = match self.state {
             State::StateString |
-            State::StateChar => { self.pos-1 }, // include quote
-            _ => { self.pos }
+            State::StateChar => { pos-1 }, // include quote
+            _ => { pos }
         };
         let src_bytes = self.src.as_bytes();
-        for &b in &src_bytes[self.pos..] {
-            self.pos += 1;
+        for &b in &src_bytes[pos..] {
+            pos += 1;
             match b {
-                b'/' if src_bytes.len() > self.pos => match src_bytes[self.pos] {
+                b'/' if src_bytes.len() > pos => match src_bytes[pos] {
                     b'/' => {
                         self.state = State::StateComment;
-                        self.pos += 1;
-                        return (start, self.pos-2);
+                        self.pos = pos + 1;
+                        return (start, pos-1);
                     },
                     b'*' => {
                         self.state = State::StateCommentBlock;
-                        self.pos += 1;
-                        return (start, self.pos-2);
+                        self.pos = pos + 1;
+                        return (start, pos-1);
                     },
                     _ => {}
                 },
                 b'"' => {    // "
                     self.state = State::StateString;
-                    return (start, self.pos); // include dblquotes
+                    self.pos = pos;
+                    return (start, pos); // include dblquotes
                 },
                 b'\'' => {
                     // single quotes are also used for lifetimes, so we need to
                     // be confident that this is not a lifetime.
                     // Look for closing quote:
-                    if src_bytes.len() > self.pos + 2 &&
-                        (src_bytes[self.pos+1] == b'\'' ||
-                         src_bytes[self.pos+2] == b'\'') {
+                    if src_bytes.len() > pos + 2 &&
+                        (src_bytes[pos+1] == b'\'' ||
+                         src_bytes[pos+2] == b'\'') {
                         self.state = State::StateChar;
-                        return (start, self.pos); // include single quote
+                        self.pos = pos;
+                        return (start, pos); // include single quote
                     }
                 },
                 _ => {}
@@ -100,18 +103,21 @@ impl<'a> CodeIndicesIter<'a> {
     }
 
     fn comment(&mut self) -> (usize, usize) {
-        for &b in &self.src.as_bytes()[self.pos..] {
-            self.pos += 1;
+        let mut pos = self.pos;
+        for &b in &self.src.as_bytes()[pos..] {
+            pos += 1;
             if b == b'\n' { break; }
         }
+        self.pos = pos;
         self.code()
     }
 
     fn comment_block(&mut self) -> (usize, usize) {
         let mut nesting_level = 0usize;
         let mut prev = b' ';
-        for &b in &self.src.as_bytes()[self.pos..] {
-            self.pos += 1;
+        let mut pos = self.pos;
+        for &b in &self.src.as_bytes()[pos..] {
+            pos += 1;
             match b {
                 b'/' if prev == b'*' => {
                     if nesting_level == 0 {
@@ -126,21 +132,23 @@ impl<'a> CodeIndicesIter<'a> {
                 _ => { prev = b; }
             }
         }
+        self.pos = pos;
         self.code()
     }
 
     fn string(&mut self) -> (usize, usize) {
         let src_bytes = self.src.as_bytes();
-        if self.pos > 1 && src_bytes[self.pos-2] == b'r' {
+        let mut pos = self.pos;
+        if pos > 1 && src_bytes[pos-2] == b'r' {
             // raw string (eg br"\"): no escape
-            match src_bytes[self.pos..].iter().position(|&b| b == b'"') {
-                Some(p) => self.pos += p+1,
-                None    => self.pos = src_bytes.len()
+            match src_bytes[pos..].iter().position(|&b| b == b'"') {
+                Some(p) => pos += p+1,
+                None    => pos = src_bytes.len()
             }
         } else {
             let mut is_not_escaped = true;
-            for &b in &src_bytes[self.pos..] {
-                self.pos += 1;
+            for &b in &src_bytes[pos..] {
+                pos += 1;
                 match b {
                     b'"' if is_not_escaped  => { break; }, // "
                     b'\\' => { is_not_escaped = !is_not_escaped; },
@@ -148,19 +156,22 @@ impl<'a> CodeIndicesIter<'a> {
                 }
             }
         }
+        self.pos = pos;
         self.code()
     }
 
     fn char(&mut self) -> (usize, usize) {
         let mut is_not_escaped = true;
-        for &b in &self.src.as_bytes()[self.pos..] {
-            self.pos += 1;
+        let mut pos = self.pos;
+        for &b in &self.src.as_bytes()[pos..] {
+            pos += 1;
             match b {
                 b'\'' if is_not_escaped  => { break; },
                 b'\\' => { is_not_escaped = !is_not_escaped; },
                 _ => { is_not_escaped = true; }
             }
         }
+        self.pos = pos;
         self.code()
     }
 }
