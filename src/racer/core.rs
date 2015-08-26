@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::Read;
 use std::{str, vec, fmt};
 use std::path;
 use std::io;
@@ -264,8 +264,8 @@ impl Session {
 
     pub fn read_file(&self, path: &path::Path) -> Vec<u8> {
         let mut rawbytes = Vec::new();
-        if let Ok(f) = self.open_file(path) {
-            BufReader::new(f).read_to_end(&mut rawbytes).unwrap();
+        if let Ok(mut f) = self.open_file(path) {
+            f.read_to_end(&mut rawbytes).unwrap();
             // skip BOM bytes, if present
             if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
                 let mut it = rawbytes.into_iter();
