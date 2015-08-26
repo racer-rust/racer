@@ -7,7 +7,6 @@ use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField,
 use core::Namespace::{self, TypeNamespace, ValueNamespace, BothNamespaces};
 use util::{symbol_matches, txt_matches, find_ident_end, path_exists};
 use cargo;
-use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::{self, vec};
 
@@ -391,13 +390,13 @@ pub fn search_crate_root(pathseg: &core::PathSegment, modfpath: &Path,
 
     let crateroots = find_possible_crate_root_modules(modfpath.parent().unwrap());
     let mut out = Vec::new();
-    for crateroot in &crateroots {
-        if crateroot.deref() == modfpath {
+    for crateroot in crateroots {
+        if *modfpath == *crateroot {
             continue;
         }
         debug!("going to search for {:?} in crateroot {:?}", pathseg, crateroot.to_str());
-        let newsession = core::Session::from_path(&crateroot, crateroot);
-        for m in resolve_name(pathseg, crateroot, 0, searchtype, namespace, &newsession) {
+        let newsession = core::Session::from_path(&crateroot, &crateroot);
+        for m in resolve_name(pathseg, &crateroot, 0, searchtype, namespace, &newsession) {
             out.push(m);
             if let ExactMatch = searchtype {
                 break;
