@@ -261,7 +261,14 @@ impl Session {
         let mut rawbytes = Vec::new();
         if let Ok(f) = self.open_file(path) {
             BufReader::new(f).read_to_end(&mut rawbytes).unwrap();
-            rawbytes
+            // skip BOM bytes, if present
+            if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
+                let mut it = rawbytes.into_iter();
+                it.next(); it.next(); it.next();
+                it.collect()
+            } else {
+                rawbytes
+            }
         } else {
             error!("read_file couldn't open {:?}. Returning empty string", path);
             Vec::new()
@@ -272,14 +279,7 @@ impl Session {
         let mut cache = self.file_cache.raw_cache.borrow_mut();
         cache.entry(filepath.to_path_buf()).or_insert_with(|| {
             let rawbytes = self.read_file(filepath);
-            // skip BOM bytes, if present
-            if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
-                let mut it = rawbytes.into_iter();
-                it.next(); it.next(); it.next();
-                Rc::new(String::from_utf8(it.collect::<Vec<_>>()).unwrap())
-            } else {
-                Rc::new(String::from_utf8(rawbytes).unwrap())
-            }
+            Rc::new(String::from_utf8(rawbytes).unwrap())
         }).clone()
     }
 
