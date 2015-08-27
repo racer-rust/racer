@@ -22,16 +22,17 @@ use racer::nameres::{do_file_search, do_external_search, PATH_SEP};
 use racer::scopes;
 #[cfg(not(test))]
 use std::path::Path;
-
+#[cfg(not(test))]
+use std::rc::Rc;
 
 #[cfg(not(test))]
-fn match_with_snippet_fn(m: Match) {
-    let (linenum, charnum) = scopes::point_to_coords_from_file(&m.filepath, m.point, &m.session).unwrap();
+fn match_with_snippet_fn(m: Match, session: &Rc<core::Session>) {
+    let (linenum, charnum) = scopes::point_to_coords_from_file(&m.filepath, m.point, session).unwrap();
     if m.matchstr == "" {
         panic!("MATCHSTR is empty - waddup?");
     }
 
-    let snippet = racer::snippets::snippet_for_match(&m);
+    let snippet = racer::snippets::snippet_for_match(&m, session);
     println!("MATCH {};{};{};{};{};{:?};{}", m.matchstr,
                                     snippet,
                                     linenum.to_string(),
@@ -43,10 +44,10 @@ fn match_with_snippet_fn(m: Match) {
 }
 
 #[cfg(not(test))]
-fn match_fn(m: Match) {
-    if let Some((linenum, charnum)) = scopes::point_to_coords_from_file(&m.filepath, 
+fn match_fn(m: Match, session: &Rc<core::Session>) {
+    if let Some((linenum, charnum)) = scopes::point_to_coords_from_file(&m.filepath,
                                                                         m.point,
-                                                                        &m.session) {
+                                                                        session) {
         println!("MATCH {},{},{},{},{:?},{}", m.matchstr,
                                     linenum.to_string(),
                                     charnum.to_string(),
@@ -60,7 +61,7 @@ fn match_fn(m: Match) {
 }
 
 #[cfg(not(test))]
-fn complete(match_found: &Fn(Match), args: &[String]) {
+fn complete(match_found: &Fn(Match, &Rc<core::Session>), args: &[String]) {
     if args.len() < 2 {
         println!("Provide more arguments!");
         print_usage();
@@ -89,7 +90,7 @@ fn complete(match_found: &Fn(Match), args: &[String]) {
 
             let point = scopes::coords_to_point(&src, linenum, charnum);
             for m in core::complete_from_file(&src, &fpath, point, &session) {
-                match_found(m);
+                match_found(m, &session);
             }
             println!("END");
         }
@@ -98,13 +99,16 @@ fn complete(match_found: &Fn(Match), args: &[String]) {
             let arg = &args[1];
             let it = arg.split("::");
             let p: Vec<&str> = it.collect();
+            let session = core::Session::from_path(&Path::new("."), &Path::new("."));
 
             for m in do_file_search(p[0], &Path::new(".")) {
                 if p.len() == 1 {
-                    match_found(m);
+                    match_found(m, &session);
                 } else {
-                    for m in do_external_search(&p[1..], &m.filepath, m.point, core::SearchType::StartsWith, core::Namespace::BothNamespaces, &m.session) {
-                        match_found(m);
+                    for m in do_external_search(&p[1..], &m.filepath, m.point,
+                                                core::SearchType::StartsWith,
+                                                core::Namespace::BothNamespaces, &session) {
+                        match_found(m, &session);
                     }
                 }
             }
@@ -155,7 +159,7 @@ fn find_definition(args: &[String]) {
     let src = session.load_file(&fpath);
     let pos = scopes::coords_to_point(&src, linenum, charnum);
 
-    core::find_definition(&src, &fpath, pos, &session).map(match_fn);
+    core::find_definition(&src, &fpath, pos, &session).map(|m| match_fn(m, &session));
     println!("END");
 }
 

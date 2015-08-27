@@ -1,13 +1,15 @@
 use ast::with_error_checking_parse;
+use core;
 use core::{Match, MatchType};
 use typeinf::get_function_declaration;
 
+use std::rc::Rc;
 use syntex_syntax::ast::ImplItem_;
 
-pub fn snippet_for_match(m: &Match) -> String {
+pub fn snippet_for_match(m: &Match, session: &Rc<core::Session>) -> String {
     match m.mtype {
         MatchType::Function => {
-            let method = get_function_declaration(&m);
+            let method = get_function_declaration(&m, session);
             if let Some(m) = MethodInfo::from_source_str(&method) {
                 m.snippet()
             } else {
