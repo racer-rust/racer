@@ -3,13 +3,16 @@ use std::io::{BufReader, Read};
 use std::{str, vec, fmt};
 use std::path;
 use std::io;
+use std::rc::Rc;
+use std::cell::RefCell;
+use std::collections::HashMap;
 
 
 use scopes;
 use nameres;
 use ast;
 
-#[derive(Debug,Clone,PartialEq)]
+#[derive(Debug,Clone,Copy,PartialEq)]
 pub enum MatchType {
     Struct,
     Module,
@@ -29,32 +32,24 @@ pub enum MatchType {
     Static
 }
 
-impl Copy for MatchType {}
-
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Copy)]
 pub enum SearchType {
     ExactMatch,
     StartsWith
 }
 
-impl Copy for SearchType {}
-
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Copy)]
 pub enum Namespace {
     TypeNamespace,
     ValueNamespace,
     BothNamespaces
 }
 
-impl Copy for Namespace {}
-
-#[derive(Debug,Clone)]
+#[derive(Debug,Clone,Copy)]
 pub enum CompletionType {
     CompleteField,
     CompletePath
 }
-
-impl Copy for CompletionType {}
 
 #[derive(Clone)]
 pub struct Match {
@@ -66,7 +61,7 @@ pub struct Match {
     pub contextstr: String,
     pub generic_args: Vec<String>,
     pub generic_types: Vec<PathSearch>,  // generic types are evaluated lazily
-    pub session: Session
+    pub session: Rc<Session>,
 }
 
 
@@ -105,7 +100,7 @@ impl fmt::Debug for Match {
 pub struct Scope {
     pub filepath: path::PathBuf,
     pub point: usize,
-    pub session: Session
+    pub session: Rc<Session>
 }
 
 impl Scope {
@@ -202,7 +197,7 @@ pub struct PathSearch {
     pub path: Path,
     pub filepath: path::PathBuf,
     pub point: usize,
-    pub session: Session
+    pub session: Rc<Session>
 }
 
 impl fmt::Debug for PathSearch {
@@ -215,18 +210,43 @@ impl fmt::Debug for PathSearch {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug)]
+pub struct FileCache {
+    raw_cache: RefCell<HashMap<path::PathBuf, Rc<String>>>,
+    masked_cache: RefCell<HashMap<path::PathBuf, Rc<String>>>
+}
+
+impl FileCache {
+    pub fn new() -> FileCache {
+        FileCache {
+            raw_cache: RefCell::new(HashMap::new()),
+            masked_cache: RefCell::new(HashMap::new())
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct Session {
     pub query_path: path::PathBuf,            // the input path of the query
-    pub substitute_file: path::PathBuf        // the temporary file
+    pub substitute_file: path::PathBuf,       // the temporary file
+    file_cache: Rc<FileCache>                 // cache for file contents
 }
 
 impl Session {
-    pub fn from_path(query_path: &path::Path, substitute_file: &path::Path) -> Session {
-        Session {
+    pub fn from_path(query_path: &path::Path, substitute_file: &path::Path) -> Rc<Session> {
+        Rc::new(Session {
             query_path: query_path.to_path_buf(),
-            substitute_file: substitute_file.to_path_buf()
-        }
+            substitute_file: substitute_file.to_path_buf(),
+            file_cache: Rc::new(FileCache::new())
+        })
+    }
+
+    pub fn derived(&self, path: &path::Path) -> Rc<Session> {
+        Rc::new(Session {
+            query_path: path.to_path_buf(),
+            substitute_file: path.to_path_buf(),
+            file_cache: self.file_cache.clone()
+        })
     }
 
     pub fn open_file(&self, path: &path::Path) -> io::Result<File> {
@@ -236,36 +256,45 @@ impl Session {
             File::open(path)
         }
     }
-}
 
-pub fn load_file(filepath: &path::Path, session: &Session) -> String {
-    let mut rawbytes = Vec::new();
-    if let Ok(f) = session.open_file(filepath) {
-        BufReader::new(f).read_to_end(&mut rawbytes).unwrap();
-    } else {
-        error!("load_file couldn't open {:?}. Returning empty string",filepath);
-        return "".into();
+    pub fn read_file(&self, path: &path::Path) -> Vec<u8> {
+        let mut rawbytes = Vec::new();
+        if let Ok(f) = self.open_file(path) {
+            BufReader::new(f).read_to_end(&mut rawbytes).unwrap();
+            // skip BOM bytes, if present
+            if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
+                let mut it = rawbytes.into_iter();
+                it.next(); it.next(); it.next();
+                it.collect()
+            } else {
+                rawbytes
+            }
+        } else {
+            error!("read_file couldn't open {:?}. Returning empty string", path);
+            Vec::new()
+        }
     }
 
-    // skip BOF bytes, if present
-    if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
-        let mut it = rawbytes.into_iter();
-        it.next(); it.next(); it.next();
-        String::from_utf8(it.collect::<Vec<_>>()).unwrap()
-    } else {
-        String::from_utf8(rawbytes).unwrap()
+    pub fn load_file(&self, filepath: &path::Path) -> Rc<String> {
+        let mut cache = self.file_cache.raw_cache.borrow_mut();
+        cache.entry(filepath.to_path_buf()).or_insert_with(|| {
+            let rawbytes = self.read_file(filepath);
+            Rc::new(String::from_utf8(rawbytes).unwrap())
+        }).clone()
+    }
+
+    pub fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Rc<String> {
+        let mut cache = self.file_cache.masked_cache.borrow_mut();
+        cache.entry(filepath.to_path_buf()).or_insert_with(|| {
+            let rawbytes = self.read_file(filepath);
+            let src = str::from_utf8(&rawbytes).unwrap();
+            Rc::new(scopes::mask_comments(src))
+        }).clone()
     }
 }
 
-pub fn load_file_and_mask_comments(filepath: &path::Path, session: &Session) -> String {
-    let mut filetxt = Vec::new();
-    BufReader::new(session.open_file(filepath).unwrap()).read_to_end(&mut filetxt).unwrap();
-    let src = str::from_utf8(&filetxt).unwrap();
 
-    scopes::mask_comments(src)
-}
-
-pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> vec::IntoIter<Match> {
+pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session: &Rc<Session>) -> vec::IntoIter<Match> {
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = &src[start..pos];
 
@@ -306,12 +335,11 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session:
     out.into_iter()
 }
 
-
-pub fn find_definition(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> Option<Match> {
+pub fn find_definition(src: &str, filepath: &path::Path, pos: usize, session: &Rc<Session>) -> Option<Match> {
     find_definition_(src, filepath, pos, session)
 }
 
-pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> Option<Match> {
+pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &Rc<Session>) -> Option<Match> {
     let (start, end) = scopes::expand_search_expr(src, pos);
     let expr = &src[start..end];
 

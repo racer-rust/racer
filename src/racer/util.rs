@@ -168,14 +168,11 @@ pub fn char_at(src: &str, i: usize) -> char {
 // PD: short term replacement for path.exists() (PathExt trait). Replace once
 // that stabilizes
 pub fn path_exists<P: AsRef<Path>>(path: P) -> bool {
-    is_dir(path.as_ref()) || File::open(path).is_ok()
+    is_dir(&path) || File::open(path).is_ok()
 }
 
 // PD: short term replacement for path.is_dir() (PathExt trait). Replace once
 // that stabilizes
 pub fn is_dir<P: AsRef<Path>>(path: P) -> bool {
-    match std::fs::metadata(path) {
-        Ok(file_info) => file_info.is_dir(),
-        _ => false
-    }
+    std::fs::metadata(path).map(|info| info.is_dir()).unwrap_or(false)
 }
