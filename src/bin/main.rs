@@ -22,11 +22,9 @@ use racer::nameres::{do_file_search, do_external_search, PATH_SEP};
 use racer::scopes;
 #[cfg(not(test))]
 use std::path::Path;
-#[cfg(not(test))]
-use std::rc::Rc;
 
 #[cfg(not(test))]
-fn match_with_snippet_fn(m: Match, session: &Rc<core::Session>) {
+fn match_with_snippet_fn(m: Match, session: &core::Session) {
     let (linenum, charnum) = scopes::point_to_coords_from_file(&m.filepath, m.point, session).unwrap();
     if m.matchstr == "" {
         panic!("MATCHSTR is empty - waddup?");
@@ -44,7 +42,7 @@ fn match_with_snippet_fn(m: Match, session: &Rc<core::Session>) {
 }
 
 #[cfg(not(test))]
-fn match_fn(m: Match, session: &Rc<core::Session>) {
+fn match_fn(m: Match, session: &core::Session) {
     if let Some((linenum, charnum)) = scopes::point_to_coords_from_file(&m.filepath,
                                                                         m.point,
                                                                         session) {
@@ -61,7 +59,7 @@ fn match_fn(m: Match, session: &Rc<core::Session>) {
 }
 
 #[cfg(not(test))]
-fn complete(match_found: &Fn(Match, &Rc<core::Session>), args: &[String]) {
+fn complete(match_found: &Fn(Match, &core::Session), args: &[String]) {
     if args.len() < 2 {
         println!("Provide more arguments!");
         print_usage();

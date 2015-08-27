@@ -12,8 +12,6 @@ use matchers;
 use core::SearchType::ExactMatch;
 use util::txt_matches;
 
-use std::rc::Rc;
-
 fn find_start_of_function_body(src: &str) -> usize {
     // TODO: this should ignore anything inside parens so as to skip the arg list
     src.find("{").unwrap()
@@ -45,7 +43,7 @@ fn generates_skeleton_for_mod() {
     assert_eq!("mod foo {};", out);
 }
 
-fn get_type_of_self_arg(m: &Match, msrc: &str, session: &Rc<core::Session>) -> Option<core::Ty> {
+fn get_type_of_self_arg(m: &Match, msrc: &str, session: &core::Session) -> Option<core::Ty> {
     debug!("get_type_of_self_arg {:?}", m);
     scopes::find_impl_start(msrc, m.point, 0).and_then(|start| {
         let decl = generate_skeleton_for_parsing(&msrc[start..]);
@@ -75,7 +73,7 @@ fn get_type_of_self_arg(m: &Match, msrc: &str, session: &Rc<core::Session>) -> O
     })
 }
 
-fn get_type_of_fnarg(m: &Match, msrc: &str, session: &Rc<core::Session>) -> Option<core::Ty> {
+fn get_type_of_fnarg(m: &Match, msrc: &str, session: &core::Session) -> Option<core::Ty> {
     if m.matchstr == "self" {
         return get_type_of_self_arg(m, msrc, session);
     }
@@ -96,7 +94,7 @@ fn get_type_of_fnarg(m: &Match, msrc: &str, session: &Rc<core::Session>) -> Opti
     None
 }
 
-fn get_type_of_let_expr(m: &Match, msrc: &str, session: &Rc<core::Session>) -> Option<core::Ty> {
+fn get_type_of_let_expr(m: &Match, msrc: &str, session: &core::Session) -> Option<core::Ty> {
     // ASSUMPTION: this is being called on a let decl
     let point = scopes::find_stmt_start(msrc, m.point).unwrap();
     let src = &msrc[point..];
@@ -113,7 +111,7 @@ fn get_type_of_let_expr(m: &Match, msrc: &str, session: &Rc<core::Session>) -> O
     }
 }
 
-fn get_type_of_if_let_expr(m: &Match, msrc: &str, session: &Rc<core::Session>) -> Option<core::Ty> {
+fn get_type_of_if_let_expr(m: &Match, msrc: &str, session: &core::Session) -> Option<core::Ty> {
     // ASSUMPTION: this is being called on an if let decl
     let stmtstart = scopes::find_stmt_start(msrc, m.point).unwrap();
     let stmt = &msrc[stmtstart..];
@@ -133,7 +131,7 @@ fn get_type_of_if_let_expr(m: &Match, msrc: &str, session: &Rc<core::Session>) -
     }
 }
 
-pub fn get_struct_field_type(fieldname: &str, structmatch: &Match, session: &Rc<core::Session>) -> Option<core::Ty> {
+pub fn get_struct_field_type(fieldname: &str, structmatch: &Match, session: &core::Session) -> Option<core::Ty> {
     assert!(structmatch.mtype == core::MatchType::Struct);
 
     let src = session.load_file(&structmatch.filepath);
@@ -150,7 +148,7 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match, session: &Rc<
     None
 }
 
-pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match, session: &Rc<core::Session>) -> Option<core::Ty> {
+pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match, session: &core::Session) -> Option<core::Ty> {
     let src = session.load_file(&structmatch.filepath);
 
     let structsrc = if let core::MatchType::EnumVariant = structmatch.mtype {
@@ -185,7 +183,7 @@ pub fn get_first_stmt(src: &str) -> &str {
     }
 }
 
-pub fn get_type_of_match(m: Match, msrc: &str, session: &Rc<core::Session>) -> Option<core::Ty> {
+pub fn get_type_of_match(m: Match, msrc: &str, session: &core::Session) -> Option<core::Ty> {
     debug!("get_type_of match {:?} ", m);
 
     match m.mtype {
@@ -205,7 +203,7 @@ macro_rules! otry {
     ($e:expr) => (match $e { Some(e) => e, None => return None })
 }
 
-pub fn get_type_from_match_arm(m: &Match, msrc: &str, session: &Rc<core::Session>) -> Option<core::Ty> {
+pub fn get_type_from_match_arm(m: &Match, msrc: &str, session: &core::Session) -> Option<core::Ty> {
     // We construct a faux match stmt and then parse it. This is because the
     // match stmt may be incomplete (half written) in the real code
 
@@ -237,14 +235,14 @@ pub fn get_type_from_match_arm(m: &Match, msrc: &str, session: &Rc<core::Session
                             }, session)
 }
 
-pub fn get_function_declaration(fnmatch: &Match, session: &Rc<core::Session>) -> String {
+pub fn get_function_declaration(fnmatch: &Match, session: &core::Session) -> String {
     let src = session.load_file(&fnmatch.filepath);
     let start = scopes::find_stmt_start(&src, fnmatch.point).unwrap();
     let end = (&src[start..]).find('{').unwrap();
     (&src[start..end+start]).to_owned()
 }
 
-pub fn get_return_type_of_function(fnmatch: &Match, session: &Rc<core::Session>) -> Option<core::Ty> {
+pub fn get_return_type_of_function(fnmatch: &Match, session: &core::Session) -> Option<core::Ty> {
     let src = session.load_file(&fnmatch.filepath);
     let point = scopes::find_stmt_start(&src, fnmatch.point).unwrap();
     (&src[point..]).find("{").and_then(|n| {

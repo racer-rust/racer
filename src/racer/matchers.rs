@@ -8,7 +8,6 @@ use core::Namespace::BothNamespaces;
 use std::cell::Cell;
 use std::path::Path;
 use std::{iter, option, vec};
-use std::rc::Rc;
 
 pub type MIter = option::IntoIter<Match>;
 pub type MChain<T> = iter::Chain<T, MIter>;
@@ -17,7 +16,7 @@ pub type MChain<T> = iter::Chain<T, MIter>;
 pub fn match_types(src: &str, blobstart: usize, blobend: usize,
                    searchstr: &str, filepath: &Path,
                    search_type: SearchType,
-                   local: bool, session: &Rc<core::Session>) -> iter::Chain<MChain<MChain<MChain<MChain<MChain<MIter>>>>>, vec::IntoIter<Match>> {
+                   local: bool, session: &core::Session) -> iter::Chain<MChain<MChain<MChain<MChain<MChain<MIter>>>>>, vec::IntoIter<Match>> {
     let it = match_extern_crate(src, blobstart, blobend, searchstr, filepath, search_type, session).into_iter();
     let it = it.chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_struct(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
@@ -181,7 +180,7 @@ pub fn first_line(blob: &str) -> String {
 
 pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
                           searchstr: &str, filepath: &Path, search_type: SearchType,
-                          session: &Rc<core::Session>) -> Option<Match> {
+                          session: &core::Session) -> Option<Match> {
     let mut res = None;
     let blob = &msrc[blobstart..blobend];
 
@@ -433,7 +432,7 @@ thread_local!(static ALREADY_GLOBBING: Cell<Option<bool>> = Cell::new(None));
 
 pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
              searchstr: &str, filepath: &Path, search_type: SearchType,
-             local: bool, session: &Rc<core::Session>) -> Vec<Match> {
+             local: bool, session: &core::Session) -> Vec<Match> {
     let mut out = Vec::new();
     let blob = &msrc[blobstart..blobend];
 
