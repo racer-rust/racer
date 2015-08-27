@@ -210,7 +210,6 @@ impl fmt::Debug for PathSearch {
     }
 }
 
-#[derive(Debug)]
 pub struct FileCache {
     raw_cache: RefCell<HashMap<path::PathBuf, Rc<String>>>,
     masked_cache: RefCell<HashMap<path::PathBuf, Rc<String>>>
@@ -222,6 +221,12 @@ impl FileCache {
             raw_cache: RefCell::new(HashMap::new()),
             masked_cache: RefCell::new(HashMap::new())
         }
+    }
+}
+
+impl fmt::Debug for FileCache {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "<FileCache>")
     }
 }
 
