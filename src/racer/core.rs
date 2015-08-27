@@ -96,22 +96,20 @@ impl fmt::Debug for Match {
 #[derive(Clone)]
 pub struct Scope {
     pub filepath: path::PathBuf,
-    pub point: usize,
-    pub session: Rc<Session>
+    pub point: usize
 }
 
 impl Scope {
-    pub fn from_match(m: &Match, session: &Rc<Session>) -> Scope {
-        Scope{ filepath: m.filepath.clone(), point: m.point, session: session.clone() }
+    pub fn from_match(m: &Match) -> Scope {
+        Scope{ filepath: m.filepath.clone(), point: m.point }
     }
 }
 
 impl fmt::Debug for Scope {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Scope [{:?}, {:?}, {:?}]",
+        write!(f, "Scope [{:?}, {:?}]",
                self.filepath.to_str(),
-               self.point,
-               self.session)
+               self.point)
     }
 }
 
@@ -193,17 +191,15 @@ pub struct PathSegment {
 pub struct PathSearch {
     pub path: Path,
     pub filepath: path::PathBuf,
-    pub point: usize,
-    pub session: Rc<Session>
+    pub point: usize
 }
 
 impl fmt::Debug for PathSearch {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Search [{:?}, {:?}, {:?}, {:?}]",
+        write!(f, "Search [{:?}, {:?}, {:?}]",
                self.path,
                self.filepath.to_str(),
-               self.point,
-               self.session)
+               self.point)
     }
 }
 

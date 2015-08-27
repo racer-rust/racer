@@ -91,7 +91,7 @@ fn get_type_of_fnarg(m: &Match, msrc: &str, session: &Rc<core::Session>) -> Opti
         s.push_str(&blob[..(find_start_of_function_body(blob)+1)]);
         s.push_str("}}");
         let argpos = m.point - (stmtstart+start) + impl_header_len;
-        return ast::parse_fn_arg_type(s, argpos, core::Scope::from_match(m, session));
+        return ast::parse_fn_arg_type(s, argpos, core::Scope::from_match(m), session);
     }
     None
 }
@@ -106,8 +106,8 @@ fn get_type_of_let_expr(m: &Match, msrc: &str, session: &Rc<core::Session>) -> O
         debug!("get_type_of_let_expr calling parse_let |{}|", blob);
 
         let pos = m.point - point - start;
-        let scope = core::Scope{ filepath: m.filepath.clone(), point: m.point, session: session.clone()};
-        ast::get_let_type(blob.to_owned(), pos, scope)
+        let scope = core::Scope{ filepath: m.filepath.clone(), point: m.point };
+        ast::get_let_type(blob.to_owned(), pos, scope, session)
     } else {
         None
     }
@@ -126,8 +126,8 @@ fn get_type_of_if_let_expr(m: &Match, msrc: &str, session: &Rc<core::Session>) -
         debug!("get_type_of_if_let_expr calling parse_if_let |{}|", blob);
 
         let pos = m.point - stmtstart - point - start;
-        let scope = core::Scope{ filepath: m.filepath.clone(), point: m.point, session: session.clone()};
-        ast::get_let_type(blob.to_owned(), pos, scope)
+        let scope = core::Scope{ filepath: m.filepath.clone(), point: m.point };
+        ast::get_let_type(blob.to_owned(), pos, scope, session)
     } else {
         None
     }
@@ -141,7 +141,7 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match, session: &Rc<
     let opoint = scopes::find_stmt_start(&src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
 
-    let fields = ast::parse_struct_fields(structsrc.to_owned(), core::Scope::from_match(structmatch, session));
+    let fields = ast::parse_struct_fields(structsrc.to_owned(), core::Scope::from_match(structmatch));
     for (field, _, ty) in fields.into_iter() {
         if fieldname == field {
             return ty;
@@ -167,7 +167,7 @@ pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match, session: &
 
     debug!("get_tuplestruct_field_type structsrc=|{}|", structsrc);
 
-    let fields = ast::parse_struct_fields(structsrc, core::Scope::from_match(structmatch, session));
+    let fields = ast::parse_struct_fields(structsrc, core::Scope::from_match(structmatch));
     let mut i = 0u32;
     for (_, _, ty) in fields.into_iter() {
         if i == fieldnum {
@@ -234,8 +234,7 @@ pub fn get_type_from_match_arm(m: &Match, msrc: &str, session: &Rc<core::Session
                             core::Scope {
                                 filepath: m.filepath.clone(),
                                 point: matchstart,
-                                session: session.clone()
-                            })
+                            }, session)
 }
 
 pub fn get_function_declaration(fnmatch: &Match, session: &Rc<core::Session>) -> String {
@@ -255,6 +254,6 @@ pub fn get_return_type_of_function(fnmatch: &Match, session: &Rc<core::Session>)
         decl.push_str(&src[point..(point+n+1)]);
         decl.push_str("}}");
         debug!("get_return_type_of_function: passing in |{}|", decl);
-        ast::parse_fn_output(decl, core::Scope::from_match(fnmatch, session))
+        ast::parse_fn_output(decl, core::Scope::from_match(fnmatch))
     })
 }

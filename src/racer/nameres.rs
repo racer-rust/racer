@@ -23,7 +23,7 @@ fn search_struct_fields(searchstr: &str, structmatch: &Match,
     let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
 
     let fields = ast::parse_struct_fields(structsrc.to_owned(),
-                                          core::Scope::from_match(structmatch, session));
+                                          core::Scope::from_match(structmatch));
 
     let mut out = Vec::new();
 
@@ -881,12 +881,12 @@ pub fn get_super_scope(filepath: &Path, pos: usize, session: &Rc<core::Session>)
         for filename in &[ "mod.rs", "lib.rs" ] {
             let fpath = moduledir.join(&filename);
             if path_exists(&fpath) {
-                return Some(core::Scope{ filepath: fpath, point: 0, session: session.clone() })
+                return Some(core::Scope{ filepath: fpath, point: 0 })
             }
         }
         None
     } else if path.len() == 1 {
-        Some(core::Scope{ filepath: filepath.to_path_buf(), point: 0, session: session.clone() })
+        Some(core::Scope{ filepath: filepath.to_path_buf(), point: 0 })
     } else {
         path.pop();
         let path = core::Path::from_svec(false, path);
@@ -895,8 +895,7 @@ pub fn get_super_scope(filepath: &Path, pos: usize, session: &Rc<core::Session>)
                             Namespace::TypeNamespace, session).nth(0)
             .and_then(|m| msrc[m.point..].find("{")
                       .map(|p| core::Scope{ filepath: filepath.to_path_buf(),
-                                             point:m.point + p + 1,
-                                             session: session.clone() }))
+                                             point:m.point + p + 1 }))
     }
 }
 
@@ -923,7 +922,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                 let mut newpath: core::Path = path.clone();
                 newpath.segments.remove(0);
                 return resolve_path(&newpath, &scope.filepath,
-                                    scope.point, search_type, namespace, &scope.session);
+                                    scope.point, search_type, namespace, session);
             } else {
                 // can't find super scope. Return no matches
                 debug!("can't resolve path {:?}, returning no matches", path);
