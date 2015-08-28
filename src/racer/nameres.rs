@@ -429,7 +429,7 @@ pub fn search_next_scope(mut startpoint: usize, pathseg: &core::PathSegment,
         //debug!("search_next_scope src1 |{}|",src);
         // find the opening brace and skip to it.
         src.find("{").map(|n| {
-            startpoint = startpoint + n + 1;
+            startpoint += n + 1;
         });
     }
     search_scope(startpoint, startpoint, filesrc, pathseg, filepath, search_type, local, namespace, session)
