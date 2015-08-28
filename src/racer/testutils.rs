@@ -18,3 +18,13 @@ pub fn rejustify(src: &str) -> String {
 pub fn slice(src: &str, (begin, end): (usize, usize)) -> &str {
     &src[begin..end]
 }
+
+#[macro_export]
+macro_rules! test_source {
+    (rejustify $e:expr) => {
+        $crate::core::new_source(rejustify($e))
+    };
+    ($e:expr) => {
+        $crate::core::new_source(String::from($e))
+    };
+}

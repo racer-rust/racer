@@ -1,16 +1,20 @@
 use std::fs::File;
 use std::io::Read;
-use std::{str, vec, fmt};
+use std::{vec, fmt};
 use std::path;
 use std::io;
-use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::ops::Deref;
+use std::slice;
+use std::cmp::{min, max};
 
+use typed_arena::Arena;
 
 use scopes;
 use nameres;
 use ast;
+use codecleaner;
 
 #[derive(Debug,Clone,Copy,PartialEq)]
 pub enum MatchType {
@@ -203,41 +207,156 @@ impl fmt::Debug for PathSearch {
     }
 }
 
-pub struct FileCache {
-    raw_cache: RefCell<HashMap<path::PathBuf, Rc<String>>>,
-    masked_cache: RefCell<HashMap<path::PathBuf, Rc<String>>>
+pub struct IndexedSource {
+    pub code: String,
+    pub idx: Vec<(usize, usize)>
 }
 
-impl FileCache {
-    pub fn new() -> FileCache {
-        FileCache {
-            raw_cache: RefCell::new(HashMap::new()),
-            masked_cache: RefCell::new(HashMap::new())
+#[derive(Clone,Copy)]
+pub struct Src<'c> {
+    pub src: &'c IndexedSource,
+    pub from: usize,
+    pub to: usize
+}
+
+impl IndexedSource {
+    pub fn new(src: String) -> IndexedSource {
+        let indices = codecleaner::code_chunks(&src).collect();
+        IndexedSource {
+            code: src,
+            idx: indices
+        }
+    }
+
+    pub fn with_src(&self, new_src: String) -> IndexedSource {
+        IndexedSource {
+            code: new_src,
+            idx: self.idx.clone()
+        }
+    }
+
+    pub fn as_ref(&self) -> Src {
+        Src {
+            src: self,
+            from: 0,
+            to: self.len()
         }
     }
 }
 
-impl fmt::Debug for FileCache {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "<FileCache>")
+impl<'c> Src<'c> {
+    pub fn from(&self, from: usize) -> Src<'c> {
+        Src {
+            src: self.src,
+            from: self.from + from,
+            to: self.to
+        }
+    }
+
+    pub fn to(&self, to: usize) -> Src<'c> {
+        Src {
+            src: self.src,
+            from: self.from,
+            to: self.from + to
+        }
+    }
+
+    pub fn from_to(&self, from: usize, to: usize) -> Src<'c> {
+        Src {
+            src: self.src,
+            from: self.from + from,
+            to: self.from + to
+        }
+    }
+
+    pub fn chunk_indices(&self) -> CodeChunkIter<'c> {
+        CodeChunkIter { src: *self, iter: self.src.idx.iter() }
     }
 }
 
-#[derive(Debug)]
-pub struct Session {
-    query_path: path::PathBuf,            // the input path of the query
-    substitute_file: path::PathBuf,       // the temporary file
-    file_cache: FileCache                 // cache for file contents
+pub struct CodeChunkIter<'c> {
+    src: Src<'c>,
+    iter: slice::Iter<'c, (usize, usize)>
 }
 
-pub type SessionRef<'s> = &'s Session;
+impl<'c> Iterator for CodeChunkIter<'c> {
+    type Item = (usize, usize);
 
-impl Session {
-    pub fn from_path(query_path: &path::Path, substitute_file: &path::Path) -> Session {
+    fn next(&mut self) -> Option<(usize, usize)> {
+        loop {
+            match self.iter.next() {
+                None => return None,
+                Some(&(start, end)) => {
+                    if end < self.src.from {
+                        continue;
+                    }
+                    if start > self.src.to {
+                        return None;
+                    } else {
+                        return Some((
+                            max(start, self.src.from) - self.src.from,
+                            min(end, self.src.to) - self.src.from));
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl Deref for IndexedSource {
+    type Target = str;
+    fn deref(&self) -> &str {
+        &self.code
+    }
+}
+
+impl<'c> Deref for Src<'c> {
+    type Target = str;
+    fn deref(&self) -> &str {
+        &self.src.code[self.from..self.to]
+    }
+}
+
+pub fn new_source(src: String) -> IndexedSource {
+    IndexedSource::new(src)
+}
+
+pub struct FileCache<'s> {
+    arena: Arena<IndexedSource>,
+    raw_map: RefCell<HashMap<path::PathBuf, &'s IndexedSource>>,
+    masked_map: RefCell<HashMap<path::PathBuf, &'s IndexedSource>>,
+}
+
+impl<'s> FileCache<'s> {
+    pub fn new<'a>() -> FileCache<'a> {
+        FileCache {
+            arena: Arena::new(),
+            raw_map: RefCell::new(HashMap::new()),
+            masked_map: RefCell::new(HashMap::new()),
+        }
+    }
+}
+
+pub struct Session<'s> {
+    query_path: path::PathBuf,            // the input path of the query
+    substitute_file: path::PathBuf,       // the temporary file
+    cache: FileCache<'s>                  // cache for file contents
+}
+
+pub type SessionRef<'s> = &'s Session<'s>;
+
+impl<'s> fmt::Debug for Session<'s> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "Session({:?}, {:?})", self.query_path, self.substitute_file)
+    }
+}
+
+impl<'s> Session<'s> {
+    pub fn from_path<'a>(query_path: &path::Path, substitute_file: &path::Path) -> Session<'a> {
         Session {
             query_path: query_path.to_path_buf(),
             substitute_file: substitute_file.to_path_buf(),
-            file_cache: FileCache::new()
+            cache: FileCache::new()
         }
     }
 
@@ -267,21 +386,22 @@ impl Session {
         }
     }
 
-    pub fn load_file(&self, filepath: &path::Path) -> Rc<String> {
-        let mut cache = self.file_cache.raw_cache.borrow_mut();
+    pub fn load_file(&'s self, filepath: &path::Path) -> Src<'s> {
+        let mut cache = self.cache.raw_map.borrow_mut();
         cache.entry(filepath.to_path_buf()).or_insert_with(|| {
             let rawbytes = self.read_file(filepath);
-            Rc::new(String::from_utf8(rawbytes).unwrap())
-        }).clone()
+            let res = String::from_utf8(rawbytes).unwrap();
+            self.cache.arena.alloc(IndexedSource::new(res))
+        }).as_ref()
     }
 
-    pub fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Rc<String> {
-        let mut cache = self.file_cache.masked_cache.borrow_mut();
+    pub fn load_file_and_mask_comments(&'s self, filepath: &path::Path) -> Src<'s> {
+        let mut cache = self.cache.masked_map.borrow_mut();
         cache.entry(filepath.to_path_buf()).or_insert_with(|| {
-            let rawbytes = self.read_file(filepath);
-            let src = str::from_utf8(&rawbytes).unwrap();
-            Rc::new(scopes::mask_comments(src))
-        }).clone()
+            let src = self.load_file(filepath);
+            // create a new IndexedSource with new source, but same indices
+            self.cache.arena.alloc(src.src.with_src(scopes::mask_comments(src)))
+        }).as_ref()
     }
 }
 

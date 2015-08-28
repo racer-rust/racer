@@ -6,6 +6,7 @@ dependencies = [
  "log 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "syntex_syntax 0.10.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.1.22 (registry+https://github.com/rust-lang/crates.io-index)",
+ "typed-arena 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -109,6 +110,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "rustc-serialize 0.3.15 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
+
+[[package]]
+name = "typed-arena"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "unicode-xid"

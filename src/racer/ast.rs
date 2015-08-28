@@ -392,7 +392,7 @@ fn get_type_of_typedef(m: Match, session: SessionRef) -> Option<Match> {
     debug!("get_type_of_typedef match is {:?}", m);
     let msrc = session.load_file_and_mask_comments(&m.filepath);
     let blobstart = m.point - 5;  // - 5 because 'type '
-    let blob = &msrc[blobstart..];
+    let blob = msrc.from(blobstart);
 
     codeiter::iter_stmts(blob).nth(0).and_then(|(start, end)| {
         let blob = msrc[blobstart + start..blobstart+end].to_owned();
@@ -431,7 +431,7 @@ impl<'s, 'v> visit::Visitor<'v> for ExprTypeVisitor<'s> {
                                  self.scope.point,
                                  self.session).and_then(|m| {
                                      let msrc = self.session.load_file_and_mask_comments(&m.filepath);
-                                     typeinf::get_type_of_match(m, &msrc, self.session)
+                                     typeinf::get_type_of_match(m, msrc, self.session)
                                  });
             }
             ast::ExprCall(ref callee_expression, _/*ref arguments*/) => {

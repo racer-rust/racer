@@ -1,7 +1,7 @@
 // Type inference
 
-use core::{Match, Scope, SessionRef};
-use nameres::{resolve_path_with_str};
+use core::{Match, Src, SessionRef, Scope};
+use nameres::resolve_path_with_str;
 use core::Namespace::TypeNamespace;
 use core;
 use ast;
@@ -43,13 +43,13 @@ fn generates_skeleton_for_mod() {
     assert_eq!("mod foo {};", out);
 }
 
-fn get_type_of_self_arg(m: &Match, msrc: &str, session: SessionRef) -> Option<core::Ty> {
+fn get_type_of_self_arg(m: &Match, msrc: Src, session: SessionRef) -> Option<core::Ty> {
     debug!("get_type_of_self_arg {:?}", m);
     scopes::find_impl_start(msrc, m.point, 0).and_then(|start| {
-        let decl = generate_skeleton_for_parsing(&msrc[start..]);
+        let decl = generate_skeleton_for_parsing(&msrc.from(start));
         debug!("get_type_of_self_arg impl skeleton |{}|", decl);
 
-        if (&decl).starts_with("impl") {
+        if decl.starts_with("impl") {
             let implres = ast::parse_impl(decl);
             debug!("get_type_of_self_arg implres |{:?}|", implres);
             resolve_path_with_str(&implres.name_path.expect("failed parsing impl name"),
@@ -73,13 +73,13 @@ fn get_type_of_self_arg(m: &Match, msrc: &str, session: SessionRef) -> Option<co
     })
 }
 
-fn get_type_of_fnarg(m: &Match, msrc: &str, session: SessionRef) -> Option<core::Ty> {
+fn get_type_of_fnarg(m: &Match, msrc: Src, session: SessionRef) -> Option<core::Ty> {
     if m.matchstr == "self" {
         return get_type_of_self_arg(m, msrc, session);
     }
 
     let stmtstart = scopes::find_stmt_start(msrc, m.point).unwrap();
-    let block = &msrc[stmtstart..];
+    let block = msrc.from(stmtstart);
     if let Some((start, end)) = codeiter::iter_stmts(block).next() {
         let blob = &msrc[(stmtstart+start)..(stmtstart+end)];
         // wrap in "impl blah { }" so that methods get parsed correctly too
@@ -94,10 +94,10 @@ fn get_type_of_fnarg(m: &Match, msrc: &str, session: SessionRef) -> Option<core:
     None
 }
 
-fn get_type_of_let_expr(m: &Match, msrc: &str, session: SessionRef) -> Option<core::Ty> {
+fn get_type_of_let_expr(m: &Match, msrc: Src, session: SessionRef) -> Option<core::Ty> {
     // ASSUMPTION: this is being called on a let decl
     let point = scopes::find_stmt_start(msrc, m.point).unwrap();
-    let src = &msrc[point..];
+    let src = msrc.from(point);
 
     if let Some((start, end)) = codeiter::iter_stmts(src).next() {
         let blob = &src[start..end];
@@ -111,15 +111,14 @@ fn get_type_of_let_expr(m: &Match, msrc: &str, session: SessionRef) -> Option<co
     }
 }
 
-fn get_type_of_if_let_expr(m: &Match, msrc: &str, session: SessionRef) -> Option<core::Ty> {
+fn get_type_of_if_let_expr(m: &Match, msrc: Src, session: SessionRef) -> Option<core::Ty> {
     // ASSUMPTION: this is being called on an if let decl
     let stmtstart = scopes::find_stmt_start(msrc, m.point).unwrap();
-    let stmt = &msrc[stmtstart..];
+    let stmt = msrc.from(stmtstart);
     let point = stmt.find("if let").unwrap();
-    let src = &stmt[point..];
-    let src = generate_skeleton_for_parsing(src);
+    let src = core::new_source(generate_skeleton_for_parsing(&stmt[point..]));
 
-    if let Some((start, end)) = codeiter::iter_stmts(&src).next() {
+    if let Some((start, end)) = codeiter::iter_stmts(src.as_ref()).next() {
         let blob = &src[start..end];
         debug!("get_type_of_if_let_expr calling parse_if_let |{}|", blob);
 
@@ -136,7 +135,7 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match, session: Sess
 
     let src = session.load_file(&structmatch.filepath);
 
-    let opoint = scopes::find_stmt_start(&src, structmatch.point);
+    let opoint = scopes::find_stmt_start(src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
 
     let fields = ast::parse_struct_fields(structsrc.to_owned(), Scope::from_match(structmatch));
@@ -159,8 +158,8 @@ pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match, session: S
         "struct ".to_owned() + &src[structmatch.point..(to+1)] + ";"
     } else {
         assert!(structmatch.mtype == core::MatchType::Struct);
-        let opoint = scopes::find_stmt_start(&src, structmatch.point);
-        get_first_stmt(&src[opoint.unwrap()..]).to_owned()
+        let opoint = scopes::find_stmt_start(src, structmatch.point);
+        (*get_first_stmt(src.from(opoint.unwrap()))).to_owned()
     };
 
     debug!("get_tuplestruct_field_type structsrc=|{}|", structsrc);
@@ -176,14 +175,14 @@ pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match, session: S
     None
 }
 
-pub fn get_first_stmt(src: &str) -> &str {
+pub fn get_first_stmt(src: Src) -> Src {
     match codeiter::iter_stmts(src).next() {
-        Some((from, to)) => &src[from..to],
+        Some((from, to)) => src.from_to(from, to),
         None => src
     }
 }
 
-pub fn get_type_of_match(m: Match, msrc: &str, session: SessionRef) -> Option<core::Ty> {
+pub fn get_type_of_match(m: Match, msrc: Src, session: SessionRef) -> Option<core::Ty> {
     debug!("get_type_of match {:?} ", m);
 
     match m.mtype {
@@ -203,7 +202,7 @@ macro_rules! otry {
     ($e:expr) => (match $e { Some(e) => e, None => return None })
 }
 
-pub fn get_type_from_match_arm(m: &Match, msrc: &str, session: SessionRef) -> Option<core::Ty> {
+pub fn get_type_from_match_arm(m: &Match, msrc: Src, session: SessionRef) -> Option<core::Ty> {
     // We construct a faux match stmt and then parse it. This is because the
     // match stmt may be incomplete (half written) in the real code
 
@@ -216,7 +215,7 @@ pub fn get_type_from_match_arm(m: &Match, msrc: &str, session: SessionRef) -> Op
     let preblock = &msrc[stmtstart..scopestart];
     let matchstart = otry!(util::find_last_str("match ", preblock)) + stmtstart;
 
-    let lhs_start = scopes::get_start_of_pattern(msrc, arm);
+    let lhs_start = scopes::get_start_of_pattern(&msrc, arm);
     let lhs = &msrc[lhs_start..arm];
     // construct faux match statement and recreate point
     let mut fauxmatchstmt = (&msrc[matchstart..scopestart]).to_owned();
@@ -237,14 +236,14 @@ pub fn get_type_from_match_arm(m: &Match, msrc: &str, session: SessionRef) -> Op
 
 pub fn get_function_declaration(fnmatch: &Match, session: SessionRef) -> String {
     let src = session.load_file(&fnmatch.filepath);
-    let start = scopes::find_stmt_start(&src, fnmatch.point).unwrap();
+    let start = scopes::find_stmt_start(src, fnmatch.point).unwrap();
     let end = (&src[start..]).find('{').unwrap();
     (&src[start..end+start]).to_owned()
 }
 
 pub fn get_return_type_of_function(fnmatch: &Match, session: SessionRef) -> Option<core::Ty> {
     let src = session.load_file(&fnmatch.filepath);
-    let point = scopes::find_stmt_start(&src, fnmatch.point).unwrap();
+    let point = scopes::find_stmt_start(src, fnmatch.point).unwrap();
     (&src[point..]).find("{").and_then(|n| {
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut decl = String::new();

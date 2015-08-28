@@ -1,5 +1,5 @@
 use {scopes, typeinf, ast};
-use core::{Match, PathSegment, SessionRef};
+use core::{Match, PathSegment, Src, SessionRef};
 use util::{symbol_matches, txt_matches, find_ident_end, is_ident_char, char_at};
 use nameres::{get_module_file, get_crate_file, resolve_path};
 use core::SearchType::{self, StartsWith, ExactMatch};
@@ -13,25 +13,25 @@ pub type MIter = option::IntoIter<Match>;
 pub type MChain<T> = iter::Chain<T, MIter>;
 
 // Should I return a boxed trait object to make this signature nicer?
-pub fn match_types(src: &str, blobstart: usize, blobend: usize,
+pub fn match_types(src: Src, blobstart: usize, blobend: usize,
                    searchstr: &str, filepath: &Path,
                    search_type: SearchType,
                    local: bool, session: SessionRef) -> iter::Chain<MChain<MChain<MChain<MChain<MChain<MIter>>>>>, vec::IntoIter<Match>> {
-    let it = match_extern_crate(src, blobstart, blobend, searchstr, filepath, search_type, session).into_iter();
+    let it = match_extern_crate(&src, blobstart, blobend, searchstr, filepath, search_type, session).into_iter();
     let it = it.chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    let it = it.chain(match_struct(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    let it = it.chain(match_type(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    let it = it.chain(match_trait(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    let it = it.chain(match_enum(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    it.chain(match_use(src, blobstart, blobend, searchstr, filepath, search_type, local, session).into_iter())
+    let it = it.chain(match_struct(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
+    let it = it.chain(match_type(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
+    let it = it.chain(match_trait(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
+    let it = it.chain(match_enum(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
+    it.chain(match_use(&src, blobstart, blobend, searchstr, filepath, search_type, local, session).into_iter())
 }
 
-pub fn match_values(src: &str, blobstart: usize, blobend: usize,
+pub fn match_values(src: Src, blobstart: usize, blobend: usize,
                     searchstr: &str, filepath: &Path, search_type: SearchType,
                     local: bool) -> MChain<MChain<MIter>> {
-    let it = match_const(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
-    let it = it.chain(match_static(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    it.chain(match_fn(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter())
+    let it = match_const(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
+    let it = it.chain(match_static(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
+    it.chain(match_fn(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter())
 }
 
 fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType, local: bool)
@@ -132,8 +132,8 @@ pub fn match_static(msrc: &str, blobstart: usize, blobend: usize,
 }
 
 fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
-                 searchstr: &str, filepath: &Path, search_type: SearchType,
-                 local: bool, pattern: &str, mtype: MatchType) -> Vec<Match> {
+                     searchstr: &str, filepath: &Path, search_type: SearchType,
+                     local: bool, pattern: &str, mtype: MatchType) -> Vec<Match> {
     let mut out = Vec::new();
     let blob = &msrc[blobstart..blobend];
     if blob.starts_with(pattern) && txt_matches(search_type, searchstr, blob) {
@@ -161,8 +161,8 @@ fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
 }
 
 pub fn match_if_let(msrc: &str, blobstart: usize, blobend: usize,
-                 searchstr: &str, filepath: &Path, search_type: SearchType,
-                 local: bool) -> Vec<Match> {
+                    searchstr: &str, filepath: &Path, search_type: SearchType,
+                    local: bool) -> Vec<Match> {
     match_pattern_let(msrc, blobstart, blobend, searchstr, filepath,
                       search_type, local, "if let ", IfLet)
 }
@@ -231,7 +231,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
     res
 }
 
-pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
+pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
                  searchstr: &str, filepath: &Path, search_type: SearchType,
                  local: bool) -> Option<Match> {
     let blob = &msrc[blobstart..blobend];
@@ -283,8 +283,8 @@ pub fn match_mod(msrc: &str, blobstart: usize, blobend: usize,
 }
 
 pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize,
-                searchstr: &str, filepath: &Path, search_type: SearchType,
-                local: bool) -> Option<Match> {
+                    searchstr: &str, filepath: &Path, search_type: SearchType,
+                    local: bool) -> Option<Match> {
     let blob = &msrc[blobstart..blobend];
     if let Some(start) = find_keyword(blob, "struct", searchstr, search_type, local) {
         let l = match search_type {
