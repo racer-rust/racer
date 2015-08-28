@@ -118,25 +118,30 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                 if txt_matches(ExactMatch, searchstr, &decl) {
                     debug!("impl decl {}", decl);
                     let implres = ast::parse_impl(decl);
+                    let is_trait_impl = implres.trait_path.is_some();
 
                     implres.name_path.map(|name_path| {
                         name_path.segments.last().map(|name| {
-                            let m = Match {
-                                       matchstr: name.name.clone(),
-                                       filepath: filepath.to_path_buf(),
-                                       point: pos + start + 5,
-                                       local: local,
-                                       mtype: Impl,
-                                       contextstr: "".into(),
-                                       generic_args: Vec::new(),
-                                       generic_types: Vec::new()
-                            };
-                            out.push(m);
+                            if symbol_matches(ExactMatch, searchstr, &name.name) {
+                                let m = Match {
+                                    matchstr: name.name.clone(),
+                                    filepath: filepath.to_path_buf(),
+                                    point: pos + start + 5,
+                                    // items in trait impls have no "pub" but are
+                                    // still accessible from other modules
+                                    local: local || is_trait_impl,
+                                    mtype: Impl,
+                                    contextstr: "".into(),
+                                    generic_args: Vec::new(),
+                                    generic_types: Vec::new()
+                                };
+                                out.push(m);
+                            }
                         });
                     });
 
                     // find trait
-                    if include_traits && implres.trait_path.is_some() {
+                    if include_traits && is_trait_impl {
                         let trait_path = implres.trait_path.unwrap();
                         let m = resolve_path(&trait_path,
                                              filepath, pos + start, ExactMatch, TypeNamespace,
@@ -1035,7 +1040,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
                         let pathseg = core::PathSegment{name: searchstr.to_owned(),
                                          types: Vec::new()};
                         debug!("about to search impl scope...");
-                        for m in search_next_scope(m.point, &pathseg, &m.filepath, search_type, false, namespace, session) {
+                        for m in search_next_scope(m.point, &pathseg, &m.filepath, search_type, m.local, namespace, session) {
                             out.push(m);
                         }
                     };
