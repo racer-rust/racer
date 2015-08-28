@@ -230,6 +230,8 @@ pub struct Session {
     file_cache: FileCache                 // cache for file contents
 }
 
+pub type SessionRef<'s> = &'s Session;
+
 impl Session {
     pub fn from_path(query_path: &path::Path, substitute_file: &path::Path) -> Session {
         Session {
@@ -284,7 +286,7 @@ impl Session {
 }
 
 
-pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> vec::IntoIter<Match> {
+pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session: SessionRef) -> vec::IntoIter<Match> {
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = &src[start..pos];
 
@@ -325,11 +327,11 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session:
     out.into_iter()
 }
 
-pub fn find_definition(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> Option<Match> {
+pub fn find_definition(src: &str, filepath: &path::Path, pos: usize, session: SessionRef) -> Option<Match> {
     find_definition_(src, filepath, pos, session)
 }
 
-pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> Option<Match> {
+pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: SessionRef) -> Option<Match> {
     let (start, end) = scopes::expand_search_expr(src, pos);
     let expr = &src[start..end];
 

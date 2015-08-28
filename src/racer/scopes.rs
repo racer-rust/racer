@@ -1,5 +1,5 @@
 use {core, ast, codecleaner, codeiter, typeinf, util};
-use core::Session;
+use core::SessionRef;
 
 use std::iter::Iterator;
 use std::path::Path;
@@ -289,11 +289,10 @@ pub fn point_to_coords(src: &str, point: usize) -> (usize, usize) {
     (nlines, point - linestart)
 }
 
-pub fn point_to_coords_from_file(path: &Path, point: usize, session: &Session) -> Option<(usize, usize)> {
+pub fn point_to_coords_from_file(path: &Path, point: usize, session: SessionRef) -> Option<(usize, usize)> {
     let mut lineno = 0;
     let mut p = 0;
-    for line_r in session.load_file(path).lines() {
-        let line = line_r;
+    for line in session.load_file(path).lines() {
         lineno += 1;
         if point < (p + line.len()) {
             return Some((lineno, point - p));

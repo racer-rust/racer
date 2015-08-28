@@ -1,5 +1,5 @@
-use {core, scopes, typeinf, ast};
-use core::{Match, PathSegment};
+use {scopes, typeinf, ast};
+use core::{Match, PathSegment, SessionRef};
 use util::{symbol_matches, txt_matches, find_ident_end, is_ident_char, char_at};
 use nameres::{get_module_file, get_crate_file, resolve_path};
 use core::SearchType::{self, StartsWith, ExactMatch};
@@ -16,7 +16,7 @@ pub type MChain<T> = iter::Chain<T, MIter>;
 pub fn match_types(src: &str, blobstart: usize, blobend: usize,
                    searchstr: &str, filepath: &Path,
                    search_type: SearchType,
-                   local: bool, session: &core::Session) -> iter::Chain<MChain<MChain<MChain<MChain<MChain<MIter>>>>>, vec::IntoIter<Match>> {
+                   local: bool, session: SessionRef) -> iter::Chain<MChain<MChain<MChain<MChain<MChain<MIter>>>>>, vec::IntoIter<Match>> {
     let it = match_extern_crate(src, blobstart, blobend, searchstr, filepath, search_type, session).into_iter();
     let it = it.chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_struct(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
@@ -180,7 +180,7 @@ pub fn first_line(blob: &str) -> String {
 
 pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
                           searchstr: &str, filepath: &Path, search_type: SearchType,
-                          session: &core::Session) -> Option<Match> {
+                          session: SessionRef) -> Option<Match> {
     let mut res = None;
     let blob = &msrc[blobstart..blobend];
 
@@ -431,8 +431,8 @@ pub fn match_enum(msrc: &str, blobstart: usize, blobend: usize,
 thread_local!(static ALREADY_GLOBBING: Cell<Option<bool>> = Cell::new(None));
 
 pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
-             searchstr: &str, filepath: &Path, search_type: SearchType,
-             local: bool, session: &core::Session) -> Vec<Match> {
+                 searchstr: &str, filepath: &Path, search_type: SearchType,
+                 local: bool, session: SessionRef) -> Vec<Match> {
     let mut out = Vec::new();
     let blob = &msrc[blobstart..blobend];
 
@@ -500,13 +500,13 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                     }
                 }
             } else if ident == "" {   // i.e. no 'as'. e.g. 'use foo::{bar, baz}'
-                // if searching for a symbol and the last path segment 
+                // if searching for a symbol and the last path segment
                 // matches the symbol then find the fqn
                 if len == 1 && path.segments[0].name == searchstr {
                     // is an exact match of a single use stmt.
                     // Do nothing because this will be picked up by the module
                     // search in a bit.
-                } else if symbol_matches(search_type, searchstr, 
+                } else if symbol_matches(search_type, searchstr,
                                          &path.segments.last().unwrap().name) {
                     // last path segment matches the path. find it!
                     for m in resolve_path(&path, filepath, blobstart, ExactMatch, BothNamespaces, session) {
