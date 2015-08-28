@@ -12,6 +12,7 @@ use syntex_syntax::parse::parser::Parser;
 use syntex_syntax::parse::{lexer, ParseSess};
 use syntex_syntax::ptr::P;
 use syntex_syntax::visit::{self, Visitor};
+use syntex_syntax::diagnostic::{ColorConfig, Handler, SpanHandler};
 
 // This code ripped from libsyntax::util::parser_testing
 pub fn string_to_parser(ps: &ParseSess, source_str: String) -> Option<Parser> {
@@ -22,7 +23,10 @@ pub fn string_to_parser(ps: &ParseSess, source_str: String) -> Option<Parser> {
 }
 
 pub fn with_error_checking_parse<F, T>(s: String, f: F) -> Option<T> where F: Fn(&mut Parser) -> Option<T> {
-    let ps = ParseSess::new();
+    let sh = SpanHandler::new(Handler::new(ColorConfig::Never, None, false),
+                              codemap::CodeMap::new());
+    let ps = ParseSess::with_span_handler(sh);
+
     let mut p = match string_to_parser(&ps, s) {
         Some(p) => p,
         None => return None
