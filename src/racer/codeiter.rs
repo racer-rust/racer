@@ -14,48 +14,50 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
     fn next(&mut self) -> Option<(usize, usize)> {
         let src_bytes = self.src.as_bytes();
         let mut enddelim = b';';
-        let mut bracelevel = 0u16;
-        let mut parenlevel = 0i32;
+        let mut bracelevel = 0isize;
+        let mut parenlevel = 0isize;
         let mut start = self.pos;
+        let mut pos = self.pos;
 
         // loop on all code_chunks until we find a relevant open/close pattern
         loop {
             // do we need the next chunk?
-            if self.end == self.pos {
+            if self.end == pos {
                 // get the next chunk of code
                 match self.it.next() {
                     Some((ch_start, ch_end)) => {
                         self.end = ch_end;
-                        if start == self.pos { start = ch_start; }
-                        self.pos = ch_start;
+                        if start == pos { start = ch_start; }
+                        pos = ch_start;
                     }
                     None => {
                         // no more chunks. finished
+                        self.pos = pos;
                         return if start < self.end { Some((start, self.end)) }
                                else { None }
                     }
                 }
             }
 
-            if start == self.pos {
+            if start == pos {
                 // if this is a new stmt block, skip the whitespace
-                for &b in &src_bytes[self.pos..self.end] {
+                for &b in &src_bytes[pos..self.end] {
                     match b {
-                        b' ' | b'\r' | b'\n' | b'\t' => { self.pos += 1; },
+                        b' ' | b'\r' | b'\n' | b'\t' => { pos += 1; },
                         _ => { break; }
                     }
                 }
-                start = self.pos;
+                start = pos;
 
                 // test attribute   #[foo = bar]
-                if self.pos<self.end && src_bytes[self.pos] == b'#' {
+                if pos < self.end && src_bytes[pos] == b'#' {
                     enddelim = b']'
                 };
             }
 
             // iterate through the chunk, looking for stmt end
-            for &b in &src_bytes[self.pos..self.end] {
-                self.pos += 1;
+            for &b in &src_bytes[pos..self.end] {
+                pos += 1;
 
                 match b {
                     b'(' => { parenlevel += 1; },
@@ -64,22 +66,25 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
                         // if we are top level and stmt is not a 'use' then
                         // closebrace finishes the stmt
                         if bracelevel == 0 && parenlevel == 0
-                            && !(is_a_use_stmt(self.src, start, self.pos)) {
+                            && !is_a_use_stmt(src_bytes, start, pos) {
                             enddelim = b'}';
                         }
                         bracelevel += 1;
                     },
                     b'}' => {
                         // have we reached the end of the scope?
-                        if bracelevel == 0 { return None; }
+                        if bracelevel == 0 {
+                            self.pos = pos;
+                            return None;
+                        }
                         bracelevel -= 1;
                     },
                     b'!' => {
                         // macro if followed by at least one space or (
                         // FIXME: test with boolean 'not' expression
                         if parenlevel == 0 && bracelevel == 0
-                            && self.pos < self.end && (self.pos-start) > 1 {
-                            match src_bytes[self.pos] {
+                            && pos < self.end && (pos-start) > 1 {
+                            match src_bytes[pos] {
                                 b' ' | b'\r' | b'\n' | b'\t' | b'('  => {
                                     enddelim = b')';
                                 },
@@ -91,16 +96,16 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
                 }
 
                 if enddelim == b && bracelevel == 0 && parenlevel == 0 {
-                    return Some((start, self.pos));
+                    self.pos = pos;
+                    return Some((start, pos));
                 }
             }
         }
     }
 }
 
-fn is_a_use_stmt(src: &str, start: usize, pos: usize) -> bool {
-    let src_bytes = src.as_bytes();
-    let whitespace = " {\t\r\n".as_bytes();
+fn is_a_use_stmt(src_bytes: &[u8], start: usize, pos: usize) -> bool {
+    let whitespace = b" {\t\r\n";
     (pos > 3 && &src_bytes[start..start+3] == b"use" &&
      whitespace.contains(&src_bytes[start+3])) ||
     (pos > 7 && &src_bytes[start..(start+7)] == b"pub use" &&
