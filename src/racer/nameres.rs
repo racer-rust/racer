@@ -9,7 +9,6 @@ use util::{symbol_matches, txt_matches, find_ident_end, path_exists};
 use cargo;
 use std::path::{Path, PathBuf};
 use std::{self, vec};
-use std::rc::Rc;
 
 #[cfg(unix)]
 pub const PATH_SEP: &'static str = ":";
@@ -17,9 +16,8 @@ pub const PATH_SEP: &'static str = ":";
 pub const PATH_SEP: &'static str = ";";
 
 fn search_struct_fields(searchstr: &str, structmatch: &Match,
-                         search_type: SearchType) -> vec::IntoIter<Match> {
-     assert_eq!(&structmatch.filepath, &structmatch.session.query_path);
-    let src = structmatch.session.load_file(&structmatch.filepath);
+                        search_type: SearchType, session: &core::Session) -> vec::IntoIter<Match> {
+    let src = session.load_file(&structmatch.filepath);
     let opoint = scopes::find_stmt_start(&src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
 
@@ -36,8 +34,7 @@ fn search_struct_fields(searchstr: &str, structmatch: &Match,
                                 local: structmatch.local,
                                 mtype: StructField,
                                 contextstr: field,
-                                generic_args: Vec::new(), generic_types: Vec::new(),
-                                session: structmatch.session.clone()
+                                generic_args: Vec::new(), generic_types: Vec::new()
             });
         }
     }
@@ -48,21 +45,19 @@ pub fn search_for_impl_methods(implsearchstr: &str,
                            fieldsearchstr: &str, point: usize,
                            fpath: &Path, local: bool,
                            search_type: SearchType,
-                           session: &Rc<core::Session>) -> vec::IntoIter<Match> {
-    assert_eq!(&fpath, &session.query_path.as_path());
+                           session: &core::Session) -> vec::IntoIter<Match> {
     debug!("searching for impl methods |{}| |{}| {:?}", implsearchstr, fieldsearchstr, fpath.to_str());
 
     let mut out = Vec::new();
 
     for m in search_for_impls(point, implsearchstr, fpath, local, true, session) {
-        assert_eq!(&m.filepath, &m.session.query_path);
         debug!("found impl!! |{:?}| looking for methods", m);
-        let src = m.session.load_file(&m.filepath);
+        let src = session.load_file(&m.filepath);
 
         // find the opening brace and skip to it.
         (&src[m.point..]).find("{").map(|n| {
             let point = m.point + n + 1;
-            for m in search_scope_for_methods(point, &src, fieldsearchstr, &m.filepath, search_type, &m.session) {
+            for m in search_scope_for_methods(point, &src, fieldsearchstr, &m.filepath, search_type) {
                 out.push(m);
             }
         });
@@ -70,10 +65,8 @@ pub fn search_for_impl_methods(implsearchstr: &str,
     out.into_iter()
 }
 
-fn search_scope_for_methods(point: usize, src:&str, searchstr:&str, filepath:&Path,
-                      search_type: SearchType,
-                      session: &Rc<core::Session>) -> vec::IntoIter<Match> {
-    assert_eq!(&filepath, &session.query_path.as_path());
+fn search_scope_for_methods(point: usize, src: &str, searchstr: &str, filepath: &Path,
+                            search_type: SearchType) -> vec::IntoIter<Match> {
     debug!("searching scope for methods {} |{}| {:?}", point, searchstr, filepath.to_str());
 
     let scopesrc = &src[point..];
@@ -98,8 +91,7 @@ fn search_scope_for_methods(point: usize, src:&str, searchstr:&str, filepath:&Pa
                            local: true,
                            mtype: Function,
                            contextstr: signature.to_owned(),
-                           generic_args: Vec::new(), generic_types: Vec::new(),
-                           session: session.clone()
+                           generic_args: Vec::new(), generic_types: Vec::new()
                 };
                 out.push(m);
             }
@@ -110,8 +102,7 @@ fn search_scope_for_methods(point: usize, src:&str, searchstr:&str, filepath:&Pa
 
 
 pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: bool, include_traits: bool,
-                        session: &Rc<core::Session>) -> vec::IntoIter<Match> {
-    assert_eq!(&filepath, &session.query_path.as_path());
+                        session: &core::Session) -> vec::IntoIter<Match> {
     debug!("search_for_impls {}, {}, {:?}", pos, searchstr, filepath.to_str());
     let s = session.load_file(filepath);
     let src = &s[pos..];
@@ -138,8 +129,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                                        mtype: Impl,
                                        contextstr: "".into(),
                                        generic_args: Vec::new(),
-                                       generic_types: Vec::new(),
-                                       session: session.clone()
+                                       generic_types: Vec::new()
                             };
                             out.push(m);
                         });
@@ -150,7 +140,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                         let trait_path = implres.trait_path.unwrap();
                         let m = resolve_path(&trait_path,
                                              filepath, pos + start, ExactMatch, TypeNamespace,
-                                             &session).nth(0);
+                                             session).nth(0);
                         debug!("found trait |{:?}| {:?}", trait_path, m);
                         m.map(|m| out.push(m));
                     }
@@ -163,16 +153,14 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
 
 // scope headers include fn decls, if let, while let etc..
 fn search_scope_headers(point: usize, scopestart: usize, msrc: &str, searchstr: &str,
-                        filepath: &Path, search_type: SearchType,
-                        session: &Rc<core::Session>) -> vec::IntoIter<Match> {
-    assert_eq!(&filepath, &session.query_path.as_path());
+                        filepath: &Path, search_type: SearchType) -> vec::IntoIter<Match> {
     debug!("search_scope_headers for |{}| pt: {}", searchstr, scopestart);
     if let Some(stmtstart) = scopes::find_stmt_start(msrc, scopestart) {
         let preblock = &msrc[stmtstart..scopestart];
         debug!("PHIL search_scope_headers preblock is |{}|", preblock);
 
         if preblock.starts_with("fn") || preblock.starts_with("pub fn") {
-            return search_fn_args(stmtstart, scopestart, msrc, searchstr, filepath, search_type, true, &session);
+            return search_fn_args(stmtstart, scopestart, msrc, searchstr, filepath, search_type, true);
 
         // 'if let' can be an expression, so might not be at the start of the stmt
         } else if let Some(n) = preblock.find("if let") {
@@ -180,7 +168,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: &str, searchstr: 
             let s = (&msrc[ifletstart..scopestart+1]).to_owned() + "}";
             if txt_matches(search_type, searchstr, &s) {
                 let mut out = matchers::match_if_let(&s, 0, s.len(), searchstr,
-                                                     filepath, search_type, true, &session);
+                                                     filepath, search_type, true);
                 for m in &mut out {
                     m.point += ifletstart;
                 }
@@ -237,8 +225,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: &str, searchstr: 
                                     mtype: MatchArm,
                                     contextstr: lhs.trim().to_owned(),
                                     generic_args: Vec::new(),
-                                    generic_types: Vec::new(),
-                                    session: session.clone()
+                                    generic_types: Vec::new()
                     });
                     if let SearchType::ExactMatch = search_type {
                         break;
@@ -267,11 +254,9 @@ fn does_it() {
     debug!("PHIL res is |{}|",res);
 }
 
-fn search_fn_args(fnstart: usize, open_brace_pos: usize, msrc:&str, searchstr:&str,
-                   filepath:&Path,
-                   search_type: SearchType, local: bool,
-                   session: &Rc<core::Session>) -> vec::IntoIter<Match> {
-    assert_eq!(&filepath, &session.query_path.as_path());
+fn search_fn_args(fnstart: usize, open_brace_pos: usize, msrc: &str,
+                  searchstr: &str, filepath: &Path,
+                  search_type: SearchType, local: bool) -> vec::IntoIter<Match> {
     let mut out = Vec::new();
     let mut fndecl = String::new();
     // wrap in 'impl blah {}' so that methods get parsed correctly too
@@ -296,8 +281,7 @@ fn search_fn_args(fnstart: usize, open_brace_pos: usize, msrc:&str, searchstr:&s
                                 mtype: FnArg,
                                 contextstr: s.to_owned(),
                                 generic_args: Vec::new(),
-                                generic_types: Vec::new(),
-                                session: session.clone()
+                                generic_types: Vec::new()
                 };
                 debug!("search_fn_args matched: {:?}", m);
                 out.push(m);
@@ -316,7 +300,6 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
     let mut v = srcpaths.split(PATH_SEP).collect::<Vec<_>>();
     v.push(currentdir.to_str().unwrap());
     debug!("do_file_search v is {:?}", v);
-    let session = core::Session::from_path(&currentdir, &currentdir);
     for srcpath in v.into_iter() {
         if let Ok(iter) = std::fs::read_dir(&Path::new(srcpath)) {
             for fpath_buf in iter.filter_map(|res| res.ok().map(|entry| entry.path())) {
@@ -336,8 +319,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                                        mtype: Module,
                                        contextstr: (&fname[3..]).to_owned(),
                                        generic_args: Vec::new(),
-                                       generic_types: Vec::new(),
-                                       session: session.derived(&filepath)
+                                       generic_types: Vec::new()
                         };
                         out.push(m);
                     }
@@ -356,8 +338,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                                            mtype: Module,
                                            contextstr: filepath.to_str().unwrap().to_owned(),
                                            generic_args: Vec::new(),
-                                           generic_types: Vec::new(),
-                                           session: session.derived(&filepath)
+                                           generic_types: Vec::new()
                             };
                             out.push(m);
                         }
@@ -372,8 +353,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                                        mtype: Module,
                                        contextstr: fpath_buf.to_str().unwrap().to_owned(),
                                        generic_args: Vec::new(),
-                                       generic_types: Vec::new(),
-                                       session: session.derived(fpath_buf.as_path())
+                                       generic_types: Vec::new()
                         };
                         out.push(m);
                     }
@@ -386,8 +366,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
 
 pub fn search_crate_root(pathseg: &core::PathSegment, modfpath: &Path,
                          searchtype: SearchType, namespace: Namespace,
-                         session: &Rc<core::Session>) -> vec::IntoIter<Match> {
-    assert_eq!(&modfpath, &session.query_path.as_path());
+                         session: &core::Session) -> vec::IntoIter<Match> {
     debug!("search_crate_root |{:?}| {:?}", pathseg, modfpath.to_str());
 
     let crateroots = find_possible_crate_root_modules(modfpath.parent().unwrap());
@@ -397,8 +376,7 @@ pub fn search_crate_root(pathseg: &core::PathSegment, modfpath: &Path,
             continue;
         }
         debug!("going to search for {:?} in crateroot {:?}", pathseg, crateroot.to_str());
-        let newsession = session.derived(&crateroot);
-        for m in resolve_name(pathseg, &crateroot, 0, searchtype, namespace, &newsession) {
+        for m in resolve_name(pathseg, &crateroot, 0, searchtype, namespace, session) {
             out.push(m);
             if let ExactMatch = searchtype {
                 break;
@@ -442,8 +420,7 @@ pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<PathBuf> {
 pub fn search_next_scope(mut startpoint: usize, pathseg: &core::PathSegment,
                          filepath:&Path, search_type: SearchType, local: bool,
                          namespace: Namespace,
-                         session: &Rc<core::Session>) -> vec::IntoIter<Match> {
-    assert_eq!(&filepath, &session.query_path.as_path());
+                         session: &core::Session) -> vec::IntoIter<Match> {
     let filesrc = session.load_file(filepath);
     if startpoint != 0 {
         // is a scope inside the file. Point should point to the definition
@@ -509,8 +486,7 @@ pub fn search_scope(start: usize, point: usize, src: &str,
                     pathseg: &core::PathSegment,
                     filepath:&Path, search_type: SearchType, local: bool,
                     namespace: Namespace,
-                    session: &Rc<core::Session>) -> vec::IntoIter<Match> {
-    assert_eq!(&filepath, &session.query_path.as_path());
+                    session: &core::Session) -> vec::IntoIter<Match> {
     let searchstr = &pathseg.name;
     let mut out = Vec::new();
 
@@ -558,7 +534,7 @@ pub fn search_scope(start: usize, point: usize, src: &str,
         for m in matchers::match_let(src, start+blobstart,
                                      start+blobend,
                                      searchstr,
-                                     filepath, search_type, local, session).into_iter() {
+                                     filepath, search_type, local).into_iter() {
             out.push(m);
             if let ExactMatch = search_type {
                 return out.into_iter();
@@ -604,8 +580,7 @@ pub fn search_scope(start: usize, point: usize, src: &str,
                                   mtype: Module,
                                   contextstr: cratepath.to_str().unwrap().to_owned(),
                                   generic_args: Vec::new(),
-                                  generic_types: Vec::new(),
-                                  session: session.derived(&cratepath.as_path())
+                                  generic_types: Vec::new()
                 });
             });
         }
@@ -646,8 +621,7 @@ pub fn search_scope(start: usize, point: usize, src: &str,
 
 fn run_matchers_on_blob(src: &str, start: usize, end: usize, searchstr: &str,
                          filepath: &Path, search_type: SearchType, local: bool,
-                         namespace: Namespace, session: &Rc<core::Session>) -> Vec<Match> {
-    assert_eq!(&filepath, &session.query_path.as_path());
+                         namespace: Namespace, session: &core::Session) -> Vec<Match> {
     let mut out = Vec::new();
     match namespace {
         TypeNamespace =>
@@ -662,7 +636,7 @@ fn run_matchers_on_blob(src: &str, start: usize, end: usize, searchstr: &str,
         ValueNamespace =>
             for m in matchers::match_values(src, start,
                                             end, searchstr,
-                                            filepath, search_type, local, session) {
+                                            filepath, search_type, local) {
                 out.push(m);
                 if let ExactMatch = search_type {
                     return out;
@@ -679,7 +653,7 @@ fn run_matchers_on_blob(src: &str, start: usize, end: usize, searchstr: &str,
             }
             for m in matchers::match_values(src, start,
                                             end, searchstr,
-                                            filepath, search_type, local, session) {
+                                            filepath, search_type, local) {
                 out.push(m);
                 if let ExactMatch = search_type {
                     return out;
@@ -693,8 +667,7 @@ fn run_matchers_on_blob(src: &str, start: usize, end: usize, searchstr: &str,
 fn search_local_scopes(pathseg: &core::PathSegment, filepath: &Path,
                        msrc: &str, point: usize, search_type: SearchType,
                        namespace: Namespace,
-                       session: &Rc<core::Session>) -> vec::IntoIter<Match> {
-    assert_eq!(&filepath, &session.query_path.as_path());
+                       session: &core::Session) -> vec::IntoIter<Match> {
     debug!("search_local_scopes {:?} {:?} {} {:?} {:?}", pathseg, filepath.to_str(), point,
            search_type, namespace);
 
@@ -720,7 +693,7 @@ fn search_local_scopes(pathseg: &core::PathSegment, filepath: &Path,
             let searchstr = &pathseg.name;
 
             // scope headers = fn decls, if let, match, etc..
-            for m in search_scope_headers(point, start, msrc, searchstr, filepath, search_type, session) {
+            for m in search_scope_headers(point, start, msrc, searchstr, filepath, search_type) {
                 out.push(m);
                 if let ExactMatch = search_type {
                     return out.into_iter();
@@ -732,7 +705,7 @@ fn search_local_scopes(pathseg: &core::PathSegment, filepath: &Path,
 }
 
 pub fn search_prelude_file(pathseg: &core::PathSegment, search_type: SearchType,
-                           namespace: Namespace, session: &Rc<core::Session>) -> vec::IntoIter<Match> {
+                           namespace: Namespace, session: &core::Session) -> vec::IntoIter<Match> {
     debug!("search_prelude file {:?} {:?} {:?}", pathseg, search_type, namespace);
 //    debug!("PHIL searching prelude file, backtrace: {}",util::get_backtrace());
 
@@ -749,10 +722,9 @@ pub fn search_prelude_file(pathseg: &core::PathSegment, search_type: SearchType,
     for srcpath in v.into_iter() {
         let filepath = Path::new(srcpath).join("libstd").join("prelude").join("v1.rs");
         if path_exists(&filepath) {
-            let session = session.derived(&filepath);
             let msrc = session.load_file_and_mask_comments(&filepath);
             let is_local = true;
-            for m in search_scope(0, 0, &msrc, pathseg, &filepath, search_type, is_local, namespace, &session) {
+            for m in search_scope(0, 0, &msrc, pathseg, &filepath, search_type, is_local, namespace, session) {
                 out.push(m);
             }
         }
@@ -762,8 +734,7 @@ pub fn search_prelude_file(pathseg: &core::PathSegment, search_type: SearchType,
 
 pub fn resolve_path_with_str(path: &core::Path, filepath: &Path, pos: usize,
                                    search_type: SearchType, namespace: Namespace,
-                                   session: &Rc<core::Session>) -> vec::IntoIter<Match> {
-    assert_eq!(&filepath, &session.query_path.as_path());
+                                   session: &core::Session) -> vec::IntoIter<Match> {
     debug!("resolve_path_with_str {:?}", path);
 
     let mut out = Vec::new();
@@ -785,8 +756,7 @@ pub fn resolve_path_with_str(path: &core::Path, filepath: &Path, pos: usize,
                            mtype: Struct,
                            contextstr: "str".into(),
                            generic_args: Vec::new(),
-                           generic_types: Vec::new(),
-                           session: session.derived(&str_match.filepath)
+                           generic_types: Vec::new()
             };
             out.push(m);
         });
@@ -824,8 +794,7 @@ pub fn is_a_repeat_search(new_search: &Search) -> bool {
 
 pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
                     search_type: SearchType, namespace: Namespace,
-                    session: &Rc<core::Session>) -> vec::IntoIter<Match> {
-    assert_eq!(&filepath, &session.query_path.as_path());
+                    session: &core::Session) -> vec::IntoIter<Match> {
     let mut out = Vec::new();
     let searchstr = &pathseg.name;
 
@@ -844,8 +813,7 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
                         local: false,
                         mtype: Module,
                         contextstr: cratepath.to_str().unwrap().to_owned(),
-                        generic_args: Vec::new(), generic_types: Vec::new(),
-                        session: session.derived(&cratepath)
+                        generic_args: Vec::new(), generic_types: Vec::new()
             });
         });
 
@@ -894,8 +862,7 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
 }
 
 // Get the scope corresponding to super::
-pub fn get_super_scope(filepath: &Path, pos: usize, session: &Rc<core::Session>) -> Option<core::Scope> {
-    assert_eq!(&filepath, &session.query_path.as_path());
+pub fn get_super_scope(filepath: &Path, pos: usize, session: &core::Session) -> Option<core::Scope> {
     let msrc = session.load_file_and_mask_comments(filepath);
     let mut path = scopes::get_local_module_path(&msrc, pos);
     debug!("get_super_scope: path: {:?} filepath: {:?} {} {:?}", path, filepath, pos, session);
@@ -913,13 +880,12 @@ pub fn get_super_scope(filepath: &Path, pos: usize, session: &Rc<core::Session>)
         for filename in &[ "mod.rs", "lib.rs" ] {
             let fpath = moduledir.join(&filename);
             if path_exists(&fpath) {
-                let newsession = session.derived(fpath.as_path());
-                return Some(core::Scope{ filepath: fpath, point: 0, session: newsession })
+                return Some(core::Scope{ filepath: fpath, point: 0 })
             }
         }
         None
     } else if path.len() == 1 {
-        Some(core::Scope{ filepath: filepath.to_path_buf(), point: 0, session: session.clone() })
+        Some(core::Scope{ filepath: filepath.to_path_buf(), point: 0 })
     } else {
         path.pop();
         let path = core::Path::from_svec(false, path);
@@ -928,15 +894,13 @@ pub fn get_super_scope(filepath: &Path, pos: usize, session: &Rc<core::Session>)
                             Namespace::TypeNamespace, session).nth(0)
             .and_then(|m| msrc[m.point..].find("{")
                       .map(|p| core::Scope{ filepath: filepath.to_path_buf(),
-                                             point:m.point + p + 1,
-                                             session: session.clone() }))
+                                             point:m.point + p + 1 }))
     }
 }
 
 pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                     search_type: SearchType, namespace: Namespace,
-                    session: &Rc<core::Session>) -> vec::IntoIter<Match> {
-    assert_eq!(&filepath, &session.query_path.as_path());
+                    session: &core::Session) -> vec::IntoIter<Match> {
     debug!("resolve_path {:?} {:?} {} {:?}", path, filepath.to_str(), pos, search_type);
     let len = path.segments.len();
     if len == 1 {
@@ -957,7 +921,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                 let mut newpath: core::Path = path.clone();
                 newpath.segments.remove(0);
                 return resolve_path(&newpath, &scope.filepath,
-                                    scope.point, search_type, namespace, &scope.session);
+                                    scope.point, search_type, namespace, session);
             } else {
                 // can't find super scope. Return no matches
                 debug!("can't resolve path {:?}, returning no matches", path);
@@ -974,7 +938,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                 Module => {
                     let ref pathseg = path.segments[len-1];
                     debug!("searching a module '{}' for {} (whole path: {:?})", m.matchstr, pathseg.name, path);
-                    for m in search_next_scope(m.point, pathseg, &m.filepath, search_type, false, namespace, &m.session) {
+                    for m in search_next_scope(m.point, pathseg, &m.filepath, search_type, false, namespace, session) {
                         out.push(m);
                     }
                 }
@@ -982,14 +946,14 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                     let ref pathseg = path.segments[len-1];
                     debug!("searching an enum '{}' (whole path: {:?}) searchtype: {:?}", m.matchstr, path, search_type);
 
-                    let filesrc = m.session.load_file(&m.filepath);
+                    let filesrc = session.load_file(&m.filepath);
                     let scopestart = scopes::find_stmt_start(&filesrc, m.point).unwrap();
                     let scopesrc = &filesrc[scopestart..];
                     codeiter::iter_stmts(scopesrc).nth(0).map(|(blobstart,blobend)| {
                         for m in matchers::match_enum_variants(&filesrc,
                                                                scopestart+blobstart,
                                                                scopestart+blobend,
-                                                      &pathseg.name, &m.filepath, search_type, true, &m.session) {
+                                                      &pathseg.name, &m.filepath, search_type, true) {
                             debug!("Found enum variant: {}", m.matchstr);
                             out.push(m);
                         }
@@ -997,14 +961,14 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                 }
                 Struct => {
                     debug!("found a struct. Now need to look for impl");
-                    for m in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, false, &m.session) {
+                    for m in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, false, session) {
                         debug!("found impl!! {:?}", m);
                         let ref pathseg = path.segments[len-1];
-                        let src = m.session.load_file(&m.filepath);
+                        let src = session.load_file(&m.filepath);
                         // find the opening brace and skip to it.
                         (&src[m.point..]).find("{").map(|n| {
                             let point = m.point + n + 1;
-                            for m in search_scope(point, point, &src, pathseg, &m.filepath, search_type, m.local, namespace, &m.session) {
+                            for m in search_scope(point, point, &src, pathseg, &m.filepath, search_type, m.local, namespace, session) {
                                 out.push(m);
                             }
                         });
@@ -1023,8 +987,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
 }
 
 pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_type: SearchType, namespace: Namespace,
-                          session: &Rc<core::Session>) -> vec::IntoIter<Match> {
-    assert_eq!(&filepath, &session.query_path.as_path());
+                          session: &core::Session) -> vec::IntoIter<Match> {
     debug!("do_external_search path {:?} {:?}", path, filepath.to_str());
     let mut out = Vec::new();
     if path.len() == 1 {
@@ -1046,8 +1009,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
                            mtype: Module,
                            contextstr: path.to_str().unwrap().to_owned(),
                            generic_args: Vec::new(),
-                           generic_types: Vec::new(),
-                           session: session.derived(&path)
+                           generic_types: Vec::new()
                        });
         });
     } else {
@@ -1060,20 +1022,20 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
                     let searchstr = path[path.len()-1];
                     let pathseg = core::PathSegment{name: searchstr.to_owned(),
                                          types: Vec::new()};
-                    for m in search_next_scope(m.point, &pathseg, &m.filepath, search_type, false, namespace, &m.session) {
+                    for m in search_next_scope(m.point, &pathseg, &m.filepath, search_type, false, namespace, session) {
                         out.push(m);
                     }
                 }
 
                 Struct => {
                     debug!("found a pub struct. Now need to look for impl");
-                    for m in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, false, &m.session) {
+                    for m in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, false, session) {
                         debug!("found  impl2!! {}", m.matchstr);
                         let searchstr = path[path.len()-1];
                         let pathseg = core::PathSegment{name: searchstr.to_owned(),
                                          types: Vec::new()};
                         debug!("about to search impl scope...");
-                        for m in search_next_scope(m.point, &pathseg, &m.filepath, search_type, false, namespace, &m.session) {
+                        for m in search_next_scope(m.point, &pathseg, &m.filepath, search_type, false, namespace, session) {
                             out.push(m);
                         }
                     };
@@ -1085,13 +1047,14 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
     out.into_iter()
 }
 
-pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: SearchType) -> vec::IntoIter<Match> {
+pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: SearchType,
+                                  session: &core::Session) -> vec::IntoIter<Match> {
     let m = context;
     let mut out = Vec::new();
     match m.mtype {
         Struct => {
             debug!("got a struct, looking for fields and impl methods!! {}", m.matchstr);
-            for m in search_struct_fields(searchstr, &m, search_type) {
+            for m in search_struct_fields(searchstr, &m, search_type, session) {
                 out.push(m);
             }
             for m in search_for_impl_methods(&m.matchstr,
@@ -1100,7 +1063,7 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
                                     &m.filepath,
                                     m.local,
                                     search_type,
-                                    &m.session) {
+                                    session) {
                 out.push(m);
             }
         },
@@ -1112,16 +1075,16 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
                                     &m.filepath,
                                     m.local,
                                     search_type,
-                                    &m.session) {
+                                    session) {
                 out.push(m);
             }
         },
         Trait => {
             debug!("got a trait, looking for methods {}", m.matchstr);
-            let src = m.session.load_file(&m.filepath);
+            let src = session.load_file(&m.filepath);
             (&src[m.point..]).find("{").map(|n| {
                 let point = m.point + n + 1;
-                for m in search_scope_for_methods(point, &src, searchstr, &m.filepath, search_type, &m.session) {
+                for m in search_scope_for_methods(point, &src, searchstr, &m.filepath, search_type) {
                     out.push(m);
                 }
             });

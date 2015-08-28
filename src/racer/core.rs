@@ -61,7 +61,6 @@ pub struct Match {
     pub contextstr: String,
     pub generic_args: Vec<String>,
     pub generic_types: Vec<PathSearch>,  // generic types are evaluated lazily
-    pub session: Rc<Session>,
 }
 
 
@@ -76,14 +75,13 @@ impl Match {
             contextstr: self.contextstr.clone(),
             generic_args: self.generic_args.clone(),
             generic_types: generic_types,
-            session: self.session.clone()
         }
     }
 }
 
 impl fmt::Debug for Match {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Match [{:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?} |{}|, {:?}]",
+        write!(f, "Match [{:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?} |{}|]",
                self.matchstr,
                self.filepath.to_str(),
                self.point,
@@ -91,30 +89,27 @@ impl fmt::Debug for Match {
                self.mtype,
                self.generic_args,
                self.generic_types,
-               self.contextstr,
-               self.session)
+               self.contextstr)
     }
 }
 
 #[derive(Clone)]
 pub struct Scope {
     pub filepath: path::PathBuf,
-    pub point: usize,
-    pub session: Rc<Session>
+    pub point: usize
 }
 
 impl Scope {
     pub fn from_match(m: &Match) -> Scope {
-        Scope{ filepath: m.filepath.clone(), point: m.point, session: m.session.clone() }
+        Scope{ filepath: m.filepath.clone(), point: m.point }
     }
 }
 
 impl fmt::Debug for Scope {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Scope [{:?}, {:?}, {:?}]",
+        write!(f, "Scope [{:?}, {:?}]",
                self.filepath.to_str(),
-               self.point,
-               self.session)
+               self.point)
     }
 }
 
@@ -196,17 +191,15 @@ pub struct PathSegment {
 pub struct PathSearch {
     pub path: Path,
     pub filepath: path::PathBuf,
-    pub point: usize,
-    pub session: Rc<Session>
+    pub point: usize
 }
 
 impl fmt::Debug for PathSearch {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Search [{:?}, {:?}, {:?}, {:?}]",
+        write!(f, "Search [{:?}, {:?}, {:?}]",
                self.path,
                self.filepath.to_str(),
-               self.point,
-               self.session)
+               self.point)
     }
 }
 
@@ -232,26 +225,18 @@ impl fmt::Debug for FileCache {
 
 #[derive(Debug)]
 pub struct Session {
-    pub query_path: path::PathBuf,            // the input path of the query
-    pub substitute_file: path::PathBuf,       // the temporary file
-    file_cache: Rc<FileCache>                 // cache for file contents
+    query_path: path::PathBuf,            // the input path of the query
+    substitute_file: path::PathBuf,       // the temporary file
+    file_cache: FileCache                 // cache for file contents
 }
 
 impl Session {
-    pub fn from_path(query_path: &path::Path, substitute_file: &path::Path) -> Rc<Session> {
-        Rc::new(Session {
+    pub fn from_path(query_path: &path::Path, substitute_file: &path::Path) -> Session {
+        Session {
             query_path: query_path.to_path_buf(),
             substitute_file: substitute_file.to_path_buf(),
-            file_cache: Rc::new(FileCache::new())
-        })
-    }
-
-    pub fn derived(&self, path: &path::Path) -> Rc<Session> {
-        Rc::new(Session {
-            query_path: path.to_path_buf(),
-            substitute_file: path.to_path_buf(),
-            file_cache: self.file_cache.clone()
-        })
+            file_cache: FileCache::new()
+        }
     }
 
     pub fn open_file(&self, path: &path::Path) -> io::Result<File> {
@@ -299,7 +284,7 @@ impl Session {
 }
 
 
-pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session: &Rc<Session>) -> vec::IntoIter<Match> {
+pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> vec::IntoIter<Match> {
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = &src[start..pos];
 
@@ -330,7 +315,7 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session:
             debug!("complete_from_file context is {:?}", context);
             context.map(|ty| {
                 if let Ty::TyMatch(m) = ty {
-                    for m in nameres::search_for_field_or_method(m, searchstr, SearchType::StartsWith) {
+                    for m in nameres::search_for_field_or_method(m, searchstr, SearchType::StartsWith, session) {
                         out.push(m)
                     }
                 }
@@ -340,11 +325,11 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session:
     out.into_iter()
 }
 
-pub fn find_definition(src: &str, filepath: &path::Path, pos: usize, session: &Rc<Session>) -> Option<Match> {
+pub fn find_definition(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> Option<Match> {
     find_definition_(src, filepath, pos, session)
 }
 
-pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &Rc<Session>) -> Option<Match> {
+pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> Option<Match> {
     let (start, end) = scopes::expand_search_expr(src, pos);
     let expr = &src[start..end];
 
@@ -379,7 +364,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &
                 // for now, just handle matches
                 match ty {
                     Ty::TyMatch(m) => {
-                        nameres::search_for_field_or_method(m, searchstr, SearchType::ExactMatch).nth(0)
+                        nameres::search_for_field_or_method(m, searchstr, SearchType::ExactMatch, session).nth(0)
                     }
                     _ => None
                 }

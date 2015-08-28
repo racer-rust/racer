@@ -43,8 +43,7 @@ fn generates_skeleton_for_mod() {
     assert_eq!("mod foo {};", out);
 }
 
-fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<core::Ty> {
-    assert_eq!(&m.filepath, &m.session.query_path);
+fn get_type_of_self_arg(m: &Match, msrc: &str, session: &core::Session) -> Option<core::Ty> {
     debug!("get_type_of_self_arg {:?}", m);
     scopes::find_impl_start(msrc, m.point, 0).and_then(|start| {
         let decl = generate_skeleton_for_parsing(&msrc[start..]);
@@ -56,7 +55,7 @@ fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<core::Ty> {
             resolve_path_with_str(&implres.name_path.expect("failed parsing impl name"),
                                   &m.filepath, start,
                                   ExactMatch, TypeNamespace,
-                                  &m.session).nth(0).map(core::Ty::TyMatch)
+                                  session).nth(0).map(core::Ty::TyMatch)
         } else {
             // // must be a trait
             ast::parse_trait(decl).name.and_then(|name| {
@@ -67,18 +66,16 @@ fn get_type_of_self_arg(m: &Match, msrc: &str) -> Option<core::Ty> {
                            local: m.local,
                            mtype: core::MatchType::Trait,
                            contextstr: matchers::first_line(&msrc[start..]),
-                           generic_args: Vec::new(), generic_types: Vec::new(),
-                           session: m.session.clone()
+                           generic_args: Vec::new(), generic_types: Vec::new()
                 }))
             })
         }
     })
 }
 
-fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<core::Ty> {
-    assert_eq!(&m.filepath, &m.session.query_path);
+fn get_type_of_fnarg(m: &Match, msrc: &str, session: &core::Session) -> Option<core::Ty> {
     if m.matchstr == "self" {
-        return get_type_of_self_arg(m, msrc);
+        return get_type_of_self_arg(m, msrc, session);
     }
 
     let stmtstart = scopes::find_stmt_start(msrc, m.point).unwrap();
@@ -92,13 +89,12 @@ fn get_type_of_fnarg(m: &Match, msrc: &str) -> Option<core::Ty> {
         s.push_str(&blob[..(find_start_of_function_body(blob)+1)]);
         s.push_str("}}");
         let argpos = m.point - (stmtstart+start) + impl_header_len;
-        return ast::parse_fn_arg_type(s, argpos, core::Scope::from_match(m));
+        return ast::parse_fn_arg_type(s, argpos, core::Scope::from_match(m), session);
     }
     None
 }
 
-fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<core::Ty> {
-    assert_eq!(&m.filepath, &m.session.query_path);
+fn get_type_of_let_expr(m: &Match, msrc: &str, session: &core::Session) -> Option<core::Ty> {
     // ASSUMPTION: this is being called on a let decl
     let point = scopes::find_stmt_start(msrc, m.point).unwrap();
     let src = &msrc[point..];
@@ -108,15 +104,14 @@ fn get_type_of_let_expr(m: &Match, msrc: &str) -> Option<core::Ty> {
         debug!("get_type_of_let_expr calling parse_let |{}|", blob);
 
         let pos = m.point - point - start;
-        let scope = core::Scope{ filepath: m.filepath.clone(), point: m.point, session: m.session.clone()};
-        ast::get_let_type(blob.to_owned(), pos, scope)
+        let scope = core::Scope{ filepath: m.filepath.clone(), point: m.point };
+        ast::get_let_type(blob.to_owned(), pos, scope, session)
     } else {
         None
     }
 }
 
-fn get_type_of_if_let_expr(m: &Match, msrc: &str) -> Option<core::Ty> {
-    assert_eq!(&m.filepath, &m.session.query_path);
+fn get_type_of_if_let_expr(m: &Match, msrc: &str, session: &core::Session) -> Option<core::Ty> {
     // ASSUMPTION: this is being called on an if let decl
     let stmtstart = scopes::find_stmt_start(msrc, m.point).unwrap();
     let stmt = &msrc[stmtstart..];
@@ -129,18 +124,17 @@ fn get_type_of_if_let_expr(m: &Match, msrc: &str) -> Option<core::Ty> {
         debug!("get_type_of_if_let_expr calling parse_if_let |{}|", blob);
 
         let pos = m.point - stmtstart - point - start;
-        let scope = core::Scope{ filepath: m.filepath.clone(), point: m.point, session: m.session.clone()};
-        ast::get_let_type(blob.to_owned(), pos, scope)
+        let scope = core::Scope{ filepath: m.filepath.clone(), point: m.point };
+        ast::get_let_type(blob.to_owned(), pos, scope, session)
     } else {
         None
     }
 }
 
-pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<core::Ty> {
-    assert_eq!(&structmatch.filepath, &structmatch.session.query_path);
+pub fn get_struct_field_type(fieldname: &str, structmatch: &Match, session: &core::Session) -> Option<core::Ty> {
     assert!(structmatch.mtype == core::MatchType::Struct);
 
-    let src = structmatch.session.load_file(&structmatch.filepath);
+    let src = session.load_file(&structmatch.filepath);
 
     let opoint = scopes::find_stmt_start(&src, structmatch.point);
     let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
@@ -154,9 +148,8 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match) -> Option<cor
     None
 }
 
-pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match) -> Option<core::Ty> {
-    assert_eq!(&structmatch.filepath, &structmatch.session.query_path);
-    let src = structmatch.session.load_file(&structmatch.filepath);
+pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match, session: &core::Session) -> Option<core::Ty> {
+    let src = session.load_file(&structmatch.filepath);
 
     let structsrc = if let core::MatchType::EnumVariant = structmatch.mtype {
         // decorate the enum variant src to make it look like a tuple struct
@@ -190,15 +183,14 @@ pub fn get_first_stmt(src: &str) -> &str {
     }
 }
 
-pub fn get_type_of_match(m: Match, msrc: &str) -> Option<core::Ty> {
-    assert_eq!(&m.filepath, &m.session.query_path);
+pub fn get_type_of_match(m: Match, msrc: &str, session: &core::Session) -> Option<core::Ty> {
     debug!("get_type_of match {:?} ", m);
 
     match m.mtype {
-        core::MatchType::Let => get_type_of_let_expr(&m, msrc),
-        core::MatchType::IfLet => get_type_of_if_let_expr(&m, msrc),
-        core::MatchType::FnArg => get_type_of_fnarg(&m, msrc),
-        core::MatchType::MatchArm => get_type_from_match_arm(&m, msrc),
+        core::MatchType::Let => get_type_of_let_expr(&m, msrc, session),
+        core::MatchType::IfLet => get_type_of_if_let_expr(&m, msrc, session),
+        core::MatchType::FnArg => get_type_of_fnarg(&m, msrc, session),
+        core::MatchType::MatchArm => get_type_from_match_arm(&m, msrc, session),
         core::MatchType::Struct => Some(core::Ty::TyMatch(m)),
         core::MatchType::Enum => Some(core::Ty::TyMatch(m)),
         core::MatchType::Function => Some(core::Ty::TyMatch(m)),
@@ -211,9 +203,7 @@ macro_rules! otry {
     ($e:expr) => (match $e { Some(e) => e, None => return None })
 }
 
-pub fn get_type_from_match_arm(m: &Match, msrc: &str) -> Option<core::Ty> {
-    assert_eq!(&m.filepath, &m.session.query_path);
-
+pub fn get_type_from_match_arm(m: &Match, msrc: &str, session: &core::Session) -> Option<core::Ty> {
     // We construct a faux match stmt and then parse it. This is because the
     // match stmt may be incomplete (half written) in the real code
 
@@ -242,21 +232,18 @@ pub fn get_type_from_match_arm(m: &Match, msrc: &str) -> Option<core::Ty> {
                             core::Scope {
                                 filepath: m.filepath.clone(),
                                 point: matchstart,
-                                session: m.session.clone()
-                            })
+                            }, session)
 }
 
-pub fn get_function_declaration(fnmatch: &Match) -> String {
-    assert_eq!(&fnmatch.filepath, &fnmatch.session.query_path);
-    let src = fnmatch.session.load_file(&fnmatch.filepath);
+pub fn get_function_declaration(fnmatch: &Match, session: &core::Session) -> String {
+    let src = session.load_file(&fnmatch.filepath);
     let start = scopes::find_stmt_start(&src, fnmatch.point).unwrap();
     let end = (&src[start..]).find('{').unwrap();
     (&src[start..end+start]).to_owned()
 }
 
-pub fn get_return_type_of_function(fnmatch: &Match) -> Option<core::Ty> {
-    assert_eq!(&fnmatch.filepath, &fnmatch.session.query_path);
-    let src = fnmatch.session.load_file(&fnmatch.filepath);
+pub fn get_return_type_of_function(fnmatch: &Match, session: &core::Session) -> Option<core::Ty> {
+    let src = session.load_file(&fnmatch.filepath);
     let point = scopes::find_stmt_start(&src, fnmatch.point).unwrap();
     (&src[point..]).find("{").and_then(|n| {
         // wrap in "impl blah { }" so that methods get parsed correctly too
