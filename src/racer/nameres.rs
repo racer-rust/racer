@@ -179,25 +179,23 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: Src, searchstr: &
                 }
                 return out.into_iter();
             }
-        } else if let Some(n) = preblock.find("while let") {
-            let whileletstart = stmtstart + n;
-            let src = (&msrc[whileletstart..scopestart+1]).to_owned() + "}";
-            if txt_matches(search_type, searchstr, &src) {
+        } else if preblock.starts_with("while let") {
+            let src = (&msrc[stmtstart..scopestart+1]).to_owned() + "}";
+            if txt_matches(search_type, searchstr, &src[..scopestart]) {
                 let mut out = matchers::match_while_let(&src, 0, src.len(), searchstr,
                                                         filepath, search_type, true);
                 for m in &mut out {
-                    m.point += whileletstart;
+                    m.point += stmtstart;
                 }
                 return out.into_iter();
             }
-        } else if let Some(n) = preblock.rfind("for ") {
-            let forstart = stmtstart + n;
-            let src = (&msrc[forstart..scopestart+1]).to_owned() + "}";
-            if txt_matches(search_type, searchstr, &msrc[forstart..scopestart]) {
+        } else if preblock.starts_with("for ") {
+            let src = (&msrc[stmtstart..scopestart+1]).to_owned() + "}";
+            if txt_matches(search_type, searchstr, &msrc[..scopestart]) {
                 let mut out = matchers::match_for(&src, 0, src.len(), searchstr,
                                                   filepath, search_type, true);
                 for m in &mut out {
-                    m.point += forstart;
+                    m.point += stmtstart;
                 }
                 return out.into_iter();
             }
