@@ -1,6 +1,6 @@
 use core::{Src, CodeChunkIter};
 
-use std::iter::Iterator;
+use std::iter::{Fuse, Iterator};
 
 pub struct StmtIndicesIter<'a> {
     src: Src<'a>,
@@ -114,8 +114,8 @@ fn is_a_use_stmt(src_bytes: &[u8], start: usize, pos: usize) -> bool {
      whitespace.contains(&src_bytes[start+7]))
 }
 
-pub fn iter_stmts(src: Src) -> StmtIndicesIter {
-    StmtIndicesIter{ src: src, it: src.chunk_indices(), pos: 0, end: 0 }
+pub fn iter_stmts(src: Src) -> Fuse<StmtIndicesIter> {
+    StmtIndicesIter{ src: src, it: src.chunk_indices(), pos: 0, end: 0 }.fuse()
 }
 
 #[cfg(test)]

@@ -31,8 +31,9 @@ pub fn generate_skeleton_for_parsing(src: &str) -> String {
 pub fn first_param_is_self(blob: &str) -> bool {
     blob.find("(").map_or(false, |start| {
         let end = scopes::find_closing_paren(blob, start+1);
-        debug!("searching fn args: |{}| {}", &blob[(start+1)..end], txt_matches(ExactMatch, "self", &blob[(start+1)..end]));
-        txt_matches(ExactMatch, "self", &blob[(start+1)..end])
+        let is_self = txt_matches(ExactMatch, "self", &blob[(start+1)..end]);
+        debug!("searching fn args: |{}| {}", &blob[(start+1)..end], is_self);
+        is_self
     })
 }
 
