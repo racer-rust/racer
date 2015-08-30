@@ -111,16 +111,16 @@ fn get_type_of_let_expr(m: &Match, msrc: Src, session: SessionRef) -> Option<cor
     }
 }
 
-fn get_type_of_if_let_expr(m: &Match, msrc: Src, session: SessionRef) -> Option<core::Ty> {
-    // ASSUMPTION: this is being called on an if let decl
+fn get_type_of_let_block_expr(m: &Match, msrc: Src, session: SessionRef, prefix: &str) -> Option<core::Ty> {
+    // ASSUMPTION: this is being called on an if let or while let decl
     let stmtstart = scopes::find_stmt_start(msrc, m.point).unwrap();
     let stmt = msrc.from(stmtstart);
-    let point = stmt.find("if let").unwrap();
+    let point = stmt.find(prefix).unwrap();
     let src = core::new_source(generate_skeleton_for_parsing(&stmt[point..]));
 
     if let Some((start, end)) = codeiter::iter_stmts(src.as_ref()).next() {
         let blob = &src[start..end];
-        debug!("get_type_of_if_let_expr calling parse_if_let |{}|", blob);
+        debug!("get_type_of_let_block_expr calling get_let_type |{}|", blob);
 
         let pos = m.point - stmtstart - point - start;
         let scope = Scope{ filepath: m.filepath.clone(), point: m.point };
@@ -215,7 +215,8 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: SessionRef) -> Option<cor
 
     match m.mtype {
         core::MatchType::Let => get_type_of_let_expr(&m, msrc, session),
-        core::MatchType::IfLet => get_type_of_if_let_expr(&m, msrc, session),
+        core::MatchType::IfLet => get_type_of_let_block_expr(&m, msrc, session, "if let"),
+        core::MatchType::WhileLet => get_type_of_let_block_expr(&m, msrc, session, "while let"),
         core::MatchType::For => get_type_of_for_expr(&m, msrc, session),
         core::MatchType::FnArg => get_type_of_fnarg(&m, msrc, session),
         core::MatchType::MatchArm => get_type_from_match_arm(&m, msrc, session),

@@ -4,7 +4,7 @@ use util::{symbol_matches, txt_matches, find_ident_end, is_ident_char, char_at};
 use nameres::{get_module_file, get_crate_file, resolve_path};
 use core::SearchType::{self, StartsWith, ExactMatch};
 use core::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant,
-                      Const, Static, IfLet, For};
+                      Const, Static, IfLet, WhileLet, For};
 use core::Namespace::BothNamespaces;
 use std::cell::Cell;
 use std::path::Path;
@@ -166,6 +166,13 @@ pub fn match_if_let(msrc: &str, blobstart: usize, blobend: usize,
                     local: bool) -> Vec<Match> {
     match_pattern_let(msrc, blobstart, blobend, searchstr, filepath,
                       search_type, local, "if let ", IfLet)
+}
+
+pub fn match_while_let(msrc: &str, blobstart: usize, blobend: usize,
+                 searchstr: &str, filepath: &Path, search_type: SearchType,
+                 local: bool) -> Vec<Match> {
+    match_pattern_let(msrc, blobstart, blobend, searchstr, filepath,
+                      search_type, local, "while let ", WhileLet)
 }
 
 pub fn match_let(msrc: &str, blobstart: usize, blobend: usize,
