@@ -104,19 +104,23 @@ impl<'v> visit::Visitor<'v> for UseVisitor {
     }
 }
 
-pub struct LetVisitor {
+pub struct PatBindVisitor {
     ident_points: Vec<(usize, usize)>
 }
 
-impl<'v> visit::Visitor<'v> for LetVisitor {
+impl<'v> visit::Visitor<'v> for PatBindVisitor {
     fn visit_local(&mut self, local: &'v ast::Local) {
         // don't visit the RHS (init) side of the let stmt
         self.visit_pat(&*local.pat);
     }
 
     fn visit_expr(&mut self, ex: &'v ast::Expr) {
-        // don't visit the RHS or block of an 'if let' stmt
+        // don't visit the RHS or block of an 'if let' or 'for' stmt
         if let ast::ExprIfLet(ref pattern, _,_,_) = ex.node {
+            self.visit_pat(pattern);
+        } else if let ast::ExprWhileLet(ref pattern, _,_,_) = ex.node {
+            self.visit_pat(pattern);
+        } else if let ast::ExprForLoop(ref pattern, _, _, _) = ex.node {
             self.visit_pat(pattern);
         } else {
             visit::walk_expr(self, ex)
@@ -263,15 +267,19 @@ struct LetTypeVisitor<'s> {
 
 impl<'s, 'v> visit::Visitor<'v> for LetTypeVisitor<'s> {
     fn visit_expr(&mut self, ex: &'v ast::Expr) {
-        if let ast::ExprIfLet(ref pattern, ref expr, _, _) = ex.node {
-            let mut v = ExprTypeVisitor{ scope: self.scope.clone(), result: None,
-                                         session: self.session };
-            v.visit_expr(expr);
-            self.result = v.result.and_then(|ty|
-                   destructure_pattern_to_ty(pattern, self.pos, &ty, &self.scope, self.session))
-                .and_then(|ty| path_to_match(ty, self.session));
-        } else {
-            visit::walk_expr(self, ex)
+        match ex.node {
+            ast::ExprIfLet(ref pattern, ref expr, _, _) |
+            ast::ExprWhileLet(ref pattern, ref expr, _, _) => {
+                let mut v = ExprTypeVisitor{ scope: self.scope.clone(), result: None,
+                                             session: self.session };
+                v.visit_expr(expr);
+                self.result = v.result.and_then(|ty|
+                       destructure_pattern_to_ty(pattern, self.pos, &ty, &self.scope, self.session))
+                    .and_then(|ty| path_to_match(ty, self.session));
+            }
+            _ => {
+                visit::walk_expr(self, ex)
+            }
         }
     }
 
@@ -796,8 +804,8 @@ pub fn parse_use(s: String) -> UseVisitor {
     v
 }
 
-pub fn parse_let(s: String) -> Vec<(usize, usize)> {
-    let mut v = LetVisitor{ ident_points: Vec::new() };
+pub fn parse_pat_bind_stmt(s: String) -> Vec<(usize, usize)> {
+    let mut v = PatBindVisitor{ ident_points: Vec::new() };
     if let Some(stmt) = string_to_stmt(s) {
         visit::walk_stmt(&mut v, &*stmt);
     }

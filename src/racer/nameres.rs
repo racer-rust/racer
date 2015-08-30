@@ -1,6 +1,6 @@
 // Name resolution
 
-use {core, ast, codeiter, matchers, scopes, typeinf, util};
+use {core, ast, codeiter, matchers, scopes, typeinf};
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{Match, Src, SessionRef};
 use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, MatchArm};
@@ -179,7 +179,29 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: Src, searchstr: &
                 }
                 return out.into_iter();
             }
-        } else if let Some(n) = util::find_last_str("match ", preblock) {
+        } else if let Some(n) = preblock.find("while let") {
+            let whileletstart = stmtstart + n;
+            let src = (&msrc[whileletstart..scopestart+1]).to_owned() + "}";
+            if txt_matches(search_type, searchstr, &src) {
+                let mut out = matchers::match_while_let(&src, 0, src.len(), searchstr,
+                                                        filepath, search_type, true);
+                for m in &mut out {
+                    m.point += whileletstart;
+                }
+                return out.into_iter();
+            }
+        } else if let Some(n) = preblock.rfind("for ") {
+            let forstart = stmtstart + n;
+            let src = (&msrc[forstart..scopestart+1]).to_owned() + "}";
+            if txt_matches(search_type, searchstr, &msrc[forstart..scopestart]) {
+                let mut out = matchers::match_for(&src, 0, src.len(), searchstr,
+                                                  filepath, search_type, true);
+                for m in &mut out {
+                    m.point += forstart;
+                }
+                return out.into_iter();
+            }
+        } else if let Some(n) = preblock.rfind("match ") {
             // TODO: this code is crufty. refactor me!
             let matchstart = stmtstart + n;
             let matchstmt = typeinf::get_first_stmt(msrc.from(matchstart));

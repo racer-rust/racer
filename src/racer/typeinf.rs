@@ -7,7 +7,6 @@ use core;
 use ast;
 use codeiter;
 use scopes;
-use util;
 use matchers;
 use core::SearchType::ExactMatch;
 use util::txt_matches;
@@ -112,19 +111,47 @@ fn get_type_of_let_expr(m: &Match, msrc: Src, session: SessionRef) -> Option<cor
     }
 }
 
-fn get_type_of_if_let_expr(m: &Match, msrc: Src, session: SessionRef) -> Option<core::Ty> {
-    // ASSUMPTION: this is being called on an if let decl
+fn get_type_of_let_block_expr(m: &Match, msrc: Src, session: SessionRef, prefix: &str) -> Option<core::Ty> {
+    // ASSUMPTION: this is being called on an if let or while let decl
     let stmtstart = scopes::find_stmt_start(msrc, m.point).unwrap();
     let stmt = msrc.from(stmtstart);
-    let point = stmt.find("if let").unwrap();
+    let point = stmt.find(prefix).unwrap();
     let src = core::new_source(generate_skeleton_for_parsing(&stmt[point..]));
 
     if let Some((start, end)) = codeiter::iter_stmts(src.as_ref()).next() {
         let blob = &src[start..end];
-        debug!("get_type_of_if_let_expr calling parse_if_let |{}|", blob);
+        debug!("get_type_of_let_block_expr calling get_let_type |{}|", blob);
 
         let pos = m.point - stmtstart - point - start;
         let scope = Scope{ filepath: m.filepath.clone(), point: m.point };
+        ast::get_let_type(blob.to_owned(), pos, scope, session)
+    } else {
+        None
+    }
+}
+
+fn get_type_of_for_expr(m: &Match, msrc: Src, session: SessionRef) -> Option<core::Ty> {
+    let stmtstart = scopes::find_stmt_start(msrc, m.point).unwrap();
+    let stmt = msrc.from(stmtstart);
+    let forpos = stmt.find("for ").unwrap();
+    let inpos = stmt.find(" in ").unwrap();
+    // XXX: this need not be the correct brace, see generate_skeleton_for_parsing
+    let bracepos = stmt.find("{").unwrap();
+    let mut src = stmt[..forpos].to_owned();
+    src.push_str("if let Some(");
+    src.push_str(&stmt[forpos+4..inpos]);
+    src.push_str(") = ");
+    src.push_str(&stmt[inpos+4..bracepos]);
+    src.push_str(".into_iter().next() { }}");
+    let src = core::new_source(src);
+
+    if let Some((start, end)) = codeiter::iter_stmts(src.as_ref()).next() {
+        let blob = &src[start..end];
+        debug!("get_type_of_for_expr: |{}| {} {} {} {}", blob, m.point, stmtstart, forpos, start);
+
+        let pos = m.point - stmtstart - forpos - start;
+        let scope = Scope{ filepath: m.filepath.clone(), point: m.point };
+
         ast::get_let_type(blob.to_owned(), pos, scope, session)
     } else {
         None
@@ -188,7 +215,9 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: SessionRef) -> Option<cor
 
     match m.mtype {
         core::MatchType::Let => get_type_of_let_expr(&m, msrc, session),
-        core::MatchType::IfLet => get_type_of_if_let_expr(&m, msrc, session),
+        core::MatchType::IfLet => get_type_of_let_block_expr(&m, msrc, session, "if let"),
+        core::MatchType::WhileLet => get_type_of_let_block_expr(&m, msrc, session, "while let"),
+        core::MatchType::For => get_type_of_for_expr(&m, msrc, session),
         core::MatchType::FnArg => get_type_of_fnarg(&m, msrc, session),
         core::MatchType::MatchArm => get_type_from_match_arm(&m, msrc, session),
         core::MatchType::Struct => Some(core::Ty::TyMatch(m)),
@@ -214,7 +243,7 @@ pub fn get_type_from_match_arm(m: &Match, msrc: Src, session: SessionRef) -> Opt
     let stmtstart = otry!(scopes::find_stmt_start(msrc, scopestart-1));
     debug!("PHIL preblock is {} {}", stmtstart, scopestart);
     let preblock = &msrc[stmtstart..scopestart];
-    let matchstart = otry!(util::find_last_str("match ", preblock)) + stmtstart;
+    let matchstart = otry!(preblock.rfind("match ")) + stmtstart;
 
     let lhs_start = scopes::get_start_of_pattern(&msrc, arm);
     let lhs = &msrc[lhs_start..arm];

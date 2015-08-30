@@ -138,15 +138,6 @@ fn find_ident_end_unicode() {
     assert_eq!(10, find_ident_end("ends_in_µ", 0));
 }
 
-pub fn find_last_str(needle: &str, mut haystack: &str) -> Option<usize> {
-    let mut res = None;
-    while let Some(n) = haystack.find(needle) {
-        res = Some(n);
-        haystack = &haystack[n+1..];
-    }
-    res
-}
-
 // PD: short term replacement for .char_at() function. Should be replaced once
 // that stabilizes
 pub fn char_at(src: &str, i: usize) -> char {
