@@ -1,24 +1,16 @@
 // Small functions of utility
 
 use core::SearchType::{self, ExactMatch, StartsWith};
-use core::Session;
+use core::SessionRef;
 use std;
 use std::cmp;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
-pub fn getline(filepath: &Path, linenum: usize, session: &Session) -> String {
-    let mut i = 0;
-    let file = BufReader::new(session.open_file(filepath).unwrap());
-    for line in file.lines() {
-        //print!("{}", line);
-        i += 1;
-        if i == linenum {
-            return line.unwrap();
-        }
-    }
-    "not found".into()
+pub fn getline(filepath: &Path, linenum: usize, session: SessionRef) -> String {
+    let reader = BufReader::new(session.open_file(filepath).unwrap());
+    reader.lines().nth(linenum - 1).unwrap_or(Ok("not found".into())).unwrap()
 }
 
 pub fn is_pattern_char(c: char) -> bool {
@@ -144,10 +136,6 @@ fn find_ident_end_ascii() {
 fn find_ident_end_unicode() {
     assert_eq!(7, find_ident_end("num_µs", 0));
     assert_eq!(10, find_ident_end("ends_in_µ", 0));
-}
-
-pub fn to_refs(v: &Vec<String>) -> Vec<&str> {
-    v.iter().map(|s| s.as_ref()).collect()
 }
 
 pub fn find_last_str(needle: &str, mut haystack: &str) -> Option<usize> {

@@ -1,4 +1,4 @@
-use core::{self, Match, MatchType, Scope, Ty};
+use core::{self, Match, MatchType, Scope, Ty, SessionRef};
 use typeinf;
 use nameres::{self, resolve_path_with_str};
 use core::Ty::{TyTuple, TyPathSearch, TyMatch, TyUnsupported};
@@ -187,7 +187,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
                              point: usize,
                              ty: &Ty,
                              scope: &Scope,
-                             session: &core::Session) -> Option<Ty> {
+                             session: SessionRef) -> Option<Ty> {
     debug!("destructure_pattern_to_ty point {} ty {:?}    ||||||||    pat: {:?}", point, ty, pat);
     match pat.node {
         ast::PatIdent(_ , ref spannedident, _) => {
@@ -255,7 +255,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
 
 struct LetTypeVisitor<'s> {
     scope: Scope,
-    session: &'s core::Session,
+    session: SessionRef<'s>,
     srctxt: String,
     pos: usize,        // pos is relative to the srctxt, scope is global
     result: Option<Ty>
@@ -301,7 +301,7 @@ impl<'s, 'v> visit::Visitor<'v> for LetTypeVisitor<'s> {
 
 struct MatchTypeVisitor<'s> {
     scope: Scope,
-    session: &'s core::Session,
+    session: SessionRef<'s>,
     pos: usize,        // pos is relative to the srctxt, scope is global
     result: Option<Ty>
 }
@@ -331,7 +331,7 @@ impl<'s, 'v> visit::Visitor<'v> for MatchTypeVisitor<'s> {
     }
 }
 
-fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: usize, session: &core::Session) -> Option<Match> {
+fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: usize, session: SessionRef) -> Option<Match> {
     debug!("resolve_ast_path {:?}", to_racer_path(path));
     nameres::resolve_path_with_str(&to_racer_path(path), filepath, pos, core::SearchType::ExactMatch,
                                    core::Namespace::BothNamespaces, session).nth(0)
@@ -352,7 +352,7 @@ fn to_racer_path(pth: &ast::Path) -> core::Path {
     core::Path{ global: pth.global, segments: v }
 }
 
-fn path_to_match(ty: Ty, session: &core::Session) -> Option<Ty> {
+fn path_to_match(ty: Ty, session: SessionRef) -> Option<Ty> {
     match ty {
         TyPathSearch(ref path, ref scope) =>
             find_type_match(path, &scope.filepath, scope.point, session),
@@ -360,12 +360,12 @@ fn path_to_match(ty: Ty, session: &core::Session) -> Option<Ty> {
     }
 }
 
-fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &core::Session) -> Option<Ty> {
+fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: SessionRef) -> Option<Ty> {
     debug!("find_type_match {:?}", path);
     let res = resolve_path_with_str(path, fpath, pos, core::SearchType::ExactMatch,
                core::Namespace::TypeNamespace, session).nth(0).and_then(|m| {
                    match m.mtype {
-                       core::MatchType::Type => get_type_of_typedef(m, session),
+                       MatchType::Type => get_type_of_typedef(m, session),
                        _ => Some(m)
                    }
                });
@@ -388,11 +388,11 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &core::
     })
 }
 
-fn get_type_of_typedef(m: Match, session: &core::Session) -> Option<Match> {
+fn get_type_of_typedef(m: Match, session: SessionRef) -> Option<Match> {
     debug!("get_type_of_typedef match is {:?}", m);
     let msrc = session.load_file_and_mask_comments(&m.filepath);
     let blobstart = m.point - 5;  // - 5 because 'type '
-    let blob = &msrc[blobstart..];
+    let blob = msrc.from(blobstart);
 
     codeiter::iter_stmts(blob).nth(0).and_then(|(start, end)| {
         let blob = msrc[blobstart + start..blobstart+end].to_owned();
@@ -409,7 +409,7 @@ fn get_type_of_typedef(m: Match, session: &core::Session) -> Option<Match> {
 
 struct ExprTypeVisitor<'s> {
     scope: Scope,
-    session: &'s core::Session,
+    session: SessionRef<'s>,
     result: Option<Ty>,
 }
 
@@ -431,7 +431,7 @@ impl<'s, 'v> visit::Visitor<'v> for ExprTypeVisitor<'s> {
                                  self.scope.point,
                                  self.session).and_then(|m| {
                                      let msrc = self.session.load_file_and_mask_comments(&m.filepath);
-                                     typeinf::get_type_of_match(m, &msrc, self.session)
+                                     typeinf::get_type_of_match(m, msrc, self.session)
                                  });
             }
             ast::ExprCall(ref callee_expression, _/*ref arguments*/) => {
@@ -541,7 +541,7 @@ impl<'s, 'v> visit::Visitor<'v> for ExprTypeVisitor<'s> {
 }
 
 // gets generics info from the context match
-fn path_to_match_including_generics(ty: Ty, contextm: &core::Match, session: &core::Session) -> Option<Ty> {
+fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: SessionRef) -> Option<Ty> {
     match ty {
         TyPathSearch(ref fieldtypepath, ref scope) => {
 
@@ -571,8 +571,8 @@ fn path_to_match_including_generics(ty: Ty, contextm: &core::Match, session: &co
 fn find_type_match_including_generics(fieldtype: &core::Ty,
                                       filepath: &Path,
                                       pos: usize,
-                                      structm: &core::Match,
-                                      session: &core::Session) -> Option<Ty>{
+                                      structm: &Match,
+                                      session: SessionRef) -> Option<Ty>{
     assert_eq!(&structm.filepath, &filepath.to_path_buf());
     let fieldtypepath = match *fieldtype {
         TyPathSearch(ref path, _) => path,
@@ -875,7 +875,7 @@ pub fn parse_fn_output(s: String, scope: Scope) -> Option<core::Ty> {
     v.result
 }
 
-pub fn parse_fn_arg_type(s: String, argpos: usize, scope: Scope, session: &core::Session) -> Option<core::Ty> {
+pub fn parse_fn_arg_type(s: String, argpos: usize, scope: Scope, session: SessionRef) -> Option<core::Ty> {
     debug!("parse_fn_arg {} |{}|", argpos, s);
     let mut v = FnArgTypeVisitor { argpos: argpos, scope: scope, result: None,
                                    session: session };
@@ -909,7 +909,7 @@ pub fn parse_enum(s: String) -> EnumVisitor {
     v
 }
 
-pub fn get_type_of(exprstr: String, fpath: &Path, pos: usize, session: &core::Session) -> Option<Ty> {
+pub fn get_type_of(exprstr: String, fpath: &Path, pos: usize, session: SessionRef) -> Option<Ty> {
     let myfpath = fpath.clone();
     let startscope = Scope {
         filepath: myfpath.to_path_buf(),
@@ -925,7 +925,7 @@ pub fn get_type_of(exprstr: String, fpath: &Path, pos: usize, session: &core::Se
 }
 
 // pos points to an ident in the lhs of the stmtstr
-pub fn get_let_type(stmtstr: String, pos: usize, scope: Scope, session: &core::Session) -> Option<Ty> {
+pub fn get_let_type(stmtstr: String, pos: usize, scope: Scope, session: SessionRef) -> Option<Ty> {
     let mut v = LetTypeVisitor {
         scope: scope,
         session: session,
@@ -938,7 +938,7 @@ pub fn get_let_type(stmtstr: String, pos: usize, scope: Scope, session: &core::S
     v.result
 }
 
-pub fn get_match_arm_type(stmtstr: String, pos: usize, scope: Scope, session: &core::Session) -> Option<Ty> {
+pub fn get_match_arm_type(stmtstr: String, pos: usize, scope: Scope, session: SessionRef) -> Option<Ty> {
     let mut v = MatchTypeVisitor {
         scope: scope,
         session: session,
@@ -969,7 +969,7 @@ impl<'v> visit::Visitor<'v> for FnOutputVisitor {
 pub struct FnArgTypeVisitor<'s> {
     argpos: usize,
     scope: Scope,
-    session: &'s core::Session,
+    session: SessionRef<'s>,
     pub result: Option<Ty>
 }
 

@@ -1,8 +1,10 @@
-use codecleaner::{code_chunks, CodeIndicesIter};
+use core::{Src, CodeChunkIter};
+
+use std::iter::Iterator;
 
 pub struct StmtIndicesIter<'a> {
-    src: &'a str,
-    it: CodeIndicesIter<'a>,
+    src: Src<'a>,
+    it: CodeChunkIter<'a>,
     pos: usize,
     end: usize
 }
@@ -112,112 +114,111 @@ fn is_a_use_stmt(src_bytes: &[u8], start: usize, pos: usize) -> bool {
      whitespace.contains(&src_bytes[start+7]))
 }
 
-pub fn iter_stmts(src: &str) -> StmtIndicesIter {
-    StmtIndicesIter{ src: src, it: code_chunks(src), pos: 0, end: 0 }
+pub fn iter_stmts(src: Src) -> StmtIndicesIter {
+    StmtIndicesIter{ src: src, it: src.chunk_indices(), pos: 0, end: 0 }
 }
 
 #[cfg(test)]
 mod test {
-
     use testutils::{rejustify, slice};
     use super::*;
 
     #[test]
     fn iterates_single_use_stmts() {
-        let src = &rejustify("
+        let src = test_source!(rejustify "
             use std::Foo; // a comment
             use std::Bar;
         ");
 
-        let mut it = iter_stmts(src);
-        assert_eq!("use std::Foo;", slice(src, it.next().unwrap()));
-        assert_eq!("use std::Bar;", slice(src, it.next().unwrap()));
+        let mut it = iter_stmts(src.as_ref());
+        assert_eq!("use std::Foo;", slice(&src, it.next().unwrap()));
+        assert_eq!("use std::Bar;", slice(&src, it.next().unwrap()));
     }
 
     #[test]
     fn iterates_use_stmt_over_two_lines() {
-        let src = &rejustify("
+        let src = test_source!(rejustify "
         use std::{Foo,
                   Bar}; // a comment
         ");
-        let mut it = iter_stmts(src);
+        let mut it = iter_stmts(src.as_ref());
         assert_eq!("use std::{Foo,
-              Bar};",slice(src, it.next().unwrap()));
+              Bar};", slice(&src, it.next().unwrap()));
     }
 
     #[test]
     fn iterates_use_stmt_without_the_prefix() {
-        let src = &rejustify("
+        let src = test_source!(rejustify "
         pub use {Foo,
                  Bar}; // this is also legit apparently
         ");
-        let mut it = iter_stmts(src);
+        let mut it = iter_stmts(src.as_ref());
         assert_eq!("pub use {Foo,
-             Bar};", slice(src, it.next().unwrap())
+             Bar};", slice(&src, it.next().unwrap())
         );
     }
 
     #[test]
     fn iterates_while_stmt() {
-        let src = &rejustify("
+        let src = test_source!(rejustify "
             while self.pos < 3 { }
         ");
-        let mut it = iter_stmts(src);
-        assert_eq!("while self.pos < 3 { }", slice(src, it.next().unwrap()));
+        let mut it = iter_stmts(src.as_ref());
+        assert_eq!("while self.pos < 3 { }", slice(&src, it.next().unwrap()));
     }
 
     #[test]
     fn iterates_lambda_arg() {
-        let src = &rejustify("
+        let src = test_source!(rejustify "
             myfn(|n|{});
         ");
-        let mut it = iter_stmts(src);
-        assert_eq!("myfn(|n|{});", slice(src, it.next().unwrap()));
+        let mut it = iter_stmts(src.as_ref());
+        assert_eq!("myfn(|n|{});", slice(&src, it.next().unwrap()));
     }
 
     #[test]
     fn iterates_macro() {
-        let src = "
+        let src = test_source!("
         mod foo;
         macro_rules! otry(
             ($e:expr) => (match $e { Some(e) => e, None => return })
         )
         mod bar;
-        ";
-        let mut it = iter_stmts(src);
-        assert_eq!("mod foo;", slice(src, it.next().unwrap()));
+        ");
+        let mut it = iter_stmts(src.as_ref());
+        assert_eq!("mod foo;", slice(&src, it.next().unwrap()));
         assert_eq!("macro_rules! otry(
             ($e:expr) => (match $e { Some(e) => e, None => return })
-        )", slice(src, it.next().unwrap()));
-        assert_eq!("mod bar;", slice(src, it.next().unwrap()));
+        )", slice(&src, it.next().unwrap()));
+        assert_eq!("mod bar;", slice(&src, it.next().unwrap()));
     }
 
     #[test]
     fn iterates_macro_invocation() {
-        let src = "
+        let src = test_source!("
             mod foo;
             local_data_key!(local_stdout: Box<Writer + Send>)  // no ';'
             mod bar;
-        ";
-        let mut it = iter_stmts(src);
-        assert_eq!("mod foo;", slice(src, it.next().unwrap()));
-        assert_eq!("local_data_key!(local_stdout: Box<Writer + Send>)", slice(src, it.next().unwrap()));
-        assert_eq!("mod bar;", slice(src, it.next().unwrap()));
+        ");
+        let mut it = iter_stmts(src.as_ref());
+        assert_eq!("mod foo;", slice(&src, it.next().unwrap()));
+        assert_eq!("local_data_key!(local_stdout: Box<Writer + Send>)", slice(&src, it.next().unwrap()));
+        assert_eq!("mod bar;", slice(&src, it.next().unwrap()));
     }
 
     #[test]
     fn iterates_if_else_stmt() {
-        let src = "
+        let src = test_source!("
             if self.pos < 3 { } else { }
-        ";
-        let mut it = iter_stmts(src);
-        assert_eq!("if self.pos < 3 { }", slice(src, it.next().unwrap()));
-        assert_eq!("else { }", slice(src, it.next().unwrap()));
+        ");
+        let mut it = iter_stmts(src.as_ref());
+        assert_eq!("if self.pos < 3 { }", slice(&src, it.next().unwrap()));
+        assert_eq!("else { }", slice(&src, it.next().unwrap()));
     }
 
     #[test]
     fn iterates_inner_scope() {
-        let src = "
+        let src = test_source!(&"
         while self.pos < 3 {
             let a = 35;
             return a + 35;  // should iterate this
@@ -225,43 +226,41 @@ mod test {
         {
             b = foo;       // but not this
         }
-        ";
+        "[29..]);
 
-        let scope = &src[29..];
-        let mut it = iter_stmts(scope);
+        let mut it = iter_stmts(src.as_ref());
 
-        assert_eq!("let a = 35;", slice(scope, it.next().unwrap()));
-        assert_eq!("return a + 35;", slice(scope, it.next().unwrap()));
+        assert_eq!("let a = 35;", slice(&src, it.next().unwrap()));
+        assert_eq!("return a + 35;", slice(&src, it.next().unwrap()));
         assert_eq!(None, it.next());
     }
 
     #[test]
     fn iterates_module_attribute() {
-        let src = &rejustify("
+        let src = test_source!(rejustify "
             #![license = \"BSD\"]
             #[test]
         ");
-        let mut it = iter_stmts(src);
-        assert_eq!("#![license = \"BSD\"]", slice(src, it.next().unwrap()));
-        assert_eq!("#[test]", slice(src, it.next().unwrap()));
+        let mut it = iter_stmts(src.as_ref());
+        assert_eq!("#![license = \"BSD\"]", slice(&src, it.next().unwrap()));
+        assert_eq!("#[test]", slice(&src, it.next().unwrap()));
     }
 
     #[test]
     fn iterates_half_open_subscope_if_is_the_last_thing() {
-        let src = "
+        let src = test_source!("
             let something = 35;
             while self.pos < 3 {
             let a = 35;
             return a + 35;  // should iterate this
-        ";
+        ");
 
-        let scope = src;
-        let mut it = iter_stmts(scope);
-        assert_eq!("let something = 35;", slice(scope, it.next().unwrap()));
+        let mut it = iter_stmts(src.as_ref());
+        assert_eq!("let something = 35;", slice(&src, it.next().unwrap()));
         assert_eq!("while self.pos < 3 {
             let a = 35;
             return a + 35;  // should iterate this
-        ", slice(scope, it.next().unwrap()));
+        ", slice(&src, it.next().unwrap()));
     }
 
 }
