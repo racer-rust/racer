@@ -3,7 +3,8 @@ use core::{Match, PathSegment, Src, SessionRef};
 use util::{symbol_matches, txt_matches, find_ident_end, is_ident_char, char_at};
 use nameres::{get_module_file, get_crate_file, resolve_path};
 use core::SearchType::{self, StartsWith, ExactMatch};
-use core::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant, Const, Static, IfLet};
+use core::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant,
+                      Const, Static, IfLet, For};
 use core::Namespace::BothNamespaces;
 use std::cell::Cell;
 use std::path::Path;
@@ -137,7 +138,7 @@ fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
     let mut out = Vec::new();
     let blob = &msrc[blobstart..blobend];
     if blob.starts_with(pattern) && txt_matches(search_type, searchstr, blob) {
-        let coords = ast::parse_let(blob.to_owned());
+        let coords = ast::parse_pat_bind_stmt(blob.to_owned());
         for (start, end) in coords {
             let s = &blob[start..end];
             if symbol_matches(search_type, searchstr, s) {
@@ -172,6 +173,29 @@ pub fn match_let(msrc: &str, blobstart: usize, blobend: usize,
                  local: bool) -> Vec<Match> {
     match_pattern_let(msrc, blobstart, blobend, searchstr, filepath,
                       search_type, local, "let ", Let)
+}
+
+pub fn match_for(msrc: &str, blobstart: usize, blobend: usize,
+                 searchstr: &str, filepath: &Path, search_type: SearchType,
+                 local: bool) -> Vec<Match> {
+    let mut out = Vec::new();
+    let blob = &msrc[blobstart..blobend];
+    let coords = ast::parse_pat_bind_stmt(blob.to_owned());
+    for (start, end) in coords {
+        let s = &blob[start..end];
+        if symbol_matches(search_type, searchstr, s) {
+            debug!("match_for point is {}, found ident {}", blobstart + start, s);
+            out.push(Match { matchstr: s.to_owned(),
+                             filepath: filepath.to_path_buf(),
+                             point: blobstart + start,
+                             local: local,
+                             mtype: For,
+                             contextstr: first_line(blob),
+                             generic_args: Vec::new(),
+                             generic_types: Vec::new() });
+        }
+    }
+    out
 }
 
 pub fn first_line(blob: &str) -> String {
