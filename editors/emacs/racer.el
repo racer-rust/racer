@@ -213,6 +213,7 @@ foo(bar, |baz); -> foo|(bar, baz);"
 (defvar racer-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map (kbd "M-.") #'racer-find-definition)
+    (define-key map (kbd "M-,") #'pop-tag-mark)
     map))
 
 ;;;###autoload
