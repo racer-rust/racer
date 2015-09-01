@@ -164,7 +164,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: Src, searchstr: &
         let preblock = &msrc[stmtstart..scopestart];
         debug!("PHIL search_scope_headers preblock is |{}|", preblock);
 
-        if preblock.starts_with("fn") || preblock.starts_with("pub fn") {
+        if preblock.starts_with("fn") || preblock.starts_with("pub fn") || preblock.starts_with("pub const fn") {
             return search_fn_args(stmtstart, scopestart, &msrc, searchstr, filepath, search_type, true);
 
         // 'if let' can be an expression, so might not be at the start of the stmt
