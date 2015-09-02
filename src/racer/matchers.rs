@@ -93,6 +93,10 @@ fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType,
     }
 }
 
+fn is_const_fn(src: &str, blobstart: usize, blobend: usize) -> bool {
+    src[blobstart..blobend].contains("const fn")
+}
+
 fn match_pattern_start(src: &str, blobstart: usize, blobend: usize,
                        searchstr: &str, filepath: &Path, search_type: SearchType,
                        local: bool, pattern: &str, mtype: MatchType) -> Option<Match> {
@@ -121,6 +125,9 @@ fn match_pattern_start(src: &str, blobstart: usize, blobend: usize,
 pub fn match_const(msrc: &str, blobstart: usize, blobend: usize,
                    searchstr: &str, filepath: &Path, search_type: SearchType,
                    local: bool) -> Option<Match> {
+    if is_const_fn(msrc, blobstart, blobend) {
+        return None;
+    }
     match_pattern_start(msrc, blobstart, blobend, searchstr, filepath,
                         search_type, local, "const", Const)
 }
@@ -559,7 +566,8 @@ pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize,
                 searchstr: &str, filepath: &Path, search_type: SearchType,
                 local: bool) -> Option<Match> {
     let blob = &msrc[blobstart..blobend];
-    if let Some(start) = find_keyword(blob, "fn", searchstr, search_type, local) {
+    let keyword = if is_const_fn(msrc, blobstart, blobend) { "const fn" } else { "fn" };
+    if let Some(start) = find_keyword(blob, keyword, searchstr, search_type, local) {
         if !typeinf::first_param_is_self(blob) {
             debug!("found a fn starting {}", searchstr);
             let l = match search_type {
