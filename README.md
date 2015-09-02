@@ -10,15 +10,17 @@
 
 ## Installation
 
-1. ```cd racer; cargo build --release```.  The binary will now be in ```./target/release/racer```
+1. Clone the repository: ```git clone https://github.com/phildawes/racer.git```
 
-2. Fetch the rust sourcecode from git, or download from https://www.rust-lang.org/install.html
+2. ```cd racer; cargo build --release```.  The binary will now be in ```./target/release/racer```
 
-3. Set the ```RUST_SRC_PATH``` env variable to point to the 'src' dir in the rust source installation
+3. Fetch the rust sourcecode from git, or download from https://www.rust-lang.org/install.html
+
+4. Set the ```RUST_SRC_PATH``` env variable to point to the 'src' dir in the rust source installation
 
    (e.g. ```% export RUST_SRC_PATH=/usr/local/src/rust/src``` )
 
-4. Test on the command line:
+5. Test on the command line:
 
    ```./target/release/racer complete std::io::B ```  (should show some completions)
 
