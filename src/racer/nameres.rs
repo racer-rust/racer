@@ -1,6 +1,6 @@
 // Name resolution
 
-use {core, ast, codeiter, matchers, scopes, typeinf};
+use {core, ast, matchers, scopes, typeinf};
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{Match, Src, SessionRef};
 use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, MatchArm};
@@ -71,7 +71,7 @@ fn search_scope_for_methods(point: usize, src: Src, searchstr: &str, filepath: &
 
     let scopesrc = src.from(point);
     let mut out = Vec::new();
-    for (blobstart,blobend) in codeiter::iter_stmts(scopesrc) {
+    for (blobstart,blobend) in scopesrc.iter_stmts() {
         let blob = &scopesrc[blobstart..blobend];
         blob.find("{").map(|n| { // only matches if is a method implementation
             let signature = &blob[..n -1];
@@ -108,7 +108,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
     let src = s.from(pos);
 
     let mut out = Vec::new();
-    for (start, end) in codeiter::iter_stmts(src) {
+    for (start, end) in src.iter_stmts() {
         let blob = &src[start..end];
 
         if blob.starts_with("impl") {
@@ -162,7 +162,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: Src, searchstr: &
     debug!("search_scope_headers for |{}| pt: {}", searchstr, scopestart);
     if let Some(stmtstart) = scopes::find_stmt_start(msrc, scopestart) {
         let preblock = &msrc[stmtstart..scopestart];
-        debug!("PHIL search_scope_headers preblock is |{}|", preblock);
+        debug!("search_scope_headers preblock is |{}|", preblock);
 
         if preblock.starts_with("fn") || preblock.starts_with("pub fn") || preblock.starts_with("pub const fn") {
             return search_fn_args(stmtstart, scopestart, &msrc, searchstr, filepath, search_type, true);
@@ -521,7 +521,7 @@ pub fn search_scope(start: usize, point: usize, src: Src,
     let scopesrc = src.from(start);
     let mut skip_next_block = false;
     let mut delayed_use_globs = Vec::new();
-    let mut codeit = codeiter::iter_stmts(scopesrc);
+    let mut codeit = scopesrc.iter_stmts();
     let mut v = Vec::new();
 
     // collect up to point so we can search backwards for let bindings
@@ -974,7 +974,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                     let filesrc = session.load_file(&m.filepath);
                     let scopestart = scopes::find_stmt_start(filesrc, m.point).unwrap();
                     let scopesrc = filesrc.from(scopestart);
-                    codeiter::iter_stmts(scopesrc).nth(0).map(|(blobstart,blobend)| {
+                    scopesrc.iter_stmts().nth(0).map(|(blobstart,blobend)| {
                         for m in matchers::match_enum_variants(&filesrc,
                                                                scopestart+blobstart,
                                                                scopestart+blobend,

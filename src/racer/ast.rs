@@ -2,7 +2,6 @@ use core::{self, Match, MatchType, Scope, Ty, SessionRef};
 use typeinf;
 use nameres::{self, resolve_path_with_str};
 use core::Ty::{TyTuple, TyPathSearch, TyMatch, TyUnsupported};
-use codeiter;
 
 use std::path::Path;
 
@@ -402,7 +401,7 @@ fn get_type_of_typedef(m: Match, session: SessionRef) -> Option<Match> {
     let blobstart = m.point - 5;  // - 5 because 'type '
     let blob = msrc.from(blobstart);
 
-    codeiter::iter_stmts(blob).nth(0).and_then(|(start, end)| {
+    blob.iter_stmts().nth(0).and_then(|(start, end)| {
         let blob = msrc[blobstart + start..blobstart+end].to_owned();
         debug!("get_type_of_typedef blob string {}", blob);
         let res = parse_type(blob);

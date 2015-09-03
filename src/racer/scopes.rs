@@ -1,5 +1,6 @@
-use {ast, codeiter, typeinf, util};
+use {ast, typeinf, util};
 use core::{Src, SessionRef, CompletionType};
+#[cfg(test)] use core;
 
 use std::iter::Iterator;
 use std::path::Path;
@@ -33,9 +34,9 @@ pub fn scope_start(src: Src, point: usize) -> usize {
 pub fn find_stmt_start(msrc: Src, point: usize) -> Option<usize> {
     // iterate the scope to find the start of the statement
     let scopestart = scope_start(msrc, point);
-    codeiter::iter_stmts(msrc.from(scopestart))
-    .find(|&(_, end)| scopestart + end > point)
-    .map(|(start, _)| scopestart + start)
+    msrc.from(scopestart).iter_stmts()
+        .find(|&(_, end)| scopestart + end > point)
+        .map(|(start, _)| scopestart + start)
 }
 
 pub fn get_local_module_path(msrc: Src, point: usize) -> Vec<String> {
@@ -45,14 +46,14 @@ pub fn get_local_module_path(msrc: Src, point: usize) -> Vec<String> {
 }
 
 fn get_local_module_path_(msrc: Src, point: usize, out: &mut Vec<String>) {
-    for (start, end) in codeiter::iter_stmts(msrc) {
+    for (start, end) in msrc.iter_stmts() {
         if start < point && end > point {
             let blob = msrc.from_to(start, end);
             if blob.starts_with("pub mod ") || blob.starts_with("mod ") {
                 let p = typeinf::generate_skeleton_for_parsing(&blob);
                 ast::parse_mod(p).name.map(|name| {
-                    let newstart = blob.find("{").unwrap() + 1;
                     out.push(name);
+                    let newstart = blob.find("{").unwrap() + 1;
                     get_local_module_path_(blob.from(newstart),
                                            point - start - newstart, out);
                 });
@@ -63,7 +64,7 @@ fn get_local_module_path_(msrc: Src, point: usize, out: &mut Vec<String>) {
 
 pub fn find_impl_start(msrc: Src, point: usize, scopestart: usize) -> Option<usize> {
     let len = point-scopestart;
-    match codeiter::iter_stmts(msrc.from(scopestart)).find(|&(_, end)| end > len) {
+    match msrc.from(scopestart).iter_stmts().find(|&(_, end)| end > len) {
         Some((start, _)) => {
             let blob = msrc.from(scopestart + start);
             // TODO:: the following is a bit weak at matching traits. make this better
@@ -77,16 +78,17 @@ pub fn find_impl_start(msrc: Src, point: usize, scopestart: usize) -> Option<usi
         None => None
     }
 }
-
 #[test]
 fn finds_subnested_module() {
-    let src = test_source!("
+    use core;
+    let src = "
     pub mod foo {
         pub mod bar {
             here
         }
-    }");
+    }";
     let point = coords_to_point(&src, 4, 12);
+    let src = core::new_source(String::from(src));
     let v = get_local_module_path(src.as_ref(), point);
     assert_eq!("foo", &v[0][..]);
     assert_eq!("bar", &v[1][..]);
@@ -315,12 +317,13 @@ fn myfn() {
 
 #[test]
 fn test_scope_start() {
-    let src = test_source!("
+    let src = String::from("
 fn myfn() {
     let a = 3;
     print(a);
 }
 ");
+    let src = core::new_source(src);
     let point = coords_to_point(&src, 4, 10);
     let start = scope_start(src.as_ref(), point);
     assert!(start == 12);
@@ -328,7 +331,7 @@ fn myfn() {
 
 #[test]
 fn test_scope_start_handles_sub_scopes() {
-    let src = test_source!("
+    let src = String::from("
 fn myfn() {
     let a = 3;
     {
@@ -337,6 +340,7 @@ fn myfn() {
     print(a);
 }
 ");
+    let src = core::new_source(src);
     let point = coords_to_point(&src, 7, 10);
     let start = scope_start(src.as_ref(), point);
     assert!(start == 12);
@@ -344,11 +348,12 @@ fn myfn() {
 
 #[test]
 fn masks_out_comments() {
-    let src = test_source!("
+    let src = String::from("
 this is some code
 this is a line // with a comment
 some more
 ");
+    let src = core::new_source(src);
     let r = mask_comments(src.as_ref());
 
     assert!(src.len() == r.len());

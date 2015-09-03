@@ -5,7 +5,6 @@ use nameres::resolve_path_with_str;
 use core::Namespace::TypeNamespace;
 use core;
 use ast;
-use codeiter;
 use scopes;
 use matchers;
 use core::SearchType::ExactMatch;
@@ -80,7 +79,7 @@ fn get_type_of_fnarg(m: &Match, msrc: Src, session: SessionRef) -> Option<core::
 
     let stmtstart = scopes::find_stmt_start(msrc, m.point).unwrap();
     let block = msrc.from(stmtstart);
-    if let Some((start, end)) = codeiter::iter_stmts(block).next() {
+    if let Some((start, end)) = block.iter_stmts().next() {
         let blob = &msrc[(stmtstart+start)..(stmtstart+end)];
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut s = String::new();
@@ -99,7 +98,7 @@ fn get_type_of_let_expr(m: &Match, msrc: Src, session: SessionRef) -> Option<cor
     let point = scopes::find_stmt_start(msrc, m.point).unwrap();
     let src = msrc.from(point);
 
-    if let Some((start, end)) = codeiter::iter_stmts(src).next() {
+    if let Some((start, end)) = src.iter_stmts().next() {
         let blob = &src[start..end];
         debug!("get_type_of_let_expr calling parse_let |{}|", blob);
 
@@ -118,7 +117,7 @@ fn get_type_of_let_block_expr(m: &Match, msrc: Src, session: SessionRef, prefix:
     let point = stmt.find(prefix).unwrap();
     let src = core::new_source(generate_skeleton_for_parsing(&stmt[point..]));
 
-    if let Some((start, end)) = codeiter::iter_stmts(src.as_ref()).next() {
+    if let Some((start, end)) = src.as_ref().iter_stmts().next() {
         let blob = &src[start..end];
         debug!("get_type_of_let_block_expr calling get_let_type |{}|", blob);
 
@@ -145,7 +144,7 @@ fn get_type_of_for_expr(m: &Match, msrc: Src, session: SessionRef) -> Option<cor
     src.push_str(".into_iter().next() { }}");
     let src = core::new_source(src);
 
-    if let Some((start, end)) = codeiter::iter_stmts(src.as_ref()).next() {
+    if let Some((start, end)) = src.as_ref().iter_stmts().next() {
         let blob = &src[start..end];
         debug!("get_type_of_for_expr: |{}| {} {} {} {}", blob, m.point, stmtstart, forpos, start);
 
@@ -204,7 +203,7 @@ pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match, session: S
 }
 
 pub fn get_first_stmt(src: Src) -> Src {
-    match codeiter::iter_stmts(src).next() {
+    match src.iter_stmts().next() {
         Some((from, to)) => src.from_to(from, to),
         None => src
     }

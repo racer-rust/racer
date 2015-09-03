@@ -8,6 +8,8 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::slice;
 use std::cmp::{min, max};
+use std::iter::{Fuse, Iterator};
+use codeiter::StmtIndicesIter;
 
 use typed_arena::Arena;
 
@@ -247,6 +249,10 @@ impl IndexedSource {
 }
 
 impl<'c> Src<'c> {
+    pub fn iter_stmts(&self) -> Fuse<StmtIndicesIter<CodeChunkIter>> {
+        StmtIndicesIter::from_parts(&self[..], self.chunk_indices())
+    }
+
     pub fn from(&self, from: usize) -> Src<'c> {
         Src {
             src: self.src,
@@ -276,6 +282,8 @@ impl<'c> Src<'c> {
     }
 }
 
+// iterates cached code chunks. 
+// N.b. src can be a substr, so iteration skips chunks that aren't part of the substr
 pub struct CodeChunkIter<'c> {
     src: Src<'c>,
     iter: slice::Iter<'c, (usize, usize)>
