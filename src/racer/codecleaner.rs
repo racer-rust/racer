@@ -104,9 +104,15 @@ impl<'a> CodeIndicesIter<'a> {
 
     fn comment(&mut self) -> (usize, usize) {
         let mut pos = self.pos;
-        for &b in &self.src.as_bytes()[pos..] {
+        let src_bytes = self.src.as_bytes();
+        for &b in &src_bytes[pos..] {
             pos += 1;
-            if b == b'\n' { break; }
+            if b == b'\n' {
+                if pos + 2 <= src_bytes.len() && &src_bytes[pos..pos+2] == &[b'/', b'/'] {
+                    continue;
+                }
+                break;
+            }
         }
         self.pos = pos;
         self.code()
@@ -185,6 +191,19 @@ pub fn code_chunks(src: &str) -> CodeIndicesIter {
 fn removes_a_comment() {
     let src = &rejustify("
     this is some code // this is a comment
+    some more code
+    ");
+    let mut it = code_chunks(src);
+    assert_eq!("this is some code ", slice(src, it.next().unwrap()));
+    assert_eq!("some more code", slice(src, it.next().unwrap()));
+}
+
+#[test]
+fn removes_consecutive_comments() {
+    let src = &rejustify("
+    this is some code // this is a comment
+    // this is more comment
+    // another comment
     some more code
     ");
     let mut it = code_chunks(src);
