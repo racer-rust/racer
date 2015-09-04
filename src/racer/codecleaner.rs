@@ -85,10 +85,10 @@ impl<'a> CodeIndicesIter<'a> {
                 b'\'' => {
                     // single quotes are also used for lifetimes, so we need to
                     // be confident that this is not a lifetime.
-                    // Look for closing quote:
-                    if src_bytes.len() > pos + 2 &&
-                        (src_bytes[pos+1] == b'\'' ||
-                         src_bytes[pos+2] == b'\'') {
+                    // Look for backslash starting the escape, or a closing quote:
+                    if src_bytes.len() > pos + 1 &&
+                        (src_bytes[pos] == b'\\' ||
+                         src_bytes[pos+1] == b'\'') {
                         self.state = State::StateChar;
                         self.pos = pos;
                         return (start, pos); // include single quote
@@ -205,11 +205,13 @@ fn removes_string_contents() {
 #[test]
 fn removes_char_contents() {
     let src = &rejustify("
-    this is some code \'\"\' more code
+    this is some code \'\"\' more code \'\\x00\' and \'\\\'\' that\'s it
     ");
     let mut it = code_chunks(src);
     assert_eq!("this is some code \'", slice(src, it.next().unwrap()));
-    assert_eq!("\' more code", slice(src, it.next().unwrap()));
+    assert_eq!("\' more code \'", slice(src, it.next().unwrap()));
+    assert_eq!("\' and \'", slice(src, it.next().unwrap()));
+    assert_eq!("\' that\'s it", slice(src, it.next().unwrap()));
 }
 
 #[test]
