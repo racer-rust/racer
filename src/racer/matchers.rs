@@ -332,8 +332,14 @@ pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize,
         debug!("found a struct |{}|", l);
 
         // Parse generics
-        let end = blob.find('{').or(blob.find(';'))
-            .expect("Can't find end of struct header");
+        let end = match blob.find('{').or(blob.find(';')) {
+            Some(e) => e,
+            None => { 
+                error!("Can't find end of struct header");
+                return None;
+            }
+        };
+
         // structs with no values need to end in ';', not '{}'
         let generics = ast::parse_generics(format!("{};", &blob[..end]));
 
