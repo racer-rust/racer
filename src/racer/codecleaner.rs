@@ -85,10 +85,10 @@ impl<'a> CodeIndicesIter<'a> {
                 b'\'' => {
                     // single quotes are also used for lifetimes, so we need to
                     // be confident that this is not a lifetime.
-                    // Look for closing quote:
-                    if src_bytes.len() > pos + 2 &&
-                        (src_bytes[pos+1] == b'\'' ||
-                         src_bytes[pos+2] == b'\'') {
+                    // Look for backslash starting the escape, or a closing quote:
+                    if src_bytes.len() > pos + 1 &&
+                        (src_bytes[pos] == b'\\' ||
+                         src_bytes[pos+1] == b'\'') {
                         self.state = State::StateChar;
                         self.pos = pos;
                         return (start, pos); // include single quote
@@ -104,9 +104,15 @@ impl<'a> CodeIndicesIter<'a> {
 
     fn comment(&mut self) -> (usize, usize) {
         let mut pos = self.pos;
-        for &b in &self.src.as_bytes()[pos..] {
+        let src_bytes = self.src.as_bytes();
+        for &b in &src_bytes[pos..] {
             pos += 1;
-            if b == b'\n' { break; }
+            if b == b'\n' {
+                if pos + 2 <= src_bytes.len() && &src_bytes[pos..pos+2] == &[b'/', b'/'] {
+                    continue;
+                }
+                break;
+            }
         }
         self.pos = pos;
         self.code()
@@ -193,6 +199,19 @@ fn removes_a_comment() {
 }
 
 #[test]
+fn removes_consecutive_comments() {
+    let src = &rejustify("
+    this is some code // this is a comment
+    // this is more comment
+    // another comment
+    some more code
+    ");
+    let mut it = code_chunks(src);
+    assert_eq!("this is some code ", slice(src, it.next().unwrap()));
+    assert_eq!("some more code", slice(src, it.next().unwrap()));
+}
+
+#[test]
 fn removes_string_contents() {
     let src = &rejustify("
     this is some code \"this is a string\" more code
@@ -205,11 +224,13 @@ fn removes_string_contents() {
 #[test]
 fn removes_char_contents() {
     let src = &rejustify("
-    this is some code \'\"\' more code
+    this is some code \'\"\' more code \'\\x00\' and \'\\\'\' that\'s it
     ");
     let mut it = code_chunks(src);
     assert_eq!("this is some code \'", slice(src, it.next().unwrap()));
-    assert_eq!("\' more code", slice(src, it.next().unwrap()));
+    assert_eq!("\' more code \'", slice(src, it.next().unwrap()));
+    assert_eq!("\' and \'", slice(src, it.next().unwrap()));
+    assert_eq!("\' that\'s it", slice(src, it.next().unwrap()));
 }
 
 #[test]

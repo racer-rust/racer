@@ -62,6 +62,23 @@ fn completes_pub_fn_locally() {
 }
 
 #[test]
+fn completes_pub_const_fn_locally() {
+    let src="
+    pub const fn apple() {
+    }
+
+    fn main() {
+        let b = ap
+    }";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 6, 18);
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&path, &path)).nth(0).unwrap();
+    fs::remove_file(&path).unwrap();
+    assert_eq!("apple".to_string(), got.matchstr.to_string());
+}
+
+#[test]
 fn completes_local_scope_let() {
     let src="
     fn main() {
@@ -93,6 +110,42 @@ fn main() {
     fs::remove_file(&path).unwrap();
     assert_eq!("apple".to_string(), got.matchstr);
     assert_eq!(25, got.point);
+}
+
+#[test]
+fn completes_trait_methods() {
+    let src = "
+mod sub {
+    pub trait Trait {
+        fn traitf() -> bool;
+        fn traitm(&self) -> bool;
+    }
+
+    pub struct Foo(bool);
+
+    impl Trait for Foo {
+        fn traitf() -> bool { false }
+        fn traitm(&self) -> bool { true }
+    }
+}
+
+fn main() { // l16
+    let t = sub::Foo(true);
+    sub::Foo::
+    t.t
+}
+";
+    let path = tmpname();
+    write_file(&path, src);
+    let pos1 = scopes::coords_to_point(src, 18, 14);  // sub::Foo::
+    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&path, &path)).nth(0);
+    let pos2 = scopes::coords_to_point(src, 19, 7);   // t.t
+    let got2 = complete_from_file(src, &path, pos2, &core::Session::from_path(&path, &path)).nth(0);
+    fs::remove_file(&path).unwrap();
+    println!("{:?}", got1);
+    println!("{:?}", got2);
+    assert_eq!(got1.unwrap().matchstr, "traitf".to_string());
+    assert_eq!(got2.unwrap().matchstr, "traitm".to_string());
 }
 
 #[test]

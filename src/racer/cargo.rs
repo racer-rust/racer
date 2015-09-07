@@ -173,7 +173,14 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
         debug!("crate path with lib.rs {:?}",d);
 
         if let Err(_) = File::open(&d) {
-            return continue;
+            // It doesn't exist, so try /lib.rs
+            d.pop();
+            d.pop();
+            d.push("lib.rs");
+        }
+
+        if let Err(_) = File::open(&d) {
+            continue;
         }
 
         return Some(d)

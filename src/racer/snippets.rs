@@ -1,11 +1,10 @@
 use ast::with_error_checking_parse;
-use core;
-use core::{Match, MatchType};
+use core::{Match, MatchType, SessionRef};
 use typeinf::get_function_declaration;
 
 use syntex_syntax::ast::ImplItem_;
 
-pub fn snippet_for_match(m: &Match, session: &core::Session) -> String {
+pub fn snippet_for_match(m: &Match, session: SessionRef) -> String {
     match m.mtype {
         MatchType::Function => {
             let method = get_function_declaration(&m, session);
@@ -20,8 +19,8 @@ pub fn snippet_for_match(m: &Match, session: &core::Session) -> String {
 }
 
 struct MethodInfo {
-    name : String,
-    args : Vec<String>
+    name: String,
+    args: Vec<String>
 }
 
 impl MethodInfo {
