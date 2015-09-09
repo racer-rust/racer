@@ -58,13 +58,13 @@ if !exists('g:racer_insert_paren')
     let g:racer_insert_paren = 1
 endif
 
-function! RacerGetPrefixCol()
+function! RacerGetPrefixCol(base)
     let col = col(".")-1
     let b:racer_col = col
     let scratch = expand("%") == ""
     let fname = expand("%:p")
     let tmpfname = tempname()
-    call writefile(getline(1, '$'), tmpfname)
+    call writefile(RacerGetBufferContents(a:base), tmpfname)
     let cmd = g:racer_cmd." prefix ".line(".")." ".col." ".fname." ".tmpfname
     let res = system(cmd)
     let prefixline = split(res, "\\n")[0]
@@ -72,11 +72,11 @@ function! RacerGetPrefixCol()
     return startcol
 endfunction
 
-function! RacerGetExpCompletions()
+function! RacerGetExpCompletions(base)
     let col = b:racer_col      " use the column from the previous RacerGetPrefixCol() call, since vim ammends it afterwards
     let fname = expand("%:p")
     let tmpfname = tempname()
-    call writefile(getline(1, '$'), tmpfname)
+    call writefile(RacerGetBufferContents(a:base), tmpfname)
     let cmd = g:racer_cmd." complete ".line(".")." ".col." ".fname." ".tmpfname
     if has('python')
     python << EOF
@@ -113,11 +113,11 @@ EOF
     call delete(tmpfname)
 endfunction
 
-function! RacerGetCompletions()
+function! RacerGetCompletions(base)
     let col = b:racer_col      " use the column from the previous RacerGetPrefixCol() call, since vim ammends it afterwards
     let fname = expand("%:p")
     let tmpfname = tempname()
-    call writefile(getline(1, '$'), tmpfname)
+    call writefile(RacerGetBufferContents(a:base), tmpfname)
     let cmd = g:racer_cmd." complete ".line(".")." ".col." ".fname." ".tmpfname
     let res = system(cmd)
     let lines = split(res, "\\n")
@@ -153,6 +153,17 @@ function! RacerGoToDefinition()
     call delete(tmpfname)
 endfunction
 
+function! RacerGetBufferContents(base)
+    " Re-combine the completion base word from omnicomplete with the current
+    " line contents. Since the base word gets remove from the buffer before
+    " this function is invoked we have to put it back in to out tmpfile.
+    let col = col(".")-1
+    let buf_lines = getline(1, '$')
+    let line_contents = getline('.')
+    let buf_lines[line('.') - 1] = strpart(line_contents, 0, col).a:base.strpart(line_contents, col, len(line_contents))
+    return buf_lines
+endfunction
+
 function! RacerJumpToLocation(filename, linenum, colnum)
     if(a:filename != '')
         if a:filename != bufname('%')
@@ -165,12 +176,12 @@ endfunction
 
 function! RacerComplete(findstart, base)
     if a:findstart
-        return RacerGetPrefixCol()
+        return RacerGetPrefixCol(a:base)
     else
         if g:racer_experimental_completer == 1
-            return RacerGetExpCompletions()
+            return RacerGetExpCompletions(a:base)
         else
-            return RacerGetCompletions()
+            return RacerGetCompletions(a:base)
         endif
     endif
 endfunction
