@@ -5,6 +5,7 @@
 " 2. copy this file into .vim/plugin/
 " 3. - now in insert mode do 'C-x C-o' to autocomplete the thing at the cursor
 "    - in normal mode do 'gd' to go to definition
+"    - 'gD' goes to the definition in a new vertical split
 "
 " (This plugin is best used with the 'hidden' option enabled so that switching buffers doesn't force you to save) 
 
@@ -188,6 +189,7 @@ endfunction
 
 autocmd FileType rust setlocal omnifunc=RacerComplete
 autocmd FileType rust nnoremap gd :call RacerGoToDefinition()<cr>
+autocmd FileType rust nnoremap gD :vsplit<cr>:call RacerGoToDefinition()<cr>
 
 let &cpo = s:save_cpo
 unlet s:save_cpo
