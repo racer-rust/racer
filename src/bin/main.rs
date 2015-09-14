@@ -59,56 +59,100 @@ fn match_fn(m: Match, session: core::SessionRef) {
 }
 
 #[cfg(not(test))]
-fn complete(match_found: &Fn(Match, core::SessionRef), args: &[String]) {
-    if args.len() < 2 {
+fn complete(args: Vec<String>, print_type: CompletePrinter) {
+    if args.len() < 1 {
         println!("Provide more arguments!");
         print_usage();
         std::process::exit(1);
     }
-    match args[1].parse::<usize>() {
+    match args[0].parse::<usize>() {
         Ok(linenum) => {
-            // input: linenum, colnum, fname
-            if args.len() < 4 {
-                println!("Provide more arguments!");
-                print_usage();
-                std::process::exit(1);
-            }
-            let charnum = args[2].parse::<usize>().unwrap();
-            let fname = &args[3];
-            let substitute_file = Path::new(match args.len() > 4 {
-                true => &args[4],
-                false => fname
-            });
-            let fpath = Path::new(fname);
-            let session = core::Session::from_path(&fpath, &substitute_file);
-            let src = session.load_file(&fpath);
-            let line = &getline(&substitute_file, linenum, &session);
-            let (start, pos) = util::expand_ident(line, charnum);
-            println!("PREFIX {},{},{}", start, pos, &line[start..pos]);
-
-            let point = scopes::coords_to_point(&src, linenum, charnum);
-            for m in core::complete_from_file(&src, &fpath, point, &session) {
-                match_found(m, &session);
-            }
-            println!("END");
+            complete_by_line_coords(args, linenum, print_type);
         }
         Err(_) => {
-            // input: a command line string passed in
-            let arg = &args[1];
-            let it = arg.split("::");
-            let p: Vec<&str> = it.collect();
-            let session = core::Session::from_path(&Path::new("."), &Path::new("."));
+            external_complete(&args);
+        }
+    }
+}
 
-            for m in do_file_search(p[0], &Path::new(".")) {
-                if p.len() == 1 {
-                    match_found(m, &session);
-                } else {
-                    for m in do_external_search(&p[1..], &m.filepath, m.point,
-                                                core::SearchType::StartsWith,
-                                                core::Namespace::BothNamespaces, &session) {
-                        match_found(m, &session);
-                    }
-                }
+#[cfg(not(test))]
+fn complete_by_line_coords(args: Vec<String>, 
+                           linenum: usize, 
+                           print_type: CompletePrinter) {
+    // input: linenum, colnum, fname
+    let tb = std::thread::Builder::new().name("searcher".to_string());
+
+    // PD: this probably sucks for performance, but lots of plugins
+    // end up failing and leaving tmp files around if racer crashes, 
+    // so catch the crash.
+    let res = tb.spawn(move || {
+        run_the_complete_fn(args, linenum, print_type);
+    }).unwrap();
+    match res.join() {
+        Ok(_) => {},
+        Err(e) => {
+            error!("Search thread paniced: {:?}", e);
+        }
+    }
+
+    println!("END");
+
+}
+
+#[cfg(not(test))]
+enum CompletePrinter {
+    Normal,
+    WithSnippets
+}
+
+#[cfg(not(test))]
+fn run_the_complete_fn(args: Vec<String>, linenum: usize, print_type: CompletePrinter) {
+        if args.len() < 3 {
+            println!("Provide more arguments!");
+            print_usage();
+            std::process::exit(1);
+        }
+        let charnum = args[1].parse::<usize>().unwrap();
+        let fname = &args[2];
+        let substitute_file = Path::new(match args.len() > 3 {
+            true => &args[3],
+            false => fname
+        });
+
+    let fpath = Path::new(fname);
+    let session = core::Session::from_path(&fpath, &substitute_file);
+    let src = session.load_file(&fpath);
+    let line = &getline(&substitute_file, linenum, &session);
+    let (start, pos) = util::expand_ident(line, charnum);
+    println!("PREFIX {},{},{}", start, pos, &line[start..pos]);
+
+    let point = scopes::coords_to_point(&src, linenum, charnum);
+
+    for m in core::complete_from_file(&src, &fpath, point, &session) {
+        match print_type {
+            CompletePrinter::Normal => match_fn(m, &session),
+            CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session),
+        };
+    }
+}
+
+
+#[cfg(not(test))]
+fn external_complete(args: &[String]) {
+    // input: a command line string passed in
+    let arg = &args[0];
+    let it = arg.split("::");
+    let p: Vec<&str> = it.collect();
+    let session = core::Session::from_path(&Path::new("."), &Path::new("."));
+    
+    for m in do_file_search(p[0], &Path::new(".")) {
+        if p.len() == 1 {
+            match_fn(m, &session);
+        } else {
+            for m in do_external_search(&p[1..], &m.filepath, m.point,
+                                        core::SearchType::StartsWith,
+                                        core::Namespace::BothNamespaces, &session) {
+                match_fn(m, &session);
             }
         }
     }
@@ -116,16 +160,16 @@ fn complete(match_found: &Fn(Match, core::SessionRef), args: &[String]) {
 
 #[cfg(not(test))]
 fn prefix(args: &[String]) {
-    if args.len() < 4 {
+    if args.len() < 3 {
         println!("Provide more arguments!");
         print_usage();
         std::process::exit(1);
     }
-    let linenum = args[1].parse::<usize>().unwrap();
-    let charnum = args[2].parse::<usize>().unwrap();
-    let fname = &args[3];
-    let substitute_file = Path::new(match args.len() > 4 {
-        true => &args[4],
+    let linenum = args[0].parse::<usize>().unwrap();
+    let charnum = args[1].parse::<usize>().unwrap();
+    let fname = &args[2];
+    let substitute_file = Path::new(match args.len() > 3 {
+        true => &args[3],
         false => fname
     });
     let fpath = Path::new(&fname);
@@ -140,16 +184,16 @@ fn prefix(args: &[String]) {
 
 #[cfg(not(test))]
 fn find_definition(args: &[String]) {
-    if args.len() < 4 {
+    if args.len() < 3 {
         println!("Provide more arguments!");
         print_usage();
         std::process::exit(1);
     }
-    let linenum = args[1].parse::<usize>().unwrap();
-    let charnum = args[2].parse::<usize>().unwrap();
-    let fname = &args[3];
-    let substitute_file = Path::new(match args.len() > 4 {
-        true => &args[4],
+    let linenum = args[0].parse::<usize>().unwrap();
+    let charnum = args[1].parse::<usize>().unwrap();
+    let fname = &args[2];
+    let substitute_file = Path::new(match args.len() > 3 {
+        true => &args[3],
         false => fname
     });
     let fpath = Path::new(&fname);
@@ -201,7 +245,7 @@ fn daemon() {
             break;
         }
         let args: Vec<String> = input.split(" ").map(|s| s.trim().to_string()).collect();
-        run(&args);
+        run(args);
         
         input.clear();
     }
@@ -216,25 +260,26 @@ fn main() {
     env_logger::init().unwrap();
     check_rust_src_env_var();
 
-    let args: Vec<String> = std::env::args().collect();
+    let mut args: Vec<String> = std::env::args().collect();
 
     if args.len() == 1 {
         print_usage();
         std::process::exit(1);
     }
 
-    let args = &args[1..];
+    args.remove(0);
     run(args);
 }
 
 #[cfg(not(test))]
-fn run(args: &[String]) {
-    let command  = &args[0];
+fn run(mut args: Vec<String>) {
+    //let command  = &args[0];
+    let command = args.remove(0);
     match &command[..] {
         "daemon" => daemon(),
         "prefix" => prefix(&args),
-        "complete" => complete(&match_fn, &args),
-        "complete-with-snippet" => complete(&match_with_snippet_fn, &args),
+        "complete" => complete(args, CompletePrinter::Normal),
+        "complete-with-snippet" => complete(args, CompletePrinter::WithSnippets),
         "find-definition" => find_definition(&args),
         "help" => print_usage(),
         cmd => {
