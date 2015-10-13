@@ -5,7 +5,7 @@ dependencies = [
  "env_logger 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "syntex_syntax 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "toml 0.1.22 (registry+https://github.com/rust-lang/crates.io-index)",
+ "toml 0.1.23 (registry+https://github.com/rust-lang/crates.io-index)",
  "typed-arena 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -105,7 +105,7 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.1.22"
+version = "0.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
