@@ -315,7 +315,7 @@ struct MatchTypeVisitor<'s> {
 
 impl<'s, 'v> visit::Visitor<'v> for MatchTypeVisitor<'s> {
     fn visit_expr(&mut self, ex: &'v ast::Expr) {
-        if let ast::ExprMatch(ref subexpression, ref arms, _) = ex.node {
+        if let ast::ExprMatch(ref subexpression, ref arms) = ex.node {
             debug!("PHIL sub expr is {:?}", subexpression);
 
             let mut v = ExprTypeVisitor{ scope: self.scope.clone(), result: None,
@@ -615,8 +615,13 @@ struct StructVisitor {
 }
 
 impl<'v> visit::Visitor<'v> for StructVisitor {
-    fn visit_struct_def(&mut self, struct_definition: &ast::StructDef, _: ast::Ident, _: &ast::Generics, _: ast::NodeId) {
-        for field in &struct_definition.fields {
+    fn visit_variant_data(&mut self,
+                          struct_definition: &ast::VariantData,
+                          _: ast::Ident,
+                          _: &ast::Generics,
+                          _: ast::NodeId,
+                          _: codemap::Span) {
+        for field in struct_definition.fields() {
             let codemap::BytePos(point) = field.span.lo;
 
             match field.node.kind {
