@@ -10,6 +10,20 @@
 
 ## Installation
 
+### With cargo install
+
+This method currently require a beta or nightly install of rust. Simply run:
+
+```cargo install --git 'https://github.com/phildawes/racer.git'```
+
+Or if you are using multirust:
+
+```multirust run beta cargo install --git 'https://github.com/phildawes/racer.git'```
+
+As mentioned in the command output, don't forget to add the installation directory to your PATH.
+
+### From sources
+
 1. Clone the repository: ```git clone https://github.com/phildawes/racer.git```
 
 2. ```cd racer; cargo build --release```.  The binary will now be in ```./target/release/racer```
