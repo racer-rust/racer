@@ -41,11 +41,11 @@ As mentioned in the command output, don't forget to add the installation directo
 
 ## Emacs integration
 
-Emacs intergation has been moved to a separate project: [emacs-racer](https://github.com/racer-rust/emacs-racer)
+Emacs integration has been moved to a separate project: [emacs-racer](https://github.com/racer-rust/emacs-racer)
 
 ## Vim integration
 
-Vim intergation has been moved to a separate project: [vim-racer](https://github.com/racer-rust/vim-racer)
+Vim integration has been moved to a separate project: [vim-racer](https://github.com/racer-rust/vim-racer)
 
 ## Kate integration
 
