@@ -37,7 +37,7 @@ pub fn with_error_checking_parse<F, T>(s: String, f: F) -> Option<T> where F: Fn
 pub fn string_to_stmt(source_str: String) -> Option<P<ast::Stmt>> {
     with_error_checking_parse(source_str, |p| {
         use syntex_syntax::diagnostic::FatalError;
-        match p.parse_stmt_nopanic() {
+        match p.parse_stmt() {
             Ok(p) => p,
             Err(FatalError) => None
         }
