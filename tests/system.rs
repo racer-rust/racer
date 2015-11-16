@@ -62,6 +62,23 @@ fn completes_pub_fn_locally() {
 }
 
 #[test]
+fn completes_pub_fn_locally_precached() {
+    let src="
+    pub fn apple() {
+    }
+
+    fn main() {
+        let b = ap
+    }";
+    let path = tmpname();
+    let pos = scopes::coords_to_point(src, 6, 18);
+    let session = core::Session::from_path(&path, &path);
+    session.cache_file_contents(&path, src);
+    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    assert_eq!("apple".to_string(), got.matchstr.to_string());
+}
+
+#[test]
 fn completes_pub_const_fn_locally() {
     let src="
     pub const fn apple() {
