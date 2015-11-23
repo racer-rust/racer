@@ -181,7 +181,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: Src, searchstr: &
             }
         } else if preblock.starts_with("while let") {
             let src = (&msrc[stmtstart..scopestart+1]).to_owned() + "}";
-            if txt_matches(search_type, searchstr, &src[..scopestart]) {
+            if txt_matches(search_type, searchstr, &src) {
                 let mut out = matchers::match_while_let(&src, 0, src.len(), searchstr,
                                                         filepath, search_type, true);
                 for m in &mut out {
