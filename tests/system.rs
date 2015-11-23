@@ -150,18 +150,18 @@ fn main() { // l16
 
 #[test]
 fn follows_use() {
-    let src2="
+    let src1="
     pub fn myfn() {}
     pub fn foo() {}
     ";
     let src="
-    use src2::{foo,myfn};
-    mod src2;
+    use src1::{foo,myfn};
+    mod src1;
     fn main() {
         myfn();
     }
     ";
-    write_file(&Path::new("src2.rs"), src2);
+    write_file(&Path::new("src1.rs"), src1);
     let path = tmpname();
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 5, 10);
@@ -194,18 +194,18 @@ fn follows_use_as() {
 
 #[test]
 fn follows_use_glob() {
-    let src2="
+    let src3="
     pub fn myfn() {}
     pub fn foo() {}
     ";
     let src="
-    use src2::*;
-    mod src2;
+    use src3::*;
+    mod src3;
     fn main() {
         myfn();
     }
     ";
-    write_file(&Path::new("src2.rs"), src2);
+    write_file(&Path::new("src3.rs"), src3);
     let path = tmpname();
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 5, 10);
@@ -390,10 +390,10 @@ fn finds_inline_fn() {
 #[test]
 fn follows_self_use() {
     let modsrc = "
-    pub use self::src2::{Foo,myfn};
-    pub mod src2;
+    pub use self::src4::{Foo,myfn};
+    pub mod src4;
     ";
-    let src2 = "
+    let src4 = "
     struct Foo;
     pub fn myfn() {}
     ";
@@ -410,14 +410,14 @@ fn follows_self_use() {
     fs::create_dir_all(&moddir).unwrap();
 
     write_file(&moddir.join("mod.rs"), modsrc);
-    write_file(&moddir.join("src2.rs"), src2);
+    write_file(&moddir.join("src4.rs"), src4);
     let srcpath = basedir.join("src.rs");
     write_file(&srcpath, src);
     let pos = scopes::coords_to_point(src, 6, 10);
     let got = find_definition(src, &srcpath, pos, &core::Session::from_path(&srcpath, &srcpath)).unwrap();
     fs::remove_dir_all(&basedir).unwrap();
     assert_eq!(got.matchstr, "myfn".to_string());
-    assert_eq!(moddir.join("src2.rs").display().to_string(),
+    assert_eq!(moddir.join("src4.rs").display().to_string(),
                got.filepath.display().to_string());
     assert_eq!(28, got.point);
 }
