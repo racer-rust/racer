@@ -5,6 +5,7 @@
 extern crate syntex_syntax;
 extern crate toml;
 extern crate env_logger;
+#[macro_use] extern crate clap;
 
 extern crate racer;
 
@@ -21,7 +22,9 @@ use racer::nameres::{do_file_search, do_external_search, PATH_SEP};
 #[cfg(not(test))]
 use racer::scopes;
 #[cfg(not(test))]
-use std::path::Path;
+use std::path::{Path, PathBuf};
+#[cfg(not(test))]
+use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 
 #[cfg(not(test))]
 fn match_with_snippet_fn(m: Match, session: core::SessionRef) {
@@ -59,44 +62,29 @@ fn match_fn(m: Match, session: core::SessionRef) {
 }
 
 #[cfg(not(test))]
-fn complete(args: Vec<String>, print_type: CompletePrinter) {
-    if args.len() < 1 {
-        println!("Provide more arguments!");
-        print_usage();
-        std::process::exit(1);
-    }
-    match args[0].parse::<usize>() {
-        Ok(linenum) => {
-            complete_by_line_coords(args, linenum, print_type);
-        }
-        Err(_) => {
-            external_complete(&args);
-        }
-    }
+fn complete(cfg: Config, print_type: CompletePrinter) {
+    if cfg.fqn.is_some() {
+        return external_complete(cfg);
+    } 
+    complete_by_line_coords(cfg, print_type);
 }
 
 #[cfg(not(test))]
-fn complete_by_line_coords(args: Vec<String>, 
-                           linenum: usize, 
+fn complete_by_line_coords(cfg: Config,
                            print_type: CompletePrinter) {
-    // input: linenum, colnum, fname
     let tb = std::thread::Builder::new().name("searcher".to_string());
 
     // PD: this probably sucks for performance, but lots of plugins
-    // end up failing and leaving tmp files around if racer crashes, 
+    // end up failing and leaving tmp files around if racer crashes,
     // so catch the crash.
     let res = tb.spawn(move || {
-        run_the_complete_fn(args, linenum, print_type);
+        run_the_complete_fn(&cfg, print_type);
     }).unwrap();
-    match res.join() {
-        Ok(_) => {},
-        Err(e) => {
-            error!("Search thread paniced: {:?}", e);
-        }
+    if let Err(e) = res.join() {
+        error!("Search thread paniced: {:?}", e);
     }
 
     println!("END");
-
 }
 
 #[cfg(not(test))]
@@ -106,29 +94,19 @@ enum CompletePrinter {
 }
 
 #[cfg(not(test))]
-fn run_the_complete_fn(args: Vec<String>, linenum: usize, print_type: CompletePrinter) {
-        if args.len() < 3 {
-            println!("Provide more arguments!");
-            print_usage();
-            std::process::exit(1);
-        }
-        let charnum = args[1].parse::<usize>().unwrap();
-        let fname = &args[2];
-        let substitute_file = Path::new(match args.len() > 3 {
-            true => &args[3],
-            false => fname
-        });
+fn run_the_complete_fn(cfg: &Config, print_type: CompletePrinter) {
+    let fn_path = &*cfg.fn_name.as_ref().unwrap();
+    let substitute_file = cfg.substitute_file.as_ref().unwrap_or(fn_path);
 
-    let fpath = Path::new(fname);
-    let session = core::Session::from_path(&fpath, &substitute_file);
-    let src = session.load_file(&fpath);
-    let line = &getline(&substitute_file, linenum, &session);
-    let (start, pos) = util::expand_ident(line, charnum);
+    let session = core::Session::from_path(fn_path, substitute_file);
+    let src = session.load_file(fn_path);
+    let line = &getline(substitute_file, cfg.linenum, &session);
+    let (start, pos) = util::expand_ident(line, cfg.charnum);
     println!("PREFIX {},{},{}", start, pos, &line[start..pos]);
 
-    let point = scopes::coords_to_point(&src, linenum, charnum);
+    let point = scopes::coords_to_point(&src, cfg.linenum, cfg.charnum);
 
-    for m in core::complete_from_file(&src, &fpath, point, &session) {
+    for m in core::complete_from_file(&src, fn_path, point, &session) {
         match print_type {
             CompletePrinter::Normal => match_fn(m, &session),
             CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session),
@@ -138,13 +116,12 @@ fn run_the_complete_fn(args: Vec<String>, linenum: usize, print_type: CompletePr
 
 
 #[cfg(not(test))]
-fn external_complete(args: &[String]) {
+fn external_complete(cfg: Config) {
     // input: a command line string passed in
-    let arg = &args[0];
-    let it = arg.split("::");
-    let p: Vec<&str> = it.collect();
-    let session = core::Session::from_path(&Path::new("."), &Path::new("."));
-    
+    let p: Vec<&str> = cfg.fqn.as_ref().unwrap().split("::").collect();
+    let cwd = Path::new(".");
+    let session = core::Session::from_path(&cwd, &cwd);
+
     for m in do_file_search(p[0], &Path::new(".")) {
         if p.len() == 1 {
             match_fn(m, &session);
@@ -159,61 +136,25 @@ fn external_complete(args: &[String]) {
 }
 
 #[cfg(not(test))]
-fn prefix(args: &[String]) {
-    if args.len() < 3 {
-        println!("Provide more arguments!");
-        print_usage();
-        std::process::exit(1);
-    }
-    let linenum = args[0].parse::<usize>().unwrap();
-    let charnum = args[1].parse::<usize>().unwrap();
-    let fname = &args[2];
-    let substitute_file = Path::new(match args.len() > 3 {
-        true => &args[3],
-        false => fname
-    });
-    let fpath = Path::new(&fname);
-    let session = core::Session::from_path(&fpath, &substitute_file);
+fn prefix(cfg: Config) {
+    let fn_path = &*cfg.fn_name.as_ref().unwrap();
+    let session = core::Session::from_path(fn_path, cfg.substitute_file.as_ref().unwrap_or(fn_path));
 
     // print the start, end, and the identifier prefix being matched
-    let path = Path::new(fname);
-    let line = &getline(&path, linenum, &session);
-    let (start, pos) = util::expand_ident(line, charnum);
+    let line = &getline(fn_path, cfg.linenum, &session);
+    let (start, pos) = util::expand_ident(line, cfg.charnum);
     println!("PREFIX {},{},{}", start, pos, &line[start..pos]);
 }
 
 #[cfg(not(test))]
-fn find_definition(args: &[String]) {
-    if args.len() < 3 {
-        println!("Provide more arguments!");
-        print_usage();
-        std::process::exit(1);
-    }
-    let linenum = args[0].parse::<usize>().unwrap();
-    let charnum = args[1].parse::<usize>().unwrap();
-    let fname = &args[2];
-    let substitute_file = Path::new(match args.len() > 3 {
-        true => &args[3],
-        false => fname
-    });
-    let fpath = Path::new(&fname);
-    let session = core::Session::from_path(&fpath, &substitute_file);
-    let src = session.load_file(&fpath);
-    let pos = scopes::coords_to_point(&src, linenum, charnum);
+fn find_definition(cfg: Config) {
+    let fn_path = &*cfg.fn_name.as_ref().unwrap();
+    let session = core::Session::from_path(fn_path, cfg.substitute_file.as_ref().unwrap_or(fn_path));
+    let src = session.load_file(fn_path);
+    let pos = scopes::coords_to_point(&src, cfg.linenum, cfg.charnum);
 
-    core::find_definition(&src, &fpath, pos, &session).map(|m| match_fn(m, &session));
+    core::find_definition(&src, fn_path, pos, &session).map(|m| match_fn(m, &session));
     println!("END");
-}
-
-#[cfg(not(test))]
-fn print_usage() {
-    let program = std::env::args().next().unwrap().clone();
-    println!("usage: {} complete linenum charnum fname [substitute_file]", program);
-    println!("or:    {} find-definition linenum charnum fname [substitute_file]", program);
-    println!("or:    {} complete fullyqualifiedname   (e.g. std::io::)", program);
-    println!("or:    {} prefix linenum charnum fname", program);
-    println!("or replace complete with complete-with-snippet for more detailed completions.");
-    println!("or:    {} daemon     - to start a process that receives the above commands via stdin", program);
 }
 
 #[cfg(not(test))]
@@ -238,19 +179,137 @@ fn check_rust_src_env_var() {
 
 #[cfg(not(test))]
 fn daemon() {
-    use std::io;
+use std::io;
     let mut input = String::new();
     while let Ok(n) = io::stdin().read_line(&mut input) {
-        if n == 0 {
+        // '\n' == 1
+        if n == 1 {
             break;
         }
-        let args: Vec<String> = input.split(" ").map(|s| s.trim().to_string()).collect();
-        run(args);
-        
+        // We add the setting NoBinaryName because in daemon mode we won't be passed the preceeding
+        // binary name
+        let cli = build_cli().setting(AppSettings::NoBinaryName);
+        let matches = cli.get_matches_from(input.split_whitespace().map(str::trim));
+        run(matches);
+
         input.clear();
     }
 }
 
+#[cfg(not(test))]
+#[derive(Default)]
+struct Config {
+    fqn: Option<String>,
+    linenum: usize,
+    charnum: usize,
+    fn_name: Option<PathBuf>,
+    substitute_file: Option<PathBuf>,
+}
+
+#[cfg(not(test))]
+impl<'a> From<&'a ArgMatches<'a, 'a>> for Config {
+    fn from(m: &'a ArgMatches) -> Self {
+        // We check for charnum because it's the second argument, which means more than just
+        // an FQN was used (i.e. racer complete <linenum> <charnum> <fn_name> [substitute_file])
+        if m.is_present("charnum") {
+            return Config {
+                // Becasue of the hack to allow fqn and linenum to share a single arg we set FQN
+                // to None and set the charnum correctly using the FQN arg so there's no
+                // hackery later
+                fqn: None,
+                linenum: value_t_or_exit!(m.value_of("fqn"), usize),
+                charnum: value_t_or_exit!(m.value_of("charnum"), usize),
+                fn_name: m.value_of("fn_name").map(PathBuf::from),
+                substitute_file: m.value_of("substitute_file").map(PathBuf::from)
+            }
+        }
+        Config {
+            fqn: m.value_of("fqn").map(ToOwned::to_owned),
+            ..Default::default()
+        }
+    }
+}
+
+#[cfg(not(test))]
+fn build_cli<'a, 'b, 'c, 'd, 'e, 'f>() -> App<'a, 'b, 'c, 'd, 'e, 'f> {
+    // we use the more verbose "Builder Pattern" to create the CLI because it's a littel faster
+    // than the less verbose "Usage String" method...faster, meaning runtime speed since that's
+    // extremely important here
+    App::new("racer")
+        .version("v1.0.0")
+        .author("Phil Dawes")
+        .about("A Rust code completion utility")
+        .settings(&[AppSettings::GlobalVersion,
+		    AppSettings::SubcommandRequiredElseHelp])
+        .subcommand(SubCommand::with_name("complete")
+            .about("performs completion and returns matches")
+            // We set an explicit usage string here, instead of letting `clap` write one due to
+            // using a single arg for multiple purposes
+            .usage("racer complete <fqn>\n\t\
+                    racer complete <linenum> <charnum> <fn_name> [substitute_file]")
+            // Next we make it an error to run without any args
+            .setting(AppSettings::ArgRequiredElseHelp)
+            // Because we want a single arg to play two roles and be compatible with previous
+            // racer releases, we have to be a little hacky here...
+            //
+            // We start by making 'fqn' the first positional arg, which will hold this dual value
+            // of either an FQN as it says, or secretly a line-number
+            .arg(Arg::with_name("fqn")
+                .help("complete with a fully-qualified-name (e.g. std::io::)"))
+            .arg(Arg::with_name("charnum")
+                .help("The char number")
+                .requires("fn_name"))
+            .arg(Arg::with_name("fn_name")
+                .help("The function name to match"))
+            .arg(Arg::with_name("substitute_file")
+                .help("An optional substitute file"))
+            // 'linenum' **MUST** be last (or have the highest index so that it's never actually
+            // used by the user, but still appears in the help text)
+            .arg(Arg::with_name("linenum")
+                .help("complete using a line number")))
+        .subcommand(SubCommand::with_name("daemon")
+            .about("start a process that receives the above commands via stdin"))
+        .subcommand(SubCommand::with_name("find-definition")
+            .about("finds the definition of a function")
+            .arg(Arg::with_name("linenum")
+                .help("The line number")
+                .required(true))
+            .arg(Arg::with_name("charnum")
+                .help("The char number")
+                .required(true))
+            .arg(Arg::with_name("fname")
+                .help("The function name to match")
+                .required(true))
+            .arg(Arg::with_name("substitute_file")
+                .help("An optional substitute file")))
+        .subcommand(SubCommand::with_name("prefix")
+            .arg(Arg::with_name("linenum")
+                .help("The line number")
+                .required(true))
+            .arg(Arg::with_name("charnum")
+                .help("The char number")
+                .required(true))
+            .arg(Arg::with_name("fn_name")
+                .help("The function name to match")
+                .required(true)))
+        .subcommand(SubCommand::with_name("complete-with-snippet")
+            .about("performs completion and returns more detailed matches")
+            .usage("racer complete-with-snippet <fqn>\n\t\
+                    racer complete-with-snippet <linenum> <charnum> <fn_name> [substitute_file]")
+            .setting(AppSettings::ArgRequiredElseHelp)
+            .arg(Arg::with_name("fqn")
+                .help("complete with a fully-qualified-name (e.g. std::io::)"))
+            .arg(Arg::with_name("charnum")
+                .help("The char number")
+                .requires("fn_name"))
+            .arg(Arg::with_name("fn_name")
+                .help("The function name to match"))
+            .arg(Arg::with_name("substitute_file")
+                .help("An optional substitute file"))
+            .arg(Arg::with_name("linenum")
+                .help("complete using a line number")))
+        .after_help("For more information about a specific command try 'racer <command> --help'")
+}
 
 #[cfg(not(test))]
 fn main() {
@@ -260,32 +319,20 @@ fn main() {
     env_logger::init().unwrap();
     check_rust_src_env_var();
 
-    let mut args: Vec<String> = std::env::args().collect();
-
-    if args.len() == 1 {
-        print_usage();
-        std::process::exit(1);
-    }
-
-    args.remove(0);
-    run(args);
+    let matches = build_cli().get_matches();
+    run(matches);
 }
 
 #[cfg(not(test))]
-fn run(mut args: Vec<String>) {
-    //let command  = &args[0];
-    let command = args.remove(0);
-    match &command[..] {
-        "daemon" => daemon(),
-        "prefix" => prefix(&args),
-        "complete" => complete(args, CompletePrinter::Normal),
-        "complete-with-snippet" => complete(args, CompletePrinter::WithSnippets),
-        "find-definition" => find_definition(&args),
-        "help" => print_usage(),
-        cmd => {
-            println!("Sorry, I didn't understand command {}", cmd);
-            print_usage();
-            std::process::exit(1);
-        }
+fn run(m: ArgMatches) {
+    use CompletePrinter::{Normal, WithSnippets};
+    // match raw subcommand, and get it's sub-matches "m"
+    match m.subcommand() {
+        ("daemon", _)                      => daemon(),
+        ("prefix", Some(m))                => prefix(Config::from(m)),
+        ("complete", Some(m))              => complete(Config::from(m), Normal),
+        ("complete-with-snippet", Some(m)) => complete(Config::from(m), WithSnippets),
+        ("find-definition", Some(m))       => find_definition(Config::from(m)),
+        _                                  => unreachable!()
     }
 }
