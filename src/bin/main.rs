@@ -231,6 +231,18 @@ fn check_rust_src_env_var() {
             }
         }
     } else {
+        let default_paths = [
+            "/usr/local/src/rust/src",
+            "/usr/src/rust/src",
+        ];
+        for &path in &default_paths {
+            let f = Path::new(path);
+            if path_exists(f) {
+                std::env::set_var("RUST_SRC_PATH", path);
+                return;
+            }
+        }
+
         println!("RUST_SRC_PATH environment variable must be set to point to the src directory of a rust checkout. E.g. \"/home/foouser/src/rust/src\"");
         std::process::exit(1);
     }
