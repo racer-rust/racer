@@ -2,7 +2,7 @@ use ast::with_error_checking_parse;
 use core::{Match, MatchType, SessionRef};
 use typeinf::get_function_declaration;
 
-use syntex_syntax::ast::ImplItem_;
+use syntex_syntax::ast::ImplItemKind;
 
 pub fn snippet_for_match(m: &Match, session: SessionRef) -> String {
     match m.mtype {
@@ -35,18 +35,21 @@ impl MethodInfo {
             match p.parse_impl_item() {
                 Ok(method) => {
                     match method.node {
-                        ImplItem_::MethodImplItem(ref msig, _) => {
+                        ImplItemKind::Method(ref msig, _) => {
                             let ref decl = msig.decl;
                             Some(MethodInfo {
                                 // ident.as_str calls Ident.name.as_str
                                 name: method.ident.name.as_str().to_string(),
-                                args: decl.inputs.iter().map(|arg| {
-                                    let ref codemap = p.sess.span_diagnostic.cm;
-                                    match codemap.span_to_snippet(arg.pat.span) {
-                                        Ok(name) => name,
-                                        _ => "".into()
-                                    }
-                                }).collect(),
+                                args: decl.inputs
+                                          .iter()
+                                          .map(|arg| {
+                                              let ref codemap = p.sess.span_diagnostic.cm;
+                                              match codemap.span_to_snippet(arg.pat.span) {
+                                                  Ok(name) => name,
+                                                  _ => "".into()
+                                              }
+                                          })
+                                          .collect()
                             })
                         },
                         _ => {
@@ -56,7 +59,7 @@ impl MethodInfo {
                     }
                 },
                 Err(FatalError) => {
-                    debug!("Unable to parse method declaration. |{}|",source);
+                    debug!("Unable to parse method declaration. |{}|", source);
                     None
                 }
             }
@@ -65,13 +68,21 @@ impl MethodInfo {
 
     ///Returns completion snippets usable by some editors
     fn snippet(&self) -> String {
-        format!("{}({})", self.name, &self.args.iter()
-            .filter(|&s| *s != "self").enumerate()
-            .fold(String::new(), |cur, (i, ref s)| {
-                let arg = format!("${{{}:{}}}", i+1, s);
-                let delim = if i > 0 {", "} else {""};
-                cur + delim + &arg
-        }))
+        format!("{}({})",
+                self.name,
+                &self.args
+                     .iter()
+                     .filter(|&s| *s != "self")
+                     .enumerate()
+                     .fold(String::new(), |cur, (i, ref s)| {
+                         let arg = format!("${{{}:{}}}", i + 1, s);
+                         let delim = if i > 0 {
+                             ", "
+                         } else {
+                             ""
+                         };
+                         cur + delim + &arg
+                     }))
     }
 }
 
