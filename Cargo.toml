@@ -23,7 +23,6 @@ syntex_syntax = "*"
 toml = "*"
 env_logger = "*"
 typed-arena = "*"
-clap = "~1.5.3"
 
 [features]
 nightly = []
