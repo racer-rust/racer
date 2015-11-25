@@ -6,13 +6,13 @@
 
 ![racer eldoc screenshot](images/racer_eldoc.png)
 
-*RACER* = *R*ust *A*uto-*C*omplete-*er*. A utility intended to provide rust code completion for editors and IDEs. Maybe one day the 'er' bit will be exploring + refactoring or something.
+*RACER* = *R*ust *A*uto-*C*omplete-*er*. A utility intended to provide Rust code completion for editors and IDEs. Maybe one day the 'er' bit will be exploring + refactoring or something.
 
 ## Installation
 
-### With cargo install
+### With `cargo install`
 
-This method currently require a beta or nightly install of rust. Simply run:
+This method currently requires a beta or nightly install of Rust. Simply run:
 
 ```cargo install --git 'https://github.com/phildawes/racer.git'```
 
@@ -20,7 +20,7 @@ Or if you are using multirust:
 
 ```multirust run beta cargo install --git 'https://github.com/phildawes/racer.git'```
 
-As mentioned in the command output, don't forget to add the installation directory to your PATH.
+As mentioned in the command output, don't forget to add the installation directory to your `PATH`.
 
 ### From sources
 
@@ -28,9 +28,9 @@ As mentioned in the command output, don't forget to add the installation directo
 
 2. ```cd racer; cargo build --release```.  The binary will now be in ```./target/release/racer```
 
-3. Fetch the rust sourcecode from git, or download from https://www.rust-lang.org/install.html
+3. Fetch the Rust sourcecode from git, or download from https://www.rust-lang.org/install.html
 
-4. Set the ```RUST_SRC_PATH``` env variable to point to the 'src' dir in the rust source installation
+4. Set the ```RUST_SRC_PATH``` environment variable to point to the 'src' dir in the Rust source installation
 
    (e.g. ```% export RUST_SRC_PATH=/usr/local/src/rust/src``` )
 
