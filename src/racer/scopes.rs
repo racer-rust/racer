@@ -269,7 +269,7 @@ pub fn end_of_next_scope(src: &str) -> &str {
 
 pub fn coords_to_point(src: &str, mut linenum: usize, col: usize) -> usize {
     let mut point = 0;
-    for line in src.lines() {
+    for line in src.split('\n') {
         linenum -= 1;
         if linenum == 0 { break }
         point += line.len() + 1;  // +1 for the \n
@@ -294,7 +294,7 @@ pub fn point_to_coords(src: &str, point: usize) -> (usize, usize) {
 pub fn point_to_coords_from_file(path: &Path, point: usize, session: SessionRef) -> Option<(usize, usize)> {
     let mut lineno = 0;
     let mut p = 0;
-    for line in session.load_file(path).lines() {
+    for line in session.load_file(path).split('\n') {
         lineno += 1;
         if point < (p + line.len()) {
             return Some((lineno, point - p));
