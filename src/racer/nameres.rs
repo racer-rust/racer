@@ -786,6 +786,18 @@ pub fn resolve_path_with_str(path: &core::Path, filepath: &Path, pos: usize,
             out.push(m);
         });
     } else {
+        if path.segments.len() == 1 && path.segments[0].name == "Box" {
+            let container =  path.segments[0].types[0].segments[0].name.clone();
+            debug!("Found Box Object Containing {:?}", path.segments[0]);
+            let container_path = core::PathSegment {
+                name: container,
+                types: Vec::new(),
+            };
+            for m in resolve_name(&container_path, filepath, pos, search_type, namespace, session){
+                out.push(m);
+            }
+        }
+
         for m in resolve_path(path, filepath, pos, search_type, namespace, session) {
             out.push(m);
             if let ExactMatch = search_type {
@@ -895,11 +907,11 @@ pub fn get_super_scope(filepath: &Path, pos: usize, session: SessionRef) -> Opti
         let moduledir;
         if filepath.ends_with("mod.rs") || filepath.ends_with("lib.rs"){
             // Need to go up to directory above
-            // TODO(PD): fix: will crash if mod.rs is in the root fs directory 
+            // TODO(PD): fix: will crash if mod.rs is in the root fs directory
             moduledir = filepath.parent().unwrap().parent().unwrap();
         } else {
             // module is in current directory
-            moduledir = filepath.parent().unwrap(); 
+            moduledir = filepath.parent().unwrap();
         }
 
         for filename in &[ "mod.rs", "lib.rs" ] {
