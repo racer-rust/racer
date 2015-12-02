@@ -370,14 +370,33 @@ fn path_to_match(ty: Ty, session: SessionRef) -> Option<Ty> {
 fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: SessionRef) -> Option<Ty> {
     debug!("find_type_match {:?}", path);
     let res = resolve_path_with_str(path, fpath, pos, core::SearchType::ExactMatch,
-               core::Namespace::TypeNamespace, session).nth(0).and_then(|m| {
+               core::Namespace::TypeNamespace, session).map(|m| {
                    match m.mtype {
                        MatchType::Type => get_type_of_typedef(m, session),
                        _ => Some(m)
                    }
-               });
+               }).filter_map(|x| x).collect::<Vec<_>>();
 
-    res.and_then(|m| {
+    if res.len() == 2 {
+        Some( Ty::TyMatchVec(res.into_iter().map(|m| {
+            // add generic types to match (if any)
+            let types: Vec<core::PathSearch> = path.generic_types()
+                .map(|typepath|
+                     core::PathSearch{
+                         path: typepath.clone(),
+                         filepath: fpath.to_path_buf(),
+                         point: pos
+                     }).collect();
+
+            if types.is_empty() {
+                m
+            } else {
+                m.with_generic_types(types)
+            }
+        }).collect()))
+    }
+    else {
+        res.into_iter().nth(0).and_then(|m| {
         // add generic types to match (if any)
         let types: Vec<core::PathSearch> = path.generic_types()
             .map(|typepath|
@@ -392,7 +411,8 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: Session
         } else {
             Some(TyMatch(m.with_generic_types(types.clone())))
         }
-    })
+        })
+    }
 }
 
 fn get_type_of_typedef(m: Match, session: SessionRef) -> Option<Match> {

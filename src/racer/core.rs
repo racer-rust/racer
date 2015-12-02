@@ -127,6 +127,7 @@ pub enum Ty {
     TyMatch(Match),
     TyPathSearch(Path, Scope),   // A path + the scope to be able to resolve it
     TyTuple(Vec<Ty>),
+    TyMatchVec(Vec<Match>),
     TyUnsupported
 }
 
@@ -282,7 +283,7 @@ impl<'c> Src<'c> {
     }
 }
 
-// iterates cached code chunks. 
+// iterates cached code chunks.
 // N.b. src can be a substr, so iteration skips chunks that aren't part of the substr
 pub struct CodeChunkIter<'c> {
     src: Src<'c>,
@@ -446,10 +447,20 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session:
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("complete_from_file context is {:?}", context);
             context.map(|ty| {
-                if let Ty::TyMatch(m) = ty {
-                    for m in nameres::search_for_field_or_method(m, searchstr, SearchType::StartsWith, session) {
-                        out.push(m)
-                    }
+                match ty {
+                    Ty::TyMatch(m) => {
+                        for m in nameres::search_for_field_or_method(m, searchstr, SearchType::StartsWith, session) {
+                            out.push(m)
+                        }
+                    },
+                    Ty::TyMatchVec(vm) =>  {
+                        for m in vm{
+                            for m in nameres::search_for_field_or_method(m, searchstr, SearchType::StartsWith, session) {
+                                out.push(m)
+                            }
+                        }
+                    },
+                    _ => (),
                 }
             });
         }
