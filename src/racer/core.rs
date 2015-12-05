@@ -409,14 +409,26 @@ impl<'s> Session<'s> {
     /// Cache the contents of `buf` using the given `Path` for a key.
     ///
     /// Subsequent calls to load_file will return an IndexedSource of the provided buf.
-    pub fn cache_file_contents<T>(&'s self, filepath: &path::Path, buf: T) -> Src<'s>
+    pub fn cache_file_contents<T>(&'s self, filepath: &path::Path, buf: T)
     where T: Into<String> {
-        let mut cache = self.cache.raw_map.borrow_mut();
-        cache.insert(filepath.to_path_buf(), {
-            self.cache.arena.alloc(IndexedSource::new(buf.into()))
-        });
+        // update raw file
+        {
+            let mut cache = self.cache.raw_map.borrow_mut();
+            cache.insert(filepath.to_path_buf(), {
+                self.cache.arena.alloc(IndexedSource::new(buf.into()))
+            });
+        }
 
-        cache.get(&filepath.to_path_buf()).unwrap().as_ref()
+        // also need to update masked version
+        {
+            let mut cache = self.cache.masked_map.borrow_mut();
+            cache.insert(filepath.to_path_buf(), {
+                let src = self.load_file(filepath);
+
+                // create a new IndexedSource with new source, but same indices
+                self.cache.arena.alloc(src.src.with_src(scopes::mask_comments(src)))
+            });
+        }
     }
 
     pub fn load_file_and_mask_comments(&'s self, filepath: &path::Path) -> Src<'s> {

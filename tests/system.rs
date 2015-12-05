@@ -79,6 +79,34 @@ fn completes_pub_fn_locally_precached() {
 }
 
 #[test]
+fn overwriting_cached_files() {
+    let src1 = "src1";
+    let src2 = "src2";
+    let src3 = "src3";
+    let src4 = "src4";
+
+    // Need session and path to cache files
+    let path = tmpname();
+    let session = core::Session::from_path(&path, &path);
+
+    // Cache contents for a file and assert that load_file and load_file_and_mask_comments return
+    // the newly cached contents.
+    macro_rules! cache_and_assert {
+        ($src:ident) => {{
+            session.cache_file_contents(&path, $src);
+            assert_eq!($src, &session.load_file(&path).src.code[..]);
+            assert_eq!($src, &session.load_file_and_mask_comments(&path).src.code[..]);
+        }}
+    }
+
+    // Check for all srcN
+    cache_and_assert!(src1);
+    cache_and_assert!(src2);
+    cache_and_assert!(src3);
+    cache_and_assert!(src4);
+}
+
+#[test]
 fn completes_pub_const_fn_locally() {
     let src="
     pub const fn apple() {
