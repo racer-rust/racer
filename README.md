@@ -28,7 +28,7 @@ As mentioned in the command output, don't forget to add the installation directo
 
 2. ```cd racer; cargo build --release```.  The binary will now be in ```./target/release/racer```
 
-3. Fetch the Rust sourcecode from git, or download from https://www.rust-lang.org/install.html
+3. Fetch the Rust sourcecode from git, or download from https://www.rust-lang.org/install.html (the 'rustc' source download behind the 'source' link is the right one)
 
 4. Set the ```RUST_SRC_PATH``` environment variable to point to the 'src' dir in the Rust source installation
 
