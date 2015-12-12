@@ -27,35 +27,58 @@ use std::path::{Path, PathBuf};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 
 #[cfg(not(test))]
-fn match_with_snippet_fn(m: Match, session: core::SessionRef) {
+fn match_with_snippet_fn(m: Match, session: core::SessionRef, interface: Interface) {
     let (linenum, charnum) = scopes::point_to_coords_from_file(&m.filepath, m.point, session).unwrap();
     if m.matchstr == "" {
         panic!("MATCHSTR is empty - waddup?");
     }
 
     let snippet = racer::snippets::snippet_for_match(&m, session);
-    println!("MATCH {};{};{};{};{};{:?};{}", m.matchstr,
-                                    snippet,
-                                    linenum.to_string(),
-                                    charnum.to_string(),
-                                    m.filepath.to_str().unwrap(),
-                                    m.mtype,
-                                    m.contextstr
-             );
+    match interface {
+        Interface::Text =>
+            println!("MATCH {};{};{};{};{};{:?};{}",
+                        m.matchstr,
+                        snippet,
+                        linenum.to_string(),
+                        charnum.to_string(),
+                        m.filepath.to_str().unwrap(),
+                        m.mtype,
+                        m.contextstr),
+        Interface::TabText =>
+            println!("MATCH\t{}\t{}\t{}\t{}\t{}\t{:?}\t{}",
+                        m.matchstr,
+                        snippet,
+                        linenum.to_string(),
+                        charnum.to_string(),
+                        m.filepath.to_str().unwrap(),
+                        m.mtype,
+                        m.contextstr),
+    }
 }
 
 #[cfg(not(test))]
-fn match_fn(m: Match, session: core::SessionRef) {
+fn match_fn(m: Match, session: core::SessionRef, interface: Interface) {
     if let Some((linenum, charnum)) = scopes::point_to_coords_from_file(&m.filepath,
                                                                         m.point,
                                                                         session) {
-        println!("MATCH {},{},{},{},{:?},{}", m.matchstr,
-                                    linenum.to_string(),
-                                    charnum.to_string(),
-                                    m.filepath.to_str().unwrap(),
-                                    m.mtype,
-                                    m.contextstr
-                 );
+        match interface {
+            Interface::Text =>
+                println!("MATCH {},{},{},{},{:?},{}",
+                            m.matchstr,
+                            linenum.to_string(),
+                            charnum.to_string(),
+                            m.filepath.to_str().unwrap(),
+                            m.mtype,
+                            m.contextstr),
+            Interface::TabText =>
+                println!("MATCH\t{}\t{}\t{}\t{}\t{:?}\t{}",
+                            m.matchstr,
+                            linenum.to_string(),
+                            charnum.to_string(),
+                            m.filepath.to_str().unwrap(),
+                            m.mtype,
+                            m.contextstr),
+        }
     } else {
         error!("Could not resolve file coords for match {:?}", m);
     }
@@ -103,14 +126,19 @@ fn run_the_complete_fn(cfg: &Config, print_type: CompletePrinter) {
     let src = session.load_file(fn_path);
     let line = &getline(substitute_file, cfg.linenum, &session);
     let (start, pos) = util::expand_ident(line, cfg.charnum);
-    println!("PREFIX {},{},{}", start, pos, &line[start..pos]);
+    match cfg.interface {
+        Interface::Text => 
+            println!("PREFIX {},{},{}", start, pos, &line[start..pos]),
+        Interface::TabText => 
+            println!("PREFIX\t{}\t{}\t{}", start, pos, &line[start..pos]),
+    }
 
     let point = scopes::coords_to_point(&src, cfg.linenum, cfg.charnum);
 
     for m in core::complete_from_file(&src, fn_path, point, &session) {
         match print_type {
-            CompletePrinter::Normal => match_fn(m, &session),
-            CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session),
+            CompletePrinter::Normal => match_fn(m, &session, cfg.interface),
+            CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session, cfg.interface),
         };
     }
 }
@@ -125,12 +153,12 @@ fn external_complete(cfg: Config) {
 
     for m in do_file_search(p[0], &Path::new(".")) {
         if p.len() == 1 {
-            match_fn(m, &session);
+            match_fn(m, &session, cfg.interface);
         } else {
             for m in do_external_search(&p[1..], &m.filepath, m.point,
                                         core::SearchType::StartsWith,
                                         core::Namespace::BothNamespaces, &session) {
-                match_fn(m, &session);
+                match_fn(m, &session, cfg.interface);
             }
         }
     }
@@ -144,7 +172,12 @@ fn prefix(cfg: Config) {
     // print the start, end, and the identifier prefix being matched
     let line = &getline(fn_path, cfg.linenum, &session);
     let (start, pos) = util::expand_ident(line, cfg.charnum);
-    println!("PREFIX {},{},{}", start, pos, &line[start..pos]);
+    match cfg.interface {
+        Interface::Text => 
+            println!("PREFIX {},{},{}", start, pos, &line[start..pos]),
+        Interface::TabText => 
+            println!("PREFIX\t{}\t{}\t{}", start, pos, &line[start..pos]),
+    }
 }
 
 #[cfg(not(test))]
@@ -154,7 +187,7 @@ fn find_definition(cfg: Config) {
     let src = session.load_file(fn_path);
     let pos = scopes::coords_to_point(&src, cfg.linenum, cfg.charnum);
 
-    core::find_definition(&src, fn_path, pos, &session).map(|m| match_fn(m, &session));
+    core::find_definition(&src, fn_path, pos, &session).map(|m| match_fn(m, &session, cfg.interface));
     println!("END");
 }
 
@@ -191,8 +224,8 @@ fn check_rust_src_env_var() {
 }
 
 #[cfg(not(test))]
-fn daemon() {
-use std::io;
+fn daemon(cfg: Config) {
+    use std::io;
     let mut input = String::new();
     while let Ok(n) = io::stdin().read_line(&mut input) {
         // '\n' == 1
@@ -202,11 +235,28 @@ use std::io;
         // We add the setting NoBinaryName because in daemon mode we won't be passed the preceeding
         // binary name
         let cli = build_cli().setting(AppSettings::NoBinaryName);
-        let matches = cli.get_matches_from(input.split_whitespace().map(str::trim));
-        run(matches);
+        let matches = match cfg.interface {
+            Interface::Text => cli.get_matches_from(input.trim_right().split_whitespace()),
+            Interface::TabText => cli.get_matches_from(input.trim_right().split('\t'))
+        };
+        run(matches, cfg.interface);
 
         input.clear();
     }
+}
+
+#[cfg(not(test))]
+#[derive(Copy, Clone)]
+enum Interface {
+    Text,    // The original human-readable format.
+    TabText, // Machine-readable format.  This is basically the same as Text, except that all field 
+             // separators are replaced with tabs. 
+             // In `deamon` mode tabs are also used to delimit command arguments.
+}
+
+#[cfg(not(test))]
+impl Default for Interface {
+    fn default() -> Self { Interface::Text }
 }
 
 #[cfg(not(test))]
@@ -217,6 +267,7 @@ struct Config {
     charnum: usize,
     fn_name: Option<PathBuf>,
     substitute_file: Option<PathBuf>,
+    interface: Interface,
 }
 
 #[cfg(not(test))]
@@ -238,7 +289,7 @@ impl<'a> From<&'a ArgMatches<'a, 'a>> for Config {
                 return Config {linenum: value_t_or_exit!(m.value_of("fqn"), usize), .. cfg };
             } 
             return Config {linenum: value_t_or_exit!(m.value_of("linenum"), usize), .. cfg };
-        } 
+        }
         Config {fqn: m.value_of("fqn").map(ToOwned::to_owned), ..Default::default() }
     }
 }
@@ -254,6 +305,14 @@ fn build_cli<'a, 'b, 'c, 'd, 'e, 'f>() -> App<'a, 'b, 'c, 'd, 'e, 'f> {
         .about("A Rust code completion utility")
         .settings(&[AppSettings::GlobalVersion,
 		    AppSettings::SubcommandRequiredElseHelp])
+        .arg(Arg::with_name("interface")
+            .long("interface")
+            .short("i")
+            .takes_value(true)
+            .possible_value("text")
+            .possible_value("tab-text")
+            .value_name("mode")
+            .help("Interface mode"))
         .subcommand(SubCommand::with_name("complete")
             .about("performs completion and returns matches")
             // We set an explicit usage string here, instead of letting `clap` write one due to
@@ -331,21 +390,30 @@ fn main() {
 
     env_logger::init().unwrap();
     check_rust_src_env_var();
-
+    
     let matches = build_cli().get_matches();
-    run(matches);
+    let interface = match matches.value_of("interface") {
+            Some("text") => Interface::Text,
+            Some("tab-text") => Interface::TabText,
+            _ => Interface::Text,
+        };
+    run(matches, interface);
 }
 
 #[cfg(not(test))]
-fn run(m: ArgMatches) {
+fn run(m: ArgMatches, interface: Interface) {
     use CompletePrinter::{Normal, WithSnippets};
     // match raw subcommand, and get it's sub-matches "m"
-    match m.subcommand() {
-        ("daemon", _)                      => daemon(),
-        ("prefix", Some(m))                => prefix(Config::from(m)),
-        ("complete", Some(m))              => complete(Config::from(m), Normal),
-        ("complete-with-snippet", Some(m)) => complete(Config::from(m), WithSnippets),
-        ("find-definition", Some(m))       => find_definition(Config::from(m)),
-        _                                  => unreachable!()
+    if let (name, Some(sub_m)) = m.subcommand() {
+        let mut cfg = Config::from(sub_m);
+        cfg.interface = interface;
+        match name {
+            "daemon"                => daemon(cfg),
+            "prefix"                => prefix(cfg),
+            "complete"              => complete(cfg, Normal),
+            "complete-with-snippet" => complete(cfg, WithSnippets),
+            "find-definition"       => find_definition(cfg),
+            _                       => unreachable!()
+        }
     }
 }
