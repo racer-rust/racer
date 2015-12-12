@@ -414,6 +414,12 @@ impl<'s> Session<'s> {
             self.cache.arena.alloc(src.src.with_src(scopes::mask_comments(src)))
         }).as_ref()
     }
+
+    pub fn insert_file(&'s self, filepath: &path::Path, src: String) {
+        let mut cache = self.cache.raw_map.borrow_mut();
+        let index_source = IndexedSource::new(src);
+        cache.insert(filepath.to_path_buf(), self.cache.arena.alloc(index_source));
+    }
 }
 
 
