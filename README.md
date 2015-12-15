@@ -12,7 +12,7 @@
 
 ### With `cargo install`
 
-This method currently requires a beta or nightly install of Rust. Simply run:
+This method requires Rust 1.5. Simply run:
 
 ```cargo install --git 'https://github.com/phildawes/racer.git'```
 
