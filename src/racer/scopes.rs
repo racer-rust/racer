@@ -1,5 +1,5 @@
 use {ast, typeinf, util};
-use core::{Src, SessionRef, CompletionType};
+use core::{Src, CompletionType, Session};
 #[cfg(test)] use core;
 
 use std::iter::Iterator;
@@ -291,7 +291,7 @@ pub fn point_to_coords(src: &str, point: usize) -> (usize, usize) {
     (nlines, point - linestart)
 }
 
-pub fn point_to_coords_from_file(path: &Path, point: usize, session: SessionRef) -> Option<(usize, usize)> {
+pub fn point_to_coords_from_file(path: &Path, point: usize, session: &Session) -> Option<(usize, usize)> {
     let mut lineno = 0;
     let mut p = 0;
     for line in session.load_file(path).split('\n') {

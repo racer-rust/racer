@@ -332,13 +332,13 @@ pub fn new_source(src: String) -> IndexedSource {
     IndexedSource::new(src)
 }
 
-pub struct FileCache<'s> {
+pub struct FileCache<'c> {
     arena: Arena<IndexedSource>,
-    raw_map: RefCell<HashMap<path::PathBuf, &'s IndexedSource>>,
-    masked_map: RefCell<HashMap<path::PathBuf, &'s IndexedSource>>,
+    raw_map: RefCell<HashMap<path::PathBuf, &'c IndexedSource>>,
+    masked_map: RefCell<HashMap<path::PathBuf, &'c IndexedSource>>,
 }
 
-impl<'s> FileCache<'s> {
+impl<'c> FileCache<'c> {
     pub fn new<'a>() -> FileCache<'a> {
         FileCache {
             arena: Arena::new(),
@@ -348,24 +348,23 @@ impl<'s> FileCache<'s> {
     }
 }
 
-pub struct Session<'s> {
+pub struct Session<'c> {
     query_path: path::PathBuf,            // the input path of the query
     substitute_file: path::PathBuf,       // the temporary file
-    cache: &'s FileCache<'s>              // cache for file contents
+    cache: &'c FileCache<'c>              // cache for file contents
 }
 
-pub type SessionRef<'s, 'r> = &'r Session<'s>;
 
-impl<'s> fmt::Debug for Session<'s> {
+impl<'c> fmt::Debug for Session<'c> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "Session({:?}, {:?})", self.query_path, self.substitute_file)
     }
 }
 
-impl<'s> Session<'s> {
-    pub fn from_path<'a>(cache: &'a FileCache<'a>,
+impl<'c> Session<'c> {
+    pub fn from_path(cache: &'c FileCache<'c>,
                      query_path: &path::Path,
-                     substitute_file: &path::Path) -> Session<'a> {
+                     substitute_file: &path::Path) -> Session<'c> {
         Session {
             query_path: query_path.to_path_buf(),
             substitute_file: substitute_file.to_path_buf(),
@@ -399,7 +398,7 @@ impl<'s> Session<'s> {
         }
     }
 
-    pub fn load_file(&self, filepath: &path::Path) -> Src<'s> {
+    pub fn load_file(&self, filepath: &path::Path) -> Src<'c> {
         let mut cache = self.cache.raw_map.borrow_mut();
         cache.entry(filepath.to_path_buf()).or_insert_with(|| {
             let rawbytes = self.read_file(filepath);
@@ -433,7 +432,7 @@ impl<'s> Session<'s> {
         }
     }
 
-    pub fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Src<'s> {
+    pub fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Src<'c> {
         let mut cache = self.cache.masked_map.borrow_mut();
         cache.entry(filepath.to_path_buf()).or_insert_with(|| {
             let src = self.load_file(filepath);
@@ -444,7 +443,7 @@ impl<'s> Session<'s> {
 }
 
 
-pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session: SessionRef) -> vec::IntoIter<Match> {
+pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> vec::IntoIter<Match> {
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = &src[start..pos];
 
@@ -495,11 +494,11 @@ pub fn complete_from_file(src: &str, filepath: &path::Path, pos: usize, session:
     out.into_iter()
 }
 
-pub fn find_definition(src: &str, filepath: &path::Path, pos: usize, session: SessionRef) -> Option<Match> {
+pub fn find_definition(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> Option<Match> {
     find_definition_(src, filepath, pos, session)
 }
 
-pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: SessionRef) -> Option<Match> {
+pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> Option<Match> {
     let (start, end) = scopes::expand_search_expr(src, pos);
     let expr = &src[start..end];
 
