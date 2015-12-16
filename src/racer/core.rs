@@ -354,7 +354,7 @@ pub struct Session<'s> {
     cache: &'s FileCache<'s>              // cache for file contents
 }
 
-pub type SessionRef<'s> = &'s Session<'s>;
+pub type SessionRef<'s, 'r> = &'r Session<'s>;
 
 impl<'s> fmt::Debug for Session<'s> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {

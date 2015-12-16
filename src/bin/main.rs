@@ -122,7 +122,8 @@ fn run_the_complete_fn(cfg: &Config, print_type: CompletePrinter) {
     let fn_path = &*cfg.fn_name.as_ref().unwrap();
     let substitute_file = cfg.substitute_file.as_ref().unwrap_or(fn_path);
 
-    let session = core::Session::from_path(fn_path, substitute_file);
+    let cache = core::FileCache::new();
+    let session = core::Session::from_path(&cache, fn_path, substitute_file);
     let src = session.load_file(fn_path);
     let line = &getline(substitute_file, cfg.linenum, &session);
     let (start, pos) = util::expand_ident(line, cfg.charnum);
@@ -149,7 +150,8 @@ fn external_complete(cfg: Config) {
     // input: a command line string passed in
     let p: Vec<&str> = cfg.fqn.as_ref().unwrap().split("::").collect();
     let cwd = Path::new(".");
-    let session = core::Session::from_path(&cwd, &cwd);
+    let cache = core::FileCache::new();
+    let session = core::Session::from_path(&cache, &cwd, &cwd);
 
     for m in do_file_search(p[0], &Path::new(".")) {
         if p.len() == 1 {
@@ -167,7 +169,8 @@ fn external_complete(cfg: Config) {
 #[cfg(not(test))]
 fn prefix(cfg: Config) {
     let fn_path = &*cfg.fn_name.as_ref().unwrap();
-    let session = core::Session::from_path(fn_path, cfg.substitute_file.as_ref().unwrap_or(fn_path));
+    let cache = core::FileCache::new();
+    let session = core::Session::from_path(&cache, fn_path, cfg.substitute_file.as_ref().unwrap_or(fn_path));
 
     // print the start, end, and the identifier prefix being matched
     let line = &getline(fn_path, cfg.linenum, &session);
@@ -183,7 +186,8 @@ fn prefix(cfg: Config) {
 #[cfg(not(test))]
 fn find_definition(cfg: Config) {
     let fn_path = &*cfg.fn_name.as_ref().unwrap();
-    let session = core::Session::from_path(fn_path, cfg.substitute_file.as_ref().unwrap_or(fn_path));
+    let cache = core::FileCache::new();
+    let session = core::Session::from_path(&cache, fn_path, cfg.substitute_file.as_ref().unwrap_or(fn_path));
     let src = session.load_file(fn_path);
     let pos = scopes::coords_to_point(&src, cfg.linenum, cfg.charnum);
 
