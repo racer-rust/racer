@@ -351,7 +351,7 @@ impl<'s> FileCache<'s> {
 pub struct Session<'s> {
     query_path: path::PathBuf,            // the input path of the query
     substitute_file: path::PathBuf,       // the temporary file
-    cache: FileCache<'s>                  // cache for file contents
+    cache: &'s FileCache<'s>              // cache for file contents
 }
 
 pub type SessionRef<'s> = &'s Session<'s>;
@@ -363,11 +363,13 @@ impl<'s> fmt::Debug for Session<'s> {
 }
 
 impl<'s> Session<'s> {
-    pub fn from_path<'a>(query_path: &path::Path, substitute_file: &path::Path) -> Session<'a> {
+    pub fn from_path<'a>(cache: &'a FileCache<'a>,
+                     query_path: &path::Path,
+                     substitute_file: &path::Path) -> Session<'a> {
         Session {
             query_path: query_path.to_path_buf(),
             substitute_file: substitute_file.to_path_buf(),
-            cache: FileCache::new()
+            cache: cache
         }
     }
 
@@ -397,7 +399,7 @@ impl<'s> Session<'s> {
         }
     }
 
-    pub fn load_file(&'s self, filepath: &path::Path) -> Src<'s> {
+    pub fn load_file(&self, filepath: &path::Path) -> Src<'s> {
         let mut cache = self.cache.raw_map.borrow_mut();
         cache.entry(filepath.to_path_buf()).or_insert_with(|| {
             let rawbytes = self.read_file(filepath);
@@ -409,7 +411,7 @@ impl<'s> Session<'s> {
     /// Cache the contents of `buf` using the given `Path` for a key.
     ///
     /// Subsequent calls to load_file will return an IndexedSource of the provided buf.
-    pub fn cache_file_contents<T>(&'s self, filepath: &path::Path, buf: T)
+    pub fn cache_file_contents<T>(&self, filepath: &path::Path, buf: T)
     where T: Into<String> {
         // update raw file
         {
@@ -431,7 +433,7 @@ impl<'s> Session<'s> {
         }
     }
 
-    pub fn load_file_and_mask_comments(&'s self, filepath: &path::Path) -> Src<'s> {
+    pub fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Src<'s> {
         let mut cache = self.cache.masked_map.borrow_mut();
         cache.entry(filepath.to_path_buf()).or_insert_with(|| {
             let src = self.load_file(filepath);
