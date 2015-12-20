@@ -333,9 +333,16 @@ pub fn new_source(src: String) -> IndexedSource {
 }
 
 pub struct FileCache<'c> {
+    /// provides allocations
     arena: Arena<IndexedSource>,
+    /// active references to raw source
     raw_map: RefCell<HashMap<path::PathBuf, &'c IndexedSource>>,
+    /// active references to masked source
     masked_map: RefCell<HashMap<path::PathBuf, &'c IndexedSource>>,
+    /// allocations that should be used before allocating from the arena.
+    allocations_available: RefCell<Vec<&'c IndexedSource>>,
+    /// allocations that have been freed in the current generation.
+    allocations_freed: RefCell<Vec<&'c IndexedSource>>,
 }
 
 impl<'c> FileCache<'c> {
@@ -344,7 +351,142 @@ impl<'c> FileCache<'c> {
             arena: Arena::new(),
             raw_map: RefCell::new(HashMap::new()),
             masked_map: RefCell::new(HashMap::new()),
+            allocations_available: RefCell::new(Vec::new()),
+            allocations_freed: RefCell::new(Vec::new()),
         }
+    }
+
+    /// Updates available allocations from recently freed lists
+    ///
+    /// While a session is active, allocations may be marked as freed. Reusing the allocation while
+    /// references could still be active would have unintended consequences. This is intended to be
+    /// called by the Session `drop` impl to assert that no references could be handed out.
+    pub fn increment_generation(&self) {
+        // This should be equivalent to self.allocations_available.append(self.allocations_freed)
+        let mut freed = self.allocations_freed.borrow_mut();
+        let mut available = self.allocations_available.borrow_mut();
+        for alloc in freed.iter() {
+            available.push(alloc);
+        }
+
+        freed.clear();
+    }
+
+    /// Checks if allocations are available
+    #[inline]
+    fn needs_alloc(&self) -> bool {
+        self.allocations_available.borrow().len() == 0
+    }
+
+    /// Allocate an IndexedSource using provided value.
+    ///
+    /// Attempts to reuse a freed allocation before allocating from arena.
+    ///
+    /// If the contract about freed allocations is not upheld, this could result in undefined
+    /// behavior.
+    ///
+    /// TODO should this be marked unsafe until it can be refactored into a safer api?
+    fn alloc(&self, value: IndexedSource) -> &mut IndexedSource {
+        if self.needs_alloc() {
+            // new alloc
+            self.arena.alloc(value)
+        } else {
+            // reuse freed alloc
+            unsafe {
+                // Get a mutable reference to the old object
+                let ptr = ::std::mem::transmute(self.allocations_available.borrow_mut()
+                                                                          .pop()
+                                                                          .unwrap());
+
+                // Run drop for the previously stored value
+                let prev = ::std::ptr::read(ptr as *const IndexedSource);
+                ::std::mem::drop(prev);
+
+                // copy provided value into ptr without running drop
+                ::std::ptr::write(ptr, value);
+
+                // A reference to the updated allocation is returned.
+                &mut *ptr
+            }
+        }
+    }
+
+
+    /// Cache the contents of `buf` using the given `Path` for a key.
+    ///
+    /// Subsequent calls to load_file will return an IndexedSource of the provided buf.
+    pub fn cache_file_contents<T>(&'c self, filepath: &path::Path, buf: T)
+    where T: Into<String> {
+        // update raw file
+        {
+            let mut cache = self.raw_map.borrow_mut();
+
+            // Mark previous allocation free
+            if let Some(prev) = cache.get(filepath) {
+                self.allocations_freed.borrow_mut().push(prev);
+            }
+
+            cache.insert(filepath.to_path_buf(), {
+                self.alloc(IndexedSource::new(buf.into()))
+            });
+        }
+
+        // also need to update masked version
+        {
+            // TODO stash old version in free list
+            let mut cache = self.masked_map.borrow_mut();
+
+            if let Some(prev) = cache.get(filepath) {
+                self.allocations_freed.borrow_mut().push(prev);
+            }
+
+            cache.insert(filepath.to_path_buf(), {
+                let src = self.load_file(filepath);
+
+                // create a new IndexedSource with new source, but same indices
+                self.alloc(src.src.with_src(scopes::mask_comments(src)))
+            });
+        }
+    }
+
+    pub fn open_file(&self, path: &path::Path) -> io::Result<File> {
+        File::open(path)
+    }
+
+    pub fn read_file(&self, path: &path::Path) -> Vec<u8> {
+        let mut rawbytes = Vec::new();
+        if let Ok(mut f) = self.open_file(path) {
+            f.read_to_end(&mut rawbytes).unwrap();
+            // skip BOM bytes, if present
+            if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
+                let mut it = rawbytes.into_iter();
+                it.next(); it.next(); it.next();
+                it.collect()
+            } else {
+                rawbytes
+            }
+        } else {
+            error!("read_file couldn't open {:?}. Returning empty string", path);
+            Vec::new()
+        }
+    }
+
+    pub fn load_file(&'c self, filepath: &path::Path) -> Src<'c> {
+        let mut cache = self.raw_map.borrow_mut();
+        cache.entry(filepath.to_path_buf()).or_insert_with(|| {
+            let rawbytes = self.read_file(filepath);
+            let res = String::from_utf8(rawbytes).unwrap();
+            self.alloc(IndexedSource::new(res))
+        }).as_ref()
+    }
+
+    pub fn load_file_and_mask_comments(&'c self, filepath: &path::Path) -> Src<'c> {
+        let mut cache = self.masked_map.borrow_mut();
+        cache.entry(filepath.to_path_buf()).or_insert_with(|| {
+            let src = self.load_file(filepath);
+            // create a new IndexedSource with new source, but same indices
+            self.alloc(src.src.with_src(scopes::mask_comments(src)))
+        }).as_ref()
     }
 }
 
@@ -372,73 +514,29 @@ impl<'c> Session<'c> {
         }
     }
 
+    pub fn cache_file_contents<T>(&self, filepath: &path::Path, buf: T)
+    where T: Into<String> {
+        self.cache.cache_file_contents(filepath, buf);
+    }
+
     pub fn open_file(&self, path: &path::Path) -> io::Result<File> {
         if path == self.query_path.as_path() {
-            File::open(&self.substitute_file)
+            self.cache.open_file(&self.substitute_file)
         } else {
-            File::open(path)
+            self.cache.open_file(path)
         }
     }
 
     pub fn read_file(&self, path: &path::Path) -> Vec<u8> {
-        let mut rawbytes = Vec::new();
-        if let Ok(mut f) = self.open_file(path) {
-            f.read_to_end(&mut rawbytes).unwrap();
-            // skip BOM bytes, if present
-            if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
-                let mut it = rawbytes.into_iter();
-                it.next(); it.next(); it.next();
-                it.collect()
-            } else {
-                rawbytes
-            }
-        } else {
-            error!("read_file couldn't open {:?}. Returning empty string", path);
-            Vec::new()
-        }
+        self.cache.read_file(path)
     }
 
     pub fn load_file(&self, filepath: &path::Path) -> Src<'c> {
-        let mut cache = self.cache.raw_map.borrow_mut();
-        cache.entry(filepath.to_path_buf()).or_insert_with(|| {
-            let rawbytes = self.read_file(filepath);
-            let res = String::from_utf8(rawbytes).unwrap();
-            self.cache.arena.alloc(IndexedSource::new(res))
-        }).as_ref()
-    }
-
-    /// Cache the contents of `buf` using the given `Path` for a key.
-    ///
-    /// Subsequent calls to load_file will return an IndexedSource of the provided buf.
-    pub fn cache_file_contents<T>(&self, filepath: &path::Path, buf: T)
-    where T: Into<String> {
-        // update raw file
-        {
-            let mut cache = self.cache.raw_map.borrow_mut();
-            cache.insert(filepath.to_path_buf(), {
-                self.cache.arena.alloc(IndexedSource::new(buf.into()))
-            });
-        }
-
-        // also need to update masked version
-        {
-            let mut cache = self.cache.masked_map.borrow_mut();
-            cache.insert(filepath.to_path_buf(), {
-                let src = self.load_file(filepath);
-
-                // create a new IndexedSource with new source, but same indices
-                self.cache.arena.alloc(src.src.with_src(scopes::mask_comments(src)))
-            });
-        }
+        self.cache.load_file(filepath)
     }
 
     pub fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Src<'c> {
-        let mut cache = self.cache.masked_map.borrow_mut();
-        cache.entry(filepath.to_path_buf()).or_insert_with(|| {
-            let src = self.load_file(filepath);
-            // create a new IndexedSource with new source, but same indices
-            self.cache.arena.alloc(src.src.with_src(scopes::mask_comments(src)))
-        }).as_ref()
+        self.cache.load_file_and_mask_comments(filepath)
     }
 }
 
