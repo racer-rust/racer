@@ -497,6 +497,12 @@ pub struct Session<'c> {
 }
 
 
+impl<'a> Drop for Session<'a> {
+    fn drop(&mut self) {
+        self.cache.increment_generation();
+    }
+}
+
 impl<'c> fmt::Debug for Session<'c> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         write!(f, "Session({:?}, {:?})", self.query_path, self.substitute_file)
