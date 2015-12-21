@@ -21,6 +21,45 @@ macro_rules! vectry {
     ($e:expr) => (match $e { Ok(e) => e, Err(e) => { error!("ERROR!: {:?} {} {}", e, file!(), line!()); return Vec::new() } })
 }
 
+/// Gets the branch from a git source string if one is present.
+fn get_branch_from_source(source: &String) -> Option<&str> {
+    debug!("get_branch_from_source - Finding branch from {:?}", source);
+    match source.find("branch=") {
+        Some(idx) => {
+            let (_start, branch) = source.split_at(idx+7);
+            match branch.find("#") {
+                Some(idx) => {
+                    let (branch, _end) = branch.split_at(idx);
+                    Some(branch)
+                },
+                None => Some(branch),
+            }
+        },
+        None => None
+    }
+}
+
+#[test]
+fn gets_branch_from_git_source_with_hash() {
+    let source = "git+https://github.com/phildawes/racer.git?branch=dev#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1".to_string();
+    let branch = get_branch_from_source(&source);
+    assert_eq!(branch, Some("dev"));
+}
+
+#[test]
+fn gets_branch_from_git_source_without_hash() {
+    let source = "git+https://github.com/phildawes/racer.git?branch=dev".to_string();
+    let branch = get_branch_from_source(&source);
+    assert_eq!(branch, Some("dev"));
+}
+
+#[test]
+fn empty_if_no_branch() {
+    let source = "git+https://github.com/phildawes/racer.git#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1".to_string();
+    let branch = get_branch_from_source(&source);
+    assert_eq!(branch, None);
+}
+
 fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     let mut file = otry2!(File::open(cargofile));
     let mut string = String::new();
@@ -48,9 +87,10 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
                     } else if Some("git") == source.split("+").nth(0) {
                         let sha1 = otry!(source.split("#").last());
                         let mut d = otry!(get_cargo_rootdir(cargofile));
+                        let branch = get_branch_from_source(&source);
                         d.push("git");
                         d.push("checkouts");
-                        d = otry!(find_git_src_dir(d, name, &sha1));
+                        d = otry!(find_git_src_dir(d, name, &sha1, branch));
                         d.push("src");
                         d.push("lib.rs");
                         return Some(d);
@@ -213,7 +253,6 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
         }
     }
 
-
     // otherwise search the dependencies
     let t = match table.get("dependencies") {
         Some(&toml::Value::Table(ref t)) => t,
@@ -262,7 +301,7 @@ fn find_cratesio_src_dirs(d: PathBuf) -> Vec<PathBuf> {
     out
 }
 
-fn find_git_src_dir(d: PathBuf, name: &str, sha1: &str) -> Option<PathBuf> {
+fn find_git_src_dir(d: PathBuf, name: &str, sha1: &str, branch: Option<&str>) -> Option<PathBuf> {
     for entry in otry2!(read_dir(d)) {
         let path = otry2!(entry).path();
         if is_dir(path.as_path()) {
@@ -272,6 +311,11 @@ fn find_git_src_dir(d: PathBuf, name: &str, sha1: &str) -> Option<PathBuf> {
 
                     // dirname can be the sha1 or master.
                     d.push(sha1);
+
+                    if !is_dir(d.as_path()) && branch.is_some() {
+                        d.pop();
+                        d.push(branch.unwrap());
+                    }
 
                     if !is_dir(d.as_path()) {
                         d.pop();
