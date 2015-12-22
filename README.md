@@ -54,3 +54,7 @@ The Kate community maintains a [plugin](http://quickgit.kde.org/?p=kate.git&a=tr
 1. Enable 'Rust code completion' in the plugin list in the Kate config dialog
 
 2. On the new 'Rust code completion' dialog page, make sure 'Racer command' and 'Rust source tree location' are set correctly
+
+## Sublime Text integration
+
+The Sublime Text community maintains a [plugin](https://github.com/defuz/RustAutoComplete).
