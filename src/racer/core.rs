@@ -340,7 +340,7 @@ pub struct FileCache<'c> {
     /// active references to masked source
     masked_map: RefCell<HashMap<path::PathBuf, &'c IndexedSource>>,
     /// allocations that should be used before allocating from the arena.
-    allocations_available: RefCell<Vec<&'c IndexedSource>>,
+    allocations_available: RefCell<Vec<&'c mut IndexedSource>>,
     /// allocations that have been freed in the current generation.
     allocations_freed: RefCell<Vec<&'c IndexedSource>>,
 }
@@ -359,17 +359,23 @@ impl<'c> FileCache<'c> {
     /// Updates available allocations from recently freed lists
     ///
     /// While a session is active, allocations may be marked as freed. Reusing the allocation while
-    /// references could still be active would have unintended consequences. This is intended to be
-    /// called by the Session `drop` impl to assert that no references could be handed out.
-    pub fn increment_generation(&self) {
-        // This should be equivalent to self.allocations_available.append(self.allocations_freed)
+    /// references could still be active would have unintended consequences.
+    ///
+    /// # Safety
+    ///
+    /// The FileCache must not have references handed out at the time this is called. Since the
+    /// FileCache is only accessed by the Session, it is save to call this when the Session is
+    /// dropped. Actually, it is called by the Session drop impl, and it shouldn't need to be called
+    /// at any other time.
+    pub unsafe fn update_available_allocations(&self) {
         let mut freed = self.allocations_freed.borrow_mut();
         let mut available = self.allocations_available.borrow_mut();
-        for alloc in freed.iter() {
-            available.push(alloc);
-        }
 
-        freed.clear();
+        while let Some(alloc) = freed.pop() {
+            // Add a mutable reference to the available allocation list
+            let ptr = ::std::mem::transmute::<*const IndexedSource, *mut IndexedSource>(alloc);
+            available.push(&mut *ptr);
+        }
     }
 
     /// Checks if allocations are available
@@ -394,13 +400,11 @@ impl<'c> FileCache<'c> {
             // reuse freed alloc
             unsafe {
                 // Get a mutable reference to the old object
-                let ptr = ::std::mem::transmute(self.allocations_available.borrow_mut()
-                                                                          .pop()
-                                                                          .unwrap());
+                let ptr: *mut IndexedSource = self.allocations_available.borrow_mut().pop().unwrap();
 
-                // Run drop for the previously stored value
-                let prev = ::std::ptr::read(ptr as *const IndexedSource);
-                ::std::mem::drop(prev);
+                // Run drop for the previously stored value. This has to be done when the allocation
+                // is being reused so that the memory is always intialized to valid values.
+                ::std::mem::drop(::std::ptr::read(ptr));
 
                 // copy provided value into ptr without running drop
                 ::std::ptr::write(ptr, value);
@@ -499,7 +503,7 @@ pub struct Session<'c> {
 
 impl<'a> Drop for Session<'a> {
     fn drop(&mut self) {
-        self.cache.increment_generation();
+        unsafe { self.cache.update_available_allocations(); }
     }
 }
 

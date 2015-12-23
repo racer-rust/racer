@@ -106,12 +106,12 @@ fn overwriting_cached_files() {
     // Need session and path to cache files
     let path = tmpname();
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
 
     // Cache contents for a file and assert that load_file and load_file_and_mask_comments return
     // the newly cached contents.
     macro_rules! cache_and_assert {
         ($src:ident) => {{
+            let session = core::Session::from_path(&cache, &path, &path);
             session.cache_file_contents(&path, $src);
             assert_eq!($src, &session.load_file(&path).src.code[..]);
             assert_eq!($src, &session.load_file_and_mask_comments(&path).src.code[..]);
