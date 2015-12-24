@@ -12,15 +12,6 @@ use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::thread;
 
-// fn with_session<U, F>(query_path: &path::Path, substitute_file: &path::Path, func: F) -> U
-// where F: FnOnce(&core::Session) -> U {
-// 
-//     let cache = core::FileCache::new();
-//     let session = core::Session::from_path(cache, query_path, substitute_file);
-// 
-//     func(&session)
-// }
-
 fn tmpname() -> PathBuf {
     let thread = thread::current();
     let taskname = thread.name().unwrap();
@@ -48,12 +39,8 @@ fn completes_fn() {
     let path = tmpname();
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 6, 18);
-    // let got = with_session(&path, &path, |session| {
-    //     complete_from_file(src, &path, pos, session).nth(0).unwrap()
-    // });
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
 
     fs::remove_file(&path).unwrap();
     assert_eq!("apple".to_string(), got.matchstr.to_string());
@@ -72,8 +59,7 @@ fn completes_pub_fn_locally() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 6, 18);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("apple".to_string(), got.matchstr.to_string());
 }
@@ -138,8 +124,7 @@ fn completes_pub_const_fn_locally() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 6, 18);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("apple".to_string(), got.matchstr.to_string());
 }
@@ -155,8 +140,7 @@ fn completes_local_scope_let() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 4, 18);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("apple".to_string(), got.matchstr);
     assert_eq!(29, got.point);
@@ -175,8 +159,7 @@ fn main() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 5, 18);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("apple".to_string(), got.matchstr);
     assert_eq!(25, got.point);
@@ -209,12 +192,10 @@ fn main() { // l16
     write_file(&path, src);
     let pos1 = scopes::coords_to_point(src, 18, 14);  // sub::Foo::
     let cache1 = core::FileCache::new();
-    let session1 = core::Session::from_path(&cache1, &path, &path);
-    let got1 = complete_from_file(src, &path, pos1, &session1).nth(0);
+    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&cache1, &path, &path)).nth(0);
     let pos2 = scopes::coords_to_point(src, 19, 7);   // t.t
     let cache2 = core::FileCache::new();
-    let session2 = core::Session::from_path(&cache2, &path, &path);
-    let got2 = complete_from_file(src, &path, pos2, &session2).nth(0);
+    let got2 = complete_from_file(src, &path, pos2, &core::Session::from_path(&cache2, &path, &path)).nth(0);
     fs::remove_file(&path).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
@@ -240,8 +221,7 @@ fn follows_use() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 5, 10);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!(got.matchstr,"myfn".to_string());
 }
@@ -264,8 +244,7 @@ fn follows_use_as() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 5, 10);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!(got.matchstr, "myfn".to_string());
 }
@@ -288,8 +267,7 @@ fn follows_use_glob() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 5, 10);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!(got.matchstr, "myfn".to_string());
 }
@@ -309,8 +287,7 @@ fn completes_struct_field_via_assignment() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 8, 9);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("first".to_string(), got.matchstr);
 }
@@ -330,8 +307,7 @@ fn finds_defn_of_struct_field() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 8, 9);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!(got.matchstr, "first".to_string());
 }
@@ -350,8 +326,7 @@ fn finds_impl_fn() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 7, 10);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!(got.matchstr, "new".to_string());
 }
@@ -372,8 +347,7 @@ fn follows_use_to_inline_mod() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 8, 9);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!(got.matchstr, "myfn".to_string());
 }
@@ -392,8 +366,7 @@ fn finds_enum() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 6, 16);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!(got.matchstr, "MyEnum".to_string());
 }
@@ -409,8 +382,7 @@ fn finds_type() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 5);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!(got.matchstr, "SpannedIdent".to_string());
 }
@@ -426,8 +398,7 @@ fn finds_trait() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 5);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!(got.matchstr, "MyTrait".to_string());
 }
@@ -444,8 +415,7 @@ fn finds_fn_arg() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 10);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!(got.matchstr, "myarg".to_string());
 }
@@ -461,8 +431,7 @@ fn finds_fn_arg_in_incomplete_fn() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 10);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!(got.matchstr, "myarg".to_string());
 }
@@ -481,8 +450,7 @@ fn finds_inline_fn() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 6, 9);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!(got.matchstr, "contains".to_string());
 }
@@ -515,8 +483,7 @@ fn follows_self_use() {
     write_file(&srcpath, src);
     let pos = scopes::coords_to_point(src, 6, 10);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &srcpath, &srcpath);
-    let got = find_definition(src, &srcpath, pos, &session).unwrap();
+    let got = find_definition(src, &srcpath, pos, &core::Session::from_path(&cache, &srcpath, &srcpath)).unwrap();
     fs::remove_dir_all(&basedir).unwrap();
     assert_eq!(got.matchstr, "myfn".to_string());
     assert_eq!(moddir.join("src4.rs").display().to_string(),
@@ -547,8 +514,7 @@ fn finds_nested_submodule_file() {
     write_file(&sub2dir.join("sub3.rs"), sub3src);
     let pos = scopes::coords_to_point(rootsrc, 7, 23);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &srcpath, &srcpath);
-    let got = find_definition(rootsrc, &srcpath, pos, &session).unwrap();
+    let got = find_definition(rootsrc, &srcpath, pos, &core::Session::from_path(&cache, &srcpath, &srcpath)).unwrap();
     fs::remove_dir_all(&basedir).unwrap();
     assert_eq!(got.matchstr, "myfn".to_string());
     assert_eq!(sub2dir.join("sub3.rs").display().to_string(),
@@ -565,8 +531,7 @@ fn follows_super_in_sub_module() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 33);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("iamhere", got.matchstr);
 }
@@ -583,8 +548,7 @@ fn follows_super_in_local_sub_module() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 4, 38);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("iamhere", got.matchstr);
 }
@@ -615,8 +579,7 @@ fn follows_use_to_impl() {
     write_file(&srcpath, src);
     let pos = scopes::coords_to_point(src, 5, 14);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &srcpath, &srcpath);
-    let got = find_definition(src, &srcpath, pos, &session).unwrap();
+    let got = find_definition(src, &srcpath, pos, &core::Session::from_path(&cache, &srcpath, &srcpath)).unwrap();
 
     fs::remove_dir_all(&basedir).unwrap();
     assert_eq!(got.matchstr, "new".to_string());
@@ -639,8 +602,7 @@ fn finds_templated_impl_fn() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 7, 10);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!(got.matchstr, "new".to_string());
 }
@@ -663,8 +625,7 @@ fn follows_fn_to_method() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 10, 12);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("mymethod".to_string(), got.matchstr);
 }
@@ -685,8 +646,7 @@ fn follows_arg_to_method() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 8, 12);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("mymethod".to_string(), got.matchstr);
 }
@@ -709,8 +669,7 @@ fn follows_arg_to_enum_method() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 10, 12);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("mymethod".to_string(), got.matchstr);
 }
@@ -736,8 +695,7 @@ fn follows_let_method_call() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 13, 12);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("mybarmethod".to_string(), got.matchstr);
 }
@@ -762,8 +720,7 @@ fn follows_chained_method_call() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 12, 23);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("mybarmethod".to_string(), got.matchstr);
 }
@@ -787,8 +744,7 @@ fn discards_inner_fns() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 11, 11);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = complete_from_file(src, &path, pos, &session).nth(0);
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0);
     fs::remove_file(&path).unwrap();
     assert!(got.is_none(), "should not match inner function");
 }
@@ -805,8 +761,7 @@ fn differentiates_type_and_value_namespaces() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 5, 18);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     println!("{}", got.matchstr);
     println!("{:?}", got.mtype);
@@ -829,8 +784,7 @@ fn follows_self_to_method() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 8, 20);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("method", got.matchstr);
 }
@@ -853,8 +807,7 @@ fn follows_self_to_method_when_call_on_new_line() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 9, 20);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("method", got.matchstr);
 }
@@ -873,8 +826,7 @@ fn follows_self_to_trait_method() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 6, 20);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("method", got.matchstr);
 }
@@ -897,8 +849,7 @@ fn finds_trait_method() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 10, 22);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("trait_method", got.matchstr);
 }
@@ -919,8 +870,7 @@ fn finds_field_type() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 9, 16);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("subfield", got.matchstr);
 }
@@ -939,8 +889,7 @@ fn finds_a_generic_retval_from_a_function() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 7, 24);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("subfield", got.matchstr);
 }
@@ -964,8 +913,7 @@ fn handles_an_enum_option_style_return_type() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 12, 18);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("subfield", got.matchstr);
 }
@@ -980,8 +928,7 @@ fn finds_definition_of_const() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 7);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("MYCONST", got.matchstr);
 }
@@ -996,8 +943,7 @@ fn finds_definition_of_static() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 7);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("MYSTATIC", got.matchstr);
 }
@@ -1012,8 +958,7 @@ fn handles_dotdot_before_searchstr() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 22);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("MYLEN", got.matchstr);
 }
@@ -1029,8 +974,7 @@ fn finds_definition_of_lambda_argument() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 12);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("a", got.matchstr);
 }
@@ -1045,8 +989,7 @@ fn finds_definition_of_let_tuple() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 4);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("a", got.matchstr);
 }
@@ -1062,8 +1005,7 @@ fn finds_type_of_tuple_member_via_let_type() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 4, 11);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("subfield", got.matchstr);
 }
@@ -1079,8 +1021,7 @@ fn finds_type_of_tuple_member_via_let_expr() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 4, 11);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("subfield", got.matchstr);
 }
@@ -1097,8 +1038,7 @@ fn finds_type_of_tuple_member_via_fn_retval() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 5, 11);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("subfield", got.matchstr);
 }
@@ -1115,8 +1055,7 @@ fn finds_type_of_tuple_member_in_fn_arg() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 4, 11);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("subfield", got.matchstr);
 }
@@ -1131,8 +1070,7 @@ fn finds_namespaced_enum_variant() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 14);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("MyVariant", got.matchstr);
 }
@@ -1148,8 +1086,7 @@ fn finds_glob_imported_enum_variant() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 4, 8);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("MyVariant", got.matchstr);
 }
@@ -1169,8 +1106,7 @@ fn uses_generic_arg_to_resolve_trait_method() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 6, 19);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("trait_method", got.matchstr);
 }
@@ -1187,8 +1123,7 @@ fn destructures_a_tuplestruct() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 5, 10);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("subfield", got.matchstr);
 }
@@ -1206,8 +1141,7 @@ fn destructures_a_tuplestruct_with_generic_arg() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 6, 10);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("subfield", got.matchstr);
 }
@@ -1223,8 +1157,7 @@ fn finds_if_let_ident_defn() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 13);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let mut it = complete_from_file(src, &path, pos, &session);
+    let mut it = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path));
     let got = it.next().unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("myvar", &*got.matchstr);
@@ -1244,8 +1177,7 @@ fn doesnt_find_if_let_if_not_in_the_subscope() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 6, 6);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("myvar", &*got.matchstr);
     assert_eq!(9, got.point);
@@ -1263,8 +1195,7 @@ fn finds_rebound_var_in_iflet() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 4, 8);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!(56, got.point);
 }
@@ -1286,8 +1217,7 @@ fn handles_if_let() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 9, 13);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("subfield", got.matchstr);
 }
@@ -1309,8 +1239,7 @@ fn handles_if_let_as_expression() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 9, 13);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("subfield", got.matchstr);
 }
@@ -1325,8 +1254,7 @@ fn finds_match_arm_var() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 18);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("a", got.matchstr);
 }
@@ -1341,8 +1269,7 @@ fn finds_match_arm_var_in_scope() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 20);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("a", got.matchstr);
 }
@@ -1362,8 +1289,7 @@ fn finds_match_arm_enum() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 7, 18);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("Foo", got.matchstr);
 }
@@ -1384,8 +1310,7 @@ fn finds_match_arm_var_with_nested_match() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 8, 15);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("a", got.matchstr);
 }
@@ -1406,8 +1331,7 @@ fn gets_type_via_match_arm() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 9, 38);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("subfield", got.matchstr);
 }
@@ -1425,8 +1349,7 @@ fn handles_default_arm() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 5, 13);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("o", got.matchstr);
     assert_eq!(9, got.point);
@@ -1442,8 +1365,7 @@ fn doesnt_match_rhs_of_let_in_same_stmt() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 3, 12);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!("a", got.matchstr);
     assert_eq!(9, got.point);
@@ -1469,8 +1391,7 @@ fn finds_unsafe_fn() {
     write_file(&path, src);
     let pos = scopes::coords_to_point(src, 5, 9);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = find_definition(src, &path, pos, &session).unwrap();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!(got.matchstr, "foo".to_string());
     assert_eq!(got.point, 15);
