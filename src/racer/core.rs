@@ -524,29 +524,36 @@ impl<'c> Session<'c> {
         }
     }
 
+    /// Resolve appropriate path for current query
+    ///
+    /// If path is the query path, returns the substitute file
+    fn resolve_path<'a>(&'a self, path: &'a path::Path) -> &path::Path {
+        if path == self.query_path.as_path() {
+            &self.substitute_file
+        } else {
+            path
+        }
+    }
+
     pub fn cache_file_contents<T>(&self, filepath: &path::Path, buf: T)
     where T: Into<String> {
         self.cache.cache_file_contents(filepath, buf);
     }
 
     pub fn open_file(&self, path: &path::Path) -> io::Result<File> {
-        if path == self.query_path.as_path() {
-            self.cache.open_file(&self.substitute_file)
-        } else {
-            self.cache.open_file(path)
-        }
+        self.cache.open_file(self.resolve_path(path))
     }
 
     pub fn read_file(&self, path: &path::Path) -> Vec<u8> {
-        self.cache.read_file(path)
+        self.cache.read_file(self.resolve_path(path))
     }
 
     pub fn load_file(&self, filepath: &path::Path) -> Src<'c> {
-        self.cache.load_file(filepath)
+        self.cache.load_file(self.resolve_path(filepath))
     }
 
     pub fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Src<'c> {
-        self.cache.load_file_and_mask_comments(filepath)
+        self.cache.load_file_and_mask_comments(self.resolve_path(filepath))
     }
 }
 
