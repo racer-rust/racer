@@ -47,6 +47,27 @@ fn completes_fn() {
 }
 
 #[test]
+fn completes_fn_with_substitute_file() {
+    let src="
+    fn   apple() {
+    }
+
+    fn main() {
+        let b = ap
+    }";
+    let substitute_file = tmpname();
+    write_file(&substitute_file, src);
+    let pos = scopes::coords_to_point(src, 6, 18);
+    let cache = core::FileCache::new();
+    let real_file = &Path::new("not_real.rs");
+    let session = core::Session::from_path(&cache, &real_file, &substitute_file);
+    let got = complete_from_file(src, &real_file, pos, &session).nth(0).unwrap();
+
+    fs::remove_file(&substitute_file).unwrap();
+    assert_eq!("apple".to_string(), got.matchstr.to_string());
+}
+
+#[test]
 fn completes_pub_fn_locally() {
     let src="
     pub fn apple() {
