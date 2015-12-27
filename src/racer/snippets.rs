@@ -31,7 +31,7 @@ impl MethodInfo {
 
         with_error_checking_parse(decorated, |p| {
             use std::result::Result::{Ok, Err};
-            use syntex_syntax::diagnostic::FatalError;
+            use syntex_syntax::errors::FatalError;
             match p.parse_impl_item() {
                 Ok(method) => {
                     match method.node {
@@ -43,7 +43,7 @@ impl MethodInfo {
                                 args: decl.inputs
                                           .iter()
                                           .map(|arg| {
-                                              let ref codemap = p.sess.span_diagnostic.cm;
+                                              let ref codemap = p.sess.codemap();
                                               match codemap.span_to_snippet(arg.pat.span) {
                                                   Ok(name) => name,
                                                   _ => "".into()
