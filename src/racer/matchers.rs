@@ -1,5 +1,5 @@
 use {scopes, typeinf, ast};
-use core::{Match, PathSegment, Src, SessionRef};
+use core::{Match, PathSegment, Src, Session};
 use util::{symbol_matches, txt_matches, find_ident_end, is_ident_char, char_at};
 use nameres::{get_module_file, get_crate_file, resolve_path};
 use core::SearchType::{self, StartsWith, ExactMatch};
@@ -17,7 +17,7 @@ pub type MChain<T> = iter::Chain<T, MIter>;
 pub fn match_types(src: Src, blobstart: usize, blobend: usize,
                    searchstr: &str, filepath: &Path,
                    search_type: SearchType,
-                   local: bool, session: SessionRef) -> iter::Chain<MChain<MChain<MChain<MChain<MChain<MIter>>>>>, vec::IntoIter<Match>> {
+                   local: bool, session: &Session) -> iter::Chain<MChain<MChain<MChain<MChain<MChain<MIter>>>>>, vec::IntoIter<Match>> {
     let it = match_extern_crate(&src, blobstart, blobend, searchstr, filepath, search_type, session).into_iter();
     let it = it.chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_struct(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
@@ -218,7 +218,7 @@ pub fn first_line(blob: &str) -> String {
 
 pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
                           searchstr: &str, filepath: &Path, search_type: SearchType,
-                          session: SessionRef) -> Option<Match> {
+                          session: &Session) -> Option<Match> {
     let mut res = None;
     let blob = &msrc[blobstart..blobend];
 
@@ -476,7 +476,7 @@ thread_local!(static ALREADY_GLOBBING: Cell<Option<bool>> = Cell::new(None));
 
 pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                  searchstr: &str, filepath: &Path, search_type: SearchType,
-                 local: bool, session: SessionRef) -> Vec<Match> {
+                 local: bool, session: &Session) -> Vec<Match> {
     let mut out = Vec::new();
     let blob = &msrc[blobstart..blobend];
 

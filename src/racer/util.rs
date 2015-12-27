@@ -1,14 +1,14 @@
 // Small functions of utility
 
 use core::SearchType::{self, ExactMatch, StartsWith};
-use core::SessionRef;
+use core::Session;
 use std;
 use std::cmp;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::Path;
 
-pub fn getline(filepath: &Path, linenum: usize, session: SessionRef) -> String {
+pub fn getline(filepath: &Path, linenum: usize, session: &Session) -> String {
     let reader = BufReader::new(session.open_file(filepath).unwrap());
     reader.lines().nth(linenum - 1).unwrap_or(Ok("not found".into())).unwrap()
 }
