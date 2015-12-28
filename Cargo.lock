@@ -5,7 +5,7 @@ dependencies = [
  "clap 1.5.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "syntex_syntax 0.23.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syntex_syntax 0.24.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "toml 0.1.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "typed-arena 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -105,7 +105,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "syntex_syntax"
-version = "0.23.0"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bitflags 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",

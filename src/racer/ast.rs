@@ -4,6 +4,7 @@ use nameres::{self, resolve_path_with_str};
 use core::Ty::{TyTuple, TyPathSearch, TyMatch, TyUnsupported};
 
 use std::path::Path;
+use std::rc::Rc;
 
 use syntex_syntax::ast;
 use syntex_syntax::codemap;
@@ -11,7 +12,8 @@ use syntex_syntax::parse::parser::Parser;
 use syntex_syntax::parse::{lexer, ParseSess};
 use syntex_syntax::ptr::P;
 use syntex_syntax::visit::{self, Visitor};
-use syntex_syntax::diagnostic::{ColorConfig, Handler, SpanHandler};
+use syntex_syntax::errors::Handler;
+use syntex_syntax::errors::emitter::ColorConfig;
 
 // This code ripped from libsyntax::util::parser_testing
 pub fn string_to_parser(ps: &ParseSess, source_str: String) -> Option<Parser> {
@@ -22,9 +24,9 @@ pub fn string_to_parser(ps: &ParseSess, source_str: String) -> Option<Parser> {
 }
 
 pub fn with_error_checking_parse<F, T>(s: String, f: F) -> Option<T> where F: Fn(&mut Parser) -> Option<T> {
-    let sh = SpanHandler::new(Handler::new(ColorConfig::Never, None, false),
-                              codemap::CodeMap::new());
-    let ps = ParseSess::with_span_handler(sh);
+    let cm = Rc::new(codemap::CodeMap::new());
+    let sh = Handler::new(ColorConfig::Never, None, false, false, cm.clone());
+    let ps = ParseSess::with_span_handler(sh, cm);
 
     let mut p = match string_to_parser(&ps, s) {
         Some(p) => p,
@@ -36,7 +38,7 @@ pub fn with_error_checking_parse<F, T>(s: String, f: F) -> Option<T> where F: Fn
 // parse a string, return a stmt
 pub fn string_to_stmt(source_str: String) -> Option<P<ast::Stmt>> {
     with_error_checking_parse(source_str, |p| {
-        use syntex_syntax::diagnostic::FatalError;
+        use syntex_syntax::errors::FatalError;
         match p.parse_stmt() {
             Ok(p) => p,
             Err(FatalError) => None
@@ -48,7 +50,7 @@ pub fn string_to_stmt(source_str: String) -> Option<P<ast::Stmt>> {
 pub fn string_to_crate(source_str: String) -> Option<ast::Crate> {
     with_error_checking_parse(source_str.clone(), |p| {
         use std::result::Result::{Ok, Err};
-        use syntex_syntax::diagnostic::FatalError;
+        use syntex_syntax::errors::FatalError;
         match p.parse_crate_mod() {
             Ok(e) => Some(e),
             Err(FatalError) => {
