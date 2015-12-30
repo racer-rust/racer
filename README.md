@@ -14,7 +14,7 @@
 
 This method requires Rust 1.5. Simply run:
 
-```cargo install --git 'https://github.com/phildawes/racer.git'```
+```cargo install --git https://github.com/phildawes/racer.git```
 
 Or if you are using multirust:
 
