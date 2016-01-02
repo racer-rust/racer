@@ -372,33 +372,14 @@ fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
 fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &Session) -> Option<Ty> {
     debug!("find_type_match {:?}", path);
     let res = resolve_path_with_str(path, fpath, pos, core::SearchType::ExactMatch,
-               core::Namespace::TypeNamespace, session).map(|m| {
+               core::Namespace::TypeNamespace, session).nth(0).and_then(|m| {
                    match m.mtype {
                        MatchType::Type => get_type_of_typedef(m, session),
                        _ => Some(m)
                    }
-               }).filter_map(|x| x).collect::<Vec<_>>();
+               });
 
-    if res.len() == 2 {
-        Some( Ty::TyMatchVec(res.into_iter().map(|m| {
-            // add generic types to match (if any)
-            let types: Vec<core::PathSearch> = path.generic_types()
-                .map(|typepath|
-                     core::PathSearch{
-                         path: typepath.clone(),
-                         filepath: fpath.to_path_buf(),
-                         point: pos
-                     }).collect();
-
-            if types.is_empty() {
-                m
-            } else {
-                m.with_generic_types(types)
-            }
-        }).collect()))
-    }
-    else {
-        res.into_iter().nth(0).and_then(|m| {
+    res.and_then(|m| {
         // add generic types to match (if any)
         let types: Vec<core::PathSearch> = path.generic_types()
             .map(|typepath|
@@ -413,8 +394,7 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &Sessio
         } else {
             Some(TyMatch(m.with_generic_types(types.clone())))
         }
-        })
-    }
+    })
 }
 
 fn get_type_of_typedef(m: Match, session: &Session) -> Option<Match> {
@@ -506,7 +486,7 @@ impl<'c, 's, 'v> visit::Visitor<'v> for ExprTypeVisitor<'c, 's> {
                     match *contextm {
                         TyMatch(ref contextm) => {
                             let omethod = nameres::search_for_impl_methods(
-                                &contextm.matchstr,
+                                &contextm,
                                 &methodname,
                                 contextm.point,
                                 &contextm.filepath,

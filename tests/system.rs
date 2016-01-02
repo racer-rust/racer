@@ -30,7 +30,7 @@ fn write_file(tmppath: &Path, s: &str) {
 #[test]
 fn completes_fn() {
     let src="
-    fn   apple() {
+    fn  apple() {
     }
 
     fn main() {
@@ -49,7 +49,7 @@ fn completes_fn() {
 #[test]
 fn completes_fn_with_substitute_file() {
     let src="
-    fn   apple() {
+    fn  apple() {
     }
 
     fn main() {
@@ -1418,3 +1418,114 @@ fn finds_unsafe_fn() {
     assert_eq!(got.point, 15);
 }
 
+#[test]
+fn completes_methods_on_deref_type() {
+    let modsrc = "
+    pub trait Deref {
+        type Target: ?Sized;
+
+        fn deref(&self) -> &Self::Target;
+    }
+
+    pub struct B {
+        c: C,
+    }
+
+    pub struct C;
+
+    pub trait GetOne {
+        fn one(&self) -> u32 { 1u32 }
+    }
+
+    impl GetOne for C {}
+
+    impl Deref for B {
+        type Target = C;
+        fn deref(&self) -> &C {
+            &self.c
+        }
+    }
+    ";
+    let src = "
+    mod mymod;
+    use mymod::{B, C, GetOne};
+
+    fn main() {
+        let b: B = B{ c: C};
+        b.o
+    }
+    ";
+    let basedir = tmpname();
+    fs::create_dir(&basedir).unwrap();
+
+    let modpath = basedir.join("mymod.rs");
+    write_file(&modpath, modsrc);
+    let srcpath = basedir.join("src.rs");
+    write_file(&srcpath, src);
+    let pos = scopes::coords_to_point(src, 7, 11);
+    let cache = core::FileCache::new();
+
+    let got_str = match complete_from_file(src, &srcpath, pos, &core::Session::from_path(&cache, &srcpath, &srcpath)).nth(0) {
+        Some(m) => m.matchstr,
+        None => {fs::remove_dir_all(&basedir).unwrap(); return panic!("No match found!");}
+    };
+
+    fs::remove_dir_all(&basedir).unwrap();
+    assert_eq!(got_str, "one".to_string());
+}
+
+#[test]
+fn completes_methods_on_deref_generic_type() {
+    let modsrc = "
+    pub trait Deref {
+        type Target: ?Sized;
+
+        fn deref(&self) -> &Self::Target;
+    }
+
+    pub struct B<T> {
+        c: T,
+    }
+
+    pub struct C;
+
+    pub trait GetOne {
+        fn one(&self) -> u32 { 1u32 }
+    }
+
+    impl GetOne for C {}
+
+    impl<T> Deref for B<T> {
+        type Target = T;
+        fn deref(&self) -> &T {
+            &self.c
+        }
+    }
+    ";
+    let src = "
+    mod mymod;
+    use mymod::{B, C, GetOne};
+
+    fn main() {
+        let b: B<C> = B{ c: C};
+        b.o
+    }
+    ";
+    let basedir = tmpname();
+    fs::create_dir(&basedir).unwrap();
+
+    let modpath = basedir.join("mymod.rs");
+    write_file(&modpath, modsrc);
+    let srcpath = basedir.join("src.rs");
+    write_file(&srcpath, src);
+    let pos = scopes::coords_to_point(src, 7, 11);
+    let cache = core::FileCache::new();
+
+    let got_str = match complete_from_file(src, &srcpath, pos, &core::Session::from_path(&cache, &srcpath, &srcpath)).nth(0) {
+        Some(m) => m.matchstr,
+        None => {fs::remove_dir_all(&basedir).unwrap(); return panic!("No match found!");}
+    };
+
+    fs::remove_dir_all(&basedir).unwrap();
+    assert_eq!(got_str, "one".to_string());
+}
