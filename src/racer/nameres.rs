@@ -41,17 +41,25 @@ fn search_struct_fields(searchstr: &str, structmatch: &Match,
     out.into_iter()
 }
 
-pub fn search_for_impl_methods(implsearchstr: &str,
+pub fn search_for_impl_methods(match_request: &Match,
                            fieldsearchstr: &str, point: usize,
                            fpath: &Path, local: bool,
                            search_type: SearchType,
                                session: &Session) -> vec::IntoIter<Match> {
-    debug!("searching for impl methods |{}| |{}| {:?}", implsearchstr, fieldsearchstr, fpath.to_str());
+
+    let implsearchstr: &str = &match_request.matchstr;
+
+    debug!("searching for impl methods |{:?}| |{}| {:?}", match_request, fieldsearchstr, fpath.to_str());
 
     let mut out = Vec::new();
 
     for m in search_for_impls(point, implsearchstr, fpath, local, true, session) {
         debug!("found impl!! |{:?}| looking for methods", m);
+
+        if m.matchstr == "Deref" {
+            out.extend(search_for_deref_matches(&m, match_request, fieldsearchstr, fpath, session));
+        }
+
         let src = session.load_file(&m.filepath);
 
         // find the opening brace and skip to it.
@@ -143,10 +151,29 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                     // find trait
                     if include_traits && is_trait_impl {
                         let trait_path = implres.trait_path.unwrap();
-                        let m = resolve_path(&trait_path,
+                        let mut m = resolve_path(&trait_path,
                                              filepath, pos + start, ExactMatch, TypeNamespace,
                                              session).nth(0);
                         debug!("found trait |{:?}| {:?}", trait_path, m);
+
+                        if let Some(ref mut m) = m {
+                            if m.matchstr == "Deref" {
+                                let impl_block = &blob[n..];
+
+                                if let Some(pos) = impl_block.find("=") {
+                                    let deref_type_start = n + pos + 1;
+
+                                    if let &Some(pos) = &blob[deref_type_start..].find(";") {
+                                        let deref_type_end = deref_type_start + pos;
+                                        let deref_type = &blob[deref_type_start..deref_type_end].to_string().trim().to_string();
+                                        debug!("Deref to {} found", deref_type);
+
+                                        m.generic_args = vec![deref_type.clone()];
+                                    };
+                                };
+                            }
+                        }
+
                         m.map(|m| out.push(m));
                     }
                 }
@@ -786,18 +813,6 @@ pub fn resolve_path_with_str(path: &core::Path, filepath: &Path, pos: usize,
             out.push(m);
         });
     } else {
-        if path.segments.len() == 1 && path.segments[0].name == "Box" {
-            let container =  path.segments[0].types[0].segments[0].name.clone();
-            debug!("Found Box Object Containing {:?}", path.segments[0]);
-            let container_path = core::PathSegment {
-                name: container,
-                types: Vec::new(),
-            };
-            for m in resolve_name(&container_path, filepath, pos, search_type, namespace, session){
-                out.push(m);
-            }
-        }
-
         for m in resolve_path(path, filepath, pos, search_type, namespace, session) {
             out.push(m);
             if let ExactMatch = search_type {
@@ -860,8 +875,6 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
             }
         }
     }
-
-
 
     for m in search_local_scopes(pathseg, filepath, msrc, pos, search_type, namespace, session) {
         out.push(m);
@@ -1094,7 +1107,7 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
             for m in search_struct_fields(searchstr, &m, search_type, session) {
                 out.push(m);
             }
-            for m in search_for_impl_methods(&m.matchstr,
+            for m in search_for_impl_methods(&m,
                                     searchstr,
                                     m.point,
                                     &m.filepath,
@@ -1106,7 +1119,7 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
         },
         Enum => {
             debug!("got an enum, looking for impl methods {}", m.matchstr);
-            for m in search_for_impl_methods(&m.matchstr,
+            for m in search_for_impl_methods(&m,
                                     searchstr,
                                     m.point,
                                     &m.filepath,
@@ -1129,4 +1142,71 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
         _ => { debug!("WARN!! context wasn't a Struct, Enum or Trait {:?}",m);}
     };
     out.into_iter()
+}
+
+fn search_for_deref_matches(impl_match: &Match, type_match: &Match, fieldsearchstr: &str, fpath: &Path, session: &Session) -> vec::IntoIter<Match>
+{
+    debug!("Found a Deref Implementation for {}, Searching for Methods on the Deref Type", type_match.matchstr);
+    let mut out = Vec::new();
+
+    if let Some(type_arg) = impl_match.generic_args.first() {
+        // If Deref to a generic type
+        if let Some(inner_type_path) = generic_arg_to_path(&type_arg.clone(), type_match) {
+            let type_match = resolve_path_with_str(&inner_type_path.path.clone(),
+                                                   inner_type_path.filepath.as_path(),
+                                                   0, SearchType::ExactMatch,
+                                                   Namespace::TypeNamespace,
+                                                   session).nth(0);
+            let subpath = get_subpathsearch(&inner_type_path);
+            if let Some(mut m) = type_match {
+                if let Some(path) = subpath {
+                    m.generic_types.push(path);
+                }
+                let methods = search_for_field_or_method(m, fieldsearchstr, SearchType::StartsWith, session);
+                out.extend(methods);
+            };
+
+        }
+        // If Deref to an ordinary type
+        else {
+            let deref_type_path = core::Path {
+                global: false,
+                segments: vec![core::PathSegment {
+                    name: impl_match.generic_args.first().unwrap().clone(),
+                    types: Vec::new()
+                }]
+            };
+            let type_match = resolve_path_with_str(&deref_type_path, fpath, 0, SearchType::ExactMatch, Namespace::TypeNamespace, session).nth(0);
+            if let Some(m) = type_match {
+                let methods = search_for_field_or_method(m, fieldsearchstr, SearchType::StartsWith, session);
+                out.extend(methods);
+            }
+        }
+    }
+
+    out.into_iter()
+}
+
+fn generic_arg_to_path(type_str: &str, m: &Match) -> Option<core::PathSearch>
+{
+    debug!("Attempting to find type match for {} in {:?}", type_str, m);
+    if let Some(match_pos) = m.generic_args.iter().position(|x| { *x == type_str}) {
+        if let Some(gen_type) = m.generic_types.iter().nth(match_pos) {
+            return Some(gen_type.clone());
+        }
+    }
+    None
+}
+
+fn get_subpathsearch(pathsearch: &core::PathSearch) -> Option<core::PathSearch> {
+    pathsearch.path.segments.iter().nth(0)
+        .and_then(|seg| {seg.types.iter().nth(0)
+                         .and_then(|first_type| {
+                                     Some(core::PathSearch {
+                                         path: first_type.clone(),
+                                         filepath: pathsearch.filepath.clone(),
+                                         point: pathsearch.point
+                                     })
+                         })
+        })
 }
