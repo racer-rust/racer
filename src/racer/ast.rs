@@ -38,10 +38,9 @@ pub fn with_error_checking_parse<F, T>(s: String, f: F) -> Option<T> where F: Fn
 // parse a string, return a stmt
 pub fn string_to_stmt(source_str: String) -> Option<P<ast::Stmt>> {
     with_error_checking_parse(source_str, |p| {
-        use syntex_syntax::errors::FatalError;
         match p.parse_stmt() {
             Ok(p) => p,
-            Err(FatalError) => None
+            Err(_) => None
         }
     })
 }
@@ -50,10 +49,9 @@ pub fn string_to_stmt(source_str: String) -> Option<P<ast::Stmt>> {
 pub fn string_to_crate(source_str: String) -> Option<ast::Crate> {
     with_error_checking_parse(source_str.clone(), |p| {
         use std::result::Result::{Ok, Err};
-        use syntex_syntax::errors::FatalError;
         match p.parse_crate_mod() {
             Ok(e) => Some(e),
-            Err(FatalError) => {
+            Err(_) => {
                 debug!("unable to parse crate. Returning None |{}|", source_str);
                 None
             }
