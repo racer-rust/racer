@@ -19,7 +19,7 @@ debug = true
 
 [dependencies]
 log = "*"
-syntex_syntax = "*"
+syntex_syntax = "~0.24.0"
 toml = "*"
 env_logger = "*"
 typed-arena = "*"
