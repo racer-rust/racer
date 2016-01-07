@@ -18,11 +18,11 @@ path = "src/bin/main.rs"
 debug = true
 
 [dependencies]
-log = "*"
+log = "~0.3.4"
 syntex_syntax = "~0.24.0"
-toml = "*"
-env_logger = "*"
-typed-arena = "*"
+toml = "~0.1.25"
+env_logger = "~0.3.2"
+typed-arena = "~1.0.1"
 clap = "~1.5.3"
 
 [features]
