@@ -4,7 +4,7 @@ use util::{symbol_matches, txt_matches, find_ident_end, is_ident_char, char_at};
 use nameres::{get_module_file, get_crate_file, resolve_path};
 use core::SearchType::{self, StartsWith, ExactMatch};
 use core::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant,
-                      Const, Static, IfLet, WhileLet, For};
+                      Const, Static, IfLet, WhileLet, For, Macro};
 use core::Namespace::BothNamespaces;
 use std::cell::Cell;
 use std::path::Path;
@@ -29,10 +29,11 @@ pub fn match_types(src: Src, blobstart: usize, blobend: usize,
 
 pub fn match_values(src: Src, blobstart: usize, blobend: usize,
                     searchstr: &str, filepath: &Path, search_type: SearchType,
-                    local: bool) -> MChain<MChain<MIter>> {
+                    local: bool) -> MChain<MChain<MChain<MIter>>> {
     let it = match_const(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
     let it = it.chain(match_static(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    it.chain(match_fn(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter())
+    let it = it.chain(match_fn(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
+    it.chain(match_macro(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter())
 }
 
 fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType, local: bool)
@@ -594,6 +595,34 @@ pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize,
         } else {
             None
         }
+    } else {
+        None
+    }
+}
+                
+pub fn match_macro(msrc: &str, blobstart: usize, blobend: usize,
+                   searchstr: &str, filepath: &Path, search_type: SearchType,
+                   local: bool) -> Option<Match> {
+    let blob = &msrc[blobstart..blobend];
+    let searchstr = searchstr.trim_right_matches('!');
+    if let Some(start) = find_keyword(blob, "macro_rules!", searchstr, search_type, local) {
+        debug!("found a macro starting {}", searchstr);
+        let l = match search_type {
+            ExactMatch => searchstr, // already checked in find_keyword
+            StartsWith => &blob[start..find_ident_end(blob, start+searchstr.len())]
+        };
+        let l = format!("{}!", l);
+        debug!("found a macro {}", l);
+        Some(Match {
+            matchstr: l.to_owned(),
+            filepath: filepath.to_path_buf(),
+            point: blobstart + start,
+            local: local,
+            mtype: Macro,
+            contextstr: first_line(blob),
+            generic_args: Vec::new(),
+            generic_types: Vec::new()
+        })
     } else {
         None
     }

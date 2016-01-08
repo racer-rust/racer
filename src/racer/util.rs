@@ -18,11 +18,11 @@ pub fn is_pattern_char(c: char) -> bool {
 }
 
 pub fn is_search_expr_char(c: char) -> bool {
-    c.is_alphanumeric() || (c == '_') || (c == ':') || (c == '.')
+    c.is_alphanumeric() || (c == '_') || (c == ':') || (c == '.') || (c == '!')
 }
 
 pub fn is_ident_char(c: char) -> bool {
-    c.is_alphanumeric() || (c == '_')
+    c.is_alphanumeric() || (c == '_') || (c == '!')
 }
 
 pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {

@@ -425,6 +425,24 @@ fn finds_trait() {
 }
 
 #[test]
+fn finds_macro() {
+    let src = "
+    macro_rules! my_macro {
+    	() => {}
+    }
+    my_macro!();
+    ";
+    write_file(&Path::new("src.rs"), src);
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 5, 5);
+    let cache = core::FileCache::new();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+    fs::remove_file(&path).unwrap();
+    assert_eq!(got.matchstr, "my_macro!".to_string());
+}
+
+#[test]
 fn finds_fn_arg() {
     let src="
     fn myfn(myarg: &str) {

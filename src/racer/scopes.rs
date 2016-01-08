@@ -193,6 +193,11 @@ fn expand_search_expr_handles_a_function_arg() {
 }
 
 #[test]
+fn expand_search_expr_handles_macros() {
+    assert_eq!((0, 9), expand_search_expr("my_macro!()", 9))
+}
+
+#[test]
 fn expand_search_expr_handles_pos_at_end_of_search_str() {
     assert_eq!((0, 7), expand_search_expr("foo.bar", 7))
 }
