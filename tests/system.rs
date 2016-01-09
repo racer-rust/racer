@@ -47,6 +47,43 @@ fn completes_fn() {
 }
 
 #[test]
+fn completes_members_across_lines() {
+    let src="
+    struct Foo {
+        pub barbaz: u32
+    }
+
+    fn main() {
+        let thing = Foo { barbaz: 10 };
+        thing
+             .
+        thing.
+    }";
+    let path = tmpname();
+    write_file(&path, src);
+    let cache = core::FileCache::new();
+
+
+    // Check `thing.` first for sanity
+    {
+        let pos = scopes::coords_to_point(src, 10, 14);
+        let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path))
+            .nth(0).expect("completions for semantic trigger");
+        assert_eq!("barbaz".to_string(), got.matchstr.to_string());
+    }
+
+    // Now check `thing\n         .`
+    {
+        let pos = scopes::coords_to_point(src, 9, 14);
+        let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path))
+            .nth(0).expect("completions for semantic trigger on a separate line");
+        assert_eq!("barbaz".to_string(), got.matchstr.to_string());
+    }
+
+    fs::remove_file(&path).unwrap();
+}
+
+#[test]
 fn completes_fn_with_substitute_file() {
     let src="
     fn  apple() {
