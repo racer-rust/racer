@@ -639,7 +639,7 @@ pub fn search_scope(start: usize, point: usize, src: Src,
 
         // Optimisation: if the search string is not in the blob and it is not
         // a 'use glob', this cannot match so fail fast!
-        if blob.find(searchstr).is_none() {
+        if blob.find(searchstr.trim_right_matches('!')).is_none() {
             continue;
         }
 

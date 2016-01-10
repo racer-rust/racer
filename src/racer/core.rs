@@ -37,7 +37,8 @@ pub enum MatchType {
     FnArg,
     Trait,
     Const,
-    Static
+    Static,
+    Macro,
 }
 
 #[derive(Debug,Clone,Copy)]
