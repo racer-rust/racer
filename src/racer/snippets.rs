@@ -31,7 +31,6 @@ impl MethodInfo {
 
         with_error_checking_parse(decorated, |p| {
             use std::result::Result::{Ok, Err};
-            use syntex_syntax::errors::FatalError;
             match p.parse_impl_item() {
                 Ok(method) => {
                     match method.node {
@@ -58,7 +57,7 @@ impl MethodInfo {
                         }
                     }
                 },
-                Err(FatalError) => {
+                Err(_) => {
                     debug!("Unable to parse method declaration. |{}|", source);
                     None
                 }
