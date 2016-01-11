@@ -2,9 +2,17 @@ use std::fs::File;
 use std::io::Read;
 use std::env;
 use std::path::{Path,PathBuf};
+use std::collections::BTreeMap;
 use util::{path_exists, is_dir};
 use std::fs::{read_dir};
 use toml;
+
+#[derive(Debug)]
+struct PackageInfo {
+    name: String,
+    version: String,
+    source: Option<PathBuf>
+}
 
 // otry is 'option try'
 macro_rules! otry {
@@ -61,45 +69,104 @@ fn empty_if_no_branch() {
 }
 
 fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
-    let mut file = otry2!(File::open(cargofile));
-    let mut string = String::new();
-    otry2!(file.read_to_string(&mut string));
-    let mut parser = toml::Parser::new(&string);
-    let lock_table = parser.parse().unwrap();
+    if let Some(packages) = get_cargo_packages(cargofile) {
+        for package in packages {
+            if let Some(package_source) = package.source.clone() {
+                if let Some(tomlfile) = find_cargo_tomlfile(package_source.as_path()) {
+                    let package_name = get_package_name(tomlfile.as_path());
 
-    debug!("find_src_via_lockfile found lock table {:?}", lock_table);
+                    debug!("find_src_via_lockfile package_name: {}", package_name);
 
-    let t = match lock_table.get("package") {
-        Some(&toml::Value::Array(ref t1)) => t1,
-        _ => return None
-    };
-
-    for item in t {
-        if let toml::Value::Table(ref t) = *item {
-            if let Some(&toml::Value::String(ref name)) = t.get("name") {
-                if name.replace("-", "_") == kratename {
-                    debug!("found matching crate {:?}", t);
-                    let version = otry!(getstr(t, "version"));
-                    let source = otry!(getstr(t, "source"));
-
-                    if Some("registry") == source.split("+").nth(0) {
-                        return get_versioned_cratefile(name, &version, cargofile);
-                    } else if Some("git") == source.split("+").nth(0) {
-                        let sha1 = otry!(source.split("#").last());
-                        let mut d = otry!(get_cargo_rootdir(cargofile));
-                        let branch = get_branch_from_source(&source);
-                        d.push("git");
-                        d.push("checkouts");
-                        d = otry!(find_git_src_dir(d, name, &sha1, branch));
-                        d.push("src");
-                        d.push("lib.rs");
-                        return Some(d);
+                    if package_name == kratename {
+                        return package.source;
                     }
                 }
             }
         }
     }
+
     None
+}
+
+fn parse_toml_file(toml_file: &Path) -> Option<BTreeMap<String, toml::Value>> {
+    let mut file = otry2!(File::open(toml_file));
+    let mut string = String::new();
+    otry2!(file.read_to_string(&mut string));
+    let mut parser = toml::Parser::new(&string);
+
+    parser.parse()
+}
+
+fn get_cargo_packages(cargofile: &Path) -> Option<Vec<PackageInfo>> {
+    let lock_table = parse_toml_file(cargofile).unwrap();
+
+    debug!("get_cargo_packages found lock_table {:?}", lock_table);
+
+    let packages_array = match lock_table.get("package") {
+        Some(&toml::Value::Array(ref t1)) => t1,
+        _ => return None
+    };
+
+    let mut result = Vec::new();
+
+    for package_element in packages_array {
+        if let &toml::Value::Table(ref package_table) = package_element {
+            if let Some(&toml::Value::String(ref package_name)) = package_table.get("name") {
+                let package_version = otry!(getstr(package_table, "version"));
+                let package_source = otry!(getstr(package_table, "source"));
+
+                let package_source = match package_source.split("+").nth(0) {
+                    Some("registry") => {
+                        get_versioned_cratefile(package_name, &package_version, cargofile)
+                    },
+                    Some("git") => {
+                        let sha1 = otry!(package_source.split("#").last());
+                        let mut d = otry!(get_cargo_rootdir(cargofile));
+                        let branch = get_branch_from_source(&package_source);
+                        d.push("git");
+                        d.push("checkouts");
+                        d = otry!(find_git_src_dir(d, package_name, &sha1, branch));
+                        d.push("src");
+                        d.push("lib.rs");
+
+                        Some(d)
+                    },
+                    _ => return None
+                };
+
+                result.push(PackageInfo{
+                    name: package_name.to_owned(),
+                    version: package_version,
+                    source: package_source
+                });
+            }
+        }
+    }
+
+    Some(result)
+}
+
+fn get_package_name(cargofile: &Path) -> String {
+    let lock_table = parse_toml_file(cargofile).unwrap();
+
+    debug!("get_package_name found lock_table {:?}", lock_table);
+
+    let mut name = String::new();
+
+    if let Some(&toml::Value::Table(ref lib_table)) = lock_table.get("lib") {
+        if let Some(&toml::Value::String(ref package_name)) = lib_table.get("name") {
+            name.push_str(package_name);
+            return name;
+        }
+    }
+
+    if let Some(&toml::Value::Table(ref package_table)) = lock_table.get("package") {
+        if let Some(&toml::Value::String(ref package_name)) = package_table.get("name") {
+            name.push_str(package_name);
+        }
+    }
+
+    name
 }
 
 fn get_cargo_rootdir(cargofile: &Path) -> Option<PathBuf> {
