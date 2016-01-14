@@ -414,25 +414,24 @@ pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize,
                            local: bool) -> vec::IntoIter<Match> {
     let blob = &msrc[blobstart..blobend];
     let mut out = Vec::new();
-    if blob.starts_with("pub enum") || (local && blob.starts_with("enum")) {
-        if txt_matches(search_type, searchstr, blob) {
-            // parse the enum
-            let parsed_enum = ast::parse_enum(blob.to_owned());
+    if (blob.starts_with("pub enum") || (local && blob.starts_with("enum"))) &&
+       txt_matches(search_type, searchstr, blob) {
+        // parse the enum
+        let parsed_enum = ast::parse_enum(blob.to_owned());
 
-            for (name, offset) in parsed_enum.values.into_iter() {
-                if (&name).starts_with(searchstr) {
-                    let m = Match {
-                        matchstr: name.clone(),
-                        filepath: filepath.to_path_buf(),
-                        point: blobstart + offset,
-                        local: local,
-                        mtype: EnumVariant,
-                        contextstr: first_line(&blob[offset..]),
-                        generic_args: Vec::new(),
-                        generic_types: Vec::new()
-                    };
-                    out.push(m);
-                }
+        for (name, offset) in parsed_enum.values.into_iter() {
+            if (&name).starts_with(searchstr) {
+                let m = Match {
+                    matchstr: name.clone(),
+                    filepath: filepath.to_path_buf(),
+                    point: blobstart + offset,
+                    local: local,
+                    mtype: EnumVariant,
+                    contextstr: first_line(&blob[offset..]),
+                    generic_args: Vec::new(),
+                    generic_types: Vec::new()
+                };
+                out.push(m);
             }
         }
     }

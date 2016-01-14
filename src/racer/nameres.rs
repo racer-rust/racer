@@ -163,9 +163,9 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                                 if let Some(pos) = impl_block.find("=") {
                                     let deref_type_start = n + pos + 1;
 
-                                    if let &Some(pos) = &blob[deref_type_start..].find(";") {
+                                    if let Some(pos) = blob[deref_type_start..].find(";") {
                                         let deref_type_end = deref_type_start + pos;
-                                        let deref_type = &blob[deref_type_start..deref_type_end].to_string().trim().to_string();
+                                        let deref_type = &blob[deref_type_start..deref_type_end].to_owned().trim().to_owned();
                                         debug!("Deref to {} found", deref_type);
 
                                         m.generic_args = vec![deref_type.clone()];
@@ -954,7 +954,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
     debug!("resolve_path {:?} {:?} {} {:?}", path, filepath.to_str(), pos, search_type);
     let len = path.segments.len();
     if len == 1 {
-        let ref pathseg = path.segments[0];
+        let pathseg = &path.segments[0];
         resolve_name(pathseg, filepath, pos, search_type, namespace, session)
     } else if len != 0 {
         if path.segments[0].name == "self" {
@@ -986,14 +986,14 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
         context.map(|m| {
             match m.mtype {
                 Module => {
-                    let ref pathseg = path.segments[len-1];
+                    let pathseg = &path.segments[len-1];
                     debug!("searching a module '{}' for {} (whole path: {:?})", m.matchstr, pathseg.name, path);
                     for m in search_next_scope(m.point, pathseg, &m.filepath, search_type, false, namespace, session) {
                         out.push(m);
                     }
                 }
                 Enum => {
-                    let ref pathseg = path.segments[len-1];
+                    let pathseg = &path.segments[len-1];
                     debug!("searching an enum '{}' (whole path: {:?}) searchtype: {:?}", m.matchstr, path, search_type);
 
                     let filesrc = session.load_file(&m.filepath);
@@ -1013,7 +1013,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                     debug!("found a struct. Now need to look for impl");
                     for m in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, false, session) {
                         debug!("found impl!! {:?}", m);
-                        let ref pathseg = path.segments[len-1];
+                        let pathseg = &path.segments[len-1];
                         let src = session.load_file(&m.filepath);
                         // find the opening brace and skip to it.
                         (&src[m.point..]).find("{").map(|n| {
