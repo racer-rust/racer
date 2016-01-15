@@ -88,7 +88,7 @@ fn match_fn(m: Match, session: &core::Session, interface: Interface) {
 fn complete(cfg: Config, print_type: CompletePrinter) {
     if cfg.fqn.is_some() {
         return external_complete(cfg);
-    } 
+    }
     complete_by_line_coords(cfg, print_type);
 }
 
@@ -96,7 +96,7 @@ fn complete(cfg: Config, print_type: CompletePrinter) {
 fn complete_by_line_coords(cfg: Config,
                            print_type: CompletePrinter) {
     // input: linenum, colnum, fname
-    let tb = std::thread::Builder::new().name("searcher".to_string());
+    let tb = std::thread::Builder::new().name("searcher".to_owned());
 
     // PD: this probably sucks for performance, but lots of plugins
     // end up failing and leaving tmp files around if racer crashes,
@@ -128,9 +128,9 @@ fn run_the_complete_fn(cfg: &Config, print_type: CompletePrinter) {
     let line = &getline(substitute_file, cfg.linenum, &session);
     let (start, pos) = util::expand_ident(line, cfg.charnum);
     match cfg.interface {
-        Interface::Text => 
+        Interface::Text =>
             println!("PREFIX {},{},{}", start, pos, &line[start..pos]),
-        Interface::TabText => 
+        Interface::TabText =>
             println!("PREFIX\t{}\t{}\t{}", start, pos, &line[start..pos]),
     }
 
@@ -176,9 +176,9 @@ fn prefix(cfg: Config) {
     let line = &getline(fn_path, cfg.linenum, &session);
     let (start, pos) = util::expand_ident(line, cfg.charnum);
     match cfg.interface {
-        Interface::Text => 
+        Interface::Text =>
             println!("PREFIX {},{},{}", start, pos, &line[start..pos]),
-        Interface::TabText => 
+        Interface::TabText =>
             println!("PREFIX\t{}\t{}\t{}", start, pos, &line[start..pos]),
     }
 }
@@ -253,8 +253,8 @@ fn daemon(cfg: Config) {
 #[derive(Copy, Clone)]
 enum Interface {
     Text,    // The original human-readable format.
-    TabText, // Machine-readable format.  This is basically the same as Text, except that all field 
-             // separators are replaced with tabs. 
+    TabText, // Machine-readable format.  This is basically the same as Text, except that all field
+             // separators are replaced with tabs.
              // In `deamon` mode tabs are also used to delimit command arguments.
 }
 
@@ -291,7 +291,7 @@ impl<'a> From<&'a ArgMatches<'a, 'a>> for Config {
             // to None and set the charnum correctly using the FQN arg so there's no
             // hackery later
                 return Config {linenum: value_t_or_exit!(m.value_of("fqn"), usize), .. cfg };
-            } 
+            }
             return Config {linenum: value_t_or_exit!(m.value_of("linenum"), usize), .. cfg };
         }
         Config {fqn: m.value_of("fqn").map(ToOwned::to_owned), ..Default::default() }
@@ -394,7 +394,7 @@ fn main() {
 
     env_logger::init().unwrap();
     check_rust_src_env_var();
-    
+
     let matches = build_cli().get_matches();
     let interface = match matches.value_of("interface") {
             Some("text") => Interface::Text,

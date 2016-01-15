@@ -8,14 +8,12 @@ use std::str::from_utf8;
 use util::char_at;
 
 fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<usize> where A: Iterator<Item=&'a u8> {
-    let mut count = 0usize;
     let mut levels = 0u32;
-    for &b in iter {
+    for (count, &b) in iter.enumerate() {
         if b == close {
             if levels == level_end { return Some(count); }
             levels -= 1;
         } else if b == open { levels += 1; }
-        count += 1;
     }
     None
 }
@@ -283,26 +281,22 @@ pub fn coords_to_point(src: &str, mut linenum: usize, col: usize) -> usize {
 }
 
 pub fn point_to_coords(src: &str, point: usize) -> (usize, usize) {
-    let mut i = 0;
     let mut linestart = 0;
     let mut nlines = 1;  // lines start at 1
-    for &b in src[..point].as_bytes() {
-        i += 1;
+    for (i, &b) in src[..point].as_bytes().iter().enumerate() {
         if b == b'\n' {
             nlines += 1;
-            linestart = i;
+            linestart = i+1;
         }
     }
     (nlines, point - linestart)
 }
 
 pub fn point_to_coords_from_file(path: &Path, point: usize, session: &Session) -> Option<(usize, usize)> {
-    let mut lineno = 0;
     let mut p = 0;
-    for line in session.load_file(path).split('\n') {
-        lineno += 1;
+    for (lineno, line) in session.load_file(path).split('\n').enumerate() {
         if point < (p + line.len()) {
-            return Some((lineno, point - p));
+            return Some((lineno+1, point - p));
         }
         p += line.len() + 1;  // +1 for the newline char
     }

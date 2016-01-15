@@ -204,15 +204,13 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
         ast::PatTup(ref tuple_elements) => {
             match *ty {
                 TyTuple(ref typeelems) => {
-                    let mut i = 0usize;
                     let mut res = None;
-                    for p in tuple_elements {
+                    for (i, p) in tuple_elements.iter().enumerate() {
                         if point_is_in_span(point as u32, &p.span) {
-                            let ref ty = typeelems[i];
+                            let ty = &typeelems[i];
                             res = destructure_pattern_to_ty(p, point, ty, scope, session);
                             break;
                         }
-                        i += 1;
                     }
                     res
                 }
@@ -554,7 +552,7 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
 
             if fieldtypepath.segments.len() == 1 {
                 // could be a generic arg! - try and resolve it
-                let ref typename = fieldtypepath.segments[0].name;
+                let typename = &fieldtypepath.segments[0].name;
                 let it = contextm.generic_args.iter()
                     .zip(contextm.generic_types.iter());
                 for (name, typesearch) in it {
@@ -591,7 +589,7 @@ fn find_type_match_including_generics(fieldtype: &core::Ty,
 
     if fieldtypepath.segments.len() == 1 {
         // could be a generic arg! - try and resolve it
-        let ref typename = fieldtypepath.segments[0].name;
+        let typename = &fieldtypepath.segments[0].name;
         let it = structm.generic_args.iter()
             .zip(structm.generic_types.iter());
         for (name, typesearch) in it {
@@ -736,7 +734,7 @@ impl<'v> visit::Visitor<'v> for ExternCrateVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ast::ItemExternCrate(ref optional_s) = item.node {
             self.name = Some((&item.ident.name).to_string());
-            if let &Some(ref istr) = optional_s {
+            if let Some(ref istr) = *optional_s {
                 self.realname = Some(istr.to_string());
             }
         }
@@ -768,10 +766,10 @@ impl<'v> visit::Visitor<'v> for StructDefVisitor {
         }
     }
 
-    fn visit_ident(&mut self, _sp: codemap::Span, _ident: ast::Ident) {
+    fn visit_ident(&mut self, sp: codemap::Span, ident: ast::Ident) {
         /*! Visit the idents */
-        let codemap::BytePos(point) = _sp.lo;
-        let name = (&_ident.name).to_string();
+        let codemap::BytePos(point) = sp.lo;
+        let name = (&ident.name).to_string();
         self.name = Some((name,point as usize));
     }
 }
