@@ -248,6 +248,42 @@ fn follows_use() {
 }
 
 #[test]
+fn completes_out_of_order_mod_use_with_same_fn_name_as_mod() {
+    let cmd_mod="
+    pub fn cmd() {}
+    ";
+
+    let stuff_mod="
+    pub use cmd::cmd;
+
+    mod cmd;
+    ";
+
+    let lib="
+    mod stuff;
+
+    use stuff::
+    ";
+
+    let path = Path::new("lib.rs");
+    write_file(&path, lib);
+    fs::create_dir("stuff").unwrap();
+    write_file(&Path::new("stuff/mod.rs"), stuff_mod);
+    write_file(&Path::new("stuff/cmd.rs"), cmd_mod);
+
+    let pos = scopes::coords_to_point(lib, 4, 15);
+    let cache = core::FileCache::new();
+
+    let got = complete_from_file(lib, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
+    assert_eq!(got.matchstr,"cmd".to_string());
+
+    fs::remove_file(&path).unwrap();
+    fs::remove_file(&Path::new("stuff/mod.rs")).unwrap();
+    fs::remove_file(&Path::new("stuff/cmd.rs")).unwrap();
+    fs::remove_dir("stuff").unwrap();
+}
+
+#[test]
 fn follows_use_as() {
     let src2="
     pub fn myfn() {}
