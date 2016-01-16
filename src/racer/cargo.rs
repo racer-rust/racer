@@ -240,15 +240,34 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
 
 
     // is it this lib?  (e.g. you're searching from tests to find the main library crate)
-    if let Some(&toml::Value::Table(ref t)) = table.get("lib") {
-        if let Some(&toml::Value::String(ref name)) = t.get("name") {
-            if name == kratename {
-                debug!("found {} as lib entry in Cargo.toml", kratename);
-                if let Some(&toml::Value::String(ref pathstr)) = t.get("path") {
-                    let p = Path::new(pathstr);
-                    let libpath = otry!(cargofile.parent()).join(p);
-                    return Some(libpath);
-                }
+    {
+        let package_name = if let Some(&toml::Value::Table(ref t)) = table.get("package") {
+            if let Some(&toml::Value::String(ref name)) = t.get("name") {
+                name
+            } else {
+                // it's invalid for a package to be nameless anyway
+                return None;
+            }
+        } else {
+            return None;
+        };
+
+        let mut lib_name = package_name;
+        let mut lib_path = otry!(cargofile.parent()).join("src").join("lib.rs");
+        if let Some(&toml::Value::Table(ref t)) = table.get("lib") {
+            if let Some(&toml::Value::String(ref name)) = t.get("name") {
+                lib_name = name;
+            }
+            if let Some(&toml::Value::String(ref pathstr)) = t.get("path") {
+                let p = Path::new(pathstr);
+                lib_path = otry!(cargofile.parent()).join(p);
+            }
+        }
+
+        if lib_name == kratename {
+            debug!("found {} as lib entry in Cargo.toml", kratename);
+            if ::std::fs::metadata(&lib_path).ok().map(|m| m.is_file()).unwrap_or(false) {
+                return Some(lib_path);
             }
         }
     }
