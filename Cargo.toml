@@ -5,6 +5,8 @@ version = "1.2.0"
 license = "MIT"
 description = "Code completion for Rust"
 authors = ["Phil Dawes <phil@phildawes.net>"]
+homepage = "https://github.com/phildawes/racer"
+repository = "https://github.com/phildawes/racer"
 
 [lib]
 name = "racer"
