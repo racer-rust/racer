@@ -1,10 +1,10 @@
 extern crate racer;
+
 use racer::core::complete_from_file;
 use racer::core::find_definition;
 use racer::core;
 use racer::scopes;
 use racer::util;
-
 
 use std::env;
 use std::io::Write;
@@ -101,6 +101,27 @@ fn completes_pub_fn_locally_precached() {
     session.cache_file_contents(&path, src);
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
     assert_eq!("apple".to_string(), got.matchstr.to_string());
+}
+
+#[test]
+fn completes_pub_fn_from_local_package() {
+    let src="
+    extern crate fixtures;
+
+    use fixtures::foo;
+
+    fn main() {
+        let x = foo::
+    }
+    ";
+
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 7, 21);
+    let cache = core::FileCache::new();
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0);
+    fs::remove_file(&path).unwrap();
+    assert_eq!(got.unwrap().matchstr, "test".to_owned());
 }
 
 #[test]
@@ -291,6 +312,23 @@ fn follows_use_glob() {
     let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     fs::remove_file(&path).unwrap();
     assert_eq!(got.matchstr, "myfn".to_string());
+}
+
+#[test]
+fn follows_use_local_package() {
+    let src="
+    extern crate fixtures;
+
+    use fixtures::
+    ";
+
+    let path = tmpname();
+    write_file(&path, src);
+    let pos = scopes::coords_to_point(src, 4, 18);
+    let cache = core::FileCache::new();
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0);
+    fs::remove_file(&path).unwrap();
+    assert_eq!(got.unwrap().matchstr, "foo".to_owned());
 }
 
 #[test]
