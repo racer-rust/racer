@@ -332,8 +332,13 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     }
 
     // otherwise search the dependencies
-    let local_packages = get_local_packages(&table, cargofile, "dependencies").unwrap();
-    let local_packages_dev = get_local_packages(&table, cargofile, "dev-dependencies").unwrap();
+    let local_packages = get_local_packages(&table, cargofile, "dependencies").unwrap_or_default();
+    let local_packages_dev = get_local_packages(&table, cargofile, "dev-dependencies").unwrap_or_default();
+
+    // if no dependencies are found
+    if local_packages.is_empty() && local_packages_dev.is_empty() {
+        return None;
+    }
 
     debug!("find_src_via_tomlfile found local packages: {:?}", local_packages);
     debug!("find_src_via_tomlfile found local packages dev: {:?}", local_packages_dev);
@@ -351,7 +356,6 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
             }
         }
     }
-
     None
 }
 
