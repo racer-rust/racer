@@ -29,6 +29,7 @@ clap = "~1.5.3"
 
 [dev-dependencies]
 test_fixtures = { path = "src/test_fixtures" }
+rand = "0.3"
 
 [features]
 nightly = []
