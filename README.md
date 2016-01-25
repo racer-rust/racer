@@ -54,3 +54,7 @@ The Kate community maintains a [plugin](http://quickgit.kde.org/?p=kate.git&a=tr
 ## Sublime Text integration
 
 The Sublime Text community maintains a [plugin](https://github.com/defuz/RustAutoComplete).
+
+## Visual Studio Code extension
+
+You can find more info about Visual Studio Code extension [here](https://github.com/saviorisdead/RustyCode)
