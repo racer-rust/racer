@@ -195,8 +195,8 @@ fn completes_pub_fn_locally_precached() {
     let path = f.path();
     let pos = scopes::coords_to_point(src, 6, 18);
     let cache = core::FileCache::new();
+    cache.cache_file_contents(&path, src);
     let session = core::Session::from_path(&cache, &path, &path);
-    session.cache_file_contents(&path, src);
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
     assert_eq!("apple".to_string(), got.matchstr.to_string());
 }
@@ -236,10 +236,10 @@ fn overwriting_cached_files() {
     // the newly cached contents.
     macro_rules! cache_and_assert {
         ($src:ident) => {{
+            cache.cache_file_contents(&path, $src);
             let session = core::Session::from_path(&cache, &path, &path);
-            session.cache_file_contents(&path, $src);
-            assert_eq!($src, &session.load_file(&path).src.code[..]);
-            assert_eq!($src, &session.load_file_and_mask_comments(&path).src.code[..]);
+            assert_eq!($src, &session.load_file(&path).code[..]);
+            assert_eq!($src, &session.load_file_and_mask_comments(&path).code[..]);
         }}
     }
 

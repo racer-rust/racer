@@ -117,7 +117,7 @@ fn get_type_of_let_block_expr(m: &Match, msrc: Src, session: &Session, prefix: &
     let point = stmt.find(prefix).unwrap();
     let src = core::new_source(generate_skeleton_for_parsing(&stmt[point..]));
 
-    if let Some((start, end)) = src.as_ref().iter_stmts().next() {
+    if let Some((start, end)) = src.as_src().iter_stmts().next() {
         let blob = &src[start..end];
         debug!("get_type_of_let_block_expr calling get_let_type |{}|", blob);
 
@@ -144,7 +144,7 @@ fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<core:
     src.push_str(".into_iter().next() { }}");
     let src = core::new_source(src);
 
-    if let Some((start, end)) = src.as_ref().iter_stmts().next() {
+    if let Some((start, end)) = src.as_src().iter_stmts().next() {
         let blob = &src[start..end];
         debug!("get_type_of_for_expr: |{}| {} {} {} {}", blob, m.point, stmtstart, forpos, start);
 
@@ -162,7 +162,7 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match, session: &Ses
 
     let src = session.load_file(&structmatch.filepath);
 
-    let opoint = scopes::find_stmt_start(src, structmatch.point);
+    let opoint = scopes::find_stmt_start(src.as_src(), structmatch.point);
     let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
 
     let fields = ast::parse_struct_fields(structsrc.to_owned(), Scope::from_match(structmatch));
@@ -185,8 +185,8 @@ pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match, session: &
         "struct ".to_owned() + &src[structmatch.point..(to+1)] + ";"
     } else {
         assert!(structmatch.mtype == core::MatchType::Struct);
-        let opoint = scopes::find_stmt_start(src, structmatch.point);
-        (*get_first_stmt(src.from(opoint.unwrap()))).to_owned()
+        let opoint = scopes::find_stmt_start(src.as_src(), structmatch.point);
+        (*get_first_stmt(src.as_src().from(opoint.unwrap()))).to_owned()
     };
 
     debug!("get_tuplestruct_field_type structsrc=|{}|", structsrc);
@@ -265,14 +265,14 @@ pub fn get_type_from_match_arm(m: &Match, msrc: Src, session: &Session) -> Optio
 
 pub fn get_function_declaration(fnmatch: &Match, session: &Session) -> String {
     let src = session.load_file(&fnmatch.filepath);
-    let start = scopes::find_stmt_start(src, fnmatch.point).unwrap();
+    let start = scopes::find_stmt_start(src.as_src(), fnmatch.point).unwrap();
     let end = (&src[start..]).find('{').unwrap();
     (&src[start..end+start]).to_owned()
 }
 
 pub fn get_return_type_of_function(fnmatch: &Match, session: &Session) -> Option<core::Ty> {
     let src = session.load_file(&fnmatch.filepath);
-    let point = scopes::find_stmt_start(src, fnmatch.point).unwrap();
+    let point = scopes::find_stmt_start(src.as_src(), fnmatch.point).unwrap();
     (&src[point..]).find("{").and_then(|n| {
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut decl = String::new();

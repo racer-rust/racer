@@ -87,12 +87,12 @@ fn finds_subnested_module() {
     }";
     let point = coords_to_point(&src, 4, 12);
     let src = core::new_source(String::from(src));
-    let v = get_local_module_path(src.as_ref(), point);
+    let v = get_local_module_path(src.as_src(), point);
     assert_eq!("foo", &v[0][..]);
     assert_eq!("bar", &v[1][..]);
 
     let point = coords_to_point(&src, 3, 8);
-    let v = get_local_module_path(src.as_ref(), point);
+    let v = get_local_module_path(src.as_src(), point);
     assert_eq!("foo", &v[0][..]);
 }
 
@@ -324,7 +324,7 @@ fn myfn() {
 ");
     let src = core::new_source(src);
     let point = coords_to_point(&src, 4, 10);
-    let start = scope_start(src.as_ref(), point);
+    let start = scope_start(src.as_src(), point);
     assert!(start == 12);
 }
 
@@ -341,7 +341,7 @@ fn myfn() {
 ");
     let src = core::new_source(src);
     let point = coords_to_point(&src, 7, 10);
-    let start = scope_start(src.as_ref(), point);
+    let start = scope_start(src.as_src(), point);
     assert!(start == 12);
 }
 
@@ -353,7 +353,7 @@ this is a line // with a comment
 some more
 ");
     let src = core::new_source(src);
-    let r = mask_comments(src.as_ref());
+    let r = mask_comments(src.as_src());
 
     assert!(src.len() == r.len());
     // characters at the start are the same

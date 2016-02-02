@@ -9,7 +9,7 @@ use std::path::Path;
 
 pub fn getline(filepath: &Path, linenum: usize, session: &Session) -> String {
     let src = session.load_file(filepath);
-    src.src.code.lines().nth(linenum - 1).unwrap_or("not found").to_string()
+    src.code.lines().nth(linenum - 1).unwrap_or("not found").to_string()
 }
 
 pub fn is_pattern_char(c: char) -> bool {

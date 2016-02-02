@@ -436,7 +436,7 @@ impl<'c, 's, 'v> visit::Visitor<'v> for ExprTypeVisitor<'c, 's> {
                                  self.scope.point,
                                  self.session).and_then(|m| {
                                      let msrc = self.session.load_file_and_mask_comments(&m.filepath);
-                                     typeinf::get_type_of_match(m, msrc, self.session)
+                                     typeinf::get_type_of_match(m, msrc.as_src(), self.session)
                                  });
             }
             ast::ExprCall(ref callee_expression, _/*ref arguments*/) => {

@@ -18,7 +18,7 @@ pub const PATH_SEP: &'static str = ";";
 fn search_struct_fields(searchstr: &str, structmatch: &Match,
                         search_type: SearchType, session: &Session) -> vec::IntoIter<Match> {
     let src = session.load_file(&structmatch.filepath);
-    let opoint = scopes::find_stmt_start(src, structmatch.point);
+    let opoint = scopes::find_stmt_start(src.as_src(), structmatch.point);
     let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
 
     let fields = ast::parse_struct_fields(structsrc.to_owned(),
@@ -65,7 +65,7 @@ pub fn search_for_impl_methods(match_request: &Match,
         // find the opening brace and skip to it.
         (&src[m.point..]).find("{").map(|n| {
             let point = m.point + n + 1;
-            for m in search_scope_for_methods(point, src, fieldsearchstr, &m.filepath, search_type) {
+            for m in search_scope_for_methods(point, src.as_src(), fieldsearchstr, &m.filepath, search_type) {
                 out.push(m);
             }
         });
@@ -484,7 +484,7 @@ pub fn search_next_scope(mut startpoint: usize, pathseg: &core::PathSegment,
             startpoint += n + 1;
         });
     }
-    search_scope(startpoint, startpoint, filesrc, pathseg, filepath, search_type, local, namespace, session)
+    search_scope(startpoint, startpoint, filesrc.as_src(), pathseg, filepath, search_type, local, namespace, session)
 }
 
 pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
@@ -774,7 +774,7 @@ pub fn search_prelude_file(pathseg: &core::PathSegment, search_type: SearchType,
         if path_exists(&filepath) {
             let msrc = session.load_file_and_mask_comments(&filepath);
             let is_local = true;
-            for m in search_scope(0, 0, msrc, pathseg, &filepath, search_type, is_local, namespace, session) {
+            for m in search_scope(0, 0, msrc.as_src(), pathseg, &filepath, search_type, is_local, namespace, session) {
                 out.push(m);
             }
         }
@@ -872,7 +872,7 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
         }
     }
 
-    for m in search_local_scopes(pathseg, filepath, msrc, pos, search_type, namespace, session) {
+    for m in search_local_scopes(pathseg, filepath, msrc.as_src(), pos, search_type, namespace, session) {
         out.push(m);
         if let ExactMatch = search_type {
             if !out.is_empty() {
@@ -910,7 +910,7 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
 // Get the scope corresponding to super::
 pub fn get_super_scope(filepath: &Path, pos: usize, session: &Session) -> Option<core::Scope> {
     let msrc = session.load_file_and_mask_comments(filepath);
-    let mut path = scopes::get_local_module_path(msrc, pos);
+    let mut path = scopes::get_local_module_path(msrc.as_src(), pos);
     debug!("get_super_scope: path: {:?} filepath: {:?} {} {:?}", path, filepath, pos, session);
     if path.is_empty() {
         let moduledir;
@@ -993,7 +993,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                     debug!("searching an enum '{}' (whole path: {:?}) searchtype: {:?}", m.matchstr, path, search_type);
 
                     let filesrc = session.load_file(&m.filepath);
-                    let scopestart = scopes::find_stmt_start(filesrc, m.point).unwrap();
+                    let scopestart = scopes::find_stmt_start(filesrc.as_src(), m.point).unwrap();
                     let scopesrc = filesrc.from(scopestart);
                     scopesrc.iter_stmts().nth(0).map(|(blobstart,blobend)| {
                         for m in matchers::match_enum_variants(&filesrc,
@@ -1014,7 +1014,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                         // find the opening brace and skip to it.
                         (&src[m.point..]).find("{").map(|n| {
                             let point = m.point + n + 1;
-                            for m in search_scope(point, point, src, pathseg, &m.filepath, search_type, m.local, namespace, session) {
+                            for m in search_scope(point, point, src.as_src(), pathseg, &m.filepath, search_type, m.local, namespace, session) {
                                 out.push(m);
                             }
                         });
@@ -1141,7 +1141,7 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
             let src = session.load_file(&m.filepath);
             (&src[m.point..]).find("{").map(|n| {
                 let point = m.point + n + 1;
-                for m in search_scope_for_methods(point, src, searchstr, &m.filepath, search_type) {
+                for m in search_scope_for_methods(point, src.as_src(), searchstr, &m.filepath, search_type) {
                     out.push(m);
                 }
             });
