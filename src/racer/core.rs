@@ -501,6 +501,7 @@ pub struct Session<'c> {
     cache: &'c FileCache<'c>              // cache for file contents
 }
 
+pub type SessionRef<'c, 's> = &'s Session<'c>;
 
 impl<'a> Drop for Session<'a> {
     fn drop(&mut self) {
@@ -560,7 +561,7 @@ impl<'c> Session<'c> {
 
 
 pub fn complete_from_file(src: &str, filepath: &path::Path, 
-                          pos: usize, session: &Session) -> vec::IntoIter<Match> {
+                          pos: usize, session: SessionRef) -> vec::IntoIter<Match> {
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = &src[start..pos];
 
@@ -601,11 +602,11 @@ pub fn complete_from_file(src: &str, filepath: &path::Path,
     out.into_iter()
 }
 
-pub fn find_definition(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> Option<Match> {
+pub fn find_definition(src: &str, filepath: &path::Path, pos: usize, session: SessionRef) -> Option<Match> {
     find_definition_(src, filepath, pos, session)
 }
 
-pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> Option<Match> {
+pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: SessionRef) -> Option<Match> {
     let (start, end) = scopes::expand_search_expr(src, pos);
     let expr = &src[start..end];
 

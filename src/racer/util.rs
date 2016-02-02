@@ -1,13 +1,13 @@
 // Small functions of utility
 
 use core::SearchType::{self, ExactMatch, StartsWith};
-use core::Session;
+use core::SessionRef;
 use std;
 use std::cmp;
 use std::fs::File;
 use std::path::Path;
 
-pub fn getline(filepath: &Path, linenum: usize, session: &Session) -> String {
+pub fn getline(filepath: &Path, linenum: usize, session: SessionRef) -> String {
     let src = session.load_file(filepath);
     src.src.code.lines().nth(linenum - 1).unwrap_or("not found").to_string()
 }

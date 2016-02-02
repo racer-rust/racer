@@ -1,10 +1,10 @@
 use ast::with_error_checking_parse;
-use core::{Match, MatchType, Session};
+use core::{Match, MatchType, SessionRef};
 use typeinf::get_function_declaration;
 
 use syntex_syntax::ast::ImplItemKind;
 
-pub fn snippet_for_match(m: &Match, session: &Session) -> String {
+pub fn snippet_for_match(m: &Match, session: SessionRef) -> String {
     match m.mtype {
         MatchType::Function => {
             let method = get_function_declaration(&m, session);
