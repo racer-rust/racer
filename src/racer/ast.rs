@@ -254,15 +254,15 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
     }
 }
 
-struct LetTypeVisitor<'c: 's, 's> {
+struct LetTypeVisitor<'c> {
     scope: Scope,
-    session: SessionRef<'c, 's>,
+    session: SessionRef<'c>,
     srctxt: String,
     pos: usize,        // pos is relative to the srctxt, scope is global
     result: Option<Ty>
 }
 
-impl<'c, 's, 'v> visit::Visitor<'v> for LetTypeVisitor<'c, 's> {
+impl<'c, 'v> visit::Visitor<'v> for LetTypeVisitor<'c> {
     fn visit_expr(&mut self, ex: &'v ast::Expr) {
         match ex.node {
             ast::ExprIfLet(ref pattern, ref expr, _, _) |
@@ -304,14 +304,14 @@ impl<'c, 's, 'v> visit::Visitor<'v> for LetTypeVisitor<'c, 's> {
     }
 }
 
-struct MatchTypeVisitor<'c: 's, 's> {
+struct MatchTypeVisitor<'c> {
     scope: Scope,
-    session: SessionRef<'c, 's>,
+    session: SessionRef<'c>,
     pos: usize,        // pos is relative to the srctxt, scope is global
     result: Option<Ty>
 }
 
-impl<'c, 's, 'v> visit::Visitor<'v> for MatchTypeVisitor<'c, 's> {
+impl<'c, 'v> visit::Visitor<'v> for MatchTypeVisitor<'c> {
     fn visit_expr(&mut self, ex: &'v ast::Expr) {
         if let ast::ExprMatch(ref subexpression, ref arms) = ex.node {
             debug!("PHIL sub expr is {:?}", subexpression);
@@ -412,13 +412,13 @@ fn get_type_of_typedef(m: Match, session: SessionRef) -> Option<Match> {
 }
 
 
-struct ExprTypeVisitor<'c: 's, 's> {
+struct ExprTypeVisitor<'c> {
     scope: Scope,
-    session: SessionRef<'c, 's>,
+    session: SessionRef<'c>,
     result: Option<Ty>,
 }
 
-impl<'c, 's, 'v> visit::Visitor<'v> for ExprTypeVisitor<'c, 's> {
+impl<'c, 'v> visit::Visitor<'v> for ExprTypeVisitor<'c> {
     fn visit_expr(&mut self, expr: &ast::Expr) {
         debug!("visit_expr {:?}", expr);
         //walk_expr(self, ex, e)
@@ -976,14 +976,14 @@ impl<'v> visit::Visitor<'v> for FnOutputVisitor {
     }
 }
 
-pub struct FnArgTypeVisitor<'c: 's, 's> {
+pub struct FnArgTypeVisitor<'c> {
     argpos: usize,
     scope: Scope,
-    session: SessionRef<'c, 's>,
+    session: SessionRef<'c>,
     pub result: Option<Ty>
 }
 
-impl<'c, 's, 'v> visit::Visitor<'v> for FnArgTypeVisitor<'c, 's> {
+impl<'c, 'v> visit::Visitor<'v> for FnArgTypeVisitor<'c> {
     fn visit_fn(&mut self, _: visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId) {
         for arg in &fd.inputs {
             let codemap::BytePos(lo) = arg.pat.span.lo;
