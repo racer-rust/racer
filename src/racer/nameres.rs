@@ -26,14 +26,19 @@ fn search_struct_fields(searchstr: &str, structmatch: &Match,
 
     let mut out = Vec::new();
 
-    for (field, fpos, _) in fields.into_iter() {
+    for (field, fpos, ty) in fields.into_iter() {
         if symbol_matches(search_type, searchstr, &field) {
-            out.push(Match { matchstr: field.clone(),
+            let contextstr = if let Some(t) = ty {
+                t.to_string()
+            } else {
+                field.clone()
+            };
+            out.push(Match { matchstr: field,
                                 filepath: structmatch.filepath.to_path_buf(),
                                 point: fpos + opoint.unwrap(),
                                 local: structmatch.local,
                                 mtype: StructField,
-                                contextstr: field,
+                                contextstr: contextstr,
                                 generic_args: Vec::new(), generic_types: Vec::new()
             });
         }
