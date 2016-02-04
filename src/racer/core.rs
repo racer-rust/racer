@@ -132,6 +132,35 @@ pub enum Ty {
     TyUnsupported
 }
 
+impl fmt::Display for Ty {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Ty::TyMatch(ref m) => {
+                write!(f, "{}", m.matchstr)
+            }
+            Ty::TyPathSearch(ref p, _) => {
+                write!(f, "{}", p)
+            }
+            Ty::TyTuple(ref vec) => {
+                let mut first = true;
+                try!(write!(f, "("));
+                for field in vec.iter() {
+                    if first {
+                        try!(write!(f, "{}", field));
+                            first = false;
+                    } else {
+                        try!(write!(f, ", {}", field));
+                    }
+                }
+                write!(f, ")")
+            }
+            Ty::TyUnsupported => {
+                write!(f, "_")
+            }
+        }
+    }
+}
+
 // The racer implementation of an ast::Path. Difference is that it is Send-able
 #[derive(Clone)]
 pub struct Path {
@@ -188,6 +217,35 @@ impl fmt::Debug for Path {
             }
         }
         write!(f, "]")
+    }
+}
+
+impl fmt::Display for Path {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut first = true;
+        for seg in &self.segments {
+            if first {
+                try!(write!(f, "{}", seg.name));
+                first = false;
+            } else {
+                try!(write!(f, "::{}", seg.name));
+            }
+
+            if !seg.types.is_empty() {
+                try!(write!(f, "<"));
+                let mut tfirst = true;
+                for typath in &seg.types {
+                    if tfirst {
+                        try!(write!(f, "{}", typath));
+                        tfirst = false;
+                    } else {
+                        try!(write!(f, ", {}", typath))
+                    }
+                }
+                try!(write!(f, ">"));
+            }
+        }
+        Ok(())
     }
 }
 
