@@ -24,6 +24,8 @@ use racer::scopes;
 #[cfg(not(test))]
 use std::path::{Path, PathBuf};
 #[cfg(not(test))]
+use std::io::{self, BufRead};
+#[cfg(not(test))]
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 
 #[cfg(not(test))]
@@ -118,12 +120,28 @@ enum CompletePrinter {
 }
 
 #[cfg(not(test))]
+fn cache_file_contents_from_stdin<'a>(file: &PathBuf, cache: &'a core::FileCache<'a>) {
+    let stdin = io::stdin();
+
+    let mut rawbytes = Vec::new();
+    stdin.lock().read_until(0x04, &mut rawbytes).unwrap();
+
+    let buf = String::from_utf8(rawbytes).unwrap();
+    cache.cache_file_contents(file, buf);
+}
+
+#[cfg(not(test))]
 fn run_the_complete_fn(cfg: &Config, print_type: CompletePrinter) {
     let fn_path = &*cfg.fn_name.as_ref().unwrap();
     let substitute_file = cfg.substitute_file.as_ref().unwrap_or(fn_path);
 
     let cache = core::FileCache::new();
     let session = core::Session::from_path(&cache, fn_path, substitute_file);
+
+    if substitute_file.to_str() == Some("-") {
+        cache_file_contents_from_stdin(&substitute_file, &cache);
+    }
+
     let src = session.load_file(fn_path);
     let line = &getline(substitute_file, cfg.linenum, &session);
     let (start, pos) = util::expand_ident(line, cfg.charnum);
@@ -169,8 +187,13 @@ fn external_complete(cfg: Config) {
 #[cfg(not(test))]
 fn prefix(cfg: Config) {
     let fn_path = &*cfg.fn_name.as_ref().unwrap();
+    let substitute_file = cfg.substitute_file.as_ref().unwrap_or(fn_path);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, fn_path, cfg.substitute_file.as_ref().unwrap_or(fn_path));
+    let session = core::Session::from_path(&cache, fn_path, substitute_file);
+
+    if substitute_file.to_str() == Some("-") {
+        cache_file_contents_from_stdin(&substitute_file, &cache);
+    }
 
     // print the start, end, and the identifier prefix being matched
     let line = &getline(fn_path, cfg.linenum, &session);
@@ -186,8 +209,14 @@ fn prefix(cfg: Config) {
 #[cfg(not(test))]
 fn find_definition(cfg: Config) {
     let fn_path = &*cfg.fn_name.as_ref().unwrap();
+    let substitute_file = cfg.substitute_file.as_ref().unwrap_or(fn_path);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, fn_path, cfg.substitute_file.as_ref().unwrap_or(fn_path));
+    let session = core::Session::from_path(&cache, fn_path, substitute_file);
+
+    if substitute_file.to_str() == Some("-") {
+        cache_file_contents_from_stdin(&substitute_file, &cache);
+    }
+
     let src = session.load_file(fn_path);
     let pos = scopes::coords_to_point(&src, cfg.linenum, cfg.charnum);
 
@@ -229,7 +258,6 @@ fn check_rust_src_env_var() {
 
 #[cfg(not(test))]
 fn daemon(cfg: Config) {
-    use std::io;
     let mut input = String::new();
     while let Ok(n) = io::stdin().read_line(&mut input) {
         // '\n' == 1
@@ -389,9 +417,6 @@ fn build_cli<'a, 'b, 'c, 'd, 'e, 'f>() -> App<'a, 'b, 'c, 'd, 'e, 'f> {
 
 #[cfg(not(test))]
 fn main() {
-    // make sure we get a stack trace ifwe panic
-    ::std::env::set_var("RUST_BACKTRACE","1");
-
     env_logger::init().unwrap();
     check_rust_src_env_var();
 
