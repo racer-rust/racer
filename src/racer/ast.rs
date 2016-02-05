@@ -1,7 +1,7 @@
 use core::{self, Match, MatchType, Scope, Ty, Session};
 use typeinf;
 use nameres::{self, resolve_path_with_str};
-use core::Ty::{TyTuple, TyPathSearch, TyMatch, TyUnsupported};
+use core::Ty::*;
 
 use std::path::Path;
 use std::rc::Rc;
@@ -10,6 +10,7 @@ use syntex_syntax::ast;
 use syntex_syntax::codemap;
 use syntex_syntax::parse::parser::Parser;
 use syntex_syntax::parse::{lexer, ParseSess};
+use syntex_syntax::print::pprust;
 use syntex_syntax::ptr::P;
 use syntex_syntax::visit::{self, Visitor};
 use syntex_syntax::errors::Handler;
@@ -169,13 +170,24 @@ fn to_racer_ty(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
             }
             Some(TyTuple(res))
         },
-        ast::TyRptr(_, ref ty) => {
-            to_racer_ty(&*ty.ty, scope)
-        },
+        ast::TyRptr(ref _lifetime, ref ty) => {
+            to_racer_ty(&*ty.ty, scope).map(|ref_ty| TyRefPtr(Box::new(ref_ty)) )
+        }
         ast::TyPath(_, ref path) => {
             Some(TyPathSearch(to_racer_path(path), scope.clone()))
         }
-        _ => None
+        ast::TyFixedLengthVec(ref ty, ref expr) => {
+            to_racer_ty(ty, scope).map(|racer_ty| {
+                Ty::TyFixedLengthVec(Box::new(racer_ty), pprust::expr_to_string(expr))
+            })
+        }
+        ast::TyVec(ref ty) => {
+            to_racer_ty(ty, scope).map(|ref_ty| Ty::TyVec(Box::new(ref_ty)) )
+        }
+        _ => {
+            trace!("unhandled Ty node: {:?}", ty.node);
+            None
+        }
     }
 }
 
@@ -361,6 +373,9 @@ fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
     match ty {
         TyPathSearch(ref path, ref scope) =>
             find_type_match(path, &scope.filepath, scope.point, session),
+        TyRefPtr(ty) => {
+            path_to_match(*ty.to_owned(), session)
+        },
         _ => Some(ty)
     }
 }
