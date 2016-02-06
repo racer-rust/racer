@@ -332,7 +332,7 @@ fn build_cli<'a, 'b, 'c, 'd, 'e, 'f>() -> App<'a, 'b, 'c, 'd, 'e, 'f> {
     // than the less verbose "Usage String" method...faster, meaning runtime speed since that's
     // extremely important here
     App::new("racer")
-        .version("v1.2.2")
+        .version(env!("CARGO_PKG_VERSION"))
         .author("Phil Dawes")
         .about("A Rust code completion utility")
         .settings(&[AppSettings::GlobalVersion,
