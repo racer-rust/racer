@@ -1,6 +1,6 @@
 [root]
 name = "racer"
-version = "1.2.2"
+version = "1.2.4"
 dependencies = [
  "clap 1.5.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "env_logger 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",

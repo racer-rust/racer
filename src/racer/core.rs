@@ -129,7 +129,54 @@ pub enum Ty {
     TyMatch(Match),
     TyPathSearch(Path, Scope),   // A path + the scope to be able to resolve it
     TyTuple(Vec<Ty>),
+    TyFixedLengthVec(Box<Ty>, String), // ty, length expr as string
+    TyRefPtr(Box<Ty>),
+    TyVec(Box<Ty>),
     TyUnsupported
+}
+
+impl fmt::Display for Ty {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            Ty::TyMatch(ref m) => {
+                write!(f, "{}", m.matchstr)
+            }
+            Ty::TyPathSearch(ref p, _) => {
+                write!(f, "{}", p)
+            }
+            Ty::TyTuple(ref vec) => {
+                let mut first = true;
+                try!(write!(f, "("));
+                for field in vec.iter() {
+                    if first {
+                        try!(write!(f, "{}", field));
+                            first = false;
+                    } else {
+                        try!(write!(f, ", {}", field));
+                    }
+                }
+                write!(f, ")")
+            }
+            Ty::TyFixedLengthVec(ref ty, ref expr) => {
+                try!(write!(f, "["));
+                try!(write!(f, "{}", ty));
+                try!(write!(f, "; "));
+                try!(write!(f, "{}", expr));
+                write!(f, "]")
+            }
+            Ty::TyVec(ref ty) => {
+                try!(write!(f, "["));
+                try!(write!(f, "{}", ty));
+                write!(f, "]")
+            }
+            Ty::TyRefPtr(ref ty) => {
+                write!(f, "&{}", ty)
+            }
+            Ty::TyUnsupported => {
+                write!(f, "_")
+            }
+        }
+    }
 }
 
 // The racer implementation of an ast::Path. Difference is that it is Send-able
@@ -188,6 +235,35 @@ impl fmt::Debug for Path {
             }
         }
         write!(f, "]")
+    }
+}
+
+impl fmt::Display for Path {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mut first = true;
+        for seg in &self.segments {
+            if first {
+                try!(write!(f, "{}", seg.name));
+                first = false;
+            } else {
+                try!(write!(f, "::{}", seg.name));
+            }
+
+            if !seg.types.is_empty() {
+                try!(write!(f, "<"));
+                let mut tfirst = true;
+                for typath in &seg.types {
+                    if tfirst {
+                        try!(write!(f, "{}", typath));
+                        tfirst = false;
+                    } else {
+                        try!(write!(f, ", {}", typath))
+                    }
+                }
+                try!(write!(f, ">"));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -590,15 +666,27 @@ pub fn complete_from_file(src: &str, filepath: &path::Path,
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("complete_from_file context is {:?}", context);
             context.map(|ty| {
-                if let Ty::TyMatch(m) = ty {
-                    for m in nameres::search_for_field_or_method(m, searchstr, SearchType::StartsWith, session) {
-                        out.push(m)
-                    }
-                }
+                complete_field_for_ty(ty, searchstr, SearchType::StartsWith, session, &mut out);
             });
         }
     }
     out.into_iter()
+}
+
+fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &Session, out: &mut Vec<Match>) {
+    // TODO would be nice if this and other methods could operate on a ref instead of requiring
+    // ownership
+    match ty {
+        Ty::TyMatch(m) => {
+            for m in nameres::search_for_field_or_method(m, searchstr, stype, session) {
+                out.push(m)
+            }
+        },
+        Ty::TyRefPtr(m) => {
+            complete_field_for_ty(*m.to_owned(), searchstr, stype, session, out)
+        }
+        _ => return
+    }
 }
 
 pub fn find_definition(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> Option<Match> {
