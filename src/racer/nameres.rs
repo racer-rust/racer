@@ -493,9 +493,9 @@ pub fn search_next_scope(mut startpoint: usize, pathseg: &core::PathSegment,
 }
 
 pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
-    debug!("get_crate_file {}", name);
+    debug!("get_crate_file {}, {:?}", name, from_path);
     if let Some(p) = cargo::get_crate_file(name, from_path) {
-        debug!("nameres::get_crate_file  - found the crate file! {:?}", p);
+        debug!("get_crate_file  - found the crate file! {:?}", p);
         return Some(p);
     }
 
