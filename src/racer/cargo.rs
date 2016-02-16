@@ -351,7 +351,7 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
                 debug!("find_src_via_tomlfile package_name: {}", package_name);
 
                 if package_name == kratename {
-                    return Some(package_source);
+                    return find_src_via_tomlfile(kratename, &tomlfile)
                 }
             }
         }
@@ -376,6 +376,7 @@ fn get_local_packages(table: &BTreeMap<String, toml::Value>, cargofile: &Path, s
             toml::Value::Table(ref t) => {
                 // local directory
                 let relative_path = otry!(getstr(t, "path"));
+
                 Some(otry!(cargofile.parent())
                     .join(relative_path)
                     .join("src")
