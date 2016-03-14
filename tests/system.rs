@@ -1587,6 +1587,29 @@ fn completes_methods_on_deref_type() {
 }
 
 #[test]
+fn finds_self_param_when_fn_has_generic_closure_arg() {
+    // issue #508
+    let src = "
+    struct MyOption;
+
+    impl MyOption {
+        // needs to find 'self' here to see it is a method
+        pub fn map<U, F: FnOnce(T) -> U>(self, f: F) -> Option<U> {
+        }
+    }
+
+    let a: MyOption;
+    a.map
+    ";
+    let f = TmpFile::new(src);
+    let path = f.path();
+    let pos = scopes::coords_to_point(src, 11, 6);
+    let cache = core::FileCache::new();
+    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+    assert_eq!("map", got.matchstr);
+}
+
+#[test]
 fn completes_methods_on_deref_generic_type() {
     let modsrc = "
     pub trait Deref {
