@@ -100,7 +100,6 @@ fn finds_subnested_module() {
 pub fn split_into_context_and_completion(s: &str) -> (&str, &str, CompletionType) {
     match s.char_indices().rev().find(|&(_, c)| !util::is_ident_char(c)) {
         Some((i,c)) => {
-            //println!("PHIL s '{}' i {} c '{}'",s,i,c);
             match c {
                 '.' => (&s[..i], &s[(i+1)..], CompletionType::CompleteField),
                 ':' if s.len() > 1 => (&s[..(i-1)], &s[(i+1)..], CompletionType::CompletePath),
@@ -177,6 +176,11 @@ fn expand_search_expr_finds_ident() {
 }
 
 #[test]
+fn expand_search_expr_ignores_bang_at_start() {
+    assert_eq!((1, 4), expand_search_expr("!foo", 1))
+}
+
+#[test]
 fn expand_search_expr_handles_chained_calls() {
     assert_eq!((0, 20), expand_search_expr("yeah::blah.foo().bar", 18))
 }
@@ -192,7 +196,7 @@ fn expand_search_expr_handles_a_function_arg() {
 
 #[test]
 fn expand_search_expr_handles_macros() {
-    assert_eq!((0, 9), expand_search_expr("my_macro!()", 9))
+    assert_eq!((0, 9), expand_search_expr("my_macro!()", 8))
 }
 
 #[test]

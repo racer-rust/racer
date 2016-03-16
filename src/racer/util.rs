@@ -17,7 +17,7 @@ pub fn is_pattern_char(c: char) -> bool {
 }
 
 pub fn is_search_expr_char(c: char) -> bool {
-    c.is_alphanumeric() || (c == '_') || (c == ':') || (c == '.') || (c == '!')
+    c.is_alphanumeric() || (c == '_') || (c == ':') || (c == '.')
 }
 
 pub fn is_ident_char(c: char) -> bool {
