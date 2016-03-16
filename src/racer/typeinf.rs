@@ -35,7 +35,6 @@ pub fn first_param_is_self(mut blob: &str) -> bool {
             continue;
         }
         let end = scopes::find_closing_paren(blob, start+1);
-        println!("PHIL BLOB IS {}", &blob[(start+1)..end]);
         let is_self = txt_matches(ExactMatch, "self", &blob[(start+1)..end]);
         debug!("searching fn args: |{}| {}", &blob[(start+1)..end], is_self);
         return is_self
