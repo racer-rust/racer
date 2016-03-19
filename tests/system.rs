@@ -594,6 +594,20 @@ fn finds_macro() {
 }
 
 #[test]
+fn finds_extern_crate() {
+	let src = "
+    extern crate fixtures;
+    fixtures
+    ";
+	let f = TmpFile::new(src);
+	let path = f.path();
+	let pos = scopes::coords_to_point(src, 3, 5);
+	let cache = core::FileCache::new();
+	let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+	assert_eq!(got.matchstr, "fixtures".to_string());
+}
+
+#[test]
 fn finds_fn_arg() {
     let src="
     fn myfn(myarg: &str) {
