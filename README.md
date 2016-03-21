@@ -39,6 +39,10 @@ As mentioned in the command output, don't forget to add the installation directo
 
 Emacs integration has been moved to a separate project: [emacs-racer](https://github.com/racer-rust/emacs-racer)
 
+## Gedit integration
+
+Gedit integration can be found [here](https://github.com/isamert/gracer)
+
 ## Vim integration
 
 Vim integration has been moved to a separate project: [vim-racer](https://github.com/racer-rust/vim-racer)
