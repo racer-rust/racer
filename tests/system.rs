@@ -7,7 +7,6 @@ use racer::core::find_definition;
 use racer::core;
 use racer::scopes;
 
-use std::env;
 use std::io::Write;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
