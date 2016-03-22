@@ -2,9 +2,7 @@
 
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::Session;
-use std;
 use std::cmp;
-use std::fs::File;
 use std::path::Path;
 
 pub fn getline(filepath: &Path, linenum: usize, session: &Session) -> String {
@@ -141,16 +139,4 @@ fn find_ident_end_unicode() {
 // that stabilizes
 pub fn char_at(src: &str, i: usize) -> char {
     src[i..].chars().next().unwrap()
-}
-
-// PD: short term replacement for path.exists() (PathExt trait). Replace once
-// that stabilizes
-pub fn path_exists<P: AsRef<Path>>(path: P) -> bool {
-    is_dir(&path) || File::open(path).is_ok()
-}
-
-// PD: short term replacement for path.is_dir() (PathExt trait). Replace once
-// that stabilizes
-pub fn is_dir<P: AsRef<Path>>(path: P) -> bool {
-    std::fs::metadata(path).map(|info| info.is_dir()).unwrap_or(false)
 }

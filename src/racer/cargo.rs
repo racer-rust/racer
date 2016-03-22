@@ -3,7 +3,6 @@ use std::io::Read;
 use std::env;
 use std::path::{Path,PathBuf};
 use std::collections::BTreeMap;
-use util::{path_exists, is_dir};
 use std::fs::{read_dir};
 use toml;
 
@@ -174,7 +173,7 @@ fn get_cargo_rootdir(cargofile: &Path) -> Option<PathBuf> {
         {
             debug!("get_cargo_rootdir. CARGO_HOME is set: {:?}",cargohome);
             let d = PathBuf::from(cargohome);
-            if path_exists(&d) {
+            if d.exists() {
                 return Some(d)
             } else {
                 return None
@@ -225,7 +224,7 @@ fn get_cargo_rootdir(cargofile: &Path) -> Option<PathBuf> {
     d.pop();
     d.pop();
     d.push(".cargo");
-    if path_exists(&d) {
+    if d.exists() {
         Some(d)
     } else {
         None
@@ -403,7 +402,7 @@ fn find_cratesio_src_dirs(d: PathBuf) -> Vec<PathBuf> {
     let mut out = Vec::new();
     for entry in vectry!(read_dir(d)) {
         let path = vectry!(entry).path();
-        if is_dir(path.as_path()) {
+        if path.is_dir() {
             if let Some(ref fname) = path.file_name().and_then(|s| s.to_str()) {
                 if fname.starts_with("github.com-") {
                     out.push(path.clone());
@@ -417,7 +416,7 @@ fn find_cratesio_src_dirs(d: PathBuf) -> Vec<PathBuf> {
 fn find_git_src_dir(d: PathBuf, name: &str, sha1: &str, branch: Option<&str>) -> Option<PathBuf> {
     for entry in otry2!(read_dir(d)) {
         let path = otry2!(entry).path();
-        if is_dir(path.as_path()) {
+        if path.is_dir() {
             if let Some(ref fname) = path.file_name().and_then(|s| s.to_str()) {
                 if fname.starts_with(name) {
                     let mut d = path.clone();
@@ -425,12 +424,12 @@ fn find_git_src_dir(d: PathBuf, name: &str, sha1: &str, branch: Option<&str>) ->
                     // dirname can be the sha1 or master.
                     d.push(sha1);
 
-                    if !is_dir(d.as_path()) && branch.is_some() {
+                    if !d.is_dir() && branch.is_some() {
                         d.pop();
                         d.push(branch.unwrap());
                     }
 
-                    if !is_dir(d.as_path()) {
+                    if !d.is_dir() {
                         d.pop();
                         d.push("master");
                     }
@@ -472,7 +471,7 @@ fn getstr(t: &toml::Table, k: &str) -> Option<String> {
 fn find_cargo_tomlfile(currentfile: &Path) -> Option<PathBuf> {
     let mut f = currentfile.to_path_buf();
     f.push("Cargo.toml");
-    if path_exists(f.as_path()) {
+    if f.exists() {
         Some(f)
     } else {
         if f.pop() && f.pop() {
@@ -490,7 +489,7 @@ pub fn get_crate_file(kratename: &str, from_path: &Path) -> Option<PathBuf> {
         let mut lockfile = tomlfile.clone();
         lockfile.pop();
         lockfile.push("Cargo.lock");
-        if path_exists(lockfile.as_path()) {
+        if lockfile.exists() {
             if let Some(f) = find_src_via_lockfile(kratename, &lockfile) {
                 return Some(f);
             }

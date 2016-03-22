@@ -16,7 +16,7 @@ use racer::util;
 #[cfg(not(test))]
 use racer::core::Match;
 #[cfg(not(test))]
-use racer::util::{getline, path_exists};
+use racer::util::getline;
 #[cfg(not(test))]
 use racer::nameres::{do_file_search, do_external_search, PATH_SEP};
 #[cfg(not(test))]
@@ -230,10 +230,10 @@ fn check_rust_src_env_var() {
         let v = srcpaths.split(PATH_SEP).collect::<Vec<_>>();
         if !v.is_empty() {
             let f = Path::new(v[0]);
-            if !path_exists(f) {
+            if !f.exists() {
                 println!("racer can't find the directory pointed to by the RUST_SRC_PATH variable \"{}\". Try using an absolute fully qualified path and make sure it points to the src directory of a rust checkout - e.g. \"/home/foouser/src/rust/src\".", srcpaths);
                 std::process::exit(1);
-            } else if !path_exists(f.join("libstd")) {
+            } else if !f.join("libstd").exists() {
                 println!("Unable to find libstd under RUST_SRC_PATH. N.B. RUST_SRC_PATH variable needs to point to the *src* directory inside a rust checkout e.g. \"/home/foouser/src/rust/src\". Current value \"{}\"", srcpaths);
                 std::process::exit(1);
             }
@@ -245,7 +245,7 @@ fn check_rust_src_env_var() {
         ];
         for &path in &default_paths {
             let f = Path::new(path);
-            if path_exists(f) {
+            if f.exists() {
                 std::env::set_var("RUST_SRC_PATH", path);
                 return;
             }
