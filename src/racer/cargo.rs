@@ -2,9 +2,17 @@ use std::fs::File;
 use std::io::Read;
 use std::env;
 use std::path::{Path,PathBuf};
+use std::collections::BTreeMap;
 use util::{path_exists, is_dir};
 use std::fs::{read_dir};
 use toml;
+
+#[derive(Debug)]
+struct PackageInfo {
+    name: String,
+    version: Option<String>,
+    source: Option<PathBuf>
+}
 
 // otry is 'option try'
 macro_rules! otry {
@@ -61,45 +69,102 @@ fn empty_if_no_branch() {
 }
 
 fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
-    let mut file = otry2!(File::open(cargofile));
-    let mut string = String::new();
-    otry2!(file.read_to_string(&mut string));
-    let mut parser = toml::Parser::new(&string);
-    let lock_table = parser.parse().unwrap();
+    if let Some(packages) = get_cargo_packages(cargofile) {
+        for package in packages {
+            if let Some(package_source) = package.source.clone() {
+                if let Some(tomlfile) = find_cargo_tomlfile(package_source.as_path()) {
+                    let package_name = get_package_name(tomlfile.as_path());
 
-    debug!("find_src_via_lockfile found lock table {:?}", lock_table);
+                    debug!("find_src_via_lockfile package_name: {}", package_name);
 
-    let t = match lock_table.get("package") {
-        Some(&toml::Value::Array(ref t1)) => t1,
-        _ => return None
-    };
-
-    for item in t {
-        if let toml::Value::Table(ref t) = *item {
-            if let Some(&toml::Value::String(ref name)) = t.get("name") {
-                if name.replace("-", "_") == kratename {
-                    debug!("found matching crate {:?}", t);
-                    let version = otry!(getstr(t, "version"));
-                    let source = otry!(getstr(t, "source"));
-
-                    if Some("registry") == source.split("+").nth(0) {
-                        return get_versioned_cratefile(name, &version, cargofile);
-                    } else if Some("git") == source.split("+").nth(0) {
-                        let sha1 = otry!(source.split("#").last());
-                        let mut d = otry!(get_cargo_rootdir(cargofile));
-                        let branch = get_branch_from_source(&source);
-                        d.push("git");
-                        d.push("checkouts");
-                        d = otry!(find_git_src_dir(d, name, &sha1, branch));
-                        d.push("src");
-                        d.push("lib.rs");
-                        return Some(d);
+                    if package_name == kratename {
+                        return package.source;
                     }
                 }
             }
         }
     }
     None
+}
+
+fn parse_toml_file(toml_file: &Path) -> Option<BTreeMap<String, toml::Value>> {
+    let mut file = otry2!(File::open(toml_file));
+    let mut string = String::new();
+    otry2!(file.read_to_string(&mut string));
+    let mut parser = toml::Parser::new(&string);
+
+    parser.parse()
+}
+
+fn get_cargo_packages(cargofile: &Path) -> Option<Vec<PackageInfo>> {
+    let lock_table = parse_toml_file(cargofile).unwrap();
+
+    debug!("get_cargo_packages found lock_table {:?}", lock_table);
+
+    let packages_array = match lock_table.get("package") {
+        Some(&toml::Value::Array(ref t1)) => t1,
+        _ => return None
+    };
+
+    let mut result = Vec::new();
+
+    for package_element in packages_array {
+        if let &toml::Value::Table(ref package_table) = package_element {
+            if let Some(&toml::Value::String(ref package_name)) = package_table.get("name") {
+                let package_version = otry!(getstr(package_table, "version"));
+                let package_source = otry!(getstr(package_table, "source"));
+
+                let package_source = match package_source.split("+").nth(0) {
+                    Some("registry") => {
+                        get_versioned_cratefile(package_name, &package_version, cargofile)
+                    },
+                    Some("git") => {
+                        let sha1 = otry!(package_source.split("#").last());
+                        let mut d = otry!(get_cargo_rootdir(cargofile));
+                        let branch = get_branch_from_source(&package_source);
+                        d.push("git");
+                        d.push("checkouts");
+                        d = otry!(find_git_src_dir(d, package_name, &sha1, branch));
+                        d.push("src");
+                        d.push("lib.rs");
+
+                        Some(d)
+                    },
+                    _ => return None
+                };
+
+                result.push(PackageInfo{
+                    name: package_name.to_owned(),
+                    version: Some(package_version),
+                    source: package_source
+                });
+            }
+        }
+    }
+    Some(result)
+}
+
+fn get_package_name(cargofile: &Path) -> String {
+    let lock_table = parse_toml_file(cargofile).unwrap();
+
+    debug!("get_package_name found lock_table {:?}", lock_table);
+
+    let mut name = String::new();
+
+    if let Some(&toml::Value::Table(ref lib_table)) = lock_table.get("lib") {
+        if let Some(&toml::Value::String(ref package_name)) = lib_table.get("name") {
+            name.push_str(package_name);
+            return name;
+        }
+    }
+
+    if let Some(&toml::Value::Table(ref package_table)) = lock_table.get("package") {
+        if let Some(&toml::Value::String(ref package_name)) = package_table.get("name") {
+            name.push_str(package_name);
+        }
+    }
+
+    name
 }
 
 fn get_cargo_rootdir(cargofile: &Path) -> Option<PathBuf> {
@@ -231,13 +296,7 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
 fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     // only look for 'path' references here.
     // We find the git and crates.io stuff via the lockfile
-
-    let mut file = otry2!(File::open(cargofile));
-    let mut string = String::new();
-    otry2!(file.read_to_string(&mut string));
-    let mut parser = toml::Parser::new(&string);
-    let table = otry!(parser.parse());
-
+    let table = parse_toml_file(cargofile).unwrap();
 
     // is it this lib?  (e.g. you're searching from tests to find the main library crate)
     {
@@ -273,36 +332,71 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     }
 
     // otherwise search the dependencies
-    let t = match table.get("dependencies") {
+    let local_packages = get_local_packages(&table, cargofile, "dependencies").unwrap_or_default();
+    let local_packages_dev = get_local_packages(&table, cargofile, "dev-dependencies").unwrap_or_default();
+
+    // if no dependencies are found
+    if local_packages.is_empty() && local_packages_dev.is_empty() {
+        return None;
+    }
+
+    debug!("find_src_via_tomlfile found local packages: {:?}", local_packages);
+    debug!("find_src_via_tomlfile found local packages dev: {:?}", local_packages_dev);
+
+    for package in local_packages.iter().chain(local_packages_dev.iter()) {
+        if let Some(package_source) = package.source.clone() {
+            if let Some(tomlfile) = find_cargo_tomlfile(package_source.as_path()) {
+                let package_name = get_package_name(tomlfile.as_path());
+
+                debug!("find_src_via_tomlfile package_name: {}", package_name);
+
+                if package_name == kratename {
+                    return find_src_via_tomlfile(kratename, &tomlfile)
+                }
+            }
+        }
+    }
+    None
+}
+
+fn get_local_packages(table: &BTreeMap<String, toml::Value>, cargofile: &Path, section_name: &str) -> Option<Vec<PackageInfo>> {
+    debug!("get_local_packages found table {:?}", table);
+
+    let t = match table.get(section_name) {
         Some(&toml::Value::Table(ref t)) => t,
         _ => return None
     };
 
-    let mut name = kratename;
-    let value = if kratename.contains('_') {
-        t.iter().find(|&(k, _)| k.replace("-", "_") == name).map(|(k,v)| {
-            name = k;
-            v
-        })
-    } else {
-        t.get(kratename)
-    };
+    let mut result = Vec::new();
 
-    match value {
-        Some(&toml::Value::Table(ref t)) => {
-            // local directory
-            let relative_path = otry!(getstr(t, "path"));
-            Some(otry!(cargofile.parent())
-                 .join(relative_path)
-                 .join("src")
-                 .join("lib.rs"))
-        },
-        Some(&toml::Value::String(ref version)) => {
-            // versioned crate
-            get_versioned_cratefile(name, version, cargofile)
-        }
-        _ => None
+    for (package_name, value) in t.iter() {
+        let mut package_version = None;
+
+        let package_source = match *value {
+            toml::Value::Table(ref t) => {
+                // local directory
+                let relative_path = otry!(getstr(t, "path"));
+
+                Some(otry!(cargofile.parent())
+                    .join(relative_path)
+                    .join("src")
+                    .join("lib.rs"))
+                },
+            toml::Value::String(ref version) => {
+                // versioned crate
+                package_version = Some(version.to_owned());
+                get_versioned_cratefile(package_name, version, cargofile)
+            }
+            _ => continue
+        };
+
+        result.push(PackageInfo {
+            name: package_name.to_owned(),
+            version: package_version,
+            source: package_source
+        });
     }
+    Some(result)
 }
 
 fn find_cratesio_src_dirs(d: PathBuf) -> Vec<PathBuf> {

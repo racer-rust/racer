@@ -3,7 +3,7 @@
 use {core, ast, matchers, scopes, typeinf};
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{Match, Src, Session};
-use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, MatchArm};
+use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, MatchArm, Builtin};
 use core::Namespace::{self, TypeNamespace, ValueNamespace, BothNamespaces};
 use util::{symbol_matches, txt_matches, find_ident_end, path_exists};
 use cargo;
@@ -26,14 +26,19 @@ fn search_struct_fields(searchstr: &str, structmatch: &Match,
 
     let mut out = Vec::new();
 
-    for (field, fpos, _) in fields.into_iter() {
+    for (field, fpos, ty) in fields.into_iter() {
         if symbol_matches(search_type, searchstr, &field) {
-            out.push(Match { matchstr: field.clone(),
+            let contextstr = if let Some(t) = ty {
+                t.to_string()
+            } else {
+                field.clone()
+            };
+            out.push(Match { matchstr: field,
                                 filepath: structmatch.filepath.to_path_buf(),
                                 point: fpos + opoint.unwrap(),
                                 local: structmatch.local,
                                 mtype: StructField,
-                                contextstr: field,
+                                contextstr: contextstr,
                                 generic_args: Vec::new(), generic_types: Vec::new()
             });
         }
@@ -488,9 +493,9 @@ pub fn search_next_scope(mut startpoint: usize, pathseg: &core::PathSegment,
 }
 
 pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
-    debug!("get_crate_file {}", name);
+    debug!("get_crate_file {}, {:?}", name, from_path);
     if let Some(p) = cargo::get_crate_file(name, from_path) {
-        debug!("nameres::get_crate_file  - found the crate file! {:?}", p);
+        debug!("get_crate_file  - found the crate file! {:?}", p);
         return Some(p);
     }
 
@@ -759,8 +764,6 @@ fn search_local_scopes(pathseg: &core::PathSegment, filepath: &Path,
 pub fn search_prelude_file(pathseg: &core::PathSegment, search_type: SearchType,
                            namespace: Namespace, session: &Session) -> vec::IntoIter<Match> {
     debug!("search_prelude file {:?} {:?} {:?}", pathseg, search_type, namespace);
-//    debug!("PHIL searching prelude file, backtrace: {}",util::get_backtrace());
-
     let mut out : Vec<Match> = Vec::new();
 
     // find the prelude file from the search path and scan it
@@ -794,24 +797,22 @@ pub fn resolve_path_with_str(path: &core::Path, filepath: &Path, pos: usize,
     // HACK
     if path.segments.len() == 1 && path.segments[0].name == "str" {
         debug!("{:?} == {:?}", path.segments[0], "str");
-        let str_pathseg = core::PathSegment{ name: "Str".into(), types: Vec::new() };
-        let str_match = resolve_name(&str_pathseg, filepath, pos, ExactMatch, namespace, session).nth(0);
-        debug!("str_match {:?}", str_match);
 
-        str_match.map(|str_match| {
-            debug!("found Str, converting to str");
-            let m = Match {
-                           matchstr: "str".into(),
-                           filepath: str_match.filepath.to_path_buf(),
-                           point: str_match.point,
-                           local: false,
-                           mtype: Struct,
-                           contextstr: "str".into(),
-                           generic_args: Vec::new(),
-                           generic_types: Vec::new()
-            };
-            out.push(m);
-        });
+        if let Some(module) = resolve_path(&core::Path::from_vec(true, vec!["std","str"]),
+                                           filepath, pos, search_type, namespace,
+                                           session).nth(0) {
+            out.push(Match {
+                matchstr: "str".into(),
+                filepath: module.filepath.clone(),
+                point: 0,
+                local: false,
+                mtype: Builtin,
+                contextstr: "str".into(),
+                generic_args: vec![],
+                generic_types: vec![]
+            });
+        }
+        
     } else {
         for m in resolve_path(path, filepath, pos, search_type, namespace, session) {
             out.push(m);
@@ -1117,6 +1118,17 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
                 out.push(m);
             }
         },
+        Builtin => {
+            for m in search_for_impl_methods(&m,
+                                    searchstr,
+                                    m.point,
+                                    &m.filepath,
+                                    m.local,
+                                    search_type,
+                                    session) {
+                out.push(m);
+            }
+        },
         Enum => {
             debug!("got an enum, looking for impl methods {}", m.matchstr);
             for m in search_for_impl_methods(&m,
@@ -1139,7 +1151,7 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
                 }
             });
         }
-        _ => { debug!("WARN!! context wasn't a Struct, Enum or Trait {:?}",m);}
+        _ => { debug!("WARN!! context wasn't a Struct, Enum, Builtin or Trait {:?}",m);}
     };
     out.into_iter()
 }

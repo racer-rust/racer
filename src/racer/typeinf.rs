@@ -26,13 +26,20 @@ pub fn generate_skeleton_for_parsing(src: &str) -> String {
     s
 }
 
-pub fn first_param_is_self(blob: &str) -> bool {
-    blob.find("(").map_or(false, |start| {
+pub fn first_param_is_self(mut blob: &str) -> bool {
+    while let Some(start) = blob.find("(") {
+        if blob[..start].contains("<") {
+            // oops - paren in a generic arg
+            // consider 'pub fn map<U, F: FnOnce(T) -> U>(self, f: F)'
+            blob = &blob[start+1..];
+            continue;
+        }
         let end = scopes::find_closing_paren(blob, start+1);
         let is_self = txt_matches(ExactMatch, "self", &blob[(start+1)..end]);
         debug!("searching fn args: |{}| {}", &blob[(start+1)..end], is_self);
-        is_self
-    })
+        return is_self
+    }
+    false
 }
 
 #[test]
