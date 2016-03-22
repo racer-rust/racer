@@ -34,7 +34,10 @@ As mentioned in the command output, don't forget to add the installation directo
 
    ```./target/release/racer complete std::io::B ```  (should show some completions)
 
+### Eclipse integration
 
+Racer can be used with Eclipse through the use of [RustDT](https://github.com/RustDT/RustDT). (User guide is [linked](http://rustdt.github.io/) in repo description)
+   
 ## Emacs integration
 
 Emacs integration has been moved to a separate project: [emacs-racer](https://github.com/racer-rust/emacs-racer)
