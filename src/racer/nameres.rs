@@ -5,7 +5,7 @@ use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{Match, Src, Session};
 use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, MatchArm, Builtin};
 use core::Namespace::{self, TypeNamespace, ValueNamespace, BothNamespaces};
-use util::{symbol_matches, txt_matches, find_ident_end, path_exists};
+use util::{symbol_matches, txt_matches, find_ident_end};
 use cargo;
 use std::path::{Path, PathBuf};
 use std::{self, vec};
@@ -367,7 +367,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                 };
                 if fname.starts_with(&format!("lib{}", searchstr)) {
                     let filepath = fpath_buf.join("lib.rs");
-                    if path_exists(&filepath) {
+                    if filepath.exists() {
                         let m = Match {
                                        matchstr: (&fname[3..]).to_owned(),
                                        filepath: filepath.to_path_buf(),
@@ -386,7 +386,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                     for name in &[&format!("{}.rs", fname)[..], "mod.rs", "lib.rs"] {
                         let filepath = fpath_buf.join(name);
 
-                        if path_exists(&filepath) {
+                        if filepath.exists() {
                             let m = Match {
                                            matchstr: fname.to_owned(),
                                            filepath: filepath.to_path_buf(),
@@ -401,7 +401,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                         }
                     }
                     // try just <name>.rs
-                    if fname.ends_with(".rs") && path_exists(&fpath_buf) {
+                    if fname.ends_with(".rs") && fpath_buf.exists() {
                         let m = Match {
                                        matchstr: (&fname[..(fname.len()-3)]).to_owned(),
                                        filepath: fpath_buf.clone(),
@@ -449,14 +449,14 @@ pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<PathBuf> {
 
     {
         let filepath = currentdir.join("lib.rs");
-        if path_exists(&filepath) {
+        if filepath.exists() {
             res.push(filepath.to_path_buf());
             return res;   // for now stop at the first match
         }
     }
     {
         let filepath = currentdir.join("main.rs");
-        if path_exists(&filepath) {
+        if filepath.exists() {
             res.push(filepath.to_path_buf());
             return res;   // for now stop at the first match
         }
@@ -506,14 +506,14 @@ pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
             // try lib<name>/lib.rs, like in the rust source dir
             let cratelibname = format!("lib{}", name);
             let filepath = Path::new(srcpath).join(cratelibname).join("lib.rs");
-            if path_exists(&filepath) {
+            if filepath.exists() {
                 return Some(filepath.to_path_buf());
             }
         }
         {
             // try <name>/lib.rs
             let filepath = Path::new(srcpath).join(name).join("lib.rs");
-            if path_exists(&filepath) {
+            if filepath.exists() {
                 return Some(filepath.to_path_buf());
             }
         }
@@ -525,14 +525,14 @@ pub fn get_module_file(name: &str, parentdir: &Path) -> Option<PathBuf> {
     {
         // try just <name>.rs
         let filepath = parentdir.join(format!("{}.rs", name));
-        if path_exists(&filepath) {
+        if filepath.exists() {
             return Some(filepath.to_path_buf());
         }
     }
     {
         // try <name>/mod.rs
         let filepath = parentdir.join(name).join("mod.rs");
-        if path_exists(&filepath) {
+        if filepath.exists() {
             return Some(filepath.to_path_buf());
         }
     }
@@ -776,7 +776,7 @@ pub fn search_prelude_file(pathseg: &core::PathSegment, search_type: SearchType,
 
     for srcpath in v.into_iter() {
         let filepath = Path::new(srcpath).join("libstd").join("prelude").join("v1.rs");
-        if path_exists(&filepath) {
+        if filepath.exists() {
             let msrc = session.load_file_and_mask_comments(&filepath);
             let is_local = true;
             for m in search_scope(0, 0, msrc, pathseg, &filepath, search_type, is_local, namespace, session) {
@@ -930,7 +930,7 @@ pub fn get_super_scope(filepath: &Path, pos: usize, session: &Session) -> Option
 
         for filename in &[ "mod.rs", "lib.rs" ] {
             let fpath = moduledir.join(&filename);
-            if path_exists(&fpath) {
+            if fpath.exists() {
                 return Some(core::Scope{ filepath: fpath, point: 0 })
             }
         }

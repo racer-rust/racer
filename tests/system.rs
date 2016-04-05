@@ -6,9 +6,7 @@ use racer::core::complete_from_file;
 use racer::core::find_definition;
 use racer::core;
 use racer::scopes;
-use racer::util;
 
-use std::env;
 use std::io::Write;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
@@ -1522,12 +1520,6 @@ fn doesnt_match_rhs_of_let_in_same_stmt() {
     assert_eq!("a", got.matchstr);
     assert_eq!(9, got.point);
 }
-
-#[test]
-fn issue_223() {
-    assert_eq!(true, util::path_exists(env::temp_dir()));
-}
-
 
 #[test]
 fn finds_unsafe_fn() {
