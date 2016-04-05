@@ -24,15 +24,19 @@ As mentioned in the command output, don't forget to add the installation directo
 
 2. ```cd racer; cargo build --release```.  The binary will now be in ```./target/release/racer```
 
-3. Fetch the Rust sourcecode from git, or download from https://www.rust-lang.org/install.html (the 'rustc' source download behind the 'source' link is the right one)
+3. Add the binary to your `PATH`. This can be done by moving it to a directory already in your `PATH` (i.e. `/usr/local/bin`) or by adding the `./target/release/` directory to your `PATH`
 
-4. Set the ```RUST_SRC_PATH``` environment variable to point to the 'src' dir in the Rust source installation
+## Configuration
+
+1. Fetch the Rust sourcecode from git, or download from https://www.rust-lang.org/install.html (the 'rustc' source download behind the 'source' link is the right one)
+
+2. Set the ```RUST_SRC_PATH``` environment variable to point to the 'src' dir in the Rust source installation
 
    (e.g. ```% export RUST_SRC_PATH=/usr/local/src/rust/src``` )
 
-5. Test on the command line:
+3. Test on the command line:
 
-   ```./target/release/racer complete std::io::B ```  (should show some completions)
+   ```racer complete std::io::B ```  (should show some completions)
 
 ## Editors/IDEs Supported
 
@@ -67,3 +71,7 @@ Vim integration has been moved to a separate project: [vim-racer](https://github
 ### Visual Studio Code extension
 
 You can find more info about Visual Studio Code extension [here](https://github.com/saviorisdead/RustyCode).
+
+### Atom integration 
+
+You can find the racer package for Atom [here](https://atom.io/packages/racer)
