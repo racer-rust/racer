@@ -303,7 +303,7 @@ struct Config {
 }
 
 #[cfg(not(test))]
-impl<'a> From<&'a ArgMatches<'a, 'a>> for Config {
+impl<'a> From<&'a ArgMatches<'a>> for Config {
     fn from(m: &'a ArgMatches) -> Self {
         // We check for charnum because it's the second argument, which means more than just
         // an FQN was used (i.e. racer complete <linenum> <charnum> <fn_name> [substitute_file])
@@ -327,7 +327,7 @@ impl<'a> From<&'a ArgMatches<'a, 'a>> for Config {
 }
 
 #[cfg(not(test))]
-fn build_cli<'a, 'b, 'c, 'd, 'e, 'f>() -> App<'a, 'b, 'c, 'd, 'e, 'f> {
+fn build_cli<'a, 'b>() -> App<'a, 'b> {
     // we use the more verbose "Builder Pattern" to create the CLI because it's a littel faster
     // than the less verbose "Usage String" method...faster, meaning runtime speed since that's
     // extremely important here
