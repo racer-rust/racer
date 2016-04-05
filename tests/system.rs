@@ -6,9 +6,7 @@ use racer::core::complete_from_file;
 use racer::core::find_definition;
 use racer::core;
 use racer::scopes;
-use racer::util;
 
-use std::env;
 use std::io::Write;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
@@ -402,6 +400,36 @@ fn follows_use_glob() {
     let cache = core::FileCache::new();
     let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     assert_eq!(got.matchstr, "myfn".to_string());
+}
+
+#[test]
+fn follows_multiple_use_globs() {
+	let src1="
+    pub fn src1fn() {}
+    ";
+	let src2="
+    pub fn src2fn() {}
+    ";
+    let src ="
+    use multiple_glob_test1::*;
+    use multiple_glob_test2::*;
+    mod multiple_glob_test1;
+    mod multiple_glob_test2;
+    
+    src
+    ";
+    
+    let _tmpsrc1 = TmpFile::with_name("multiple_glob_test1.rs", src1);
+    let _tmpsrc2 = TmpFile::with_name("multiple_glob_test2.rs", src2);
+    let tmpsrc = TmpFile::new(src);
+    let path = tmpsrc.path();
+    let pos = scopes::coords_to_point(src, 7, 7);
+    let cache = core::FileCache::new();
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path));
+    let completion_strings = got.into_iter().map(|raw_match| raw_match.matchstr).collect::<Vec<_>>();
+    
+    assert!(completion_strings.contains(&"src1fn".to_string()) && completion_strings.contains(&"src2fn".to_string()),
+    format!("Results should contain BOTH \"src1fn\" and \"src2fn\". Actual returned results: {:?} ", completion_strings));
 }
 
 #[test]
@@ -1522,12 +1550,6 @@ fn doesnt_match_rhs_of_let_in_same_stmt() {
     assert_eq!("a", got.matchstr);
     assert_eq!(9, got.point);
 }
-
-#[test]
-fn issue_223() {
-    assert_eq!(true, util::path_exists(env::temp_dir()));
-}
-
 
 #[test]
 fn finds_unsafe_fn() {

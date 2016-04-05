@@ -509,6 +509,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                 debug!("found a glob: now searching for {:?}", path);
                 let iter_path = resolve_path(&path, filepath, blobstart, search_type, BothNamespaces, session);
                 if let StartsWith = search_type {
+                	ALREADY_GLOBBING.with(|c| { c.set(None) });
                     return iter_path.collect();
                 }
                 for m in iter_path {

@@ -34,31 +34,36 @@ As mentioned in the command output, don't forget to add the installation directo
 
    ```./target/release/racer complete std::io::B ```  (should show some completions)
 
+## Editors/IDEs Supported
 
-## Emacs integration
+### Eclipse integration
 
-Emacs integration has been moved to a separate project: [emacs-racer](https://github.com/racer-rust/emacs-racer)
+Racer can be used with Eclipse through the use of [RustDT](https://github.com/RustDT/RustDT). (User guide is [linked](http://rustdt.github.io/) in repo description)
 
-## Gedit integration
+### Emacs integration
 
-Gedit integration can be found [here](https://github.com/isamert/gracer)
+Emacs integration has been moved to a separate project: [emacs-racer](https://github.com/racer-rust/emacs-racer).
 
-## Vim integration
+### Gedit integration
 
-Vim integration has been moved to a separate project: [vim-racer](https://github.com/racer-rust/vim-racer)
+Gedit integration can be found [here](https://github.com/isamert/gracer).
 
-## Kate integration
+### Kate integration
 
 The Kate community maintains a [plugin](http://quickgit.kde.org/?p=kate.git&a=tree&&f=addons%2Frustcompletion). It will be bundled with future releases of Kate (read more [here](https://blogs.kde.org/2015/05/22/updates-kates-rust-plugin-syntax-highlighting-and-rust-source-mime-type)).
 
-1. Enable 'Rust code completion' in the plugin list in the Kate config dialog
+1. Enable 'Rust code completion' in the plugin list in the Kate config dialog;
 
-2. On the new 'Rust code completion' dialog page, make sure 'Racer command' and 'Rust source tree location' are set correctly
+2. On the new 'Rust code completion' dialog page, make sure 'Racer command' and 'Rust source tree location' are set correctly.
 
-## Sublime Text integration
+### Sublime Text integration
 
 The Sublime Text community maintains a [plugin](https://github.com/defuz/RustAutoComplete).
 
-## Visual Studio Code extension
+### Vim integration
 
-You can find more info about Visual Studio Code extension [here](https://github.com/saviorisdead/RustyCode)
+Vim integration has been moved to a separate project: [vim-racer](https://github.com/racer-rust/vim-racer).
+
+### Visual Studio Code extension
+
+You can find more info about Visual Studio Code extension [here](https://github.com/saviorisdead/RustyCode).
