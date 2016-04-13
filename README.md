@@ -38,6 +38,12 @@ As mentioned in the command output, don't forget to add the installation directo
 
    ```racer complete std::io::B ```  (should show some completions)
 
+### Note for [rustup/multirust-rs](https://github.com/rust-lang-nursery/multirust-rs) users
+
+*This does not apply to [multirust](https://github.com/brson/multirust)!*
+
+To enable completion for cargo crates, you need to set the `CARGO_HOME` environment variable to `.cargo` in your home directory.
+
 ## Editors/IDEs Supported
 
 ### Eclipse integration
