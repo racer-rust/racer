@@ -20,12 +20,12 @@ path = "src/bin/main.rs"
 debug = true
 
 [dependencies]
-log = "~0.3.4"
+log = "~0.3.6"
 syntex_syntax = "~0.24.0"
-toml = "~0.1.25"
-env_logger = "~0.3.2"
+toml = "~0.1.28"
+env_logger = "~0.3.3"
 typed-arena = "~1.1.0"
-clap = "~1.5.5"
+clap = "~2.2.5"
 
 [dev-dependencies]
 test_fixtures = { path = "src/test_fixtures" }
