@@ -307,6 +307,7 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     // only look for 'path' references here.
     // We find the git and crates.io stuff via the lockfile
     let table = parse_toml_file(cargofile).unwrap();
+    let parent = otry!(cargofile.parent());
 
     // is it this lib?  (e.g. you're searching from tests to find the main library crate)
     {
@@ -322,14 +323,14 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
         };
 
         let mut lib_name = package_name;
-        let mut lib_path = otry!(cargofile.parent()).join("src").join("lib.rs");
+        let mut lib_path = parent.join("src").join("lib.rs");
         if let Some(&toml::Value::Table(ref t)) = table.get("lib") {
             if let Some(&toml::Value::String(ref name)) = t.get("name") {
                 lib_name = name;
             }
             if let Some(&toml::Value::String(ref pathstr)) = t.get("path") {
                 let p = Path::new(pathstr);
-                lib_path = otry!(cargofile.parent()).join(p);
+                lib_path = parent.join(p);
             }
         }
 
