@@ -259,7 +259,7 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
                 if let Some(path) = reader
                     .map(|entry| entry.unwrap().path())
                     .find(|path| path.to_str().unwrap().starts_with(start_name)) {
-                        d = path.clone();                        
+                        d = path.clone();
                     } else {
                         continue;
                     }
@@ -269,7 +269,7 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
         } else {
             d.push(kratename.to_owned() + "-" + &version);
         }
-        
+
         d.push("src");
         debug!("crate path {:?}",d);
 
