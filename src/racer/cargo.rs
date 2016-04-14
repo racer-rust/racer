@@ -114,23 +114,34 @@ fn get_cargo_packages(cargofile: &Path) -> Option<Vec<PackageInfo>> {
 
     let mut result = Vec::new();
 
+    macro_rules! unwrap_or_continue {
+        ($opt:expr) => {
+            match $opt {
+                Some(v) => v,
+                _ => continue,
+            }
+        }
+    }
+
     for package_element in packages_array {
         if let &toml::Value::Table(ref package_table) = package_element {
             if let Some(&toml::Value::String(ref package_name)) = package_table.get("name") {
-                let package_version = otry!(getstr(package_table, "version"));
-                let package_source = otry!(getstr(package_table, "source"));
+                trace!("get_cargo_packages processing {}", package_name);
+
+                let package_version = unwrap_or_continue!(getstr(package_table, "version"));
+                let package_source = unwrap_or_continue!(getstr(package_table, "source"));
 
                 let package_source = match package_source.split("+").nth(0) {
                     Some("registry") => {
                         get_versioned_cratefile(package_name, &package_version, cargofile)
                     },
                     Some("git") => {
-                        let sha1 = otry!(package_source.split("#").last());
-                        let mut d = otry!(get_cargo_rootdir(cargofile));
+                        let sha1 = unwrap_or_continue!(package_source.split("#").last());
+                        let mut d = unwrap_or_continue!(get_cargo_rootdir(cargofile));
                         let branch = get_branch_from_source(&package_source);
                         d.push("git");
                         d.push("checkouts");
-                        d = otry!(find_git_src_dir(d, package_name, &sha1, branch));
+                        d = unwrap_or_continue!(find_git_src_dir(d, package_name, &sha1, branch));
                         d.push("src");
                         d.push("lib.rs");
 
