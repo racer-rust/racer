@@ -68,10 +68,15 @@ fn empty_if_no_branch() {
 }
 
 fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
+    trace!("find_src_via_lockfile searching for {} in {:?}", kratename, cargofile);
     if let Some(packages) = get_cargo_packages(cargofile) {
+        trace!("find_src_via_lockfile got packages");
         for package in packages {
+            trace!("find_src_via_lockfile examining {:?}", package);
             if let Some(package_source) = package.source.clone() {
+                trace!("find_src_via_lockfile package_source {:?}", package_source);
                 if let Some(tomlfile) = find_cargo_tomlfile(package_source.as_path()) {
+                    trace!("find_src_via_lockfile tomlfile {:?}", tomlfile);
                     let package_name = get_package_name(tomlfile.as_path());
 
                     debug!("find_src_via_lockfile package_name: {}", package_name);
@@ -83,6 +88,8 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
             }
         }
     }
+
+    trace!("find_src_via_lockfile returning None");
     None
 }
 
@@ -232,6 +239,7 @@ fn get_cargo_rootdir(cargofile: &Path) -> Option<PathBuf> {
 }
 
 fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> Option<PathBuf> {
+    trace!("get_versioned_cratefile searching for {}", kratename);
     let mut d = otry!(get_cargo_rootdir(cargofile));
 
     debug!("get_versioned_cratefile: cargo rootdir is {:?}",d);
@@ -277,6 +285,7 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
         debug!("crate path with lib.rs {:?}",d);
 
         if let Err(_) = File::open(&d) {
+            trace!("failed to open crate path {:?}", d);
             // It doesn't exist, so try /lib.rs
             d.pop();
             d.pop();
@@ -284,6 +293,7 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
         }
 
         if let Err(_) = File::open(&d) {
+            trace!("failed to open crate path {:?}", d);
             continue;
         }
 
@@ -293,6 +303,7 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
  }
 
 fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
+    trace!("find_src_via_tomlfile looking for {}", kratename);
     // only look for 'path' references here.
     // We find the git and crates.io stuff via the lockfile
     let table = parse_toml_file(cargofile).unwrap();
@@ -493,6 +504,8 @@ pub fn get_crate_file(kratename: &str, from_path: &Path) -> Option<PathBuf> {
             if let Some(f) = find_src_via_lockfile(kratename, &lockfile) {
                 return Some(f);
             }
+        } else {
+            trace!("did not find lock file at {:?}", lockfile);
         }
 
         // oh, no luck with the lockfile. Try the tomlfile
