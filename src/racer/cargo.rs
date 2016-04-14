@@ -336,6 +336,7 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
 
     // if no dependencies are found
     if local_packages.is_empty() && local_packages_dev.is_empty() {
+        trace!("find_src_via_tomlfile didn't find local packages");
         return None;
     }
 
@@ -359,34 +360,41 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
 }
 
 fn get_local_packages(table: &BTreeMap<String, toml::Value>, cargofile: &Path, section_name: &str) -> Option<Vec<PackageInfo>> {
-    debug!("get_local_packages found table {:?}", table);
+    debug!("get_local_packages found table {:?};\
+           getting packages for section '{}'", table, section_name);
 
     let t = match table.get(section_name) {
         Some(&toml::Value::Table(ref t)) => t,
-        _ => return None
+        _ => {
+            trace!("get_local_packages didn't find section {}", section_name);
+            return None
+        }
     };
 
     let mut result = Vec::new();
+
+    let parent = otry!(cargofile.parent());
 
     for (package_name, value) in t.iter() {
         let mut package_version = None;
 
         let package_source = match *value {
             toml::Value::Table(ref t) => {
-                // local directory
-                let relative_path = otry!(getstr(t, "path"));
-
-                Some(otry!(cargofile.parent())
-                    .join(relative_path)
-                    .join("src")
-                    .join("lib.rs"))
-                },
+                if let Some(relative_path) = getstr(t, "path") {
+                    Some(parent.join(relative_path).join("src").join("lib.rs"))
+                } else {
+                    continue
+                }
+            },
             toml::Value::String(ref version) => {
                 // versioned crate
                 package_version = Some(version.to_owned());
                 get_versioned_cratefile(package_name, version, cargofile)
-            }
-            _ => continue
+            },
+            _ => {
+                trace!("get_local_packages couldn't find package_source for {}", package_name);
+                continue
+            },
         };
 
         result.push(PackageInfo {
@@ -395,6 +403,7 @@ fn get_local_packages(table: &BTreeMap<String, toml::Value>, cargofile: &Path, s
             source: package_source
         });
     }
+
     Some(result)
 }
 
