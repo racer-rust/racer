@@ -114,19 +114,22 @@ fn get_cargo_packages(cargofile: &Path) -> Option<Vec<PackageInfo>> {
 
     let mut result = Vec::new();
 
-    macro_rules! unwrap_or_continue {
-        ($opt:expr) => {
-            match $opt {
-                Some(v) => v,
-                _ => continue,
-            }
-        }
-    }
-
     for package_element in packages_array {
         if let &toml::Value::Table(ref package_table) = package_element {
             if let Some(&toml::Value::String(ref package_name)) = package_table.get("name") {
                 trace!("get_cargo_packages processing {}", package_name);
+
+                macro_rules! unwrap_or_continue {
+                    ($opt:expr) => {
+                        match $opt {
+                            Some(v) => v,
+                            _ => {
+                                debug!("get_cargo_packages skipping {}", package_name);
+                                continue;
+                            }
+                        }
+                    }
+                }
 
                 let package_version = unwrap_or_continue!(getstr(package_table, "version"));
                 let package_source = unwrap_or_continue!(getstr(package_table, "source"));
