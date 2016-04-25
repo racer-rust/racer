@@ -68,10 +68,15 @@ fn empty_if_no_branch() {
 }
 
 fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
+    trace!("find_src_via_lockfile searching for {} in {:?}", kratename, cargofile);
     if let Some(packages) = get_cargo_packages(cargofile) {
+        trace!("find_src_via_lockfile got packages");
         for package in packages {
+            trace!("find_src_via_lockfile examining {:?}", package);
             if let Some(package_source) = package.source.clone() {
+                trace!("find_src_via_lockfile package_source {:?}", package_source);
                 if let Some(tomlfile) = find_cargo_tomlfile(package_source.as_path()) {
+                    trace!("find_src_via_lockfile tomlfile {:?}", tomlfile);
                     let package_name = get_package_name(tomlfile.as_path());
 
                     debug!("find_src_via_lockfile package_name: {}", package_name);
@@ -83,6 +88,8 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
             }
         }
     }
+
+    trace!("find_src_via_lockfile returning None");
     None
 }
 
@@ -110,20 +117,34 @@ fn get_cargo_packages(cargofile: &Path) -> Option<Vec<PackageInfo>> {
     for package_element in packages_array {
         if let &toml::Value::Table(ref package_table) = package_element {
             if let Some(&toml::Value::String(ref package_name)) = package_table.get("name") {
-                let package_version = otry!(getstr(package_table, "version"));
-                let package_source = otry!(getstr(package_table, "source"));
+                trace!("get_cargo_packages processing {}", package_name);
+
+                macro_rules! unwrap_or_continue {
+                    ($opt:expr) => {
+                        match $opt {
+                            Some(v) => v,
+                            _ => {
+                                debug!("get_cargo_packages skipping {}", package_name);
+                                continue;
+                            }
+                        }
+                    }
+                }
+
+                let package_version = unwrap_or_continue!(getstr(package_table, "version"));
+                let package_source = unwrap_or_continue!(getstr(package_table, "source"));
 
                 let package_source = match package_source.split("+").nth(0) {
                     Some("registry") => {
                         get_versioned_cratefile(package_name, &package_version, cargofile)
                     },
                     Some("git") => {
-                        let sha1 = otry!(package_source.split("#").last());
-                        let mut d = otry!(get_cargo_rootdir(cargofile));
+                        let sha1 = unwrap_or_continue!(package_source.split("#").last());
+                        let mut d = unwrap_or_continue!(get_cargo_rootdir(cargofile));
                         let branch = get_branch_from_source(&package_source);
                         d.push("git");
                         d.push("checkouts");
-                        d = otry!(find_git_src_dir(d, package_name, &sha1, branch));
+                        d = unwrap_or_continue!(find_git_src_dir(d, package_name, &sha1, branch));
                         d.push("src");
                         d.push("lib.rs");
 
@@ -232,6 +253,7 @@ fn get_cargo_rootdir(cargofile: &Path) -> Option<PathBuf> {
 }
 
 fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> Option<PathBuf> {
+    trace!("get_versioned_cratefile searching for {}", kratename);
     let mut d = otry!(get_cargo_rootdir(cargofile));
 
     debug!("get_versioned_cratefile: cargo rootdir is {:?}",d);
@@ -251,7 +273,7 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
                 if let Some(path) = reader
                     .map(|entry| entry.unwrap().path())
                     .find(|path| path.to_str().unwrap().starts_with(start_name)) {
-                        d = path.clone();                        
+                        d = path.clone();
                     } else {
                         continue;
                     }
@@ -261,7 +283,7 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
         } else {
             d.push(kratename.to_owned() + "-" + &version);
         }
-        
+
         d.push("src");
         debug!("crate path {:?}",d);
 
@@ -277,6 +299,7 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
         debug!("crate path with lib.rs {:?}",d);
 
         if let Err(_) = File::open(&d) {
+            trace!("failed to open crate path {:?}", d);
             // It doesn't exist, so try /lib.rs
             d.pop();
             d.pop();
@@ -284,6 +307,7 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
         }
 
         if let Err(_) = File::open(&d) {
+            trace!("failed to open crate path {:?}", d);
             continue;
         }
 
@@ -293,9 +317,11 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
  }
 
 fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
+    trace!("find_src_via_tomlfile looking for {}", kratename);
     // only look for 'path' references here.
     // We find the git and crates.io stuff via the lockfile
     let table = parse_toml_file(cargofile).unwrap();
+    let parent = otry!(cargofile.parent());
 
     // is it this lib?  (e.g. you're searching from tests to find the main library crate)
     {
@@ -311,14 +337,14 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
         };
 
         let mut lib_name = package_name;
-        let mut lib_path = otry!(cargofile.parent()).join("src").join("lib.rs");
+        let mut lib_path = parent.join("src").join("lib.rs");
         if let Some(&toml::Value::Table(ref t)) = table.get("lib") {
             if let Some(&toml::Value::String(ref name)) = t.get("name") {
                 lib_name = name;
             }
             if let Some(&toml::Value::String(ref pathstr)) = t.get("path") {
                 let p = Path::new(pathstr);
-                lib_path = otry!(cargofile.parent()).join(p);
+                lib_path = parent.join(p);
             }
         }
 
@@ -502,6 +528,8 @@ pub fn get_crate_file(kratename: &str, from_path: &Path) -> Option<PathBuf> {
             if let Some(f) = find_src_via_lockfile(kratename, &lockfile) {
                 return Some(f);
             }
+        } else {
+            trace!("did not find lock file at {:?}", lockfile);
         }
 
         // oh, no luck with the lockfile. Try the tomlfile
