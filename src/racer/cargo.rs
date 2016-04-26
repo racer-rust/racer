@@ -169,22 +169,19 @@ fn get_package_name(cargofile: &Path) -> String {
 
     debug!("get_package_name found lock_table {:?}", lock_table);
 
-    let mut name = String::new();
-
     if let Some(&toml::Value::Table(ref lib_table)) = lock_table.get("lib") {
         if let Some(&toml::Value::String(ref package_name)) = lib_table.get("name") {
-            name.push_str(package_name);
-            return name;
+            return package_name.clone();
         }
     }
 
     if let Some(&toml::Value::Table(ref package_table)) = lock_table.get("package") {
         if let Some(&toml::Value::String(ref package_name)) = package_table.get("name") {
-            name.push_str(package_name);
+            return package_name.replace("-","_");
         }
     }
 
-    name
+    String::new()
 }
 
 fn get_cargo_rootdir(cargofile: &Path) -> Option<PathBuf> {
@@ -336,11 +333,11 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
             return None;
         };
 
-        let mut lib_name = package_name;
+        let mut lib_name = package_name.replace("-", "_");
         let mut lib_path = parent.join("src").join("lib.rs");
         if let Some(&toml::Value::Table(ref t)) = table.get("lib") {
             if let Some(&toml::Value::String(ref name)) = t.get("name") {
-                lib_name = name;
+                lib_name = name.clone();
             }
             if let Some(&toml::Value::String(ref pathstr)) = t.get("path") {
                 let p = Path::new(pathstr);
