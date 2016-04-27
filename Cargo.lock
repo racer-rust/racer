@@ -6,7 +6,7 @@ dependencies = [
  "env_logger 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand 0.3.14 (registry+https://github.com/rust-lang/crates.io-index)",
- "syntex_syntax 0.24.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "syntex_syntax 0.30.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "test_fixtures 0.1.0",
  "toml 0.1.28 (registry+https://github.com/rust-lang/crates.io-index)",
  "typed-arena 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -27,12 +27,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "bitflags"
-version = "0.3.3"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "bitflags"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
@@ -126,10 +126,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "syntex_syntax"
-version = "0.24.0"
+version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "bitflags 0.3.3 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bitflags 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "libc 0.2.9 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-serialize 0.3.19 (registry+https://github.com/rust-lang/crates.io-index)",
