@@ -116,7 +116,8 @@ fn match_pattern_start(src: &str, blobstart: usize, blobend: usize,
                 mtype: mtype,
                 contextstr: first_line(blob),
                 generic_args: Vec::new(),
-                generic_types: Vec::new()
+                generic_types: Vec::new(),
+                docs: String::from(""),  //TODO: fix
             })
         }
     }
@@ -158,7 +159,8 @@ fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
                                    mtype: mtype,
                                    contextstr: first_line(blob),
                                    generic_args: Vec::new(),
-                                   generic_types: Vec::new()
+                                   generic_types: Vec::new(),
+                                   docs: String::from(""),  //TODO: fix
                          });
                 if let ExactMatch = search_type {
                     break;
@@ -207,7 +209,9 @@ pub fn match_for(msrc: &str, blobstart: usize, blobend: usize,
                              mtype: For,
                              contextstr: first_line(blob),
                              generic_args: Vec::new(),
-                             generic_types: Vec::new() });
+                             generic_types: Vec::new(),
+                             docs: String::from(""),  //TODO: fix
+            });
         }
     }
     out
@@ -262,7 +266,8 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
                                   mtype: Module,
                                   contextstr: cratepath.to_str().unwrap().to_owned(),
                                   generic_args: Vec::new(),
-                                  generic_types: Vec::new()
+                                  generic_types: Vec::new(),
+                                  docs: String::from(""),  //TODO: fix
                 });
             });
         }
@@ -292,7 +297,8 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
                 mtype: Module,
                 contextstr: filepath.to_str().unwrap().to_owned(),
                 generic_args: Vec::new(),
-                generic_types: Vec::new()
+                generic_types: Vec::new(),
+                docs: String::from(""),  //TODO: fix
             })
         } else {
             // get internal module nesting
@@ -313,7 +319,8 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
                     mtype: Module,
                     contextstr: modpath.to_str().unwrap().to_owned(),
                     generic_args: Vec::new(),
-                    generic_types: Vec::new()
+                    generic_types: Vec::new(),
+                    docs: String::from(""),  //TODO: fix
                 })
             }
         }
@@ -352,7 +359,8 @@ pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize,
             mtype: Struct,
             contextstr: first_line(blob),
             generic_args: generics.generic_args,
-            generic_types: Vec::new()
+            generic_types: Vec::new(),
+            docs: String::from(""),  //TODO: fix
         })
     } else {
         None
@@ -377,7 +385,8 @@ pub fn match_type(msrc: &str, blobstart: usize, blobend: usize,
             mtype: Type,
             contextstr: first_line(blob),
             generic_args: Vec::new(),
-            generic_types: Vec::new()
+            generic_types: Vec::new(),
+            docs: String::from(""),  //TODO: fix
         })
     } else {
         None
@@ -402,7 +411,8 @@ pub fn match_trait(msrc: &str, blobstart: usize, blobend: usize,
             mtype: Trait,
             contextstr: first_line(blob),
             generic_args: Vec::new(),
-            generic_types: Vec::new()
+            generic_types: Vec::new(),
+            docs: find_doc(msrc, blobstart),
         })
     } else {
         None
@@ -429,7 +439,8 @@ pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize,
                     mtype: EnumVariant,
                     contextstr: first_line(&blob[offset..]),
                     generic_args: Vec::new(),
-                    generic_types: Vec::new()
+                    generic_types: Vec::new(),
+                    docs: find_doc(msrc, blobstart),
                 };
                 out.push(m);
             }
@@ -461,7 +472,8 @@ pub fn match_enum(msrc: &str, blobstart: usize, blobend: usize,
             mtype: Enum,
             contextstr: first_line(blob),
             generic_args: generics.generic_args,
-            generic_types: Vec::new()
+            generic_types: Vec::new(),
+            docs: find_doc(msrc, blobstart),
         })
     } else {
         None
@@ -572,9 +584,11 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
 pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize,
                 searchstr: &str, filepath: &Path, search_type: SearchType,
                 local: bool) -> Option<Match> {
+
     let blob = &msrc[blobstart..blobend];
     let keyword = if is_const_fn(msrc, blobstart, blobend) { "const fn" } else { "fn" };
     if let Some(start) = find_keyword(blob, keyword, searchstr, search_type, local) {
+        info!("{:?}", start);
         if !typeinf::first_param_is_self(blob) {
             debug!("found a fn starting {}", searchstr);
             let l = match search_type {
@@ -590,7 +604,8 @@ pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize,
                 mtype: Function,
                 contextstr: first_line(blob),
                 generic_args: Vec::new(),
-                generic_types: Vec::new()
+                generic_types: Vec::new(),
+                docs: find_doc(msrc, blobstart),
             })
         } else {
             None
@@ -599,7 +614,7 @@ pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize,
         None
     }
 }
-                
+
 pub fn match_macro(msrc: &str, blobstart: usize, blobend: usize,
                    searchstr: &str, filepath: &Path, search_type: SearchType,
                    local: bool) -> Option<Match> {
@@ -621,9 +636,25 @@ pub fn match_macro(msrc: &str, blobstart: usize, blobend: usize,
             mtype: Macro,
             contextstr: first_line(blob),
             generic_args: Vec::new(),
-            generic_types: Vec::new()
+            generic_types: Vec::new(),
+            docs: String::from(""),  //TODO: fix
         })
     } else {
         None
     }
+}
+
+fn find_doc(msrc: &str, blobend: usize) -> String {
+    let blob = &msrc[0..blobend];
+
+    blob.lines()
+        .rev()
+        .skip(1)
+        .take_while(|line| line.trim().starts_with("///"))
+        .collect::<Vec<_>>()  // These are needed because
+        .iter()               // you cannot `rev`an `iter` that
+        .rev()                // has already been `rev`ed.
+        .map(|line| String::from(line[3..].trim().to_owned()))  // Remove "/// "
+        .collect::<Vec<_>>()
+        .join("\n")
 }

@@ -38,23 +38,25 @@ fn match_with_snippet_fn(m: Match, session: &core::Session, interface: Interface
     let snippet = racer::snippets::snippet_for_match(&m, session);
     match interface {
         Interface::Text =>
-            println!("MATCH {};{};{};{};{};{:?};{}",
+            println!("MATCH {};{};{};{};{};{:?};{};{:?}",
                         m.matchstr,
                         snippet,
                         linenum.to_string(),
                         charnum.to_string(),
                         m.filepath.to_str().unwrap(),
                         m.mtype,
-                        m.contextstr),
+                        m.contextstr,
+                        m.docs),
         Interface::TabText =>
-            println!("MATCH\t{}\t{}\t{}\t{}\t{}\t{:?}\t{}",
+            println!("MATCH\t{}\t{}\t{}\t{}\t{}\t{:?}\t{}\t{:?}",
                         m.matchstr,
                         snippet,
                         linenum.to_string(),
                         charnum.to_string(),
                         m.filepath.to_str().unwrap(),
                         m.mtype,
-                        m.contextstr),
+                        m.contextstr,
+                        m.docs),
     }
 }
 
