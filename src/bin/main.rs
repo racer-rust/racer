@@ -90,8 +90,9 @@ fn match_fn(m: Match, session: &core::Session, interface: Interface) {
 
 #[cfg(not(test))]
 fn complete(cfg: Config, print_type: CompletePrinter) {
+    println!("{:?} {:?}", cfg, print_type);
     if cfg.fqn.is_some() {
-        return external_complete(cfg);
+        return external_complete(cfg, print_type);
     }
     complete_by_line_coords(cfg, print_type);
 }
@@ -116,6 +117,7 @@ fn complete_by_line_coords(cfg: Config,
 }
 
 #[cfg(not(test))]
+#[derive(Debug)]
 enum CompletePrinter {
     Normal,
     WithSnippets
@@ -166,7 +168,7 @@ fn run_the_complete_fn(cfg: &Config, print_type: CompletePrinter) {
 
 
 #[cfg(not(test))]
-fn external_complete(cfg: Config) {
+fn external_complete(cfg: Config, print_type: CompletePrinter) {
     // input: a command line string passed in
     let p: Vec<&str> = cfg.fqn.as_ref().unwrap().split("::").collect();
     let cwd = Path::new(".");
@@ -175,12 +177,18 @@ fn external_complete(cfg: Config) {
 
     for m in do_file_search(p[0], &Path::new(".")) {
         if p.len() == 1 {
-            match_fn(m, &session, cfg.interface);
+            match print_type {
+                CompletePrinter::Normal => match_fn(m, &session, cfg.interface),
+                CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session, cfg.interface),
+            }
         } else {
             for m in do_external_search(&p[1..], &m.filepath, m.point,
                                         core::SearchType::StartsWith,
                                         core::Namespace::BothNamespaces, &session) {
-                match_fn(m, &session, cfg.interface);
+                match print_type {
+                    CompletePrinter::Normal => match_fn(m, &session, cfg.interface),
+                    CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session, cfg.interface),
+                }
             }
         }
     }
