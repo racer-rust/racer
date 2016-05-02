@@ -90,7 +90,6 @@ fn match_fn(m: Match, session: &core::Session, interface: Interface) {
 
 #[cfg(not(test))]
 fn complete(cfg: Config, print_type: CompletePrinter) {
-    println!("{:?} {:?}", cfg, print_type);
     if cfg.fqn.is_some() {
         return external_complete(cfg, print_type);
     }

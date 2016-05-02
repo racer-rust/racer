@@ -117,7 +117,7 @@ fn match_pattern_start(src: &str, blobstart: usize, blobend: usize,
                 contextstr: first_line(blob),
                 generic_args: Vec::new(),
                 generic_types: Vec::new(),
-                docs: String::from(""),  //TODO: fix
+                docs: String::new(),
             })
         }
     }
@@ -160,7 +160,7 @@ fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
                                    contextstr: first_line(blob),
                                    generic_args: Vec::new(),
                                    generic_types: Vec::new(),
-                                   docs: String::from(""),  //TODO: fix
+                                   docs: String::new(),
                          });
                 if let ExactMatch = search_type {
                     break;
@@ -210,7 +210,7 @@ pub fn match_for(msrc: &str, blobstart: usize, blobend: usize,
                              contextstr: first_line(blob),
                              generic_args: Vec::new(),
                              generic_types: Vec::new(),
-                             docs: String::from(""),  //TODO: fix
+                             docs: String::new(),
             });
         }
     }
@@ -267,7 +267,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
                                   contextstr: cratepath.to_str().unwrap().to_owned(),
                                   generic_args: Vec::new(),
                                   generic_types: Vec::new(),
-                                  docs: String::from(""),  //TODO: fix
+                                  docs: String::new(),
                 });
             });
         }
@@ -298,7 +298,7 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
                 contextstr: filepath.to_str().unwrap().to_owned(),
                 generic_args: Vec::new(),
                 generic_types: Vec::new(),
-                docs: String::from(""),  //TODO: fix
+                docs: String::new(),  //TODO: fix
             })
         } else {
             // get internal module nesting
@@ -320,7 +320,7 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
                     contextstr: modpath.to_str().unwrap().to_owned(),
                     generic_args: Vec::new(),
                     generic_types: Vec::new(),
-                    docs: String::from(""),  //TODO: fix
+                    docs: String::new(),  //TODO: fix
                 })
             }
         }
@@ -360,7 +360,7 @@ pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize,
             contextstr: first_line(blob),
             generic_args: generics.generic_args,
             generic_types: Vec::new(),
-            docs: String::from(""),  //TODO: fix
+            docs: find_doc(msrc, blobstart),
         })
     } else {
         None
@@ -386,7 +386,7 @@ pub fn match_type(msrc: &str, blobstart: usize, blobend: usize,
             contextstr: first_line(blob),
             generic_args: Vec::new(),
             generic_types: Vec::new(),
-            docs: String::from(""),  //TODO: fix
+            docs: find_doc(msrc, blobstart),
         })
     } else {
         None
@@ -637,7 +637,7 @@ pub fn match_macro(msrc: &str, blobstart: usize, blobend: usize,
             contextstr: first_line(blob),
             generic_args: Vec::new(),
             generic_types: Vec::new(),
-            docs: String::from(""),  //TODO: fix
+            docs: String::new(),
         })
     } else {
         None

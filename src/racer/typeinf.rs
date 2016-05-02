@@ -74,7 +74,7 @@ fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<core:
                            contextstr: matchers::first_line(&msrc[start..]),
                            generic_args: Vec::new(),
                            generic_types: Vec::new(),
-                           docs: String::from(""),  //TODO: fix
+                           docs: String::new(),
                 }))
             })
         }

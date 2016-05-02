@@ -41,7 +41,7 @@ fn search_struct_fields(searchstr: &str, structmatch: &Match,
                                 contextstr: contextstr,
                                 generic_args: Vec::new(),
                                 generic_types: Vec::new(),
-                                docs: String::from(""),  //TODO: fix
+                                docs: String::new(),
 
             });
         }
@@ -109,7 +109,7 @@ fn search_scope_for_methods(point: usize, src: Src, searchstr: &str, filepath: &
                            contextstr: signature.to_owned(),
                            generic_args: Vec::new(),
                            generic_types: Vec::new(),
-                           docs: String::from(""),  //TODO: fix
+                           docs: String::new(),
 
                 };
                 out.push(m);
@@ -153,7 +153,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                                     contextstr: "".into(),
                                     generic_args: Vec::new(),
                                     generic_types: Vec::new(),
-                                    docs: String::from(""),  //TODO: fix
+                                    docs: String::new(),
                                 };
                                 out.push(m);
                             }
@@ -290,7 +290,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: Src, searchstr: &
                                     contextstr: lhs.trim().to_owned(),
                                     generic_args: Vec::new(),
                                     generic_types: Vec::new(),
-                                    docs: String::from(""),  //TODO: fix
+                                    docs: String::new(),
                     });
                     if let SearchType::ExactMatch = search_type {
                         break;
@@ -347,7 +347,7 @@ fn search_fn_args(fnstart: usize, open_brace_pos: usize, msrc: &str,
                                 contextstr: s.to_owned(),
                                 generic_args: Vec::new(),
                                 generic_types: Vec::new(),
-                                docs: String::from(""),  //TODO: fix
+                                docs: String::new(),
                 };
                 debug!("search_fn_args matched: {:?}", m);
                 out.push(m);
@@ -386,7 +386,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                                        contextstr: (&fname[3..]).to_owned(),
                                        generic_args: Vec::new(),
                                        generic_types: Vec::new(),
-                                       docs: String::from(""),  //TODO: fix
+                                       docs: String::new(),
                         };
                         out.push(m);
                     }
@@ -406,7 +406,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                                            contextstr: filepath.to_str().unwrap().to_owned(),
                                            generic_args: Vec::new(),
                                            generic_types: Vec::new(),
-                                           docs: String::from(""),  //TODO: fix
+                                           docs: String::new(),
                             };
                             out.push(m);
                         }
@@ -422,7 +422,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                                        contextstr: fpath_buf.to_str().unwrap().to_owned(),
                                        generic_args: Vec::new(),
                                        generic_types: Vec::new(),
-                                       docs: String::from(""),  //TODO: fix
+                                       docs: String::new(),
 
                         };
                         out.push(m);
@@ -651,7 +651,7 @@ pub fn search_scope(start: usize, point: usize, src: Src,
                                   contextstr: cratepath.to_str().unwrap().to_owned(),
                                   generic_args: Vec::new(),
                                   generic_types: Vec::new(),
-                                  docs: String::from(""),  //TODO: fix
+                                  docs: String::new(),
 
                 });
             });
@@ -825,7 +825,7 @@ pub fn resolve_path_with_str(path: &core::Path, filepath: &Path, pos: usize,
                 contextstr: "str".into(),
                 generic_args: vec![],
                 generic_types: vec![],
-                docs: String::from(""),  //TODO: fix
+                docs: String::new(),
 
             });
         }
@@ -885,7 +885,7 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
                         contextstr: cratepath.to_str().unwrap().to_owned(),
                         generic_args: Vec::new(),
                         generic_types: Vec::new(),
-                        docs: String::from(""),  //TODO: fix
+                        docs: String::new(),
 
             });
         });
@@ -1081,7 +1081,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
                            contextstr: path.to_str().unwrap().to_owned(),
                            generic_args: Vec::new(),
                            generic_types: Vec::new(),
-                           docs: String::from(""),  //TODO: fix
+                           docs: String::new(),
 
                        });
         });
