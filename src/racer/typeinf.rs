@@ -72,7 +72,9 @@ fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<core:
                            local: m.local,
                            mtype: core::MatchType::Trait,
                            contextstr: matchers::first_line(&msrc[start..]),
-                           generic_args: Vec::new(), generic_types: Vec::new()
+                           generic_args: Vec::new(),
+                           generic_types: Vec::new(),
+                           docs: String::new(),
                 }))
             })
         }

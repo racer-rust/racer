@@ -71,6 +71,7 @@ pub struct Match {
     pub contextstr: String,
     pub generic_args: Vec<String>,
     pub generic_types: Vec<PathSearch>,  // generic types are evaluated lazily
+    pub docs: String,
 }
 
 
@@ -85,6 +86,7 @@ impl Match {
             contextstr: self.contextstr.clone(),
             generic_args: self.generic_args.clone(),
             generic_types: generic_types,
+            docs: self.docs.clone(),
         }
     }
 }
