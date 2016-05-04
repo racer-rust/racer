@@ -636,18 +636,14 @@ impl<'v> visit::Visitor<'v> for StructVisitor {
         for field in struct_definition.fields() {
             let codemap::BytePos(point) = field.span.lo;
 
-            match field.node.kind {
-                ast::NamedField(name, _) => {
-                    let ty = to_racer_ty(&*field.node.ty, &self.scope);
-                    self.fields.push(((&name).to_string(), point as usize, ty));
-                }
-                ast::UnnamedField(_) => {
-                    let ty = to_racer_ty(&*field.node.ty, &self.scope);
-                    // name unnamed field by its ordinal, since self.0 works
-                    let name = format!("{}",self.fields.len());
-                    self.fields.push((name, point as usize, ty));
-                }
-            }
+            let ty = to_racer_ty(&*field.ty, &self.scope);
+            let name = match field.ident {
+                Some(ref ident) => ident.to_string(),
+                // name unnamed field by its ordinal, since self.0 works
+                None => format!("{}", self.fields.len()),
+            };
+
+            self.fields.push((name, point as usize, ty));
         }
     }
 }
