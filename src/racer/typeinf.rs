@@ -227,7 +227,10 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<core:
         core::MatchType::For => get_type_of_for_expr(&m, msrc, session),
         core::MatchType::FnArg => get_type_of_fnarg(&m, msrc, session),
         core::MatchType::MatchArm => get_type_from_match_arm(&m, msrc, session),
-        core::MatchType::Struct | core::MatchType::Enum | core::MatchType::Function | core::MatchType::Module => Some(core::Ty::Match(m)),
+        core::MatchType::Struct |
+        core::MatchType::Enum |
+        core::MatchType::Function |
+        core::MatchType::Module => Some(core::Ty::Match(m)),
         _ => { debug!("!!! WARNING !!! Can't get type of {:?}", m.mtype); None }
     }
 }

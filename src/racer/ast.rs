@@ -434,7 +434,8 @@ impl<'c, 's, 'v> visit::Visitor<'v> for ExprTypeVisitor<'c, 's> {
         debug!("visit_expr {:?}", expr);
         //walk_expr(self, ex, e)
         match expr.node {
-            ExprKind::Unary(_, ref expr) | ExprKind::AddrOf(_, ref expr) => {
+            ExprKind::Unary(_, ref expr) |
+            ExprKind::AddrOf(_, ref expr) => {
                 self.visit_expr(expr);
             }
             ExprKind::Path(_, ref path) => {
