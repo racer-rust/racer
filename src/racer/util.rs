@@ -25,10 +25,10 @@ pub fn is_ident_char(c: char) -> bool {
 pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
     match stype {
         ExactMatch => {
-            let nlen = needle.len();
-            let hlen = haystack.len();
+            let n_len = needle.len();
+            let h_len = haystack.len();
 
-            if nlen == 0 {
+            if n_len == 0 {
                 return true;
             }
 
@@ -37,7 +37,7 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
             while let Some(n1) = haystack[n..].find(needle) {
                 n += n1;
                 if (n == 0  || !is_ident_char(char_at(haystack, n-1))) &&
-                    (n+nlen == hlen || !is_ident_char(char_at(haystack, n+nlen))) {
+                    (n+n_len == h_len || !is_ident_char(char_at(haystack, n+n_len))) {
                     return true;
                 }
                 n += 1;

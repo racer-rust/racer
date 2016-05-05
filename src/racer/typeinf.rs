@@ -12,7 +12,7 @@ use util::txt_matches;
 
 fn find_start_of_function_body(src: &str) -> usize {
     // TODO: this should ignore anything inside parens so as to skip the arg list
-    src.find("{").unwrap()
+    src.find('{').unwrap()
 }
 
 // Removes the body of the statement (anything in the braces {...}), leaving just
@@ -20,15 +20,15 @@ fn find_start_of_function_body(src: &str) -> usize {
 // TODO: this should skip parens (e.g. function arguments)
 pub fn generate_skeleton_for_parsing(src: &str) -> String {
     let mut s = String::new();
-    let n = src.find("{").unwrap();
+    let n = src.find('{').unwrap();
     s.push_str(&src[..n+1]);
     s.push_str("};");
     s
 }
 
 pub fn first_param_is_self(mut blob: &str) -> bool {
-    while let Some(start) = blob.find("(") {
-        if blob[..start].contains("<") {
+    while let Some(start) = blob.find('(') {
+        if blob[..start].contains('<') {
             // oops - paren in a generic arg
             // consider 'pub fn map<U, F: FnOnce(T) -> U>(self, f: F)'
             blob = &blob[start+1..];
@@ -61,11 +61,11 @@ fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<core:
             resolve_path_with_str(&implres.name_path.expect("failed parsing impl name"),
                                   &m.filepath, start,
                                   ExactMatch, TypeNamespace,
-                                  session).nth(0).map(core::Ty::TyMatch)
+                                  session).nth(0).map(core::Ty::Match)
         } else {
             // // must be a trait
             ast::parse_trait(decl).name.and_then(|name| {
-                Some(core::Ty::TyMatch(Match {
+                Some(core::Ty::Match(Match {
                            matchstr: name,
                            filepath: m.filepath.clone(),
                            point: start,
@@ -144,7 +144,7 @@ fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<core:
     let forpos = stmt.find("for ").unwrap();
     let inpos = stmt.find(" in ").unwrap();
     // XXX: this need not be the correct brace, see generate_skeleton_for_parsing
-    let bracepos = stmt.find("{").unwrap();
+    let bracepos = stmt.find('{').unwrap();
     let mut src = stmt[..forpos].to_owned();
     src.push_str("if let Some(");
     src.push_str(&stmt[forpos+4..inpos]);
@@ -183,12 +183,12 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match, session: &Ses
     None
 }
 
-pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match, session: &Session) -> Option<core::Ty> {
+pub fn get_tuplestruct_field_type(fieldnum: usize, structmatch: &Match, session: &Session) -> Option<core::Ty> {
     let src = session.load_file(&structmatch.filepath);
 
     let structsrc = if let core::MatchType::EnumVariant = structmatch.mtype {
         // decorate the enum variant src to make it look like a tuple struct
-        let to = (&src[structmatch.point..]).find("(")
+        let to = (&src[structmatch.point..]).find('(')
             .map(|n| scopes::find_closing_paren(&src, structmatch.point + n+1))
             .unwrap();
         "struct ".to_owned() + &src[structmatch.point..(to+1)] + ";"
@@ -201,12 +201,11 @@ pub fn get_tuplestruct_field_type(fieldnum: u32, structmatch: &Match, session: &
     debug!("get_tuplestruct_field_type structsrc=|{}|", structsrc);
 
     let fields = ast::parse_struct_fields(structsrc, Scope::from_match(structmatch));
-    let mut i = 0u32;
-    for (_, _, ty) in fields.into_iter() {
+
+    for (i, (_, _, ty)) in fields.into_iter().enumerate() {
         if i == fieldnum {
             return ty;
         }
-        i+=1;
     }
     None
 }
@@ -228,10 +227,7 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<core:
         core::MatchType::For => get_type_of_for_expr(&m, msrc, session),
         core::MatchType::FnArg => get_type_of_fnarg(&m, msrc, session),
         core::MatchType::MatchArm => get_type_from_match_arm(&m, msrc, session),
-        core::MatchType::Struct => Some(core::Ty::TyMatch(m)),
-        core::MatchType::Enum => Some(core::Ty::TyMatch(m)),
-        core::MatchType::Function => Some(core::Ty::TyMatch(m)),
-        core::MatchType::Module => Some(core::Ty::TyMatch(m)),
+        core::MatchType::Struct | core::MatchType::Enum | core::MatchType::Function | core::MatchType::Module => Some(core::Ty::Match(m)),
         _ => { debug!("!!! WARNING !!! Can't get type of {:?}", m.mtype); None }
     }
 }
@@ -282,7 +278,7 @@ pub fn get_function_declaration(fnmatch: &Match, session: &Session) -> String {
 pub fn get_return_type_of_function(fnmatch: &Match, session: &Session) -> Option<core::Ty> {
     let src = session.load_file(&fnmatch.filepath);
     let point = scopes::find_stmt_start(src, fnmatch.point).unwrap();
-    (&src[point..]).find("{").and_then(|n| {
+    (&src[point..]).find('{').and_then(|n| {
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut decl = String::new();
         decl.push_str("impl blah {");

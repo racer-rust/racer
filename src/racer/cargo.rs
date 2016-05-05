@@ -34,7 +34,7 @@ fn get_branch_from_source(source: &str) -> Option<&str> {
     match source.find("branch=") {
         Some(idx) => {
             let (_start, branch) = source.split_at(idx+7);
-            match branch.find("#") {
+            match branch.find('#') {
                 Some(idx) => {
                     let (branch, _end) = branch.split_at(idx);
                     Some(branch)
@@ -115,7 +115,7 @@ fn get_cargo_packages(cargofile: &Path) -> Option<Vec<PackageInfo>> {
     let mut result = Vec::new();
 
     for package_element in packages_array {
-        if let &toml::Value::Table(ref package_table) = package_element {
+        if let toml::Value::Table(ref package_table) = *package_element {
             if let Some(&toml::Value::String(ref package_name)) = package_table.get("name") {
                 trace!("get_cargo_packages processing {}", package_name);
 
@@ -134,12 +134,12 @@ fn get_cargo_packages(cargofile: &Path) -> Option<Vec<PackageInfo>> {
                 let package_version = unwrap_or_continue!(getstr(package_table, "version"));
                 let package_source = unwrap_or_continue!(getstr(package_table, "source"));
 
-                let package_source = match package_source.split("+").nth(0) {
+                let package_source = match package_source.split('+').nth(0) {
                     Some("registry") => {
                         get_versioned_cratefile(package_name, &package_version, cargofile)
                     },
                     Some("git") => {
-                        let sha1 = unwrap_or_continue!(package_source.split("#").last());
+                        let sha1 = unwrap_or_continue!(package_source.split('#').last());
                         let mut d = unwrap_or_continue!(get_cargo_rootdir(cargofile));
                         let branch = get_branch_from_source(&package_source);
                         d.push("git");
@@ -186,19 +186,18 @@ fn get_package_name(cargofile: &Path) -> String {
 
 fn get_cargo_rootdir(cargofile: &Path) -> Option<PathBuf> {
     debug!("get_cargo_rootdir. {:?}",cargofile);
-    match env::var_os("CARGO_HOME") {
-        Some(cargohome) =>
-        {
-            debug!("get_cargo_rootdir. CARGO_HOME is set: {:?}",cargohome);
-            let d = PathBuf::from(cargohome);
-            if d.exists() {
-                return Some(d)
-            } else {
-                return None
-            };
-        },
-        None => ()
-    };
+
+    if let Some(cargohome) = env::var_os("CARGO_HOME") {
+        debug!("get_cargo_rootdir. CARGO_HOME is set: {:?}",cargohome);
+
+        let d = PathBuf::from(cargohome);
+
+        if d.exists() {
+            return Some(d)
+        } else {
+            return None
+        };
+    }
 
     let mut d = otry!(env::home_dir());
 
@@ -213,9 +212,9 @@ fn get_cargo_rootdir(cargofile: &Path) -> Option<PathBuf> {
         let mut s = String::new();
         otry2!(multirust_overides.read_to_string(&mut s));
         for line in s.lines() {
-            let overridepath = line.split(";").nth(0).unwrap();
+            let overridepath = line.split(';').nth(0).unwrap();
             if cargofile.starts_with(overridepath) {
-                let overridepath = line.split(";").nth(1).unwrap();
+                let overridepath = line.split(';').nth(1).unwrap();
                 d.pop();
                 d.push("toolchains");
                 d.push(overridepath.trim());
@@ -347,7 +346,7 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
 
         if lib_name == kratename {
             debug!("found {} as lib entry in Cargo.toml", kratename);
-            if ::std::fs::metadata(&lib_path).ok().map(|m| m.is_file()).unwrap_or(false) {
+            if ::std::fs::metadata(&lib_path).ok().map_or(false, |m| m.is_file()) {
                 return Some(lib_path);
             }
         }
@@ -479,7 +478,7 @@ fn find_git_src_dir(d: PathBuf, name: &str, sha1: &str, branch: Option<&str>) ->
 
                     debug!("git headref is {:?}", headref);
 
-                    if headref.ends_with("\n") {
+                    if headref.ends_with('\n') {
                         headref.pop();
                     }
 
@@ -505,12 +504,10 @@ fn find_cargo_tomlfile(currentfile: &Path) -> Option<PathBuf> {
     f.push("Cargo.toml");
     if f.exists() {
         Some(f)
+    } else if f.pop() && f.pop() {
+        find_cargo_tomlfile(&f)
     } else {
-        if f.pop() && f.pop() {
-            find_cargo_tomlfile(&f)
-        } else {
-            None
-        }
+        None
     }
 }
 

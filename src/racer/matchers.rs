@@ -235,7 +235,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
         debug!("found an extern crate: |{}|", blob);
 
         let extern_crate;
-        if blob.contains("\"") {
+        if blob.contains('\"') {
             // Annoyingly the extern crate can use a string literal for the
             // real crate name (e.g. extern crate collections_core = "collections")
             // so we need to get the source text without scrubbed strings
@@ -494,7 +494,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
 
     if find_keyword(blob, "use", "", StartsWith, local).is_none() { return out; }
 
-    if blob.contains("*") {
+    if blob.contains('*') {
         // uh oh! a glob. Need to search the module for the searchstr
         let use_item = ast::parse_use(blob.to_owned());
         debug!("found a glob!! {:?}", use_item);

@@ -11,9 +11,9 @@ use std::path::{Path, PathBuf};
 use std::{self, vec};
 
 #[cfg(unix)]
-pub const PATH_SEP: &'static str = ":";
+pub const PATH_SEP: char = ':';
 #[cfg(windows)]
-pub const PATH_SEP: &'static str = ";";
+pub const PATH_SEP: char = ';';
 
 fn search_struct_fields(searchstr: &str, structmatch: &Match,
                         search_type: SearchType, session: &Session) -> vec::IntoIter<Match> {
@@ -71,7 +71,7 @@ pub fn search_for_impl_methods(match_request: &Match,
         let src = session.load_file(&m.filepath);
 
         // find the opening brace and skip to it.
-        (&src[m.point..]).find("{").map(|n| {
+        (&src[m.point..]).find('{').map(|n| {
             let point = m.point + n + 1;
             for m in search_scope_for_methods(point, src, fieldsearchstr, &m.filepath, search_type) {
                 out.push(m);
@@ -89,7 +89,7 @@ fn search_scope_for_methods(point: usize, src: Src, searchstr: &str, filepath: &
     let mut out = Vec::new();
     for (blobstart,blobend) in scopesrc.iter_stmts() {
         let blob = &scopesrc[blobstart..blobend];
-        blob.find("{").map(|n| { // only matches if is a method implementation
+        blob.find('{').map(|n| { // only matches if is a method implementation
             let signature = &blob[..n -1];
 
             if txt_matches(search_type, &format!("fn {}", searchstr), signature)
@@ -131,7 +131,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
         let blob = &src[start..end];
 
         if blob.starts_with("impl") {
-            blob.find("{").map(|n| {
+            blob.find('{').map(|n| {
                 let mut decl = (&blob[..n+1]).to_owned();
                 decl.push_str("}");
                 if txt_matches(ExactMatch, searchstr, &decl) {
@@ -172,10 +172,10 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                             if m.matchstr == "Deref" {
                                 let impl_block = &blob[n..];
 
-                                if let Some(pos) = impl_block.find("=") {
+                                if let Some(pos) = impl_block.find('=') {
                                     let deref_type_start = n + pos + 1;
 
-                                    if let Some(pos) = blob[deref_type_start..].find(";") {
+                                    if let Some(pos) = blob[deref_type_start..].find(';') {
                                         let deref_type_end = deref_type_start + pos;
                                         let deref_type = &blob[deref_type_start..deref_type_end].to_owned().trim().to_owned();
                                         debug!("Deref to {} found", deref_type);
@@ -498,7 +498,7 @@ pub fn search_next_scope(mut startpoint: usize, pathseg: &core::PathSegment,
         let src = &filesrc[startpoint..];
         //debug!("search_next_scope src1 |{}|",src);
         // find the opening brace and skip to it.
-        src.find("{").map(|n| {
+        src.find('{').map(|n| {
             startpoint += n + 1;
         });
     }
@@ -949,9 +949,9 @@ pub fn get_super_scope(filepath: &Path, pos: usize, session: &Session) -> Option
         }
 
         for filename in &[ "mod.rs", "lib.rs" ] {
-            let fpath = moduledir.join(&filename);
-            if fpath.exists() {
-                return Some(core::Scope{ filepath: fpath, point: 0 })
+            let f_path = moduledir.join(&filename);
+            if f_path.exists() {
+                return Some(core::Scope{ filepath: f_path, point: 0 })
             }
         }
         None
@@ -963,7 +963,7 @@ pub fn get_super_scope(filepath: &Path, pos: usize, session: &Session) -> Option
         debug!("get_super_scope looking for local scope {:?}", path);
         resolve_path(&path, filepath, 0, SearchType::ExactMatch,
                             Namespace::TypeNamespace, session).nth(0)
-            .and_then(|m| msrc[m.point..].find("{")
+            .and_then(|m| msrc[m.point..].find('{')
                       .map(|p| core::Scope{ filepath: filepath.to_path_buf(),
                                              point:m.point + p + 1 }))
     }
@@ -1037,7 +1037,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                         let pathseg = &path.segments[len-1];
                         let src = session.load_file(&m.filepath);
                         // find the opening brace and skip to it.
-                        (&src[m.point..]).find("{").map(|n| {
+                        (&src[m.point..]).find('{').map(|n| {
                             let point = m.point + n + 1;
                             for m in search_scope(point, point, src, pathseg, &m.filepath, search_type, m.local, namespace, session) {
                                 out.push(m);
@@ -1166,7 +1166,7 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
         Trait => {
             debug!("got a trait, looking for methods {}", m.matchstr);
             let src = session.load_file(&m.filepath);
-            (&src[m.point..]).find("{").map(|n| {
+            (&src[m.point..]).find('{').map(|n| {
                 let point = m.point + n + 1;
                 for m in search_scope_for_methods(point, src, searchstr, &m.filepath, search_type) {
                     out.push(m);
