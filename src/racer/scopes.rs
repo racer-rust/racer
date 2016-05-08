@@ -51,7 +51,7 @@ fn get_local_module_path_(msrc: Src, point: usize, out: &mut Vec<String>) {
                 let p = typeinf::generate_skeleton_for_parsing(&blob);
                 ast::parse_mod(p).name.map(|name| {
                     out.push(name);
-                    let newstart = blob.find("{").unwrap() + 1;
+                    let newstart = blob.find('{').unwrap() + 1;
                     get_local_module_path_(blob.from(newstart),
                                            point - start - newstart, out);
                 });
@@ -69,7 +69,7 @@ pub fn find_impl_start(msrc: Src, point: usize, scopestart: usize) -> Option<usi
             if blob.starts_with("impl") || blob.starts_with("trait") || blob.starts_with("pub trait") {
                 Some(scopestart + start)
             } else {
-                let newstart = blob.find("{").unwrap() + 1;
+                let newstart = blob.find('{').unwrap() + 1;
                 find_impl_start(msrc, point, scopestart+start+newstart)
             }
         },
@@ -101,12 +101,12 @@ pub fn split_into_context_and_completion(s: &str) -> (&str, &str, CompletionType
     match s.char_indices().rev().find(|&(_, c)| !util::is_ident_char(c)) {
         Some((i,c)) => {
             match c {
-                '.' => (&s[..i], &s[(i+1)..], CompletionType::CompleteField),
-                ':' if s.len() > 1 => (&s[..(i-1)], &s[(i+1)..], CompletionType::CompletePath),
-                _   => (&s[..(i+1)], &s[(i+1)..], CompletionType::CompletePath)
+                '.' => (&s[..i], &s[(i+1)..], CompletionType::Field),
+                ':' if s.len() > 1 => (&s[..(i-1)], &s[(i+1)..], CompletionType::Path),
+                _   => (&s[..(i+1)], &s[(i+1)..], CompletionType::Path)
             }
         },
-        None => ("", s, CompletionType::CompletePath)
+        None => ("", s, CompletionType::Path)
     }
 }
 

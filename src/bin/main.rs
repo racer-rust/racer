@@ -431,9 +431,8 @@ fn main() {
 
     let matches = build_cli().get_matches();
     let interface = match matches.value_of("interface") {
-            Some("text") => Interface::Text,
             Some("tab-text") => Interface::TabText,
-            _ => Interface::Text,
+            Some("text") | _ => Interface::Text
         };
     run(matches, interface);
 }

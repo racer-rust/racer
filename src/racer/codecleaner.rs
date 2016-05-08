@@ -6,7 +6,7 @@ pub fn rejustify(src: &str) -> String {
     for l in s.lines() {
         let tabless = &l[4..];
         sb.push_str(tabless);
-        if tabless.len() != 0 {
+        if !tabless.is_empty() {
             sb.push_str("\n");
         }
     }
@@ -21,12 +21,12 @@ pub fn slice(src: &str, (begin, end): (usize, usize)) -> &str {
 
 #[derive(Clone,Copy)]
 enum State {
-    StateCode,
-    StateComment,
-    StateCommentBlock,
-    StateString,
-    StateChar,
-    StateFinished
+    Code,
+    Comment,
+    CommentBlock,
+    String,
+    Char,
+    Finished
 }
 
 #[derive(Clone,Copy)]
@@ -42,12 +42,12 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
     #[inline]
     fn next(&mut self) -> Option<(usize, usize)> {
         match self.state {
-            State::StateCode => Some(self.code()),
-            State::StateComment => Some(self.comment()),
-            State::StateCommentBlock  => Some(self.comment_block()),
-            State::StateString => Some(self.string()),
-            State::StateChar => Some(self.char()),
-            State::StateFinished => None
+            State::Code => Some(self.code()),
+            State::Comment => Some(self.comment()),
+            State::CommentBlock  => Some(self.comment_block()),
+            State::String => Some(self.string()),
+            State::Char => Some(self.char()),
+            State::Finished => None
         }
     }
 }
@@ -56,8 +56,8 @@ impl<'a> CodeIndicesIter<'a> {
     fn code(&mut self) -> (usize, usize) {
         let mut pos = self.pos;
         let start = match self.state {
-            State::StateString |
-            State::StateChar => { pos-1 }, // include quote
+            State::String |
+            State::Char => { pos-1 }, // include quote
             _ => { pos }
         };
         let src_bytes = self.src.as_bytes();
@@ -66,19 +66,19 @@ impl<'a> CodeIndicesIter<'a> {
             match b {
                 b'/' if src_bytes.len() > pos => match src_bytes[pos] {
                     b'/' => {
-                        self.state = State::StateComment;
+                        self.state = State::Comment;
                         self.pos = pos + 1;
                         return (start, pos-1);
                     },
                     b'*' => {
-                        self.state = State::StateCommentBlock;
+                        self.state = State::CommentBlock;
                         self.pos = pos + 1;
                         return (start, pos-1);
                     },
                     _ => {}
                 },
                 b'"' => {    // "
-                    self.state = State::StateString;
+                    self.state = State::String;
                     self.pos = pos;
                     return (start, pos); // include dblquotes
                 },
@@ -89,7 +89,7 @@ impl<'a> CodeIndicesIter<'a> {
                     if src_bytes.len() > pos + 1 &&
                         (src_bytes[pos] == b'\\' ||
                          src_bytes[pos+1] == b'\'') {
-                        self.state = State::StateChar;
+                        self.state = State::Char;
                         self.pos = pos;
                         return (start, pos); // include single quote
                     }
@@ -98,7 +98,7 @@ impl<'a> CodeIndicesIter<'a> {
             }
         }
 
-        self.state = State::StateFinished;
+        self.state = State::Finished;
         (start, self.src.len())
     }
 
@@ -184,7 +184,7 @@ impl<'a> CodeIndicesIter<'a> {
 
 /// Returns indices of chunks of code (minus comments and string contents)
 pub fn code_chunks(src: &str) -> CodeIndicesIter {
-    CodeIndicesIter { src: src, state: State::StateCode, pos: 0 }
+    CodeIndicesIter { src: src, state: State::Code, pos: 0 }
 }
 
 #[test]

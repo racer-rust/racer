@@ -57,8 +57,8 @@ pub enum Namespace {
 
 #[derive(Debug,Clone,Copy)]
 pub enum CompletionType {
-    CompleteField,
-    CompletePath
+    Field,
+    Path
 }
 
 #[derive(Clone)]
@@ -128,25 +128,25 @@ impl fmt::Debug for Scope {
 // Represents a type. Equivilent to rustc's ast::Ty but can be passed across threads
 #[derive(Debug,Clone)]
 pub enum Ty {
-    TyMatch(Match),
-    TyPathSearch(Path, Scope),   // A path + the scope to be able to resolve it
-    TyTuple(Vec<Ty>),
-    TyFixedLengthVec(Box<Ty>, String), // ty, length expr as string
-    TyRefPtr(Box<Ty>),
-    TyVec(Box<Ty>),
-    TyUnsupported
+    Match(Match),
+    PathSearch(Path, Scope),   // A path + the scope to be able to resolve it
+    Tuple(Vec<Ty>),
+    FixedLengthVec(Box<Ty>, String), // ty, length expr as string
+    RefPtr(Box<Ty>),
+    Vec(Box<Ty>),
+    Unsupported
 }
 
 impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Ty::TyMatch(ref m) => {
+            Ty::Match(ref m) => {
                 write!(f, "{}", m.matchstr)
             }
-            Ty::TyPathSearch(ref p, _) => {
+            Ty::PathSearch(ref p, _) => {
                 write!(f, "{}", p)
             }
-            Ty::TyTuple(ref vec) => {
+            Ty::Tuple(ref vec) => {
                 let mut first = true;
                 try!(write!(f, "("));
                 for field in vec.iter() {
@@ -159,22 +159,22 @@ impl fmt::Display for Ty {
                 }
                 write!(f, ")")
             }
-            Ty::TyFixedLengthVec(ref ty, ref expr) => {
+            Ty::FixedLengthVec(ref ty, ref expr) => {
                 try!(write!(f, "["));
                 try!(write!(f, "{}", ty));
                 try!(write!(f, "; "));
                 try!(write!(f, "{}", expr));
                 write!(f, "]")
             }
-            Ty::TyVec(ref ty) => {
+            Ty::Vec(ref ty) => {
                 try!(write!(f, "["));
                 try!(write!(f, "{}", ty));
                 write!(f, "]")
             }
-            Ty::TyRefPtr(ref ty) => {
+            Ty::RefPtr(ref ty) => {
                 write!(f, "&{}", ty)
             }
-            Ty::TyUnsupported => {
+            Ty::Unsupported => {
                 write!(f, "_")
             }
         }
@@ -224,11 +224,11 @@ impl fmt::Debug for Path {
 
             if !seg.types.is_empty() {
                 try!(write!(f, "<"));
-                let mut tfirst = true;
+                let mut t_first = true;
                 for typath in &seg.types {
-                    if tfirst {
+                    if t_first {
                         try!(write!(f, "{:?}", typath));
-                        tfirst = false;
+                        t_first = false;
                     } else {
                         try!(write!(f, ",{:?}", typath))
                     }
@@ -253,11 +253,11 @@ impl fmt::Display for Path {
 
             if !seg.types.is_empty() {
                 try!(write!(f, "<"));
-                let mut tfirst = true;
+                let mut t_first = true;
                 for typath in &seg.types {
-                    if tfirst {
+                    if t_first {
                         try!(write!(f, "{}", typath));
-                        tfirst = false;
+                        t_first = false;
                     } else {
                         try!(write!(f, ", {}", typath))
                     }
@@ -649,7 +649,7 @@ pub fn complete_from_file(src: &str, filepath: &path::Path,
     let mut out = Vec::new();
 
     match completetype {
-        CompletionType::CompletePath => {
+        CompletionType::Path => {
             let mut v = expr.split("::").collect::<Vec<_>>();
             let mut global = false;
             if v[0] == "" {      // i.e. starts with '::' e.g. ::std::old_io::blah
@@ -664,7 +664,7 @@ pub fn complete_from_file(src: &str, filepath: &path::Path,
                 out.push(m);
             }
         },
-        CompletionType::CompleteField => {
+        CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("complete_from_file context is {:?}", context);
             context.map(|ty| {
@@ -679,12 +679,12 @@ fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &S
     // TODO would be nice if this and other methods could operate on a ref instead of requiring
     // ownership
     match ty {
-        Ty::TyMatch(m) => {
+        Ty::Match(m) => {
             for m in nameres::search_for_field_or_method(m, searchstr, stype, session) {
                 out.push(m)
             }
         },
-        Ty::TyRefPtr(m) => {
+        Ty::RefPtr(m) => {
             complete_field_for_ty(*m.to_owned(), searchstr, stype, session, out)
         }
         _ => return
@@ -704,7 +704,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &
     debug!("find_definition_ for |{:?}| |{:?}| {:?}", contextstr, searchstr, completetype);
 
     match completetype {
-        CompletionType::CompletePath => {
+        CompletionType::Path => {
             let mut v = expr.split("::").collect::<Vec<_>>();
             let mut global = false;
             if v[0] == "" {      // i.e. starts with '::' e.g. ::std::old_io::blah
@@ -722,14 +722,14 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &
                                   SearchType::ExactMatch, Namespace::BothNamespaces,
                                   session).nth(0)
         },
-        CompletionType::CompleteField => {
+        CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("context is {:?}", context);
 
             context.and_then(|ty| {
                 // for now, just handle matches
                 match ty {
-                    Ty::TyMatch(m) => {
+                    Ty::Match(m) => {
                         nameres::search_for_field_or_method(m, searchstr, SearchType::ExactMatch, session).nth(0)
                     }
                     _ => None
