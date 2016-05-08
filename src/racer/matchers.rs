@@ -650,11 +650,19 @@ fn find_doc(msrc: &str, blobend: usize) -> String {
     blob.lines()
         .rev()
         .skip(1)
-        .take_while(|line| line.trim().starts_with("///"))
+        .take_while(|line| {
+            let l = line.trim();
+            l.starts_with("///") || l.starts_with("#[")
+        })
+        .filter(|line| !line.trim().starts_with("#["))  // remove the #[flags]
         .collect::<Vec<_>>()  // These are needed because
         .iter()               // you cannot `rev`an `iter` that
         .rev()                // has already been `rev`ed.
-        .map(|line| String::from(line[3..].trim().to_owned()))  // Remove "/// "
+        .map(|line| if line.len() >= 4 {  // Remove "/// "
+                String::from(line[4..].to_owned())
+            } else {
+                String::new()
+            })
         .collect::<Vec<_>>()
         .join("\n")
 }
