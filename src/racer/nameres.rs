@@ -1078,7 +1078,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
                            contextstr: path.to_str().unwrap().to_owned(),
                            generic_args: Vec::new(),
                            generic_types: Vec::new(),
-                           docs: String::from("get_module_file"),
+                           docs: String::new(),
                        });
         });
     } else {
