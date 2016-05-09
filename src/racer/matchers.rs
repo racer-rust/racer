@@ -690,12 +690,22 @@ fn find_mod_doc(msrc: &str, blobstart: usize) -> String {
     let blob = &msrc[blobstart..];
 
     blob.lines()
-        .take_while(|line| line.trim().starts_with("//! "))
-        .map(|line| if line.len() >= 4 {  // Remove "/// "
-                String::from(line[4..].to_owned())
+        .take_while(|line| {
+            let l = line.trim();
+            l.starts_with("//") || l.len() == 0
+        })
+        // Skip over the copyright notice and empty lines until you find
+        // the module's documentation (it will go until the end of the
+        // file if the module doesn't have any docs).
+        .filter(|line| line.trim().starts_with("//! "))
+        .map(|line| {
+            let l = line.trim();
+            if l.len() >= 4 {  // Remove "/// "
+                String::from(l[4..].to_owned())
             } else {
                 String::new()
-            })
+            }
+        })
         .collect::<Vec<_>>()
         .join("\n")
 }

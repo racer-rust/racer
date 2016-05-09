@@ -481,7 +481,9 @@ fn follows_multiple_use_globs() {
 
 #[test]
 fn finds_external_mod_docs() {
-    let src1="//! The mods multiline
+    let src1="// Copyright notice
+
+//! The mods multiline
 //! documentation
     ";
     let src2="
