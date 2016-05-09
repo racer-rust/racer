@@ -21,7 +21,7 @@ pub fn match_types(src: Src, blobstart: usize, blobend: usize,
                    search_type: SearchType,
                    local: bool, session: &Session) -> iter::Chain<MChain<MChain<MChain<MChain<MChain<MIter>>>>>, vec::IntoIter<Match>> {
     let it = match_extern_crate(&src, blobstart, blobend, searchstr, filepath, search_type, session).into_iter();
-    let it = it.chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
+    let it = it.chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local, session).into_iter());
     let it = it.chain(match_struct(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_type(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_trait(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
@@ -279,7 +279,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
 
 pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
                  searchstr: &str, filepath: &Path, search_type: SearchType,
-                 local: bool) -> Option<Match> {
+                 local: bool, session: &Session) -> Option<Match> {
     let blob = &msrc[blobstart..blobend];
     if let Some(start) = find_keyword(blob, "mod", searchstr, search_type, local) {
         debug!("found a module: |{}|", blob);
@@ -313,19 +313,7 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
                 searchdir.push(&s);
             }
             if let Some(modpath) = get_module_file(l, &searchdir) {
-                let f = File::open(&modpath);
-                let mut file = f.unwrap();
-                let mut rawbytes = Vec::new();
-                file.read_to_end(&mut rawbytes).unwrap();
-                // skip BOM bytes, if present
-                let bytes = if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
-                    let mut it = rawbytes.into_iter();
-                    it.next(); it.next(); it.next();
-                    it.collect()
-                } else {
-                    rawbytes
-                };
-                let msrc = str::from_utf8(&bytes).unwrap();
+                let msrc = session.load_file(&modpath).src;
 
                 return Some(Match {
                     matchstr: l.to_owned(),
