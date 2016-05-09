@@ -7,8 +7,10 @@ use core::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, En
                       Const, Static, IfLet, WhileLet, For, Macro};
 use core::Namespace::BothNamespaces;
 use std::cell::Cell;
+use std::fs::File;
+use std::io::Read;
 use std::path::Path;
-use std::{iter, option, vec};
+use std::{iter, option, str, vec};
 
 pub type MIter = option::IntoIter<Match>;
 pub type MChain<T> = iter::Chain<T, MIter>;
@@ -298,7 +300,7 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
                 contextstr: filepath.to_str().unwrap().to_owned(),
                 generic_args: Vec::new(),
                 generic_types: Vec::new(),
-                docs: String::new(),  //TODO: fix
+                docs: String::new(),
             })
         } else {
             // get internal module nesting
@@ -311,6 +313,20 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
                 searchdir.push(&s);
             }
             if let Some(modpath) = get_module_file(l, &searchdir) {
+                let f = File::open(&modpath);
+                let mut file = f.unwrap();
+                let mut rawbytes = Vec::new();
+                file.read_to_end(&mut rawbytes).unwrap();
+                // skip BOM bytes, if present
+                let bytes = if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
+                    let mut it = rawbytes.into_iter();
+                    it.next(); it.next(); it.next();
+                    it.collect()
+                } else {
+                    rawbytes
+                };
+                let msrc = str::from_utf8(&bytes).unwrap();
+
                 return Some(Match {
                     matchstr: l.to_owned(),
                     filepath: modpath.to_path_buf(),
@@ -320,7 +336,7 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
                     contextstr: modpath.to_str().unwrap().to_owned(),
                     generic_args: Vec::new(),
                     generic_types: Vec::new(),
-                    docs: String::new(),  //TODO: fix
+                    docs: find_mod_doc(msrc, 0),
                 })
             }
         }
@@ -658,6 +674,23 @@ fn find_doc(msrc: &str, blobend: usize) -> String {
         .collect::<Vec<_>>()  // These are needed because
         .iter()               // you cannot `rev`an `iter` that
         .rev()                // has already been `rev`ed.
+        .map(|line| {
+            let l = line.trim();
+            if l.len() >= 4 {  // Remove "/// "
+                String::from(l[4..].to_owned())
+            } else {
+                String::new()
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn find_mod_doc(msrc: &str, blobstart: usize) -> String {
+    let blob = &msrc[blobstart..];
+
+    blob.lines()
+        .take_while(|line| line.trim().starts_with("//! "))
         .map(|line| if line.len() >= 4 {  // Remove "/// "
                 String::from(line[4..].to_owned())
             } else {
