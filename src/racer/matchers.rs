@@ -221,6 +221,17 @@ pub fn first_line(blob: &str) -> String {
     (&blob[..blob.find('\n').unwrap_or(blob.len())]).to_owned()
 }
 
+/// Get the match's cleaned up context string
+///
+/// Strip all whitespace, including newlines in order to have a single line
+/// context string.
+pub fn get_context(blob: &str, context_end: &str) -> String {
+    (&blob[..blob.find(context_end).unwrap_or(blob.len())])
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
                           searchstr: &str, filepath: &Path, search_type: SearchType,
                           session: &Session) -> Option<Match> {
@@ -357,7 +368,7 @@ pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize,
             point: blobstart + start,
             local: local,
             mtype: Struct,
-            contextstr: first_line(blob),
+            contextstr: get_context(blob, "{"),
             generic_args: generics.generic_args,
             generic_types: Vec::new(),
             docs: find_doc(msrc, blobstart),
@@ -409,7 +420,7 @@ pub fn match_trait(msrc: &str, blobstart: usize, blobend: usize,
             point: blobstart + start,
             local: local,
             mtype: Trait,
-            contextstr: first_line(blob),
+            contextstr: get_context(blob, "{"),
             generic_args: Vec::new(),
             generic_types: Vec::new(),
             docs: find_doc(msrc, blobstart),
@@ -602,7 +613,7 @@ pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize,
                 point: blobstart + start,
                 local: local,
                 mtype: Function,
-                contextstr: first_line(blob),
+                contextstr: get_context(blob, "{"),
                 generic_args: Vec::new(),
                 generic_types: Vec::new(),
                 docs: find_doc(msrc, blobstart),
