@@ -1697,13 +1697,13 @@ fn completes_methods_on_deref_generic_type() {
 
 #[test]
 fn fix_496() {
-    let src = "
+    let src = r#"
     use std::fs::File;
 
     fn main() {
-        let f = File::open(\"tests/m256..257.txt\").unwra
+        let f = File::open("tests/m256..257.txt").unwra
     }
-    ";
+    "#;
     let f = TmpFile::new(src);
     let path = f.path();
     let pos = scopes::coords_to_point(src, 5, 54);
