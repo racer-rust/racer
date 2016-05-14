@@ -10,7 +10,7 @@ use syntex_syntax::codemap::{self, Spanned};
 use syntex_syntax::parse::parser::Parser;
 use syntex_syntax::parse::{lexer, ParseSess};
 use syntex_syntax::print::pprust;
-use syntex_syntax::visit::{self, Visitor};
+use syntex_syntax::visit;
 use syntex_syntax::errors::Handler;
 use syntex_syntax::errors::emitter::ColorConfig;
 

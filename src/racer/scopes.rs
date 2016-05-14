@@ -123,8 +123,8 @@ pub fn get_start_of_search_expr(src: &str, point: usize) -> usize {
             b')' => { levels += 1; },
             _ => {
                 if levels == 0 &&
-                    !util::is_search_expr_char(char_at(src, i)) ||
-                    util::is_double_dot(src,i) {
+                    (!util::is_search_expr_char(char_at(src, i)) ||
+                    util::is_double_dot(src, i)) {
                     return i+1;
                 }
             }
