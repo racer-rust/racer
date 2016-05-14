@@ -1696,17 +1696,17 @@ fn completes_methods_on_deref_generic_type() {
 }
 
 #[test]
-fn fix_496_test() {
+fn fix_496() {
     let src = "
     use std::fs::File;
 
     fn main() {
-        let f = File::open(\"tests/m256..257.txt\").u
+        let f = File::open(\"tests/m256..257.txt\").unwra
     }
     ";
     let f = TmpFile::new(src);
     let path = f.path();
-    let pos = scopes::coords_to_point(src, 5, 51);
+    let pos = scopes::coords_to_point(src, 5, 54);
     let cache = core::FileCache::new();
     let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
     assert_eq!("unwrap_or".to_string(), got.matchstr);
