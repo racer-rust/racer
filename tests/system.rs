@@ -373,14 +373,16 @@ fn main() { // l16
     let path = f.path();
     let pos1 = scopes::coords_to_point(src, 18, 14);  // sub::Foo::
     let cache1 = core::FileCache::new();
-    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&cache1, &path, &path)).nth(0);
+    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&cache1, &path, &path)).nth(0).unwrap();
     let pos2 = scopes::coords_to_point(src, 19, 7);   // t.t
     let cache2 = core::FileCache::new();
-    let got2 = complete_from_file(src, &path, pos2, &core::Session::from_path(&cache2, &path, &path)).nth(0);
+    let got2 = complete_from_file(src, &path, pos2, &core::Session::from_path(&cache2, &path, &path)).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
-    assert_eq!(got1.unwrap().matchstr, "traitf".to_string());
-    assert_eq!(got2.unwrap().matchstr, "traitm".to_string());
+    assert_eq!(got1.matchstr, "traitf".to_string());
+    assert_eq!(got2.matchstr, "traitm".to_string());
+    assert_eq!(got1.contextstr, "fn traitf() -> bool".to_string());
+    assert_eq!(got2.contextstr, "fn traitm(&self) -> bool".to_string());
 }
 
 #[test]
@@ -402,7 +404,8 @@ fn follows_use() {
     let pos = scopes::coords_to_point(src, 5, 10);
     let cache = core::FileCache::new();
     let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-    assert_eq!(got.matchstr,"myfn".to_string());
+    assert_eq!(got.matchstr, "myfn".to_string());
+    assert_eq!(got.contextstr, "pub fn myfn()".to_string());
 }
 
 #[test]
@@ -730,6 +733,7 @@ fn finds_trait() {
     let cache = core::FileCache::new();
     let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     assert_eq!(got.matchstr, "MyTrait".to_string());
+    assert_eq!(got.contextstr, "pub trait MyTrait<E: Clone>".to_string());
 }
 
 #[test]
@@ -795,7 +799,8 @@ fn finds_fn_arg_in_incomplete_fn() {
 fn finds_inline_fn() {
     let src="
     #[inline]
-    fn contains<'a>(&needle: &'a str) -> bool {
+    fn contains<'a>(&needle: &'a str)
+        -> bool {
     }
 
     contains();
@@ -806,6 +811,7 @@ fn finds_inline_fn() {
     let cache = core::FileCache::new();
     let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
     assert_eq!(got.matchstr, "contains".to_string());
+    assert_eq!(got.contextstr, "fn contains<'a>(&needle: &'a str) -> bool".to_string());
 }
 
 #[test]
@@ -974,6 +980,43 @@ fn follows_fn_to_method() {
     let cache = core::FileCache::new();
     let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
     assert_eq!("mymethod".to_string(), got.matchstr);
+}
+
+#[test]
+fn simple_struct_contextstr() {
+    let src="
+    struct Foo<T>;
+
+    fn myfn() {
+        let x: Foo
+    }
+    ";
+    let f = TmpFile::new(src);
+    let path = f.path();
+    let pos = scopes::coords_to_point(src, 5, 18);
+    let cache = core::FileCache::new();
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
+    assert_eq!(got.contextstr, "struct Foo<T>;".to_string());
+}
+
+#[test]
+fn struct_contextstr() {
+    let src="
+    struct
+        Foo<T> {
+        pub fn foo1();
+    }
+
+    fn myfn() {
+        let x: Foo
+    }
+    ";
+    let f = TmpFile::new(src);
+    let path = f.path();
+    let pos = scopes::coords_to_point(src, 8, 18);
+    let cache = core::FileCache::new();
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
+    assert_eq!(got.contextstr, "struct Foo<T>".to_string());
 }
 
 #[test]
