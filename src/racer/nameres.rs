@@ -42,7 +42,6 @@ fn search_struct_fields(searchstr: &str, structmatch: &Match,
                                 generic_args: Vec::new(),
                                 generic_types: Vec::new(),
                                 docs: String::new(),
-
             });
         }
     }
@@ -110,7 +109,6 @@ fn search_scope_for_methods(point: usize, src: Src, searchstr: &str, filepath: &
                            generic_args: Vec::new(),
                            generic_types: Vec::new(),
                            docs: String::new(),
-
                 };
                 out.push(m);
             }
@@ -870,7 +868,7 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
 
     debug!("resolve_name {} {:?} {} {:?} {:?}", searchstr, filepath.to_str(), pos, search_type, namespace);
 
-    let msrc = session.load_file_and_mask_comments(filepath);
+    let msrc = session.load_file(filepath);
     let is_exact_match = match search_type { ExactMatch => true, StartsWith => false };
 
     if (is_exact_match && &searchstr[..] == "std") ||
@@ -886,7 +884,6 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
                         generic_args: Vec::new(),
                         generic_types: Vec::new(),
                         docs: String::new(),
-
             });
         });
 
@@ -1082,7 +1079,6 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
                            generic_args: Vec::new(),
                            generic_types: Vec::new(),
                            docs: String::new(),
-
                        });
         });
     } else {

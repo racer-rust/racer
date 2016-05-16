@@ -8,7 +8,7 @@ use core::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, En
 use core::Namespace::BothNamespaces;
 use std::cell::Cell;
 use std::path::Path;
-use std::{iter, option, vec};
+use std::{iter, option, str, vec};
 
 pub type MIter = option::IntoIter<Match>;
 pub type MChain<T> = iter::Chain<T, MIter>;
@@ -19,7 +19,7 @@ pub fn match_types(src: Src, blobstart: usize, blobend: usize,
                    search_type: SearchType,
                    local: bool, session: &Session) -> iter::Chain<MChain<MChain<MChain<MChain<MChain<MIter>>>>>, vec::IntoIter<Match>> {
     let it = match_extern_crate(&src, blobstart, blobend, searchstr, filepath, search_type, session).into_iter();
-    let it = it.chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
+    let it = it.chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local, session).into_iter());
     let it = it.chain(match_struct(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_type(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_trait(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
@@ -277,7 +277,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
 
 pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
                  searchstr: &str, filepath: &Path, search_type: SearchType,
-                 local: bool) -> Option<Match> {
+                 local: bool, session: &Session) -> Option<Match> {
     let blob = &msrc[blobstart..blobend];
     if let Some(start) = find_keyword(blob, "mod", searchstr, search_type, local) {
         debug!("found a module: |{}|", blob);
@@ -298,7 +298,7 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
                 contextstr: filepath.to_str().unwrap().to_owned(),
                 generic_args: Vec::new(),
                 generic_types: Vec::new(),
-                docs: String::new(),  //TODO: fix
+                docs: String::new(),
             })
         } else {
             // get internal module nesting
@@ -311,6 +311,8 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
                 searchdir.push(&s);
             }
             if let Some(modpath) = get_module_file(l, &searchdir) {
+                let msrc = session.load_file(&modpath).src;
+
                 return Some(Match {
                     matchstr: l.to_owned(),
                     filepath: modpath.to_path_buf(),
@@ -320,7 +322,7 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
                     contextstr: modpath.to_str().unwrap().to_owned(),
                     generic_args: Vec::new(),
                     generic_types: Vec::new(),
-                    docs: String::new(),  //TODO: fix
+                    docs: find_mod_doc(msrc, 0),
                 })
             }
         }
@@ -650,19 +652,41 @@ fn find_doc(msrc: &str, blobend: usize) -> String {
     blob.lines()
         .rev()
         .skip(1)
-        .take_while(|line| {
-            let l = line.trim();
-            l.starts_with("///") || l.starts_with("#[")
-        })
+        .map(|line| line.trim())
+        .take_while(|line| line.starts_with("///") || line.starts_with("#["))
         .filter(|line| !line.trim().starts_with("#["))  // remove the #[flags]
         .collect::<Vec<_>>()  // These are needed because
         .iter()               // you cannot `rev`an `iter` that
         .rev()                // has already been `rev`ed.
-        .map(|line| if line.len() >= 4 {  // Remove "/// "
-                String::from(line[4..].to_owned())
-            } else {
-                String::new()
-            })
+        .map(|line| if line.len() >= 4 { &line[4..] } else { "" })  // Remove "/// "
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+fn find_mod_doc(msrc: &str, blobstart: usize) -> String {
+    let blob = &msrc[blobstart..];
+    let mut doc = String::new();
+
+    let mut iter = blob.lines()
+        .map(|line| line.trim())
+        .take_while(|line| line.starts_with("//") || line.len() == 0)
+        // Skip over the copyright notice and empty lines until you find
+        // the module's documentation (it will go until the end of the
+        // file if the module doesn't have any docs).
+        .filter(|line| line.starts_with("//! "))
+        .peekable();
+
+    loop {  // Use a loop to avoid unnecessary collect and String allocation
+        match iter.next() {
+            Some(ref line) => {
+                // Remove "//! " and push to doc string to be returned
+                doc.push_str(if line.len() >= 4 { &line[4..] } else { "" });
+                if iter.peek() != None {
+                    doc.push_str("\n");
+                }
+            }
+            None => break,
+        }
+    }
+    doc
 }

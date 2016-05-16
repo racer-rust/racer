@@ -143,6 +143,53 @@ fn completes_fn() {
     assert_eq!("apple".to_string(), got.matchstr.to_string());
 }
 
+
+#[test]
+fn finds_fn_docs() {
+    let src="
+    /// Orange
+    /// juice
+    fn apple() {
+    }
+
+    fn main() {
+        apple
+    }";
+
+    let f = TmpFile::new(src);
+    let path = f.path();
+
+    let pos = scopes::coords_to_point(src, 8, 13);
+    let cache = core::FileCache::new();
+    let got = complete_from_file(src, path, pos, &core::Session::from_path(&cache, path, path)).nth(0).unwrap();
+
+    assert_eq!("apple".to_string(), got.matchstr.to_string());
+    assert_eq!("Orange\njuice".to_string(), got.docs.to_string());
+}
+
+#[test]
+fn finds_struct_docs() {
+    let src="
+    /// Orange
+    /// juice
+    struct Apple {
+    }
+
+    fn main() {
+        Apple
+    }";
+
+    let f = TmpFile::new(src);
+    let path = f.path();
+
+    let pos = scopes::coords_to_point(src, 8, 13);
+    let cache = core::FileCache::new();
+    let got = complete_from_file(src, path, pos, &core::Session::from_path(&cache, path, path)).nth(0).unwrap();
+
+    assert_eq!("Apple".to_string(), got.matchstr.to_string());
+    assert_eq!("Orange\njuice".to_string(), got.docs.to_string());
+}
+
 #[test]
 fn completes_fn_with_substitute_file() {
     let src="
@@ -430,6 +477,86 @@ fn follows_multiple_use_globs() {
     
     assert!(completion_strings.contains(&"src1fn".to_string()) && completion_strings.contains(&"src2fn".to_string()),
     format!("Results should contain BOTH \"src1fn\" and \"src2fn\". Actual returned results: {:?} ", completion_strings));
+}
+
+#[test]
+fn finds_external_mod_docs() {
+    let src1="// Copyright notice
+
+//! The mods multiline
+//! documentation
+    ";
+    let src2="
+    mod external_mod;
+    use external_mod;
+
+    fn main() {
+        external_mod
+    }";
+    let _tmpsrc = TmpFile::with_name("external_mod.rs", src1);
+    let f = TmpFile::new(src2);
+    let path = f.path();
+
+    let pos = scopes::coords_to_point(src2, 2, 20);
+    let cache = core::FileCache::new();
+    let got = complete_from_file(src2, path, pos, &core::Session::from_path(&cache, path, path)).nth(0).unwrap();
+
+    assert_eq!("external_mod".to_string(), got.matchstr.to_string());
+    assert_eq!("The mods multiline\ndocumentation".to_string(), got.docs);
+}
+
+#[test]
+fn finds_external_struct_docs() {
+    let src1="
+    /// Orange
+    /// juice
+    pub struct Apple {
+        pub a: u8,
+    }";
+    let src2="
+    use external_struct::Apple;
+    mod external_struct;
+
+    fn main() {
+        Apple
+    }";
+    let _tmpsrc = TmpFile::with_name("external_struct.rs", src1);
+    let f = TmpFile::new(src2);
+    let path = f.path();
+
+    let pos = scopes::coords_to_point(src2, 6, 13);
+    let cache = core::FileCache::new();
+    let got = complete_from_file(src2, path, pos, &core::Session::from_path(&cache, path, path)).nth(0).unwrap();
+
+    assert_eq!("Apple".to_string(), got.matchstr.to_string());
+    assert_eq!("Orange\njuice".to_string(), got.docs.to_string());
+}
+
+#[test]
+fn finds_external_fn_docs() {
+    let src1="
+    /// Orange
+    /// juice
+    pub fn apple() {
+        let x = 1;
+    }";
+    let src2="
+    use external_fn::apple;
+    mod external_fn;
+
+    fn main() {
+        apple
+    }";
+    let _tmpsrc = TmpFile::with_name("external_fn.rs", src1);
+    let f = TmpFile::new(src2);
+    let path = f.path();
+
+    let pos = scopes::coords_to_point(src2, 6, 13);
+    let cache = core::FileCache::new();
+    let got = complete_from_file(src2, path, pos, &core::Session::from_path(&cache, path, path)).nth(0).unwrap();
+
+    assert_eq!("apple".to_string(), got.matchstr.to_string());
+    assert_eq!("Orange\njuice".to_string(), got.docs.to_string());
 }
 
 #[test]
