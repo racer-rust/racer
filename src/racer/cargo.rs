@@ -201,45 +201,6 @@ fn get_cargo_rootdir(cargofile: &Path) -> Option<PathBuf> {
 
     let mut d = otry!(env::home_dir());
 
-    // try multirust first, since people with multirust installed will often still 
-    // have an old .cargo directory lying around
-    d.push(".multirust");
-
-    d.push("overrides");
-    debug!("get_cargo_rootdir: looking for overrides file. {:?}", d);
-    if let Ok(mut multirust_overides) = File::open(&d) {
-        debug!("get_cargo_rootdir: found overrides file! {:?}", d);
-        let mut s = String::new();
-        otry2!(multirust_overides.read_to_string(&mut s));
-        for line in s.lines() {
-            let overridepath = line.split(';').nth(0).unwrap();
-            if cargofile.starts_with(overridepath) {
-                let overridepath = line.split(';').nth(1).unwrap();
-                d.pop();
-                d.push("toolchains");
-                d.push(overridepath.trim());
-                d.push("cargo");
-                debug!("get_cargo_rootdir override root is {:?}",d);
-                return Some(d)
-            }
-        }
-    }
-
-    d.pop();
-    d.push("default");
-    if let Ok(mut multirustdefault) = File::open(&d) {
-        let mut s = String::new();
-        otry2!(multirustdefault.read_to_string(&mut s));
-        d.pop();
-        d.push("toolchains");
-        d.push(s.trim());
-        d.push("cargo");
-        debug!("get_cargo_rootdir root is {:?}",d);
-        return Some(d)
-    }
-
-    d.pop();
-    d.pop();
     d.push(".cargo");
     if d.exists() {
         Some(d)
