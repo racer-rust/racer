@@ -68,7 +68,9 @@ The Kate community maintains a [plugin](http://quickgit.kde.org/?p=kate.git&a=tr
 
 ### Sublime Text integration
 
-The Sublime Text community maintains a [plugin](https://github.com/defuz/RustAutoComplete).
+The Sublime Text community maintains some packages that integrates Racer
+* [RustAutoComplete](https://github.com/defuz/RustAutoComplete) that offers auto completion and goto definition.
+* [AnacondaRUST](https://github.com/DamnWidget/anaconda_rust) from the [anaconda](http://github.com/DamnWidget/anaconda) plugins family that offers auto completion, goto definition and show documentation
 
 ### Vim integration
 
