@@ -238,7 +238,7 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
                 continue;
             }
         } else {
-            d.push(kratename.to_owned() + "-" + &version);
+            d.push(kratename.to_owned() + "-" + version);
         }
 
         d.push("src");

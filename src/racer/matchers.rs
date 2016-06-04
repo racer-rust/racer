@@ -245,8 +245,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
 
         debug!("found an extern crate: |{}|", blob);
 
-        let extern_crate;
-        if blob.contains('\"') {
+        let extern_crate = if blob.contains('\"') {
             // Annoyingly the extern crate can use a string literal for the
             // real crate name (e.g. extern crate collections_core = "collections")
             // so we need to get the source text without scrubbed strings
@@ -254,22 +253,16 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
             let rawsrc = session.load_file(filepath);
             let rawblob = &rawsrc[blobstart..blobend];
             debug!("found an extern crate (unscrubbed): |{}|", rawblob);
-
-            extern_crate = ast::parse_extern_crate(rawblob.to_owned());
+            ast::parse_extern_crate(rawblob.to_owned())
         } else {
-            extern_crate = ast::parse_extern_crate(blob.to_owned());
-        }
+            ast::parse_extern_crate(blob.to_owned())
+        };
 
         if let Some(ref name) = extern_crate.name {
             debug!("extern crate {}", name);
 
-            let realname =
-                if let Some(ref realname) = extern_crate.realname {
-                    realname
-                } else {
-                    name
-                };
-            get_crate_file(&realname, filepath).map(|cratepath| {
+            let realname = extern_crate.realname.as_ref().unwrap_or(name);
+            get_crate_file(realname, filepath).map(|cratepath| {
                 res = Some(Match { matchstr: name.clone(),
                                   filepath: cratepath.to_path_buf(),
                                   point: 0,
@@ -355,7 +348,7 @@ pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize,
         // Parse generics
         let end = match blob.find('{').or(blob.find(';')) {
             Some(e) => e,
-            None => { 
+            None => {
                 error!("Can't find end of struct header");
                 return None;
             }
@@ -680,23 +673,19 @@ fn find_mod_doc(msrc: &str, blobstart: usize) -> String {
 
     let mut iter = blob.lines()
         .map(|line| line.trim())
-        .take_while(|line| line.starts_with("//") || line.len() == 0)
+        .take_while(|line| line.starts_with("//") || line.is_empty())
         // Skip over the copyright notice and empty lines until you find
         // the module's documentation (it will go until the end of the
         // file if the module doesn't have any docs).
         .filter(|line| line.starts_with("//! "))
         .peekable();
 
-    loop {  // Use a loop to avoid unnecessary collect and String allocation
-        match iter.next() {
-            Some(ref line) => {
-                // Remove "//! " and push to doc string to be returned
-                doc.push_str(if line.len() >= 4 { &line[4..] } else { "" });
-                if iter.peek() != None {
-                    doc.push_str("\n");
-                }
-            }
-            None => break,
+    // Use a loop to avoid unnecessary collect and String allocation
+    while let Some(ref line) = iter.next() {
+        // Remove "//! " and push to doc string to be returned
+        doc.push_str(if line.len() >= 4 { &line[4..] } else { "" });
+        if iter.peek() != None {
+            doc.push_str("\n");
         }
     }
     doc

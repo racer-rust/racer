@@ -484,14 +484,13 @@ impl<'c, 's, 'v> visit::Visitor<'v> for ExprTypeVisitor<'c, 's> {
                 debug!("method call ast types {:?} {}", types, types.len());
 
                 let objexpr = &arguments[0];
-                //println!("obj expr is {:?}",objexpr);
                 self.visit_expr(objexpr);
 
                 self.result = self.result.as_ref().and_then(|contextm| {
                     match *contextm {
                         Ty::Match(ref contextm) => {
                             let omethod = nameres::search_for_impl_methods(
-                                &contextm,
+                                contextm,
                                 &methodname,
                                 contextm.point,
                                 &contextm.filepath,

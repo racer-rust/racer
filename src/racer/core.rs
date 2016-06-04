@@ -637,7 +637,7 @@ impl<'c> Session<'c> {
 }
 
 
-pub fn complete_from_file(src: &str, filepath: &path::Path, 
+pub fn complete_from_file(src: &str, filepath: &path::Path,
                           pos: usize, session: &Session) -> vec::IntoIter<Match> {
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = &src[start..pos];
@@ -651,10 +651,9 @@ pub fn complete_from_file(src: &str, filepath: &path::Path,
     match completetype {
         CompletionType::Path => {
             let mut v = expr.split("::").collect::<Vec<_>>();
-            let mut global = false;
-            if v[0] == "" {      // i.e. starts with '::' e.g. ::std::old_io::blah
+            let global = v[0] == "";
+            if global {      // i.e. starts with '::' e.g. ::std::old_io::blah
                 v.remove(0);
-                global = true;
             }
 
             let path = Path::from_vec(global, v);
@@ -687,7 +686,7 @@ fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &S
         Ty::RefPtr(m) => {
             complete_field_for_ty(*m.to_owned(), searchstr, stype, session, out)
         }
-        _ => return
+        _ => {}
     }
 }
 
@@ -698,7 +697,6 @@ pub fn find_definition(src: &str, filepath: &path::Path, pos: usize, session: &S
 pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> Option<Match> {
     let (start, end) = scopes::expand_search_expr(src, pos);
     let expr = &src[start..end];
-
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
     debug!("find_definition_ for |{:?}| |{:?}| {:?}", contextstr, searchstr, completetype);
@@ -706,10 +704,9 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &
     match completetype {
         CompletionType::Path => {
             let mut v = expr.split("::").collect::<Vec<_>>();
-            let mut global = false;
-            if v[0] == "" {      // i.e. starts with '::' e.g. ::std::old_io::blah
+            let global = v[0] == "";
+            if global {      // i.e. starts with '::' e.g. ::std::old_io::blah
                 v.remove(0);
-                global = true;
             }
 
             let segs = v
@@ -728,11 +725,10 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &
 
             context.and_then(|ty| {
                 // for now, just handle matches
-                match ty {
-                    Ty::Match(m) => {
-                        nameres::search_for_field_or_method(m, searchstr, SearchType::ExactMatch, session).nth(0)
-                    }
-                    _ => None
+                if let Ty::Match(m) = ty {
+                    nameres::search_for_field_or_method(m, searchstr, SearchType::ExactMatch, session).nth(0)
+                } else {
+                    None
                 }
             })
         }

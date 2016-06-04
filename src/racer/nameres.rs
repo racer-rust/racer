@@ -458,28 +458,19 @@ pub fn search_crate_root(pathseg: &core::PathSegment, modfpath: &Path,
 pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<PathBuf> {
     let mut res = Vec::new();
 
-    {
-        let filepath = currentdir.join("lib.rs");
+    for root in &["lib.rs", "main.rs"] {
+        let filepath = currentdir.join(root);
         if filepath.exists() {
             res.push(filepath.to_path_buf());
             return res;   // for now stop at the first match
         }
     }
-    {
-        let filepath = currentdir.join("main.rs");
-        if filepath.exists() {
-            res.push(filepath.to_path_buf());
+    // recurse up the directory structure
+    if let Some(parentdir) = currentdir.parent() {
+        if parentdir != currentdir {
+            // PD: this was using the vec.push_all() api, but that is now unstable
+            res.extend(find_possible_crate_root_modules(parentdir).iter().cloned());
             return res;   // for now stop at the first match
-        }
-    }
-    {
-        // recurse up the directory structure
-        if let Some(parentdir) = currentdir.parent() {
-            if parentdir != currentdir {
-                // PD: this was using the vec.push_all() api, but that is now unstable
-                res.extend(find_possible_crate_root_modules(&parentdir).iter().cloned());
-                return res;   // for now stop at the first match
-            }
         }
     }
     res
@@ -759,7 +750,7 @@ fn search_local_scopes(pathseg: &core::PathSegment, filepath: &Path,
             if start == 0 {
                 break;
             }
-            start = start-1;
+            start -= 1;
             let searchstr = &pathseg.name;
 
             // scope headers = fn decls, if let, match, etc..
@@ -827,7 +818,7 @@ pub fn resolve_path_with_str(path: &core::Path, filepath: &Path, pos: usize,
 
             });
         }
-        
+
     } else {
         for m in resolve_path(path, filepath, pos, search_type, namespace, session) {
             out.push(m);
@@ -903,7 +894,7 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
         }
     }
 
-    for m in search_crate_root(pathseg, &filepath, search_type, namespace, session) {
+    for m in search_crate_root(pathseg, filepath, search_type, namespace, session) {
         out.push(m);
         if let ExactMatch = search_type {
             if !out.is_empty() {
@@ -922,7 +913,7 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
     }
     // filesearch. Used to complete e.g. extern crate blah or mod foo
     if let StartsWith = search_type {
-        for m in do_file_search(searchstr, &filepath.parent().unwrap()) {
+        for m in do_file_search(searchstr, filepath.parent().unwrap()) {
             out.push(m);
         }
     }
@@ -935,15 +926,14 @@ pub fn get_super_scope(filepath: &Path, pos: usize, session: &Session) -> Option
     let mut path = scopes::get_local_module_path(msrc, pos);
     debug!("get_super_scope: path: {:?} filepath: {:?} {} {:?}", path, filepath, pos, session);
     if path.is_empty() {
-        let moduledir;
-        if filepath.ends_with("mod.rs") || filepath.ends_with("lib.rs"){
+        let moduledir = if filepath.ends_with("mod.rs") || filepath.ends_with("lib.rs") {
             // Need to go up to directory above
             // TODO(PD): fix: will crash if mod.rs is in the root fs directory
-            moduledir = filepath.parent().unwrap().parent().unwrap();
+            filepath.parent().unwrap().parent().unwrap()
         } else {
             // module is in current directory
-            moduledir = filepath.parent().unwrap();
-        }
+            filepath.parent().unwrap()
+        };
 
         for filename in &[ "mod.rs", "lib.rs" ] {
             let f_path = moduledir.join(&filename);
@@ -1068,7 +1058,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
             out.push(m);
         }
 
-        get_module_file(searchstr, &filepath.parent().unwrap()).map(|path| {
+        get_module_file(searchstr, filepath.parent().unwrap()).map(|path| {
             out.push(Match {
                            matchstr: searchstr.to_owned(),
                            filepath: path.to_path_buf(),
