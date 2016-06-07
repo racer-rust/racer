@@ -1078,7 +1078,11 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
             match m.mtype {
                 Module => {
                     debug!("found an external module {}", m.matchstr);
-                    let searchstr = path[path.len()-1];
+                    // deal with started with "{", so that "foo::{bar" will be same as "foo::bar"
+                    let searchstr = match path[path.len()-1].chars().next() {
+                        Some('{') => &path[path.len()-1][1..],
+                        _ => path[path.len()-1]
+                    };
                     let pathseg = core::PathSegment{name: searchstr.to_owned(),
                                          types: Vec::new()};
                     for m in search_next_scope(m.point, &pathseg, &m.filepath, search_type, false, namespace, session) {
@@ -1090,7 +1094,11 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
                     debug!("found a pub struct. Now need to look for impl");
                     for m in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, false, session) {
                         debug!("found  impl2!! {}", m.matchstr);
-                        let searchstr = path[path.len()-1];
+                        // deal with started with "{", so that "foo::{bar" will be same as "foo::bar"
+                        let searchstr = match path[path.len()-1].chars().next() {
+                            Some('{') => &path[path.len()-1][1..],
+                            _ => path[path.len()-1]
+                        };
                         let pathseg = core::PathSegment{name: searchstr.to_owned(),
                                          types: Vec::new()};
                         debug!("about to search impl scope...");
