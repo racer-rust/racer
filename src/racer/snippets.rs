@@ -5,16 +5,15 @@ use typeinf::get_function_declaration;
 use syntex_syntax::ast::ImplItemKind;
 
 pub fn snippet_for_match(m: &Match, session: &Session) -> String {
-    match m.mtype {
-        MatchType::Function => {
-            let method = get_function_declaration(&m, session);
+    if m.mtype == MatchType::Function {
+            let method = get_function_declaration(m, session);
             if let Some(m) = MethodInfo::from_source_str(&method) {
                 m.snippet()
             } else {
                 "".into()
             }
-        }
-        _ => m.matchstr.clone()
+    } else {
+        m.matchstr.clone()
     }
 }
 
@@ -30,38 +29,27 @@ impl MethodInfo {
         let decorated = format!("{} {{}}()", source.trim_right_matches(trim));
 
         with_error_checking_parse(decorated, |p| {
-            use std::result::Result::{Ok, Err};
-            match p.parse_impl_item() {
-                Ok(method) => {
-                    match method.node {
-                        ImplItemKind::Method(ref msig, _) => {
-                            let decl = &msig.decl;
-                            Some(MethodInfo {
-                                // ident.as_str calls Ident.name.as_str
-                                name: method.ident.name.as_str().to_string(),
-                                args: decl.inputs
-                                          .iter()
-                                          .map(|arg| {
-                                              let codemap = &p.sess.codemap();
-                                              match codemap.span_to_snippet(arg.pat.span) {
-                                                  Ok(name) => name,
-                                                  _ => "".into()
-                                              }
-                                          })
-                                          .collect()
-                            })
-                        },
-                        _ => {
-                            debug!("Unable to parse method declaration. |{}|", source);
-                            None
-                        }
-                    }
-                },
-                Err(_) => {
-                    debug!("Unable to parse method declaration. |{}|", source);
-                    None
+            if let Ok(method) = p.parse_impl_item() {
+                if let ImplItemKind::Method(ref msig, _) = method.node {
+                        let decl = &msig.decl;
+                        return Some(MethodInfo {
+                            // ident.as_str calls Ident.name.as_str
+                            name: method.ident.name.as_str().to_string(),
+                            args: decl.inputs
+                                      .iter()
+                                      .map(|arg| {
+                                          let codemap = &p.sess.codemap();
+                                          match codemap.span_to_snippet(arg.pat.span) {
+                                              Ok(name) => name,
+                                              _ => "".into()
+                                          }
+                                      })
+                                      .collect()
+                        })
                 }
             }
+            debug!("Unable to parse method declaration. |{}|", source);
+            None
         })
     }
 
@@ -75,11 +63,7 @@ impl MethodInfo {
                      .enumerate()
                      .fold(String::new(), |cur, (i, ref s)| {
                          let arg = format!("${{{}:{}}}", i + 1, s);
-                         let delim = if i > 0 {
-                             ", "
-                         } else {
-                             ""
-                         };
+                         let delim = if i > 0 { ", " } else { "" };
                          cur + delim + &arg
                      }))
     }
