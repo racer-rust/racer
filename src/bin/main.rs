@@ -368,6 +368,7 @@ fn build_cli<'a, 'b>() -> App<'a, 'b> {
             // We start by making 'fqn' the first positional arg, which will hold this dual value
             // of either an FQN as it says, or secretly a line-number
             .arg(Arg::with_name("fqn")
+                .use_delimiter(false)
                 .help("complete with a fully-qualified-name (e.g. std::io::)"))
             .arg(Arg::with_name("charnum")
                 .help("The char number to search for matches")
