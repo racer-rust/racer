@@ -315,7 +315,7 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
                 searchdir.push(&s);
             }
             if let Some(modpath) = get_module_file(l, &searchdir) {
-                let msrc = session.load_file(&modpath).src;
+                let msrc = session.load_file(&modpath);
 
                 return Some(Match {
                     matchstr: l.to_owned(),
@@ -326,7 +326,7 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
                     contextstr: modpath.to_str().unwrap().to_owned(),
                     generic_args: Vec::new(),
                     generic_types: Vec::new(),
-                    docs: find_mod_doc(msrc, 0),
+                    docs: find_mod_doc(&msrc, 0),
                 })
             }
         }

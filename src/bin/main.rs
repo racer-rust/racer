@@ -123,7 +123,7 @@ enum CompletePrinter {
 }
 
 #[cfg(not(test))]
-fn cache_file_contents_from_stdin<'a>(file: &PathBuf, cache: &'a core::FileCache<'a>) {
+fn cache_file_contents_from_stdin(file: &PathBuf, cache: &core::FileCache) {
     let stdin = io::stdin();
 
     let mut rawbytes = Vec::new();
