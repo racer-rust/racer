@@ -1901,3 +1901,40 @@ fn completes_multiple_use_bracket() {
         assert_eq!(wo.matchstr, wi.matchstr);
     }
 }
+
+#[test]
+fn completes_multiple_use_comma() {
+    // issue # 96
+    // wo: without comma, wi: with comma
+    let modfile="
+    pub struct StarWars {
+        pub Kenobi: u8,
+    };
+    pub struct StarTrek {
+        pub Spock: u8,
+    };";
+    let srcwo="
+    mod modfile2;
+    use modfile2::S
+    ";
+    let srcwi="
+    mod modfile2;
+    use modfile2::{StarWars, S
+    ";
+    let _tmpsrc = TmpFile::with_name("modfile2.rs", modfile);
+    let _fwo = TmpFile::new(srcwo);
+    let fwi = TmpFile::new(srcwi);
+    let path = fwi.path();
+
+    let poswo = scopes::coords_to_point(srcwo, 3, 18);
+    let poswi = scopes::coords_to_point(srcwi, 3, 29);
+    let cachewo = core::FileCache::new();
+    let cachewi = core::FileCache::new();
+    let gotwo = complete_from_file(srcwo, &path, poswo, &core::Session::from_path(&cachewo, &path, &path));
+    let gotwi = complete_from_file(srcwi, &path, poswi, &core::Session::from_path(&cachewi, &path, &path));
+
+    assert_eq!(gotwo.size_hint().0, gotwi.size_hint().0);
+    for (wo, wi) in gotwo.zip(gotwi) {
+        assert_eq!(wo.matchstr, wi.matchstr);
+    }
+}
