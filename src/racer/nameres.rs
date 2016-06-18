@@ -994,9 +994,16 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
         context.map(|m| {
             match m.mtype {
                 Module => {
-                    let pathseg = &path.segments[len-1];
+                    let mut searchstr: &str = &path.segments[len-1].name;
+                    if let Some(i) = searchstr.rfind(',') {
+                        searchstr = searchstr[i+1..].trim();
+                    }
+                    if searchstr.chars().next() == Some('{') {
+                        searchstr = &searchstr[1..];
+                    }
+                    let pathseg = core::PathSegment{name: searchstr.to_owned(), types: Vec::new()};
                     debug!("searching a module '{}' for {} (whole path: {:?})", m.matchstr, pathseg.name, path);
-                    for m in search_next_scope(m.point, pathseg, &m.filepath, search_type, false, namespace, session) {
+                    for m in search_next_scope(m.point, &pathseg, &m.filepath, search_type, false, namespace, session) {
                         out.push(m);
                     }
                 }
