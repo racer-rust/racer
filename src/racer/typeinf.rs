@@ -27,13 +27,24 @@ pub fn generate_skeleton_for_parsing(src: &str) -> String {
 }
 
 pub fn first_param_is_self(mut blob: &str) -> bool {
-    while let Some(start) = blob.find('(') {
-        if blob[..start].contains('<') {
-            // oops - paren in a generic arg
-            // consider 'pub fn map<U, F: FnOnce(T) -> U>(self, f: F)'
-            blob = &blob[start+1..];
-            continue;
+    // skip generic arg
+    // consider 'pub fn map<U, F: FnOnce(T) -> U>(self, f: F)'
+    // we have to match the '>'
+    let mut skip_generic = 0;
+    if let Some(generic_start) = blob.find('<') {
+        blob = &blob[generic_start..];
+        let mut level = 0;
+        let mut prev = ' ';
+        for (i, c) in blob.char_indices() {
+            match c {
+                '<' => level+=1,
+                '>' if (prev != '-') && (level == 1) => skip_generic = i,
+                _ => (),
+            }
+            prev = c;
         }
+    };
+    while let Some(start) = blob[skip_generic..].find('(') {
         let end = scopes::find_closing_paren(blob, start+1);
         let is_self = txt_matches(ExactMatch, "self", &blob[(start+1)..end]);
         debug!("searching fn args: |{}| {}", &blob[(start+1)..end], is_self);
