@@ -1864,3 +1864,40 @@ fn completes_methods_on_deref_generic_type() {
                                     .nth(0).expect("No match found").matchstr;
     assert_eq!(got_str, "one".to_string());
 }
+
+#[test]
+fn completes_multiple_use_bracket() {
+    // issue # 96
+    // wo: without bracket, wi: with bracket
+    let modfile="
+    pub struct StarWars {
+        pub Vadar: u8,
+    };
+    pub struct StarTrek {
+        pub Spock: u8,
+    };";
+    let srcwo="
+    mod modfile1;
+    use modfile1::S
+    ";
+    let srcwi="
+    mod modfile1;
+    use modfile1::{S
+    ";
+    let _tmpsrc = TmpFile::with_name("modfile1.rs", modfile);
+    let _fwo = TmpFile::new(srcwo);
+    let fwi = TmpFile::new(srcwi);
+    let path = fwi.path();
+
+    let poswo = scopes::coords_to_point(srcwo, 3, 18);
+    let poswi = scopes::coords_to_point(srcwi, 3, 19);
+    let cachewo = core::FileCache::new();
+    let cachewi = core::FileCache::new();
+    let gotwo = complete_from_file(srcwo, &path, poswo, &core::Session::from_path(&cachewo, &path, &path));
+    let gotwi = complete_from_file(srcwi, &path, poswi, &core::Session::from_path(&cachewi, &path, &path));
+
+    assert_eq!(gotwo.size_hint().0, gotwi.size_hint().0);
+    for (wo, wi) in gotwo.zip(gotwi) {
+        assert_eq!(wo.matchstr, wi.matchstr);
+    }
+}
