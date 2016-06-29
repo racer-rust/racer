@@ -867,7 +867,8 @@ fn finds_nested_submodule_file() {
     let basedir = PathBuf::from(tmpname());
     let srcpath = basedir.join("root.rs");
     let sub2dir = basedir.join("sub1").join("sub2");
-    let _dir = TmpDir::with_name(sub2dir.as_path().to_str().unwrap());
+    let _rootdir = TmpDir::with_name(basedir.as_path().to_str().unwrap());
+    let _dir2 = TmpDir::with_name(sub2dir.as_path().to_str().unwrap());
 
     let _src = TmpFile::with_path(&srcpath, rootsrc);
     let _src3 = TmpFile::with_path(&sub2dir.join("sub3.rs"), sub3src);
