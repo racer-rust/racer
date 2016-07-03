@@ -386,6 +386,45 @@ fn main() { // l16
 }
 
 #[test]
+fn completes_trait_methods_when_at_scope_end() {
+    let src = "
+mod sub {
+    pub trait Trait {
+        fn traitf() -> bool;
+        fn traitm(&self) -> bool;
+    }
+
+    impl Trait for Foo {
+        fn traitf() -> bool { false }
+        fn traitm(&self) -> bool { true }
+    }
+
+    pub struct Foo(bool);
+}
+
+fn main() { // l16
+    let t = sub::Foo(true);
+    sub::Foo::
+    t.t
+}
+";
+    let f = TmpFile::new(src);
+    let path = f.path();
+    let pos1 = scopes::coords_to_point(src, 18, 14);  // sub::Foo::
+    let cache1 = core::FileCache::new();
+    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&cache1, &path, &path)).nth(0).unwrap();
+    let pos2 = scopes::coords_to_point(src, 19, 7);   // t.t
+    let cache2 = core::FileCache::new();
+    let got2 = complete_from_file(src, &path, pos2, &core::Session::from_path(&cache2, &path, &path)).nth(0).unwrap();
+    println!("{:?}", got1);
+    println!("{:?}", got2);
+    assert_eq!(got1.matchstr, "traitf".to_string());
+    assert_eq!(got2.matchstr, "traitm".to_string());
+    assert_eq!(got1.contextstr, "fn traitf() -> bool".to_string());
+    assert_eq!(got2.contextstr, "fn traitm(&self) -> bool".to_string());
+}
+
+#[test]
 fn follows_use() {
     let src1="
     pub fn myfn() {}

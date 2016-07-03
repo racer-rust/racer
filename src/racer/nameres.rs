@@ -122,7 +122,8 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                         session: &Session) -> vec::IntoIter<Match> {
     debug!("search_for_impls {}, {}, {:?}", pos, searchstr, filepath.to_str());
     let s = session.load_file(filepath);
-    let src = s.from(pos);
+    let scope_start = scopes::scope_start(s.as_src(), pos);
+    let src = s.from(scope_start);
 
     let mut out = Vec::new();
     for (start, end) in src.iter_stmts() {
@@ -143,7 +144,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                                 let m = Match {
                                     matchstr: name.name.clone(),
                                     filepath: filepath.to_path_buf(),
-                                    point: pos + start + 5,
+                                    point: scope_start + start + 5,
                                     // items in trait impls have no "pub" but are
                                     // still accessible from other modules
                                     local: local || is_trait_impl,
@@ -162,7 +163,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                     if include_traits && is_trait_impl {
                         let trait_path = implres.trait_path.unwrap();
                         let mut m = resolve_path(&trait_path,
-                                             filepath, pos + start, ExactMatch, TypeNamespace,
+                                             filepath, scope_start + start, ExactMatch, TypeNamespace,
                                              session).nth(0);
                         debug!("found trait |{:?}| {:?}", trait_path, m);
 
