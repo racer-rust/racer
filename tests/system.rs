@@ -355,7 +355,7 @@ mod sub {
         fn traitm(&self) -> bool;
     }
 
-    pub struct Foo(bool);
+    pub struct Foo(pub bool);
 
     impl Trait for Foo {
         fn traitf() -> bool { false }
@@ -399,7 +399,7 @@ mod sub {
         fn traitm(&self) -> bool { true }
     }
 
-    pub struct Foo(bool);
+    pub struct Foo(pub bool);
 }
 
 fn main() { // l16
