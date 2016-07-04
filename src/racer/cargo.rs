@@ -144,7 +144,17 @@ fn get_cargo_packages(cargofile: &Path) -> Option<Vec<PackageInfo>> {
                         let branch = get_branch_from_source(&package_source);
                         d.push("git");
                         d.push("checkouts");
-                        d = unwrap_or_continue!(find_git_src_dir(d, package_name, &sha1, branch));
+                        
+                        //use repository name instead of package name
+                        let left = package_source.rfind('/').unwrap_or(0);
+                        let right = package_source.rfind(".git#").unwrap_or(package_source.rfind("#").unwrap_or(0));
+                        let dir = &package_source[left + 1 .. right];
+                        if dir.len() > 0 {
+                            d = unwrap_or_continue!(find_git_src_dir(d, dir, &sha1, branch));
+                        } else {
+                            d = unwrap_or_continue!(find_git_src_dir(d, package_name, &sha1, branch));
+                        }
+                        
                         d.push("src");
                         d.push("lib.rs");
 
