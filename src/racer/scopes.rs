@@ -96,7 +96,6 @@ fn finds_subnested_module() {
     assert_eq!("foo", &v[0][..]);
 }
 
-
 pub fn split_into_context_and_completion(s: &str) -> (&str, &str, CompletionType) {
     match s.char_indices().rev().find(|&(_, c)| !util::is_ident_char(c)) {
         Some((i,c)) => {
@@ -108,6 +107,17 @@ pub fn split_into_context_and_completion(s: &str) -> (&str, &str, CompletionType
         },
         None => ("", s, CompletionType::Path)
     }
+}
+
+pub fn get_line(src: &str, point: usize) -> usize {
+    let mut i = point;
+    for &b in src.as_bytes()[..point].iter().rev() {
+        i-=1;
+        if b == b'\n' {
+            return i+1;
+        }
+    }
+    0
 }
 
 pub fn get_start_of_search_expr(src: &str, point: usize) -> usize {

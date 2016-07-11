@@ -556,13 +556,30 @@ pub fn complete_from_file(src: &str, filepath: &path::Path,
 
     match completetype {
         CompletionType::Path => {
-            let mut v = expr.split("::").collect::<Vec<_>>();
-            let global = v[0] == "";
-            if global {      // i.e. starts with '::' e.g. ::std::old_io::blah
-                v.remove(0);
-            }
+            // reparse the string, searchstr is not corrected parsed with split_into_context_and_completion
+            // it will stop by character like '{', and ' ', which occurs in the following case
+            // 1. The line is use contextstr::{A, B, C, searchstr
+            // 2. The line started with contextstr or ::
+            // 3. FIXME(may not correct): Neither above case, then expr parsed above is corrected
+            let linestart = scopes::get_line(src, pos);
 
-            let path = Path::from_vec(global, v);
+            // step 1, get full line, take the rightmost part split by semicolon
+            //   prevent the case that someone write multiple line in one line
+            let mut line = src[linestart..pos].trim().rsplit(';').nth(0).unwrap();
+            debug!("Complete path with line: {:?}", line);
+
+            let is_global = line.starts_with("::");
+            let is_use = line.starts_with("use ");
+
+            let v = match is_use || is_global {
+                true => {
+                    if is_use { line = &line[4..]; }
+                    if is_global { line = &line[2..]; }
+                    line.split("::").collect::<Vec<_>>()
+                },
+                false => expr.split("::").collect::<Vec<_>>(),
+            };
+            let path = Path::from_vec(is_global, v);
             for m in nameres::resolve_path(&path, filepath, pos,
                                          SearchType::StartsWith, Namespace::BothNamespaces,
                                          session) {
