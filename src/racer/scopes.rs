@@ -12,6 +12,7 @@ fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<usi
     for (count, &b) in iter.enumerate() {
         if b == close {
             if levels == level_end { return Some(count); }
+            if levels == 0 { return None; }
             levels -= 1;
         } else if b == open { levels += 1; }
     }
