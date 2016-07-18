@@ -142,7 +142,7 @@ fn run_the_complete_fn(cfg: &Config, print_type: CompletePrinter) {
     let session = core::Session::from_path(&cache, fn_path, substitute_file);
 
     if substitute_file.to_str() == Some("-") {
-        cache_file_contents_from_stdin(&substitute_file, &cache);
+        cache_file_contents_from_stdin(substitute_file, &cache);
     }
 
     let src = session.load_file(fn_path);
@@ -172,9 +172,9 @@ fn external_complete(cfg: Config, print_type: CompletePrinter) {
     let p: Vec<&str> = cfg.fqn.as_ref().unwrap().split("::").collect();
     let cwd = Path::new(".");
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &cwd, &cwd);
+    let session = core::Session::from_path(&cache, cwd, cwd);
 
-    for m in do_file_search(p[0], &Path::new(".")) {
+    for m in do_file_search(p[0], cwd) {
         if p.len() == 1 {
             match print_type {
                 CompletePrinter::Normal => match_fn(m, &session, cfg.interface),
@@ -201,7 +201,7 @@ fn prefix(cfg: Config) {
     let session = core::Session::from_path(&cache, fn_path, substitute_file);
 
     if substitute_file.to_str() == Some("-") {
-        cache_file_contents_from_stdin(&substitute_file, &cache);
+        cache_file_contents_from_stdin(substitute_file, &cache);
     }
 
     // print the start, end, and the identifier prefix being matched
@@ -223,7 +223,7 @@ fn find_definition(cfg: Config) {
     let session = core::Session::from_path(&cache, fn_path, substitute_file);
 
     if substitute_file.to_str() == Some("-") {
-        cache_file_contents_from_stdin(&substitute_file, &cache);
+        cache_file_contents_from_stdin(substitute_file, &cache);
     }
 
     let src = session.load_file(fn_path);

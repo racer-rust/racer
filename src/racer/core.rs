@@ -17,7 +17,7 @@ use nameres;
 use ast;
 use codecleaner;
 
-#[derive(Debug,Clone,Copy,PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MatchType {
     Struct,
     Module,
@@ -41,20 +41,20 @@ pub enum MatchType {
     Builtin,
 }
 
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum SearchType {
     ExactMatch,
     StartsWith
 }
 
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum Namespace {
     TypeNamespace,
     ValueNamespace,
     BothNamespaces
 }
 
-#[derive(Debug,Clone,Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum CompletionType {
     Field,
     Path
@@ -571,14 +571,15 @@ pub fn complete_from_file(src: &str, filepath: &path::Path,
             let is_global = line.starts_with("::");
             let is_use = line.starts_with("use ");
 
-            let v = match is_use || is_global {
-                true => {
-                    if is_use { line = &line[4..]; }
-                    if is_global { line = &line[2..]; }
-                    line.split("::").collect::<Vec<_>>()
-                },
-                false => expr.split("::").collect::<Vec<_>>(),
+            let v = if is_use || is_global {
+                if is_use { line = &line[4..]; }
+                if is_global { line = &line[2..]; }
+
+                line.split("::").collect::<Vec<_>>()
+            } else {
+                expr.split("::").collect::<Vec<_>>()
             };
+
             let path = Path::from_vec(is_global, v);
             for m in nameres::resolve_path(&path, filepath, pos,
                                          SearchType::StartsWith, Namespace::BothNamespaces,

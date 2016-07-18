@@ -999,7 +999,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                     if let Some(i) = searchstr.rfind(',') {
                         searchstr = searchstr[i+1..].trim();
                     }
-                    if searchstr.chars().next() == Some('{') {
+                    if searchstr.starts_with('{') {
                         searchstr = &searchstr[1..];
                     }
                     let pathseg = core::PathSegment{name: searchstr.to_owned(), types: Vec::new()};
@@ -1227,7 +1227,7 @@ fn generic_arg_to_path(type_str: &str, m: &Match) -> Option<core::PathSearch>
 {
     debug!("Attempting to find type match for {} in {:?}", type_str, m);
     if let Some(match_pos) = m.generic_args.iter().position(|x| { *x == type_str}) {
-        if let Some(gen_type) = m.generic_types.iter().nth(match_pos) {
+        if let Some(gen_type) = m.generic_types.get(match_pos) {
             return Some(gen_type.clone());
         }
     }
@@ -1235,8 +1235,8 @@ fn generic_arg_to_path(type_str: &str, m: &Match) -> Option<core::PathSearch>
 }
 
 fn get_subpathsearch(pathsearch: &core::PathSearch) -> Option<core::PathSearch> {
-    pathsearch.path.segments.iter().nth(0)
-        .and_then(|seg| {seg.types.iter().nth(0)
+    pathsearch.path.segments.get(0)
+        .and_then(|seg| {seg.types.get(0)
                          .and_then(|first_type| {
                                      Some(core::PathSearch {
                                          path: first_type.clone(),
