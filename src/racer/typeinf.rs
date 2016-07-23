@@ -39,7 +39,7 @@ pub fn first_param_is_self(blob: &str) -> bool {
                     let mut level = 0;
                     let mut prev = ' ';
                     let mut skip_generic = 0;
-                    for (i, c) in blob.char_indices() {
+                    for (i, c) in blob[generic_start..].char_indices() {
                         match c {
                             '<' => level += 1,
                             '>' if prev == '-' => (),
@@ -49,6 +49,7 @@ pub fn first_param_is_self(blob: &str) -> bool {
                         prev = c;
                         if level == 0 {
                             skip_generic = i;
+                            break;
                         }
                     }
                     skip_generic
