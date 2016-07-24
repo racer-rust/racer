@@ -161,6 +161,7 @@ fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<core:
     src.push_str(&stmt[forpos+4..inpos]);
     src.push_str(") = ");
     src.push_str(&stmt[inpos+4..bracepos]);
+    src = src.trim_right().to_owned();
     src.push_str(".into_iter().next() { }}");
     let src = core::new_source(src);
 
@@ -168,8 +169,8 @@ fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<core:
         let blob = &src[start..end];
         debug!("get_type_of_for_expr: |{}| {} {} {} {}", blob, m.point, stmtstart, forpos, start);
 
-        let pos = m.point - stmtstart - forpos - start;
-        let scope = Scope{ filepath: m.filepath.clone(), point: m.point };
+        let pos = m.point + 8 - stmtstart - forpos - start;
+        let scope = Scope{ filepath: m.filepath.clone(), point: m.point + 8 };
 
         ast::get_let_type(blob.to_owned(), pos, scope, session)
     } else {
