@@ -581,10 +581,10 @@ fn follows_multiple_use_globs() {
     use multiple_glob_test2::*;
     mod multiple_glob_test1;
     mod multiple_glob_test2;
-    
+
     src
     ";
-    
+
     let _tmpsrc1 = TmpFile::with_name("multiple_glob_test1.rs", src1);
     let _tmpsrc2 = TmpFile::with_name("multiple_glob_test2.rs", src2);
     let tmpsrc = TmpFile::new(src);
@@ -593,7 +593,7 @@ fn follows_multiple_use_globs() {
     let cache = core::FileCache::new();
     let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path));
     let completion_strings = got.into_iter().map(|raw_match| raw_match.matchstr).collect::<Vec<_>>();
-    
+
     assert!(completion_strings.contains(&"src1fn".to_string()) && completion_strings.contains(&"src2fn".to_string()),
     format!("Results should contain BOTH \"src1fn\" and \"src2fn\". Actual returned results: {:?} ", completion_strings));
 }
@@ -2054,4 +2054,35 @@ fn completes_multiple_use_comma() {
     for (wo, wi) in gotwo.zip(gotwi) {
         assert_eq!(wo.matchstr, wi.matchstr);
     }
+}
+
+
+#[test]
+fn completes_trait_methods_in_trait_impl() {
+    let src = "
+mod sub {
+    pub trait Trait {
+        fn traitf() -> bool;
+        fn traitm(&self) -> bool;
+    }
+
+    pub struct Foo(bool);
+
+    impl Trait for Foo {
+        fn traitf() -> bool { false }
+        fn traitm(&self) -> bool { true }
+    }
+}
+";
+    let f = TmpFile::new(src);
+    let path = f.path();
+    let pos1 = scopes::coords_to_point(src, 11, 17);  // fn trait
+    let cache1 = core::FileCache::new();
+    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&cache1, &path, &path)).nth(0).unwrap();
+    assert_eq!(got1.matchstr, "traitf".to_string());
+    assert_eq!(got1.contextstr, "fn traitf() -> bool".to_string());
+    let pos1 = scopes::coords_to_point(src, 12, 17);  // fn trait
+    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&cache1, &path, &path)).nth(0).unwrap();
+    assert_eq!(got1.matchstr, "traitm".to_string());
+    assert_eq!(got1.contextstr, "fn traitm(&self) -> bool".to_string());
 }

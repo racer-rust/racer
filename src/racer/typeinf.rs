@@ -302,7 +302,8 @@ pub fn get_type_from_match_arm(m: &Match, msrc: Src, session: &Session) -> Optio
 pub fn get_function_declaration(fnmatch: &Match, session: &Session) -> String {
     let src = session.load_file(&fnmatch.filepath);
     let start = scopes::find_stmt_start(src.as_src(), fnmatch.point).unwrap();
-    let end = (&src[start..]).find('{').unwrap();
+    let def_end: &[_] = &['{', ';'];
+    let end = (&src[start..]).find(def_end).unwrap();
     (&src[start..end+start]).to_owned()
 }
 
