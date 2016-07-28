@@ -347,6 +347,83 @@ fn main() {
 }
 
 #[test]
+fn completes_for_vec_field_and_method() {
+    let modsrc = "
+    pub trait IntoIterator {
+        type Item;
+        
+        type IntoIter: Iterator<Item=Self::Item>;
+        
+        fn into_iter(self) -> Self::IntoIter;
+    }
+    
+    impl<T> IntoIterator for Vec<T> {
+        type Item = T;
+        type IntoIter = IntoIter<T>;
+        
+        fn into_iter(mut self) -> IntoIter<T> {}
+    }
+    
+    pub struct IntoIter<T> {}
+    
+    impl<T> Iterator for IntoIter<T> {
+        type Item = T;
+        
+        fn next(&mut self) -> Option<T> {}
+    }
+    
+    pub struct Vec<T> {}
+
+    pub enum Option<T> {
+        None,
+        Some(T)
+    }
+    ";
+    let src="
+    pub mod mymod;
+    use mymod::{Vec, IntoIter, IntoIterator, Option};
+    use Option::{Some, None};
+
+    struct St
+    {
+        stfield: i32,
+    }
+    
+    impl St {
+        pub fn stmethod(&self) -> u32 {2}
+    }
+    
+    fn main()
+    {
+        let mut arr: Vec<St> = Vec::new();
+        arr.push( St{stfield: 4} );
+    
+        for it in arr
+        {
+            it.stf
+            it.stm
+        }
+    }
+    ";
+
+    let dir = TmpDir::new();
+    let _modfile = dir.new_temp_file_with_name("mymod.rs", modsrc);
+    let srcfile = dir.new_temp_file_with_name("src.rs", src);
+    
+    let path = srcfile.path();
+    let pos1 = scopes::coords_to_point(src, 22, 18);
+    let cache1 = core::FileCache::new();
+    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&cache1, &path, &path)).nth(0).unwrap();
+    println!("{:?}", got1);
+    assert_eq!("stfield".to_string(), got1.matchstr);
+    let pos2 = scopes::coords_to_point(src, 23, 18);
+    let cache2 = core::FileCache::new();
+    let got2 = complete_from_file(src, &path, pos2, &core::Session::from_path(&cache2, &path, &path)).nth(0).unwrap();
+    println!("{:?}", got2);
+    assert_eq!("stmethod".to_string(), got2.matchstr);
+}
+
+#[test]
 fn completes_trait_methods() {
     let src = "
 mod sub {

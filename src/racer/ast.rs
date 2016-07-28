@@ -1,6 +1,7 @@
 use core::{self, Match, MatchType, Scope, Ty, Session};
 use typeinf;
 use nameres::{self, resolve_path_with_str};
+use scopes;
 
 use std::path::Path;
 use std::rc::Rc;
@@ -377,11 +378,11 @@ fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
 }
 
 fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &Session) -> Option<Ty> {
-    debug!("find_type_match {:?}", path);
+    debug!("find_type_match {:?}, {:?}", path, fpath);
     let res = resolve_path_with_str(path, fpath, pos, core::SearchType::ExactMatch,
                core::Namespace::TypeNamespace, session).nth(0).and_then(|m| {
                    match m.mtype {
-                       MatchType::Type => get_type_of_typedef(m, session),
+                       MatchType::Type => get_type_of_typedef(m, session, fpath),
                        _ => Some(m)
                    }
                });
@@ -404,7 +405,7 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &Sessio
     })
 }
 
-fn get_type_of_typedef(m: Match, session: &Session) -> Option<Match> {
+fn get_type_of_typedef(m: Match, session: &Session, fpath: &Path) -> Option<Match> {
     debug!("get_type_of_typedef match is {:?}", m);
     let msrc = session.load_file_and_mask_comments(&m.filepath);
     let blobstart = m.point - 5;  // - 5 because 'type '
@@ -417,11 +418,14 @@ fn get_type_of_typedef(m: Match, session: &Session) -> Option<Match> {
         debug!("get_type_of_typedef parsed type {:?}", res.type_);
         res.type_
     }).and_then(|type_| {
-        nameres::resolve_path_with_str(&type_, &m.filepath, m.point, core::SearchType::ExactMatch,
+        let src = session.load_file(fpath);
+        let scope_start = scopes::scope_start(src.as_src(), m.point);
+        // Type of TypeDef cannot be inside the impl block so look outside
+        let outer_scope_start = scopes::scope_start(src.as_src(), scope_start - 1); 
+        nameres::resolve_path_with_str(&type_, &m.filepath, outer_scope_start, core::SearchType::ExactMatch,
                                        core::Namespace::TypeNamespace, session).nth(0)
     })
 }
-
 
 struct ExprTypeVisitor<'c: 's, 's> {
     scope: Scope,
@@ -557,13 +561,16 @@ impl<'c, 's, 'v> visit::Visitor<'v> for ExprTypeVisitor<'c, 's> {
 fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session) -> Option<Ty> {
     match ty {
         Ty::PathSearch(ref fieldtypepath, ref scope) => {
-
+            debug!("path_to_match_including_generics: {:?}  {:?}", ty, contextm);
             if fieldtypepath.segments.len() == 1 {
-                // could be a generic arg! - try and resolve it
-                let typename = &fieldtypepath.segments[0].name;
-                let it = contextm.generic_args.iter()
-                    .zip(contextm.generic_types.iter());
-                for (name, typesearch) in it {
+                // could have generic args! - try and resolve them
+                let typename = fieldtypepath.segments[0].name.clone();
+                let it = contextm.generic_args.iter().cloned()
+                    .zip(contextm.generic_types.iter().cloned());
+                let mut typepath = fieldtypepath.clone();
+                let mut gentypefound = false;
+                
+                for (name, typesearch) in it.clone() {
                     if name == typename {
                         // yes! a generic type match!
                         return find_type_match(&typesearch.path,
@@ -571,6 +578,30 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
                                                typesearch.point,
                                                session);
                     }
+
+                    for typ in typepath.segments[0].types.iter_mut() {
+                        let gentypename = typ.segments[0].name.clone();
+                        if name == gentypename {
+                            // A generic type on ty matches one on contextm
+                            *typ = typesearch.path.clone(); // Overwrite the type with the one from contextm
+                            gentypefound = true;
+                        }
+                    }
+                }
+
+                if gentypefound {
+                    let mut out = find_type_match(&typepath, &scope.filepath, scope.point, session);
+                    
+                    // Fix the paths on the generic types in out
+                    if let Some(Ty::Match(ref mut m)) = out {
+                        for (_, typesearch) in it {
+                            for gentypematch in m.generic_types.iter_mut()
+                                .filter(|ty| {ty.path.segments[0].name == typesearch.path.segments[0].name}) {
+                                    *gentypematch = typesearch.clone();
+                                }
+                        }
+                    }
+                    return out;
                 }
             }
 
@@ -579,7 +610,6 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
         _ => Some(ty)
     }
 }
-
 
 fn find_type_match_including_generics(fieldtype: &core::Ty,
                                       filepath: &Path,
