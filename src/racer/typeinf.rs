@@ -26,31 +26,47 @@ pub fn generate_skeleton_for_parsing(src: &str) -> String {
     s
 }
 
-pub fn first_param_is_self(mut blob: &str) -> bool {
+pub fn first_param_is_self(blob: &str) -> bool {
     // skip generic arg
     // consider 'pub fn map<U, F: FnOnce(T) -> U>(self, f: F)'
     // we have to match the '>'
-    let mut skip_generic = 0;
-    if let Some(generic_start) = blob.find('<') {
-        blob = &blob[generic_start..];
-        let mut level = 0;
-        let mut prev = ' ';
-        for (i, c) in blob.char_indices() {
-            match c {
-                '<' => level+=1,
-                '>' if (prev != '-') && (level == 1) => skip_generic = i,
-                _ => (),
+    match blob.find('(') {
+        None => false,
+        Some(probable_param_start) => {
+            let skip_generic = match blob.find('<') {
+                None => 0,
+                Some(generic_start) if generic_start < probable_param_start => {
+                    let mut level = 0;
+                    let mut prev = ' ';
+                    let mut skip_generic = 0;
+                    for (i, c) in blob[generic_start..].char_indices() {
+                        match c {
+                            '<' => level += 1,
+                            '>' if prev == '-' => (),
+                            '>' => level -= 1,
+                            _ => (),
+                        }
+                        prev = c;
+                        if level == 0 {
+                            skip_generic = i;
+                            break;
+                        }
+                    }
+                    skip_generic
+                },
+                Some(..) => 0,
+            };
+            while let Some(start) = blob[skip_generic..].find('(') {
+                let end = scopes::find_closing_paren(blob, start + 1);
+                let is_self = txt_matches(ExactMatch, "self", &blob[(start + 1)..end]);
+                debug!("searching fn args: |{}| {}",
+                       &blob[(start + 1)..end],
+                       is_self);
+                return is_self;
             }
-            prev = c;
+            false
         }
-    };
-    while let Some(start) = blob[skip_generic..].find('(') {
-        let end = scopes::find_closing_paren(blob, start+1);
-        let is_self = txt_matches(ExactMatch, "self", &blob[(start+1)..end]);
-        debug!("searching fn args: |{}| {}", &blob[(start+1)..end], is_self);
-        return is_self
     }
-    false
 }
 
 #[test]
