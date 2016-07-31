@@ -25,7 +25,7 @@ syntex_syntax = "~0.32.0"
 toml = "~0.1.30"
 env_logger = "~0.3.4"
 typed-arena = "~1.2.0"
-clap = "~2.9.2"
+clap = "~2.10.0"
 
 [dev-dependencies]
 test_fixtures = { path = "src/test_fixtures" }
