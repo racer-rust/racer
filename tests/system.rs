@@ -257,13 +257,31 @@ fn completes_pub_fn_from_local_package() {
         let x = foo::
     }
     ";
-
     let f = TmpFile::new(src);
     let path = f.path();
     let pos = scopes::coords_to_point(src, 7, 21);
     let cache = core::FileCache::new();
     let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0);
     assert_eq!(got.unwrap().matchstr, "test".to_owned());
+}
+
+#[test]
+fn completes_pub_fn_from_local_submodule_package() {
+    let src="
+    extern crate fixtures;
+
+    use fixtures::bar;
+
+    fn main() {
+        let x = bar::
+    }
+    ";
+    let f = TmpFile::new(src);
+    let path = f.path();
+    let pos = scopes::coords_to_point(src, 7, 21);
+    let cache = core::FileCache::new();
+    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0);
+    assert_eq!(got.unwrap().matchstr, "bartest".to_owned());
 }
 
 #[test]
@@ -351,27 +369,27 @@ fn completes_for_vec_field_and_method() {
     let modsrc = "
     pub trait IntoIterator {
         type Item;
-        
+
         type IntoIter: Iterator<Item=Self::Item>;
-        
+
         fn into_iter(self) -> Self::IntoIter;
     }
-    
+
     impl<T> IntoIterator for Vec<T> {
         type Item = T;
         type IntoIter = IntoIter<T>;
-        
+
         fn into_iter(mut self) -> IntoIter<T> {}
     }
-    
+
     pub struct IntoIter<T> {}
-    
+
     impl<T> Iterator for IntoIter<T> {
         type Item = T;
-        
+
         fn next(&mut self) -> Option<T> {}
     }
-    
+
     pub struct Vec<T> {}
 
     pub enum Option<T> {
@@ -388,16 +406,16 @@ fn completes_for_vec_field_and_method() {
     {
         stfield: i32,
     }
-    
+
     impl St {
         pub fn stmethod(&self) -> u32 {2}
     }
-    
+
     fn main()
     {
         let mut arr: Vec<St> = Vec::new();
         arr.push( St{stfield: 4} );
-    
+
         for it in arr
         {
             it.stf
@@ -409,7 +427,7 @@ fn completes_for_vec_field_and_method() {
     let dir = TmpDir::new();
     let _modfile = dir.new_temp_file_with_name("mymod.rs", modsrc);
     let srcfile = dir.new_temp_file_with_name("src.rs", src);
-    
+
     let path = srcfile.path();
     let pos1 = scopes::coords_to_point(src, 22, 18);
     let cache1 = core::FileCache::new();
