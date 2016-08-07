@@ -310,7 +310,7 @@ pub fn get_function_declaration(fnmatch: &Match, session: &Session) -> String {
 pub fn get_return_type_of_function(fnmatch: &Match, session: &Session) -> Option<core::Ty> {
     let src = session.load_file(&fnmatch.filepath);
     let point = scopes::find_stmt_start(src.as_src(), fnmatch.point).unwrap();
-    (&src[point..]).find("{").and_then(|n| {
+    let mut out = (&src[point..]).find("{").and_then(|n| {
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut decl = String::new();
         decl.push_str("impl blah {");
@@ -318,5 +318,19 @@ pub fn get_return_type_of_function(fnmatch: &Match, session: &Session) -> Option
         decl.push_str("}}");
         debug!("get_return_type_of_function: passing in |{}|", decl);
         ast::parse_fn_output(decl, Scope::from_match(fnmatch))
-    })
+    });
+
+    // Convert a generic output arg to the correct type
+    if let Some(core::Ty::PathSearch(ref mut path, _)) = out {
+        if let Some(ref mut path_seg) = path.clone().segments.get(0) {
+            if path.segments.len() == 1 && path_seg.types.is_empty() {
+                for (type_name, type_path) in fnmatch.generic_args.iter().zip(fnmatch.generic_types.iter()) {
+                    if type_name == &path_seg.name {
+                        *path = type_path.path.clone();
+                    }
+                }
+            }
+        }
+    };
+    out
 }

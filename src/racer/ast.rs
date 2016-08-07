@@ -6,7 +6,7 @@ use scopes;
 use std::path::Path;
 use std::rc::Rc;
 
-use syntex_syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, PatKind, PathListItemKind, StmtKind, TyKind};
+use syntex_syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, PatKind, PathListItemKind, StmtKind, TyKind, TyParamBound};
 use syntex_syntax::codemap::{self, Spanned};
 use syntex_syntax::parse::parser::Parser;
 use syntex_syntax::parse::{lexer, ParseSess};
@@ -386,7 +386,7 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &Sessio
                        _ => Some(m)
                    }
                });
-
+    
     res.and_then(|m| {
         // add generic types to match (if any)
         let types: Vec<core::PathSearch> = path.generic_types()
@@ -775,15 +775,35 @@ impl<'v> visit::Visitor<'v> for ExternCrateVisitor {
     }
 }
 
+#[derive(Debug)]
+pub struct GenericArg {
+    pub name: String,
+    pub bounds: Vec<String>
+}
 
+#[derive(Debug)]
 pub struct GenericsVisitor {
-    pub generic_args: Vec<String>
+    pub generic_args: Vec<GenericArg>,
 }
 
 impl<'v> visit::Visitor<'v> for GenericsVisitor {
     fn visit_generics(&mut self, g: &ast::Generics) {
         for ty in g.ty_params.iter() {
-            self.generic_args.push((&ty.ident.name).to_string());
+            let generic_ty_name = (&ty.ident.name).to_string();
+            let mut generic_bounds = Vec::new();
+            for trait_bound in ty.bounds.iter() {
+                let bound_path = match trait_bound {
+                    &TyParamBound::TraitTyParamBound(ref ptrait_ref, _) => Some(&ptrait_ref.trait_ref.path),
+                    _ => None, 
+                };
+                if let Some(path) = bound_path.and_then(|path| { path.segments.get(0) }) {
+                    generic_bounds.push((path.identifier.name).to_string());
+                };
+            }
+            self.generic_args.push(GenericArg {
+                name: generic_ty_name,
+                bounds: generic_bounds
+            });
         }
     }
 }

@@ -481,6 +481,90 @@ fn main() { // l16
 }
 
 #[test]
+fn completes_trait_bounded_methods() {
+    let src = "
+    pub trait Trait1 {}
+    
+    impl Trait1 for Foo {}
+    
+    pub trait Trait2 {
+        fn traitf() -> bool;
+        fn traitm(&self) -> bool;
+    }
+    
+    impl<T: Trait1> Trait2 for T {
+        fn traitf() -> bool { true }
+        fn traitm(&self) -> bool { false }
+    }
+    
+    pub struct Foo(pub bool);
+    
+    fn main() {
+        let t = Foo(true);
+        Foo::tra
+        t.tr
+    }
+";
+    let f = TmpFile::new(src);
+    let path = f.path();
+    let pos1 = scopes::coords_to_point(src, 20, 16);  // sub::Foo::
+    let cache1 = core::FileCache::new();
+    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&cache1, &path, &path)).nth(0).unwrap();
+    let pos2 = scopes::coords_to_point(src, 21, 12);   // t.t
+    let cache2 = core::FileCache::new();
+    let got2 = complete_from_file(src, &path, pos2, &core::Session::from_path(&cache2, &path, &path)).nth(0).unwrap();
+    println!("{:?}", got1);
+    println!("{:?}", got2);
+    assert_eq!(got1.matchstr, "traitf".to_string());
+    assert_eq!(got2.matchstr, "traitm".to_string());
+    assert_eq!(got1.contextstr, "fn traitf() -> bool".to_string());
+    assert_eq!(got2.contextstr, "fn traitm(&self) -> bool".to_string());
+}
+
+#[test]
+fn completes_trait_bounded_methods_generic_return() {
+    let src = "
+    pub trait Trait1 {
+        fn traitfn(&self) -> u32 { 2 }
+    }
+    
+    impl Trait1 for Foo {}
+    
+    pub trait Trait2 {
+        fn traitm(self) -> Self;
+    }
+    
+    impl<T: Trait1> Trait2 for T {
+        fn traitm(self) -> T { self }
+    }
+    
+    pub struct Foo(pub bool);
+    
+    impl Foo {
+        pub fn structfn(&self) -> bool {self.0}
+    }
+    
+    fn main() {
+        let t = Foo(true);
+        t.traitm().struc
+        t.traitm().traitf
+    }
+";
+    let f = TmpFile::new(src);
+    let path = f.path();
+    let pos1 = scopes::coords_to_point(src, 24, 24);  // sub::Foo::
+    let pos2 = scopes::coords_to_point(src, 25, 25);  // sub::Foo::
+    let cache1 = core::FileCache::new();
+    let cache2 = core::FileCache::new();
+    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&cache1, &path, &path)).nth(0).unwrap();
+    let got2 = complete_from_file(src, &path, pos2, &core::Session::from_path(&cache2, &path, &path)).nth(0).unwrap();
+    println!("{:?}", got1);
+    println!("{:?}", got2);
+    assert_eq!(got1.matchstr, "structfn".to_string());
+    assert_eq!(got2.matchstr, "traitfn".to_string());
+}
+
+#[test]
 fn completes_trait_methods_when_at_scope_end() {
     let src = "
 mod sub {
