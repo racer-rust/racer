@@ -3,7 +3,7 @@ use core::{Src, CompletionType, Session};
 #[cfg(test)] use core;
 
 use std::iter::Iterator;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 use util::char_at;
 
@@ -59,6 +59,29 @@ fn get_local_module_path_(msrc: Src, point: usize, out: &mut Vec<String>) {
             }
         }
     }
+}
+
+pub fn get_module_file_from_path(msrc: Src, point: usize, parentdir: &Path) -> Option<PathBuf> {
+    let mut iter = msrc.iter_stmts();
+    while let Some((start, end)) = iter.next() {
+        let blob = msrc.from_to(start, end);
+        if blob.starts_with("#[path ")  {
+            if let Some((_,modend)) = iter.next(){
+                if start < point && modend > point {
+                    let pathstart = blob.find('"').unwrap() + 1;
+                    let pathend = blob[pathstart..].find('"').unwrap();
+                    let path = &blob[pathstart..pathstart+pathend];
+
+                    debug!("found a path attribute, path = |{}|", path);
+                    let filepath = parentdir.join(path);
+                    if filepath.exists() {
+                        return Some(filepath.to_path_buf());
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 pub fn find_impl_start(msrc: Src, point: usize, scopestart: usize) -> Option<usize> {

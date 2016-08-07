@@ -305,6 +305,22 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
                 docs: String::new(),
             })
         } else {
+            // get module from path attribute
+            if let Some(modpath) = scopes::get_module_file_from_path(msrc, blobstart,filepath.parent().unwrap()) {
+                let msrc = session.load_file(&modpath);
+
+                return Some(Match {
+                    matchstr: l.to_owned(),
+                    filepath: modpath.to_path_buf(),
+                    point: 0,
+                    local: false,
+                    mtype: Module,
+                    contextstr: modpath.to_str().unwrap().to_owned(),
+                    generic_args: Vec::new(),
+                    generic_types: Vec::new(),
+                    docs: find_mod_doc(&msrc, 0),
+                })
+            }
             // get internal module nesting
             // e.g. is this in an inline submodule?  mod foo{ mod bar; }
             // because if it is then we need to search further down the
