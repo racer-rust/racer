@@ -45,8 +45,8 @@ fn match_with_snippet_fn(m: Match, session: &core::Session, interface: Interface
                         charnum.to_string(),
                         m.filepath.to_str().unwrap(),
                         m.mtype,
-                        m.contextstr.replace(";" ,"\\;"),
-                        format!("{:?}", m.docs).replace(";" ,"\\;")),
+                        m.contextstr.replace(";", "\\;").split_whitespace().collect::<Vec<&str>>().join(" "),
+                        format!("{:?}", m.docs).replace(";", "\\;")),
         Interface::TabText =>
             println!("MATCH\t{}\t{}\t{}\t{}\t{}\t{:?}\t{}\t{:?}",
                         m.matchstr,
@@ -55,7 +55,7 @@ fn match_with_snippet_fn(m: Match, session: &core::Session, interface: Interface
                         charnum.to_string(),
                         m.filepath.to_str().unwrap(),
                         m.mtype,
-                        m.contextstr.replace("\t", "\\t"),
+                        m.contextstr.replace("\t", "\\t").split_whitespace().collect::<Vec<&str>>().join(" "),
                         m.docs),
     }
 }
@@ -73,7 +73,7 @@ fn match_fn(m: Match, session: &core::Session, interface: Interface) {
                             charnum.to_string(),
                             m.filepath.to_str().unwrap(),
                             m.mtype,
-                            m.contextstr),
+                            m.contextstr.split_whitespace().collect::<Vec<&str>>().join(" ")),
             Interface::TabText =>
                 println!("MATCH\t{}\t{}\t{}\t{}\t{:?}\t{}",
                             m.matchstr,
@@ -81,7 +81,7 @@ fn match_fn(m: Match, session: &core::Session, interface: Interface) {
                             charnum.to_string(),
                             m.filepath.to_str().unwrap(),
                             m.mtype,
-                            m.contextstr),
+                            m.contextstr.split_whitespace().collect::<Vec<&str>>().join(" ")),
         }
     } else {
         error!("Could not resolve file coords for match {:?}", m);
