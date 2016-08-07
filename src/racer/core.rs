@@ -451,19 +451,15 @@ impl FileCache {
 
     fn read_file(&self, path: &path::Path) -> Vec<u8> {
         let mut rawbytes = Vec::new();
-        if let Ok(mut f) = self.open_file(path) {
-            f.read_to_end(&mut rawbytes).unwrap();
-            // skip BOM bytes, if present
-            if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
-                let mut it = rawbytes.into_iter();
-                it.next(); it.next(); it.next();
-                it.collect()
-            } else {
-                rawbytes
-            }
+        let mut f = self.open_file(path).unwrap();
+        f.read_to_end(&mut rawbytes).unwrap();
+        // skip BOM bytes, if present
+        if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
+            let mut it = rawbytes.into_iter();
+            it.next(); it.next(); it.next();
+            it.collect()
         } else {
-            error!("read_file couldn't open {:?}. Returning empty string", path);
-            Vec::new()
+            rawbytes
         }
     }
 
