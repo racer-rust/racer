@@ -3,7 +3,7 @@
 use {core, ast, matchers, scopes, typeinf};
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{Match, Src, Session};
-use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, MatchArm, Builtin};
+use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, TraitImpl, MatchArm, Builtin};
 use core::Namespace::{self, TypeNamespace, ValueNamespace, BothNamespaces};
 use util::{symbol_matches, txt_matches, find_ident_end};
 use cargo;
@@ -76,6 +76,17 @@ pub fn search_for_impl_methods(match_request: &Match,
                 out.push(m);
             }
         });
+        for gen_m in search_for_generic_impls(m.point, &m.matchstr, &match_request, &m.filepath, session) {
+            debug!("found generic impl!! {:?}", gen_m);
+            let src = session.load_file(&gen_m.filepath);
+            // find the opening brace and skip to it.
+            (&src[gen_m.point..]).find('{').map(|n| {
+                let point = gen_m.point + n + 1;
+                for gen_method in search_generic_impl_scope_for_methods(point, src.as_src(), fieldsearchstr, &gen_m, search_type) {
+                    out.push(gen_method);
+                }
+            });
+        }  
     };
     out.into_iter()
 }
@@ -117,6 +128,42 @@ fn search_scope_for_methods(point: usize, src: Src, searchstr: &str, filepath: &
     out.into_iter()
 }
 
+fn search_generic_impl_scope_for_methods(point: usize, src: Src, searchstr: &str, contextm: &Match,
+                            search_type: SearchType) -> vec::IntoIter<Match> {
+    debug!("searching generic impl scope for methods {} |{}| {:?}", point, searchstr, contextm.filepath.to_str());
+
+    let scopesrc = src.from(point);
+    let mut out = Vec::new();
+    for (blobstart,blobend) in scopesrc.iter_stmts() {
+        let blob = &scopesrc[blobstart..blobend];
+        blob.find('{').map(|n| {
+            let signature = (&blob[..n]).trim_right();
+
+            if txt_matches(search_type, &format!("fn {}", searchstr), signature)
+                && typeinf::first_param_is_self(blob) {
+                debug!("found a method starting |{}| |{}|", searchstr, blob);
+                // TODO: parse this properly
+                let start = blob.find(&format!("fn {}", searchstr)).unwrap() + 3;
+                let end = find_ident_end(blob, start);
+                let l = &blob[start..end];
+                // TODO: make a better context string for functions
+                let m = Match {
+                           matchstr: l.to_owned(),
+                           filepath: contextm.filepath.to_path_buf(),
+                           point: point + blobstart + start,
+                           local: true,
+                           mtype: Function,
+                           contextstr: signature.to_owned(),
+                           generic_args: contextm.generic_args.clone(),  // Attach impl generic args
+                           generic_types: contextm.generic_types.clone(), // Attach impl generic types
+                           docs: String::new(),
+                };
+                out.push(m);
+            }
+        });
+    }
+    out.into_iter()
+}
 
 fn search_scope_for_method_declarations(point: usize, src: Src, searchstr: &str, filepath: &Path,
                             search_type: SearchType) -> vec::IntoIter<Match> {
@@ -175,6 +222,10 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                     debug!("impl decl {}", decl);
                     let implres = ast::parse_impl(decl);
                     let is_trait_impl = implres.trait_path.is_some();
+                    let mtype = match is_trait_impl {
+                        true => TraitImpl,
+                        false => Impl
+                    };
 
                     implres.name_path.map(|name_path| {
                         name_path.segments.last().map(|name| {
@@ -186,7 +237,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                                     // items in trait impls have no "pub" but are
                                     // still accessible from other modules
                                     local: local || is_trait_impl,
-                                    mtype: Impl,
+                                    mtype: mtype,
                                     contextstr: "".into(),
                                     generic_args: Vec::new(),
                                     generic_types: Vec::new(),
@@ -224,6 +275,61 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                         }
 
                         m.map(|m| out.push(m));
+                    }
+                }
+            });
+        }
+    }
+    out.into_iter()
+}
+
+pub fn search_for_generic_impls(pos: usize, searchstr: &str, contextm: &Match, filepath: &Path, session: &Session) -> vec::IntoIter<Match> {
+    debug!("search_for_generic_impls {}, {}, {:?}", pos, searchstr, filepath.to_str());
+    let s = session.load_file(filepath);
+    let scope_start = scopes::scope_start(s.as_src(), pos);
+    let src = s.from(scope_start);
+
+    let mut out = Vec::new();
+    for (start, end) in src.iter_stmts() {
+        let blob = &src[start..end];
+
+        if blob.starts_with("impl") {
+            blob.find('{').map(|n| {
+                let mut decl = (&blob[..n+1]).to_owned();
+                decl.push_str("}");
+                let generics = ast::parse_generics(decl.clone());
+                let implres = ast::parse_impl(decl.clone());
+                if let (Some(name_path), Some(trait_path)) = (implres.name_path, implres.trait_path) {
+                    if let (Some(name), Some(trait_name)) = (name_path.segments.last(), trait_path.segments.last()) {
+                        for gen_arg in &generics.generic_args {
+                        if symbol_matches(ExactMatch, &gen_arg.name, &name.name) 
+                           && gen_arg.bounds.len() == 1
+                           && gen_arg.bounds[0] == searchstr {
+                                  debug!("generic impl decl {}", decl);
+                                  
+                                  let trait_pos = blob.find(&trait_name.name).unwrap();
+                                  let self_path = core::Path::from_vec(false, vec![&contextm.matchstr]);
+                                  let self_pathsearch = core::PathSearch {
+                                      path: self_path,
+                                      filepath: contextm.filepath.clone(),
+                                      point: contextm.point
+                                  };
+                                  
+                                  let m = Match {
+                                      matchstr: trait_name.name.clone(),
+                                      filepath: filepath.to_path_buf(),
+                                      point: scope_start + start + trait_pos,
+                                      local: true,
+                                      mtype: TraitImpl,
+                                      contextstr: "".into(),
+                                      generic_args: vec![gen_arg.name.clone()],
+                                      generic_types: vec![self_pathsearch],
+                                      docs: String::new(),
+                                  };
+                                  debug!("Found a trait! {:?}", m);
+                                  out.push(m);
+                              }           
+                        }
                     }
                 }
             });
@@ -1098,17 +1204,29 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                 }
                 Struct => {
                     debug!("found a struct. Now need to look for impl");
-                    for m in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, false, session) {
-                        debug!("found impl!! {:?}", m);
+                    for m_impl in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, true, session) {
+                        debug!("found impl!! {:?}", m_impl);
                         let pathseg = &path.segments[len-1];
-                        let src = session.load_file(&m.filepath);
+                        let src = session.load_file(&m_impl.filepath);
                         // find the opening brace and skip to it.
-                        (&src[m.point..]).find('{').map(|n| {
-                            let point = m.point + n + 1;
-                            for m in search_scope(point, point, src.as_src(), pathseg, &m.filepath, search_type, m.local, namespace, session) {
-                                out.push(m);
+                        (&src[m_impl.point..]).find('{').map(|n| {
+                            let point = m_impl.point + n + 1;
+                            for m_impl in search_scope(point, point, src.as_src(), pathseg, &m_impl.filepath, search_type, m_impl.local, namespace, session) {
+                                out.push(m_impl);
                             }
                         });
+                        for m_gen in search_for_generic_impls(m_impl.point, &m_impl.matchstr, &m, &m_impl.filepath, session) {
+                            debug!("found generic impl!! {:?}", m_gen);
+                            let pathseg = &path.segments[len-1];
+                            let src = session.load_file(&m_gen.filepath);
+                            // find the opening brace and skip to it.
+                            (&src[m_gen.point..]).find('{').map(|n| {
+                                let point = m_gen.point + n + 1;
+                                for m_gen in search_scope(point, point, src.as_src(), pathseg, &m_gen.filepath, search_type, m_gen.local, namespace, session) {
+                                    out.push(m_gen);
+                                }
+                            });
+                        }                     
                     };
                 }
                 _ => ()

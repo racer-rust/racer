@@ -30,6 +30,7 @@ pub enum MatchType {
     For,
     StructField,
     Impl,
+    TraitImpl,
     Enum,
     EnumVariant,
     Type,
