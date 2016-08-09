@@ -86,7 +86,26 @@ pub fn search_for_impl_methods(match_request: &Match,
                     out.push(gen_method);
                 }
             });
-        }  
+        }
+
+        if m.matchstr == "Iterator" && fieldsearchstr == "into_iter" {
+            let mut m_copy = m.clone();
+            if let Ok(mut m_filestring) = m_copy.filepath.into_os_string().into_string() {
+                m_filestring = m_filestring.replace("iterator.rs", "traits.rs");
+                m_copy.filepath = PathBuf::from(&m_filestring);
+                for m in search_for_generic_impls(m_copy.point, &m_copy.matchstr, &match_request, &m_copy.filepath, session) {
+                    debug!("found generic impl!! {:?}", m);
+                    let src = session.load_file(&m.filepath);
+                    // find the opening brace and skip to it.
+                    (&src[m.point..]).find('{').map(|n| {
+                        let point = m.point + n + 1;
+                        for m in search_generic_impl_scope_for_methods(point, src.as_src(), fieldsearchstr, &m, search_type) {
+                            out.push(m);
+                        }
+                    });
+                }
+            }
+        }
     };
     out.into_iter()
 }
@@ -99,7 +118,7 @@ fn search_scope_for_methods(point: usize, src: Src, searchstr: &str, filepath: &
     let mut out = Vec::new();
     for (blobstart,blobend) in scopesrc.iter_stmts() {
         let blob = &scopesrc[blobstart..blobend];
-        blob.find('{').map(|n| {
+        blob.find(|c| {c == '{' || c == ';'}).map(|n| {
             let signature = (&blob[..n]).trim_right();
 
             if txt_matches(search_type, &format!("fn {}", searchstr), signature)
@@ -136,7 +155,7 @@ fn search_generic_impl_scope_for_methods(point: usize, src: Src, searchstr: &str
     let mut out = Vec::new();
     for (blobstart,blobend) in scopesrc.iter_stmts() {
         let blob = &scopesrc[blobstart..blobend];
-        blob.find('{').map(|n| {
+        blob.find(|c| {c == '{' || c == ';'}).map(|n| {
             let signature = (&blob[..n]).trim_right();
 
             if txt_matches(search_type, &format!("fn {}", searchstr), signature)
@@ -293,7 +312,8 @@ pub fn search_for_generic_impls(pos: usize, searchstr: &str, contextm: &Match, f
     for (start, end) in src.iter_stmts() {
         let blob = &src[start..end];
 
-        if blob.starts_with("impl") {
+        if blob.starts_with("impl")
+            && !blob.contains("!") { // Guard against macros 
             blob.find('{').map(|n| {
                 let mut decl = (&blob[..n+1]).to_owned();
                 decl.push_str("}");

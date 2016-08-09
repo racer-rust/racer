@@ -460,7 +460,7 @@ impl<'c, 's, 'v> visit::Visitor<'v> for ExprTypeVisitor<'c, 's> {
                         Ty::Match(ref m) =>  {
 
                             match m.mtype {
-                                MatchType::Function => typeinf::get_return_type_of_function(m, self.session)
+                                MatchType::Function => typeinf::get_return_type_of_function(m, m, self.session)
                                     .and_then(|ty| path_to_match(ty, self.session)),
                                 MatchType::Struct => Some(Ty::Match(m.clone())),
                                 _ => {
@@ -500,11 +500,12 @@ impl<'c, 's, 'v> visit::Visitor<'v> for ExprTypeVisitor<'c, 's> {
                                 &contextm.filepath,
                                 contextm.local,
                                 core::SearchType::ExactMatch,
-                                self.session).nth(0);
+                                self.session);
                             omethod
-                                .and_then(|method|
-                                          typeinf::get_return_type_of_function(&method, self.session))
-                                .and_then(|ty| path_to_match_including_generics(ty, contextm, self.session))
+                                .map(|method| typeinf::get_return_type_of_function(&method, &contextm, self.session))
+                                .filter_map(|ty| ty
+                                     .and_then(|ty| {path_to_match_including_generics(ty, contextm, self.session)}))
+                                .nth(0)
                         }
                         _ => None
                     }
