@@ -502,7 +502,7 @@ impl<'c, 's, 'v> visit::Visitor<'v> for ExprTypeVisitor<'c, 's> {
                                 core::SearchType::ExactMatch,
                                 self.session);
                             omethod
-                                .map(|method| typeinf::get_return_type_of_function(&method, &contextm, self.session))
+                                .map(|method| typeinf::get_return_type_of_function(&method, contextm, self.session))
                                 .filter_map(|ty| ty
                                      .and_then(|ty| {path_to_match_including_generics(ty, contextm, self.session)}))
                                 .nth(0)
@@ -570,7 +570,7 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
                     .zip(contextm.generic_types.iter().cloned());
                 let mut typepath = fieldtypepath.clone();
                 let mut gentypefound = false;
-                
+
                 for (name, typesearch) in it.clone() {
                     if name == typename {
                         // yes! a generic type match!
@@ -580,7 +580,7 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
                                                session);
                     }
 
-                    for typ in typepath.segments[0].types.iter_mut() {
+                    for typ in &mut typepath.segments[0].types {
                         let gentypename = typ.segments[0].name.clone();
                         if name == gentypename {
                             // A generic type on ty matches one on contextm
@@ -592,7 +592,7 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
 
                 if gentypefound {
                     let mut out = find_type_match(&typepath, &scope.filepath, scope.point, session);
-                    
+
                     // Fix the paths on the generic types in out
                     if let Some(Ty::Match(ref mut m)) = out {
                         for (_, typesearch) in it {
@@ -741,7 +741,7 @@ impl<'v> visit::Visitor<'v> for ImplVisitor {
                 }
                 _ => {}
             }
-            otrait.as_ref().map(|ref t| {
+            otrait.as_ref().map(|t| {
                 self.trait_path = Some(to_racer_path(&t.path));
             });
         }
@@ -793,9 +793,9 @@ impl<'v> visit::Visitor<'v> for GenericsVisitor {
             let generic_ty_name = (&ty.ident.name).to_string();
             let mut generic_bounds = Vec::new();
             for trait_bound in ty.bounds.iter() {
-                let bound_path = match trait_bound {
-                    &TyParamBound::TraitTyParamBound(ref ptrait_ref, _) => Some(&ptrait_ref.trait_ref.path),
-                    _ => None, 
+                let bound_path = match *trait_bound {
+                    TyParamBound::TraitTyParamBound(ref ptrait_ref, _) => Some(&ptrait_ref.trait_ref.path),
+                    _ => None,
                 };
                 if let Some(path) = bound_path.and_then(|path| { path.segments.get(0) }) {
                     generic_bounds.push((path.identifier.name).to_string());

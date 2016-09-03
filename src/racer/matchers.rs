@@ -697,7 +697,7 @@ fn find_mod_doc(msrc: &str, blobstart: usize) -> String {
         .peekable();
 
     // Use a loop to avoid unnecessary collect and String allocation
-    while let Some(ref line) = iter.next() {
+    while let Some(line) = iter.next() {
         // Remove "//! " and push to doc string to be returned
         doc.push_str(if line.len() >= 4 { &line[4..] } else { "" });
         if iter.peek() != None {

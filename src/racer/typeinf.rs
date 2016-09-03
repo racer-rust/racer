@@ -339,7 +339,7 @@ pub fn get_return_type_of_function(fnmatch: &Match, contextm: &Match, session: &
     if let Some(core::Ty::PathSearch(ref mut path, _)) = out {
         if let Some(ref mut path_seg) = path.clone().segments.get(0) {
             if path.segments.len() == 1 && path_seg.types.is_empty() {
-                for type_name in fnmatch.generic_args.iter() {
+                for type_name in &fnmatch.generic_args {
                     if type_name == &path_seg.name {
                         return Some(core::Ty::Match(contextm.clone()));
                     }

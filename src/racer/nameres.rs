@@ -76,7 +76,7 @@ pub fn search_for_impl_methods(match_request: &Match,
                 out.push(m);
             }
         });
-        for gen_m in search_for_generic_impls(m.point, &m.matchstr, &match_request, &m.filepath, session) {
+        for gen_m in search_for_generic_impls(m.point, &m.matchstr, match_request, &m.filepath, session) {
             debug!("found generic impl!! {:?}", gen_m);
             let src = session.load_file(&gen_m.filepath);
             // find the opening brace and skip to it.
@@ -93,7 +93,7 @@ pub fn search_for_impl_methods(match_request: &Match,
             if let Ok(mut m_filestring) = m_copy.filepath.into_os_string().into_string() {
                 m_filestring = m_filestring.replace("iterator.rs", "traits.rs");
                 m_copy.filepath = PathBuf::from(&m_filestring);
-                for m in search_for_generic_impls(m_copy.point, &m_copy.matchstr, &match_request, &m_copy.filepath, session) {
+                for m in search_for_generic_impls(m_copy.point, &m_copy.matchstr, match_request, &m_copy.filepath, session) {
                     debug!("found generic impl!! {:?}", m);
                     let src = session.load_file(&m.filepath);
                     // find the opening brace and skip to it.
@@ -241,10 +241,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                     debug!("impl decl {}", decl);
                     let implres = ast::parse_impl(decl);
                     let is_trait_impl = implres.trait_path.is_some();
-                    let mtype = match is_trait_impl {
-                        true => TraitImpl,
-                        false => Impl
-                    };
+                    let mtype = if is_trait_impl { TraitImpl } else { Impl };
 
                     implres.name_path.map(|name_path| {
                         name_path.segments.last().map(|name| {
@@ -313,7 +310,7 @@ pub fn search_for_generic_impls(pos: usize, searchstr: &str, contextm: &Match, f
         let blob = &src[start..end];
 
         if blob.starts_with("impl")
-            && !blob.contains("!") { // Guard against macros 
+            && !blob.contains('!') { // Guard against macros
             blob.find('{').map(|n| {
                 let mut decl = (&blob[..n+1]).to_owned();
                 decl.push_str("}");
@@ -322,11 +319,11 @@ pub fn search_for_generic_impls(pos: usize, searchstr: &str, contextm: &Match, f
                 if let (Some(name_path), Some(trait_path)) = (implres.name_path, implres.trait_path) {
                     if let (Some(name), Some(trait_name)) = (name_path.segments.last(), trait_path.segments.last()) {
                         for gen_arg in &generics.generic_args {
-                        if symbol_matches(ExactMatch, &gen_arg.name, &name.name) 
+                        if symbol_matches(ExactMatch, &gen_arg.name, &name.name)
                            && gen_arg.bounds.len() == 1
                            && gen_arg.bounds[0] == searchstr {
                                   debug!("generic impl decl {}", decl);
-                                  
+
                                   let trait_pos = blob.find(&trait_name.name).unwrap();
                                   let self_path = core::Path::from_vec(false, vec![&contextm.matchstr]);
                                   let self_pathsearch = core::PathSearch {
@@ -334,7 +331,7 @@ pub fn search_for_generic_impls(pos: usize, searchstr: &str, contextm: &Match, f
                                       filepath: contextm.filepath.clone(),
                                       point: contextm.point
                                   };
-                                  
+
                                   let m = Match {
                                       matchstr: trait_name.name.clone(),
                                       filepath: filepath.to_path_buf(),
@@ -348,7 +345,7 @@ pub fn search_for_generic_impls(pos: usize, searchstr: &str, contextm: &Match, f
                                   };
                                   debug!("Found a trait! {:?}", m);
                                   out.push(m);
-                              }           
+                              }
                         }
                     }
                 }
@@ -464,7 +461,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: Src, searchstr: &
             return out.into_iter();
         } else if preblock.starts_with("impl") {
             if let Some(n) = preblock.find(" for ") {
-                let start = scopes::get_start_of_search_expr(&preblock, n);
+                let start = scopes::get_start_of_search_expr(preblock, n);
                 let expr = &preblock[start..n];
 
                 debug!("found impl of trait : expr is |{}|", expr);
