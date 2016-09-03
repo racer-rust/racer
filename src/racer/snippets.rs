@@ -59,7 +59,7 @@ impl MethodInfo {
                 self.name,
                 &self.args
                      .iter()
-                     .filter(|&s| *s != "self")
+                     .filter(|&s| !s.ends_with("self"))
                      .enumerate()
                      .fold(String::new(), |cur, (i, ref s)| {
                          let arg = format!("${{{}:{}}}", i + 1, s);
@@ -80,6 +80,6 @@ fn method_info_test() {
     let info = MethodInfo::from_source_str("pub fn reserve(&mut self, additional: uint)").unwrap();
     assert_eq!(info.name, "reserve");
     assert_eq!(info.args.len(), 2);
-    assert_eq!(info.args[0], "self");
+    assert_eq!(info.args[0], "&mut self");
     assert_eq!(info.snippet(), "reserve(${1:additional})");
 }
