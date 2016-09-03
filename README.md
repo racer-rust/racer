@@ -20,17 +20,17 @@ As mentioned in the command output, don't forget to add the installation directo
 
 ### From sources
 
-1. Clone the repository: ```git clone https://github.com/phildawes/racer.git```
+1. Clone the repository: ```git clone https://github.com/phildawes/racer.git```.
 
-2. ```cd racer; cargo build --release```.  The binary will now be in ```./target/release/racer```
+2. ```cd racer; cargo build --release```.  The binary will now be in ```./target/release/racer```.
 
-3. Add the binary to your `PATH`. This can be done by moving it to a directory already in your `PATH` (i.e. `/usr/local/bin`) or by adding the `./target/release/` directory to your `PATH`
+3. Add the binary to your `PATH`. This can be done by moving it to a directory already in your `PATH` (i.e. `/usr/local/bin`) or by adding the `./target/release/` directory to your `PATH`.
 
 ## Configuration
 
-1. Fetch the Rust sourcecode from git, or download from https://www.rust-lang.org/install.html (the 'rustc' source download behind the 'source' link is the right one)
+1. Fetch the Rust sourcecode from git, or download from https://www.rust-lang.org/install.html (the 'rustc' source download behind the 'source' link is the right one).
 
-2. Set the ```RUST_SRC_PATH``` environment variable to point to the 'src' dir in the Rust source installation
+2. Set the ```RUST_SRC_PATH``` environment variable to point to the 'src' dir in the Rust source installation.
 
    (e.g. ```% export RUST_SRC_PATH=/usr/local/src/rust/src``` )
 
@@ -38,17 +38,11 @@ As mentioned in the command output, don't forget to add the installation directo
 
    ```racer complete std::io::B ```  (should show some completions)
 
-### Note for [rustup](https://github.com/rust-lang-nursery/rustup.rs) users
-
-*This does not apply to [multirust](https://github.com/brson/multirust)!*
-
-To enable completion for cargo crates, you need to set the `CARGO_HOME` environment variable to `.cargo` in your home directory.
-
 ## Editors/IDEs Supported
 
 ### Eclipse integration
 
-Racer can be used with Eclipse through the use of [RustDT](https://github.com/RustDT/RustDT). (User guide is [linked](http://rustdt.github.io/) in repo description)
+Racer can be used with Eclipse through the use of [RustDT](https://github.com/RustDT/RustDT). (User guide is [linked](http://rustdt.github.io/) in repo description).
 
 ### Emacs integration
 
@@ -62,7 +56,7 @@ Gedit integration can be found [here](https://github.com/isamert/gracer).
 
 The Kate community maintains a [plugin](http://quickgit.kde.org/?p=kate.git&a=tree&&f=addons%2Frustcompletion). It will be bundled with future releases of Kate (read more [here](https://blogs.kde.org/2015/05/22/updates-kates-rust-plugin-syntax-highlighting-and-rust-source-mime-type)).
 
-1. Enable 'Rust code completion' in the plugin list in the Kate config dialog;
+1. Enable 'Rust code completion' in the plugin list in the Kate config dialog.
 
 2. On the new 'Rust code completion' dialog page, make sure 'Racer command' and 'Rust source tree location' are set correctly.
 
@@ -70,7 +64,7 @@ The Kate community maintains a [plugin](http://quickgit.kde.org/?p=kate.git&a=tr
 
 The Sublime Text community maintains some packages that integrates Racer
 * [RustAutoComplete](https://github.com/defuz/RustAutoComplete) that offers auto completion and goto definition.
-* [AnacondaRUST](https://github.com/DamnWidget/anaconda_rust) from the [anaconda](http://github.com/DamnWidget/anaconda) plugins family that offers auto completion, goto definition and show documentation
+* [AnacondaRUST](https://github.com/DamnWidget/anaconda_rust) from the [anaconda](http://github.com/DamnWidget/anaconda) plugins family that offers auto completion, goto definition and show documentation.
 
 ### Vim integration
 
@@ -82,4 +76,4 @@ You can find more info about Visual Studio Code extension [here](https://github.
 
 ### Atom integration 
 
-You can find the racer package for Atom [here](https://atom.io/packages/racer)
+You can find the racer package for Atom [here](https://atom.io/packages/racer).
