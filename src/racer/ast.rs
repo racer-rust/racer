@@ -348,7 +348,7 @@ impl<'c, 's, 'v> visit::Visitor<'v> for MatchTypeVisitor<'c, 's> {
 fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: usize, session: &Session) -> Option<Match> {
     debug!("resolve_ast_path {:?}", to_racer_path(path));
     nameres::resolve_path_with_str(&to_racer_path(path), filepath, pos, core::SearchType::ExactMatch,
-                                   core::Namespace::BothNamespaces, session).nth(0)
+                                   core::Namespace::Both, session).nth(0)
 }
 
 fn to_racer_path(pth: &ast::Path) -> core::Path {
@@ -380,13 +380,13 @@ fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
 fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &Session) -> Option<Ty> {
     debug!("find_type_match {:?}, {:?}", path, fpath);
     let res = resolve_path_with_str(path, fpath, pos, core::SearchType::ExactMatch,
-               core::Namespace::TypeNamespace, session).nth(0).and_then(|m| {
+               core::Namespace::Type, session).nth(0).and_then(|m| {
                    match m.mtype {
                        MatchType::Type => get_type_of_typedef(m, session, fpath),
                        _ => Some(m)
                    }
                });
-    
+
     res.and_then(|m| {
         // add generic types to match (if any)
         let types: Vec<core::PathSearch> = path.generic_types()
@@ -421,9 +421,9 @@ fn get_type_of_typedef(m: Match, session: &Session, fpath: &Path) -> Option<Matc
         let src = session.load_file(fpath);
         let scope_start = scopes::scope_start(src.as_src(), m.point);
         // Type of TypeDef cannot be inside the impl block so look outside
-        let outer_scope_start = scopes::scope_start(src.as_src(), scope_start - 1); 
+        let outer_scope_start = scopes::scope_start(src.as_src(), scope_start - 1);
         nameres::resolve_path_with_str(&type_, &m.filepath, outer_scope_start, core::SearchType::ExactMatch,
-                                       core::Namespace::TypeNamespace, session).nth(0)
+                                       core::Namespace::Type, session).nth(0)
     })
 }
 

@@ -4,7 +4,7 @@ use {core, ast, matchers, scopes, typeinf};
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{Match, Src, Session};
 use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, TraitImpl, MatchArm, Builtin};
-use core::Namespace::{self, TypeNamespace, ValueNamespace, BothNamespaces};
+use core::Namespace;
 use util::{symbol_matches, txt_matches, find_ident_end};
 use cargo;
 use std::path::{Path, PathBuf};
@@ -271,7 +271,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                     if include_traits && is_trait_impl {
                         let trait_path = implres.trait_path.unwrap();
                         let mut m = resolve_path(&trait_path,
-                                             filepath, scope_start + start, ExactMatch, TypeNamespace,
+                                             filepath, scope_start + start, ExactMatch, Namespace::Type,
                                              session).nth(0);
                         debug!("found trait |{:?}| {:?}", trait_path, m);
 
@@ -473,7 +473,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: Src, searchstr: &
                                      filepath,
                                      stmtstart + n - 1,
                                      SearchType::ExactMatch,
-                                     Namespace::BothNamespaces,
+                                     Namespace::Both,
                                      session)
                     .filter(|m| m.mtype == Trait)
                     .nth(0);
@@ -883,7 +883,7 @@ fn run_matchers_on_blob(src: Src, start: usize, end: usize, searchstr: &str,
                          namespace: Namespace, session: &Session) -> Vec<Match> {
     let mut out = Vec::new();
     match namespace {
-        TypeNamespace =>
+        Namespace::Type =>
             for m in matchers::match_types(src, start,
                                            end, searchstr,
                                            filepath, search_type, local, session) {
@@ -892,7 +892,7 @@ fn run_matchers_on_blob(src: Src, start: usize, end: usize, searchstr: &str,
                     return out;
                 }
             },
-        ValueNamespace =>
+        Namespace::Value =>
             for m in matchers::match_values(src, start,
                                             end, searchstr,
                                             filepath, search_type, local) {
@@ -901,7 +901,7 @@ fn run_matchers_on_blob(src: Src, start: usize, end: usize, searchstr: &str,
                     return out;
                 }
             },
-        BothNamespaces => {
+        Namespace::Both => {
             for m in matchers::match_types(src, start,
                                            end, searchstr,
                                            filepath, search_type, local, session) {
@@ -1147,7 +1147,7 @@ pub fn get_super_scope(filepath: &Path, pos: usize, session: &Session) -> Option
         let path = core::Path::from_svec(false, path);
         debug!("get_super_scope looking for local scope {:?}", path);
         resolve_path(&path, filepath, 0, SearchType::ExactMatch,
-                            Namespace::TypeNamespace, session).nth(0)
+                            Namespace::Type, session).nth(0)
             .and_then(|m| msrc[m.point..].find('{')
                       .map(|p| core::Scope{ filepath: filepath.to_path_buf(),
                                              point:m.point + p + 1 }))
@@ -1188,7 +1188,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
         let mut out = Vec::new();
         let mut parent_path: core::Path = path.clone();
         parent_path.segments.remove(len-1);
-        let context = resolve_path(&parent_path, filepath, pos, ExactMatch, TypeNamespace, session).nth(0);
+        let context = resolve_path(&parent_path, filepath, pos, ExactMatch, Namespace::Type, session).nth(0);
         context.map(|m| {
             match m.mtype {
                 Module => {
@@ -1246,7 +1246,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                                     out.push(m_gen);
                                 }
                             });
-                        }                     
+                        }
                     };
                 }
                 _ => ()
@@ -1290,7 +1290,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
         });
     } else {
         let parent_path = &path[..(path.len()-1)];
-        let context = do_external_search(parent_path, filepath, pos, ExactMatch, TypeNamespace, session).nth(0);
+        let context = do_external_search(parent_path, filepath, pos, ExactMatch, Namespace::Type, session).nth(0);
         context.map(|m| {
             match m.mtype {
                 Module => {
@@ -1400,7 +1400,7 @@ fn search_for_deref_matches(impl_match: &Match, type_match: &Match, fieldsearchs
             let type_match = resolve_path_with_str(&inner_type_path.path.clone(),
                                                    inner_type_path.filepath.as_path(),
                                                    0, SearchType::ExactMatch,
-                                                   Namespace::TypeNamespace,
+                                                   Namespace::Type,
                                                    session).nth(0);
             let subpath = get_subpathsearch(&inner_type_path);
             if let Some(mut m) = type_match {
@@ -1421,7 +1421,7 @@ fn search_for_deref_matches(impl_match: &Match, type_match: &Match, fieldsearchs
                     types: Vec::new()
                 }]
             };
-            let type_match = resolve_path_with_str(&deref_type_path, fpath, 0, SearchType::ExactMatch, Namespace::TypeNamespace, session).nth(0);
+            let type_match = resolve_path_with_str(&deref_type_path, fpath, 0, SearchType::ExactMatch, Namespace::Type, session).nth(0);
             if let Some(m) = type_match {
                 let methods = search_for_field_or_method(m, fieldsearchstr, SearchType::StartsWith, session);
                 out.extend(methods);

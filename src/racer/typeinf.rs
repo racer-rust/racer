@@ -2,7 +2,7 @@
 
 use core::{Match, Src, Scope, Session};
 use nameres::resolve_path_with_str;
-use core::Namespace::TypeNamespace;
+use core::Namespace;
 use core;
 use ast;
 use scopes;
@@ -87,7 +87,7 @@ fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<core:
             debug!("get_type_of_self_arg implres |{:?}|", implres);
             resolve_path_with_str(&implres.name_path.expect("failed parsing impl name"),
                                   &m.filepath, start,
-                                  ExactMatch, TypeNamespace,
+                                  ExactMatch, Namespace::Type,
                                   session).nth(0).map(core::Ty::Match)
         } else {
             // // must be a trait
