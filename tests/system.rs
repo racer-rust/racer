@@ -223,9 +223,9 @@ fn completes_fn_with_substitute_file() {
     let (pos, src) = get_pos_and_source(src);
     let substitute_file = TmpFile::new(&src);
     let cache = core::FileCache::new();
-    let real_file = &Path::new("not_real.rs");
-    let session = core::Session::from_path(&cache, &real_file, substitute_file.path());
-    let got = complete_from_file(&src, &real_file, pos, &session).nth(0).unwrap();
+    let real_file = Path::new("not_real.rs");
+    let session = core::Session::from_path(&cache, real_file, substitute_file.path());
+    let got = complete_from_file(&src, real_file, pos, &session).nth(0).unwrap();
 
     assert_eq!("apple", got.matchstr);
 }
@@ -304,17 +304,17 @@ fn overwriting_cached_files() {
     let src4 = "src4";
 
     // Need session and path to cache files
-    let path = &Path::new("not_on_disk");
+    let path = Path::new("not_on_disk");
     let cache = core::FileCache::new();
 
     // Cache contents for a file and assert that load_file and load_file_and_mask_comments return
     // the newly cached contents.
     macro_rules! cache_and_assert {
         ($src:ident) => {{
-            cache.cache_file_contents(&path, $src);
-            let session = core::Session::from_path(&cache, &path, &path);
-            assert_eq!($src, &session.load_file(&path).code[..]);
-            assert_eq!($src, &session.load_file_and_mask_comments(&path).code[..]);
+            cache.cache_file_contents(path, $src);
+            let session = core::Session::from_path(&cache, path, path);
+            assert_eq!($src, &session.load_file(path).code[..]);
+            assert_eq!($src, &session.load_file_and_mask_comments(path).code[..]);
         }}
     }
 

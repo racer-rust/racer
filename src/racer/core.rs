@@ -403,7 +403,7 @@ fn myfn(b:usize) {
 
 impl<'c> Src<'c> {
     pub fn iter_stmts(&self) -> Fuse<StmtIndicesIter<CodeChunkIter>> {
-        StmtIndicesIter::from_parts(&self[..], self.chunk_indices())
+        StmtIndicesIter::from_parts(self, self.chunk_indices())
     }
 
     pub fn from(&self, from: usize) -> Src<'c> {

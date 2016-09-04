@@ -317,7 +317,7 @@ fn handles_tricky_bit_from_str_rs() {
 
     for (start, end) in code_chunks(src) {
         println!("BLOB |{}|", &src[start..end]);
-        if (&src[start..end]).contains("skip me") {
+        if src[start..end].contains("skip me") {
             panic!("{}", &src[start..end]);
         }
     }
@@ -328,7 +328,7 @@ fn handles_tricky_bit_from_str_rs() {
 //     use std::old_io::File;
 //     use std::str;
 
-//     let filetxt = BufferedReader::new(File::open(&Path::new("/tmp/testcode.rs"))).read_to_end().unwrap();
+//     let filetxt = BufferedReader::new(File::open(Path::new("/tmp/testcode.rs"))).read_to_end().unwrap();
 //     let src = str::from_utf8(filetxt.as_slice()).unwrap();
 
 //     for (start,end) in code_chunks(src) {

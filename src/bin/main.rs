@@ -78,7 +78,7 @@ fn cache_file_contents_from_stdin(file: &PathBuf, cache: &core::FileCache) {
 }
 
 fn run_the_complete_fn(cfg: &Config, print_type: CompletePrinter) {
-    let fn_path = &*cfg.fn_name.as_ref().unwrap();
+    let fn_path = cfg.fn_name.as_ref().unwrap();
     let substitute_file = cfg.substitute_file.as_ref().unwrap_or(fn_path);
 
     let cache = core::FileCache::new();
@@ -132,7 +132,7 @@ fn external_complete(cfg: Config, print_type: CompletePrinter) {
 }
 
 fn prefix(cfg: Config) {
-    let fn_path = &*cfg.fn_name.as_ref().unwrap();
+    let fn_path = cfg.fn_name.as_ref().unwrap();
     let substitute_file = cfg.substitute_file.as_ref().unwrap_or(fn_path);
     let cache = core::FileCache::new();
     let session = core::Session::from_path(&cache, fn_path, substitute_file);
@@ -150,7 +150,7 @@ fn prefix(cfg: Config) {
 }
 
 fn find_definition(cfg: Config) {
-    let fn_path = &*cfg.fn_name.as_ref().unwrap();
+    let fn_path = cfg.fn_name.as_ref().unwrap();
     let substitute_file = cfg.substitute_file.as_ref().unwrap_or(fn_path);
     let cache = core::FileCache::new();
     let session = core::Session::from_path(&cache, fn_path, substitute_file);

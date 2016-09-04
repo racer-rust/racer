@@ -218,7 +218,7 @@ pub fn match_for(msrc: &str, blobstart: usize, blobend: usize,
 }
 
 pub fn first_line(blob: &str) -> String {
-    (&blob[..blob.find('\n').unwrap_or(blob.len())]).to_owned()
+    blob[..blob.find('\n').unwrap_or(blob.len())].to_owned()
 }
 
 /// Get the match's cleaned up context string
@@ -226,7 +226,7 @@ pub fn first_line(blob: &str) -> String {
 /// Strip all whitespace, including newlines in order to have a single line
 /// context string.
 pub fn get_context(blob: &str, context_end: &str) -> String {
-    (&blob[..blob.find(context_end).unwrap_or(blob.len())])
+    blob[..blob.find(context_end).unwrap_or(blob.len())]
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
@@ -452,7 +452,7 @@ pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize,
         let parsed_enum = ast::parse_enum(blob.to_owned());
 
         for (name, offset) in parsed_enum.values.into_iter() {
-            if (&name).starts_with(searchstr) {
+            if name.starts_with(searchstr) {
                 let m = Match {
                     matchstr: name.clone(),
                     filepath: filepath.to_path_buf(),

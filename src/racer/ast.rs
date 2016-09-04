@@ -106,7 +106,7 @@ pub struct PatBindVisitor {
 impl visit::Visitor for PatBindVisitor {
     fn visit_local(&mut self, local: &ast::Local) {
         // don't visit the RHS (init) side of the let stmt
-        self.visit_pat(&*local.pat);
+        self.visit_pat(&local.pat);
     }
 
     fn visit_expr(&mut self, ex: &ast::Expr) {
@@ -166,7 +166,7 @@ fn to_racer_ty(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
             Some(Ty::Tuple(res))
         },
         TyKind::Rptr(ref _lifetime, ref ty) => {
-            to_racer_ty(&*ty.ty, scope).map(|ref_ty| Ty::RefPtr(Box::new(ref_ty)) )
+            to_racer_ty(&ty.ty, scope).map(|ref_ty| Ty::RefPtr(Box::new(ref_ty)) )
         }
         TyKind::Path(_, ref path) => {
             Some(Ty::PathSearch(to_racer_path(path), scope.clone()))
@@ -307,7 +307,7 @@ impl<'c, 's> visit::Visitor for LetTypeVisitor<'c, 's> {
 
         debug!("LetTypeVisitor: ty is {:?}. pos is {}, src is |{}|", ty, self.pos, self.srctxt);
         self.result = ty.and_then(|ty|
-           destructure_pattern_to_ty(&*local.pat, self.pos, &ty, &self.scope, self.session))
+           destructure_pattern_to_ty(&local.pat, self.pos, &ty, &self.scope, self.session))
             .and_then(|ty| path_to_match(ty, self.session));
     }
 }
@@ -658,7 +658,7 @@ impl visit::Visitor for StructVisitor {
         for field in struct_definition.fields() {
             let codemap::BytePos(point) = field.span.lo;
 
-            let ty = to_racer_ty(&*field.ty, &self.scope);
+            let ty = to_racer_ty(&field.ty, &self.scope);
             let name = match field.ident {
                 Some(ref ident) => ident.to_string(),
                 // name unnamed field by its ordinal, since self.0 works
@@ -1040,8 +1040,8 @@ impl<'c, 's> visit::Visitor for FnArgTypeVisitor<'c, 's> {
             let codemap::BytePos(hi) = arg.pat.span.hi;
             if self.argpos >= (lo as usize) && self.argpos <= (hi as usize) {
                 debug!("fn arg visitor found type {:?}", arg.ty);
-                self.result = to_racer_ty(&*arg.ty, &self.scope)
-                    .and_then(|ty| destructure_pattern_to_ty(&*arg.pat, self.argpos,
+                self.result = to_racer_ty(&arg.ty, &self.scope)
+                    .and_then(|ty| destructure_pattern_to_ty(&arg.pat, self.argpos,
                                                              &ty, &self.scope, self.session))
                     .and_then(|ty| path_to_match(ty, self.session));
                 break;
@@ -1108,7 +1108,7 @@ fn ast_sandbox() {
     //parse_let("let l : Vec<Blah>;".to_string(), Path::new("./ast.rs"), 0, true);
     //parse_let("let l = Vec<Blah>::new();".to_string(), Path::new("./ast.rs"), 0, true);
 
-    //get_type_of("let l : Vec<Blah>;".to_string(), &Path::new("./ast.rs"), 0);
+    //get_type_of("let l : Vec<Blah>;".to_string(), Path::new("./ast.rs"), 0);
     //panic!();
 
 
