@@ -34,51 +34,15 @@ fn match_with_snippet_fn(m: Match, session: &core::Session, interface: Interface
     }
 
     let snippet = racer::snippets::snippet_for_match(&m, session);
-    match interface {
-        Interface::Text =>
-            println!("MATCH {};{};{};{};{};{:?};{};{}",
-                        m.matchstr,
-                        snippet,
-                        linenum.to_string(),
-                        charnum.to_string(),
-                        m.filepath.to_str().unwrap(),
-                        m.mtype,
-                        m.contextstr.replace(";", "\\;").split_whitespace().collect::<Vec<&str>>().join(" "),
-                        format!("{:?}", m.docs).replace(";", "\\;")),
-        Interface::TabText =>
-            println!("MATCH\t{}\t{}\t{}\t{}\t{}\t{:?}\t{}\t{:?}",
-                        m.matchstr,
-                        snippet,
-                        linenum.to_string(),
-                        charnum.to_string(),
-                        m.filepath.to_str().unwrap(),
-                        m.mtype,
-                        m.contextstr.replace("\t", "\\t").split_whitespace().collect::<Vec<&str>>().join(" "),
-                        m.docs),
-    }
+    interface.emit(Message::MatchWithSnippet(m.matchstr, snippet, linenum, charnum,
+                                             m.filepath.as_path(), m.mtype, m.contextstr, m.docs));
 }
 
 #[cfg(not(test))]
 fn match_fn(m: Match, session: &core::Session, interface: Interface) {
     if let Some((linenum, charnum)) = session.load_file(&m.filepath).point_to_coords(m.point) {
-        match interface {
-            Interface::Text =>
-                println!("MATCH {},{},{},{},{:?},{}",
-                            m.matchstr,
-                            linenum.to_string(),
-                            charnum.to_string(),
-                            m.filepath.to_str().unwrap(),
-                            m.mtype,
-                            m.contextstr.split_whitespace().collect::<Vec<&str>>().join(" ")),
-            Interface::TabText =>
-                println!("MATCH\t{}\t{}\t{}\t{}\t{:?}\t{}",
-                            m.matchstr,
-                            linenum.to_string(),
-                            charnum.to_string(),
-                            m.filepath.to_str().unwrap(),
-                            m.mtype,
-                            m.contextstr.split_whitespace().collect::<Vec<&str>>().join(" ")),
-        }
+        interface.emit(Message::Match(m.matchstr, linenum, charnum, m.filepath.as_path(),
+                                      m.mtype, m.contextstr));
     } else {
         error!("Could not resolve file coords for match {:?}", m);
     }
@@ -97,6 +61,7 @@ fn complete_by_line_coords(cfg: Config,
                            print_type: CompletePrinter) {
     // input: linenum, colnum, fname
     let tb = std::thread::Builder::new().name("searcher".to_owned());
+    let interface = cfg.interface;
 
     // PD: this probably sucks for performance, but lots of plugins
     // end up failing and leaving tmp files around if racer crashes,
@@ -108,7 +73,7 @@ fn complete_by_line_coords(cfg: Config,
         error!("Search thread paniced: {:?}", e);
     }
 
-    println!("END");
+    interface.emit(Message::End);
 }
 
 #[cfg(not(test))]
@@ -144,12 +109,7 @@ fn run_the_complete_fn(cfg: &Config, print_type: CompletePrinter) {
     let src = session.load_file(fn_path);
     if let Some(line) = src.get_line(cfg.linenum) {
         let (start, pos) = util::expand_ident(line, cfg.charnum);
-        match cfg.interface {
-            Interface::Text =>
-                println!("PREFIX {},{},{}", start, pos, &line[start..pos]),
-            Interface::TabText =>
-                println!("PREFIX\t{}\t{}\t{}", start, pos, &line[start..pos]),
-        }
+        cfg.interface.emit(Message::Prefix(start, pos, &line[start..pos]));
 
         if let Some(point) = src.coords_to_point(cfg.linenum, cfg.charnum) {
             for m in core::complete_from_file(&src, fn_path, point, &session) {
@@ -205,12 +165,7 @@ fn prefix(cfg: Config) {
     let src = session.load_file(fn_path);
     if let Some(line) = src.get_line(cfg.linenum) {
         let (start, pos) = util::expand_ident(line, cfg.charnum);
-        match cfg.interface {
-            Interface::Text =>
-                println!("PREFIX {},{},{}", start, pos, &line[start..pos]),
-            Interface::TabText =>
-                println!("PREFIX\t{}\t{}\t{}", start, pos, &line[start..pos]),
-        }
+        cfg.interface.emit(Message::Prefix(start, pos, &line[start..pos]));
     }
 }
 
@@ -229,7 +184,7 @@ fn find_definition(cfg: Config) {
     if let Some(pos) = src.coords_to_point(cfg.linenum, cfg.charnum) {
         core::find_definition(&src, fn_path, pos, &session).map(|m| match_fn(m, &session, cfg.interface));
     }
-    println!("END");
+    cfg.interface.emit(Message::End);
 }
 
 #[cfg(not(test))]
@@ -311,17 +266,66 @@ fn daemon(cfg: Config) {
 }
 
 #[cfg(not(test))]
+enum Message<'a> {
+    End,
+    Prefix(usize, usize, &'a str),
+    Match(String, usize, usize, &'a Path, core::MatchType, String),
+    MatchWithSnippet(String, String, usize, usize, &'a Path, core::MatchType, String, String),
+}
+
+#[cfg(not(test))]
 #[derive(Copy, Clone)]
 enum Interface {
     Text,    // The original human-readable format.
     TabText, // Machine-readable format.  This is basically the same as Text, except that all field
              // separators are replaced with tabs.
-             // In `deamon` mode tabs are also used to delimit command arguments.
+             // In `daemon` mode tabs are also used to delimit command arguments.
 }
 
 #[cfg(not(test))]
 impl Default for Interface {
     fn default() -> Self { Interface::Text }
+}
+
+#[cfg(not(test))]
+impl Interface {
+    fn emit(&self, message: Message) {
+        match message {
+            Message::End => println!("END"),
+            Message::Prefix(start, pos, text) => match *self {
+                Interface::Text => println!("PREFIX {},{},{}", start, pos, text),
+                Interface::TabText => println!("PREFIX\t{}\t{}\t{}", start, pos, text),
+            },
+            Message::Match(mstr, linenum, charnum, path, mtype, context) => match *self {
+                Interface::Text => {
+                    let context = context.split_whitespace().collect::<Vec<&str>>().join(" ");
+                    println!("MATCH {},{},{},{},{:?},{}",
+                             mstr, linenum, charnum, path.display(), mtype, context);
+                }
+                Interface::TabText => {
+                    let context = context.split_whitespace().collect::<Vec<&str>>().join(" ");
+                    println!("MATCH\t{}\t{}\t{}\t{}\t{:?}\t{}",
+                             mstr, linenum, charnum, path.display(), mtype, context);
+                }
+            },
+            Message::MatchWithSnippet(mstr, snippet, linenum, charnum, path,
+                                      mtype, context, docs) => match *self {
+                Interface::Text => {
+                    let context = context.replace(";", "\\;").split_whitespace()
+                                                             .collect::<Vec<&str>>().join(" ");
+                    let docs = format!("{:?}", docs).replace(";", "\\;");
+                    println!("MATCH {};{};{};{};{};{:?};{};{}",
+                             mstr, snippet, linenum, charnum, path.display(), mtype, context, docs);
+                }
+                Interface::TabText => {
+                    let context = context.replace("\t", "\\t").split_whitespace()
+                                                              .collect::<Vec<&str>>().join(" ");
+                    println!("MATCH\t{}\t{}\t{}\t{}\t{}\t{:?}\t{}\t{:?}",
+                             mstr, snippet, linenum, charnum, path.display(), mtype, context, docs);
+                }
+            }
+        }
+    }
 }
 
 #[cfg(not(test))]
@@ -382,7 +386,7 @@ fn build_cli<'a, 'b>() -> App<'a, 'b> {
             .about("performs completion and returns matches")
             // We set an explicit usage string here, instead of letting `clap` write one due to
             // using a single arg for multiple purposes
-            .usage("racer complete <fqn>\n\t\
+            .usage("racer complete <fqn>\n    \
                     racer complete <linenum> <charnum> <path> [substitute_file]")
             // Next we make it an error to run without any args
             .setting(AppSettings::ArgRequiredElseHelp)
@@ -431,7 +435,7 @@ fn build_cli<'a, 'b>() -> App<'a, 'b> {
                 .required(true)))
         .subcommand(SubCommand::with_name("complete-with-snippet")
             .about("performs completion and returns more detailed matches")
-            .usage("racer complete-with-snippet <fqn>\n\t\
+            .usage("racer complete-with-snippet <fqn>\n    \
                     racer complete-with-snippet <linenum> <charnum> <path> [substitute_file]")
             .setting(AppSettings::ArgRequiredElseHelp)
             .arg(Arg::with_name("fqn")
