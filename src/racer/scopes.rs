@@ -76,7 +76,7 @@ pub fn get_module_file_from_path(msrc: Src, point: usize, parentdir: &Path) -> O
                     debug!("found a path attribute, path = |{}|", path);
                     let filepath = parentdir.join(path);
                     if filepath.exists() {
-                        return Some(filepath.to_path_buf());
+                        return Some(filepath);
                     }
                 }
             }

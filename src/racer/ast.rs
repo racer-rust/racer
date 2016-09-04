@@ -614,7 +614,7 @@ fn find_type_match_including_generics(fieldtype: &core::Ty,
                                       pos: usize,
                                       structm: &Match,
                                       session: &Session) -> Option<Ty>{
-    assert_eq!(&structm.filepath, &filepath.to_path_buf());
+    assert_eq!(&structm.filepath, filepath);
     let fieldtypepath = match *fieldtype {
         Ty::PathSearch(ref path, _) => path,
         _ => {

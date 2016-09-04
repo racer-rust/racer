@@ -35,7 +35,7 @@ fn search_struct_fields(searchstr: &str, structmatch: &Match,
                 field.clone()
             };
             out.push(Match { matchstr: field,
-                                filepath: structmatch.filepath.to_path_buf(),
+                                filepath: structmatch.filepath.clone(),
                                 point: fpos + opoint.unwrap(),
                                 local: structmatch.local,
                                 mtype: StructField,
@@ -169,7 +169,7 @@ fn search_generic_impl_scope_for_methods(point: usize, src: Src, searchstr: &str
                 // TODO: make a better context string for functions
                 let m = Match {
                            matchstr: l.to_owned(),
-                           filepath: contextm.filepath.to_path_buf(),
+                           filepath: contextm.filepath.clone(),
                            point: point + blobstart + start,
                            local: true,
                            mtype: Function,
@@ -319,7 +319,7 @@ pub fn search_for_generic_impls(pos: usize, searchstr: &str, contextm: &Match, f
                 let implres = ast::parse_impl(decl.clone());
                 if let (Some(name_path), Some(trait_path)) = (implres.name_path, implres.trait_path) {
                     if let (Some(name), Some(trait_name)) = (name_path.segments.last(), trait_path.segments.last()) {
-                        for gen_arg in &generics.generic_args {
+                        for gen_arg in generics.generic_args {
                         if symbol_matches(ExactMatch, &gen_arg.name, &name.name)
                            && gen_arg.bounds.len() == 1
                            && gen_arg.bounds[0] == searchstr {
@@ -340,7 +340,7 @@ pub fn search_for_generic_impls(pos: usize, searchstr: &str, contextm: &Match, f
                                       local: true,
                                       mtype: TraitImpl,
                                       contextstr: "".into(),
-                                      generic_args: vec![gen_arg.name.clone()],
+                                      generic_args: vec![gen_arg.name],
                                       generic_types: vec![self_pathsearch],
                                       docs: String::new(),
                                   };
@@ -657,7 +657,7 @@ pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<PathBuf> {
     for root in &["lib.rs", "main.rs"] {
         let filepath = currentdir.join(root);
         if filepath.exists() {
-            res.push(filepath.to_path_buf());
+            res.push(filepath);
             return res;   // for now stop at the first match
         }
     }
@@ -705,14 +705,14 @@ pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
             let cratelibname = format!("lib{}", name);
             let filepath = Path::new(srcpath).join(cratelibname).join("lib.rs");
             if filepath.exists() {
-                return Some(filepath.to_path_buf());
+                return Some(filepath);
             }
         }
         {
             // try <name>/lib.rs
             let filepath = Path::new(srcpath).join(name).join("lib.rs");
             if filepath.exists() {
-                return Some(filepath.to_path_buf());
+                return Some(filepath);
             }
         }
     }
@@ -724,14 +724,14 @@ pub fn get_module_file(name: &str, parentdir: &Path) -> Option<PathBuf> {
         // try just <name>.rs
         let filepath = parentdir.join(format!("{}.rs", name));
         if filepath.exists() {
-            return Some(filepath.to_path_buf());
+            return Some(filepath);
         }
     }
     {
         // try <name>/mod.rs
         let filepath = parentdir.join(name).join("mod.rs");
         if filepath.exists() {
-            return Some(filepath.to_path_buf());
+            return Some(filepath);
         }
     }
     None
@@ -828,12 +828,13 @@ pub fn search_scope(start: usize, point: usize, src: Src,
         if searchstr == "core" && blob.starts_with("#![no_std]") {
             debug!("Looking for core and found #![no_std], which implicitly imports it");
             get_crate_file("core", filepath).map(|cratepath| {
+                let context = cratepath.to_str().unwrap().to_owned();
                 out.push(Match { matchstr: "core".into(),
-                                  filepath: cratepath.to_path_buf(),
+                                  filepath: cratepath,
                                   point: 0,
                                   local: false,
                                   mtype: Module,
-                                  contextstr: cratepath.to_str().unwrap().to_owned(),
+                                  contextstr: context,
                                   generic_args: Vec::new(),
                                   generic_types: Vec::new(),
                                   docs: String::new(),
@@ -1003,7 +1004,7 @@ pub fn resolve_path_with_str(path: &core::Path, filepath: &Path, pos: usize,
                                            session).nth(0) {
             out.push(Match {
                 matchstr: "str".into(),
-                filepath: module.filepath.clone(),
+                filepath: module.filepath,
                 point: 0,
                 local: false,
                 mtype: Builtin,
@@ -1061,13 +1062,14 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
     if (is_exact_match && &searchstr[..] == "std") ||
        (!is_exact_match && "std".starts_with(searchstr)) {
         get_crate_file("std", filepath).map(|cratepath| {
+            let context = cratepath.to_str().unwrap().to_owned();
             out.push(Match {
                         matchstr: "std".into(),
-                        filepath: cratepath.to_path_buf(),
+                        filepath: cratepath,
                         point: 0,
                         local: false,
                         mtype: Module,
-                        contextstr: cratepath.to_str().unwrap().to_owned(),
+                        contextstr: context,
                         generic_args: Vec::new(),
                         generic_types: Vec::new(),
                         docs: String::new(),
@@ -1274,13 +1276,14 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
         }
 
         get_module_file(searchstr, filepath.parent().unwrap()).map(|path| {
+            let context = path.to_str().unwrap().to_owned();
             out.push(Match {
                            matchstr: searchstr.to_owned(),
-                           filepath: path.to_path_buf(),
+                           filepath: path,
                            point: 0,
                            local: false,
                            mtype: Module,
-                           contextstr: path.to_str().unwrap().to_owned(),
+                           contextstr: context,
                            generic_args: Vec::new(),
                            generic_types: Vec::new(),
                            docs: String::new(),
@@ -1394,9 +1397,9 @@ fn search_for_deref_matches(impl_match: &Match, type_match: &Match, fieldsearchs
 
     if let Some(type_arg) = impl_match.generic_args.first() {
         // If Deref to a generic type
-        if let Some(inner_type_path) = generic_arg_to_path(&type_arg.clone(), type_match) {
-            let type_match = resolve_path_with_str(&inner_type_path.path.clone(),
-                                                   inner_type_path.filepath.as_path(),
+        if let Some(inner_type_path) = generic_arg_to_path(&type_arg, type_match) {
+            let type_match = resolve_path_with_str(&inner_type_path.path,
+                                                   &inner_type_path.filepath,
                                                    0, SearchType::ExactMatch,
                                                    Namespace::Type,
                                                    session).nth(0);

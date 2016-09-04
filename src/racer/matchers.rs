@@ -332,14 +332,15 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
             }
             if let Some(modpath) = get_module_file(l, &searchdir) {
                 let msrc = session.load_file(&modpath);
+                let context = modpath.to_str().unwrap().to_owned();
 
                 return Some(Match {
                     matchstr: l.to_owned(),
-                    filepath: modpath.to_path_buf(),
+                    filepath: modpath,
                     point: 0,
                     local: false,
                     mtype: Module,
-                    contextstr: modpath.to_str().unwrap().to_owned(),
+                    contextstr: context,
                     generic_args: Vec::new(),
                     generic_types: Vec::new(),
                     docs: find_mod_doc(&msrc, 0),
@@ -454,7 +455,7 @@ pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize,
         for (name, offset) in parsed_enum.values.into_iter() {
             if name.starts_with(searchstr) {
                 let m = Match {
-                    matchstr: name.clone(),
+                    matchstr: name,
                     filepath: filepath.to_path_buf(),
                     point: blobstart + offset,
                     local: local,
