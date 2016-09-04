@@ -76,17 +76,17 @@ pub struct Match {
 
 
 impl Match {
-    pub fn with_generic_types(&self, generic_types: Vec<PathSearch>) -> Match {
+    pub fn with_generic_types(self, generic_types: Vec<PathSearch>) -> Match {
         Match {
-            matchstr: self.matchstr.clone(),
-            filepath: self.filepath.clone(),
+            matchstr: self.matchstr,
+            filepath: self.filepath,
             point: self.point,
             local: self.local,
             mtype: self.mtype,
-            contextstr: self.contextstr.clone(),
-            generic_args: self.generic_args.clone(),
+            contextstr: self.contextstr,
+            generic_args: self.generic_args,
             generic_types: generic_types,
-            docs: self.docs.clone(),
+            docs: self.docs,
         }
     }
 }
