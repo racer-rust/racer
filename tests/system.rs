@@ -41,17 +41,9 @@ impl TmpFile {
         tmp
     }
 
-    /// Create a file with `name` and `contents`.
-    pub fn with_name(name: &str, contents: &str) -> TmpFile {
-        TmpFile::with_path(&Path::new(name), contents)
-    }
-
     fn write_contents(&self, contents: &str) {
-        let mut f = File::create(self.path()).unwrap();
-        f.write_all(contents.as_bytes()).unwrap();
-        f.flush().unwrap();
+        File::create(self.path()).unwrap().write_all(contents.as_bytes()).unwrap();
     }
-
 
     /// Get the Path of the TmpFile
     pub fn path(&self) -> &Path {
@@ -90,11 +82,11 @@ pub struct TmpDir {
 
 impl TmpDir {
     pub fn new() -> TmpDir {
-        TmpDir::with_name(&tmpname()[..])
+        TmpDir::with_path(tmpname())
     }
 
-    pub fn with_name(name: &str) -> TmpDir {
-        let pb = PathBuf::from(name);
+    pub fn with_path<P: AsRef<Path>>(name: P) -> TmpDir {
+        let pb = PathBuf::from(name.as_ref());
         fs::create_dir_all(&pb).unwrap();
 
         TmpDir {
@@ -102,15 +94,11 @@ impl TmpDir {
         }
     }
 
-    /// Create a new temp file in the directory.
-    pub fn new_temp_file(&self, contents: &str) -> TmpFile {
-        self.new_temp_file_with_name(&tmpname()[..], contents)
-    }
-
-    /// Create new temp file with name in the directory
-    pub fn new_temp_file_with_name(&self, name: &str, contents: &str) -> TmpFile {
+    /// Create new file with name in the directory
+    pub fn write_file<P: AsRef<Path>>(&self, name: P, contents: &str) -> PathBuf {
         let name = self.path_buf.join(name);
-        TmpFile::with_path(name, contents)
+        File::create(&name).unwrap().write_all(contents.as_bytes()).unwrap();
+        name
     }
 
     pub fn path(&self) -> &Path {
@@ -139,12 +127,11 @@ fn get_pos_and_source(src: &str) -> (usize, String) {
 fn get_all_completions(src: &str, dir: Option<TmpDir>) -> Vec<core::Match> {
     let dir = dir.unwrap_or_else(|| TmpDir::new());
     let (completion_point, clean_src) = get_pos_and_source(src);
-    let f = dir.new_temp_file_with_name("src.rs", &clean_src);
-    let path = f.path();
+    let path = dir.write_file("src.rs", &clean_src);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, path, path);
+    let session = core::Session::from_path(&cache, &path, &path);
 
-    complete_from_file(&clean_src, path, completion_point, &session).collect()
+    complete_from_file(&clean_src, &path, completion_point, &session).collect()
 }
 
 /// Return the first completion for the given source.
@@ -166,12 +153,11 @@ fn get_only_completion(src: &str, dir: Option<TmpDir>) -> core::Match {
 fn get_definition(src: &str, dir: Option<TmpDir>) -> core::Match {
     let dir = dir.unwrap_or_else(|| TmpDir::new());
     let (completion_point, clean_src) = get_pos_and_source(src);
-    let f = dir.new_temp_file_with_name("src.rs", &clean_src);
-    let path = f.path();
+    let path = dir.write_file("src.rs", &clean_src);
     let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, f.path(), f.path());
+    let session = core::Session::from_path(&cache, &path, &path);
 
-    find_definition(&clean_src, path, completion_point, &session).unwrap()
+    find_definition(&clean_src, &path, completion_point, &session).unwrap()
 }
 
 
@@ -442,17 +428,15 @@ fn completes_for_vec_field_and_method() {
     ";
 
     let dir = TmpDir::new();
-    let _modfile = dir.new_temp_file_with_name("mymod.rs", modsrc);
-    let srcfile = dir.new_temp_file_with_name("src.rs", src);
-
-    let path = srcfile.path();
+    dir.write_file("mymod.rs", modsrc);
+    let path = dir.write_file("src.rs", src);
     let cache = core::FileCache::new();
     let session = core::Session::from_path(&cache, &path, &path);
-    let pos1 = session.load_file(path).coords_to_point(22, 18).unwrap();
+    let pos1 = session.load_file(&path).coords_to_point(22, 18).unwrap();
     let got1 = complete_from_file(src, &path, pos1, &session).nth(0).unwrap();
     println!("{:?}", got1);
     assert_eq!("stfield", got1.matchstr);
-    let pos2 = session.load_file(path).coords_to_point(23, 18).unwrap();
+    let pos2 = session.load_file(&path).coords_to_point(23, 18).unwrap();
     let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
     println!("{:?}", got2);
     assert_eq!("stmethod", got2.matchstr);
@@ -662,7 +646,7 @@ fn completes_iter_variable_methods() {
     ";
 
     let dir = TmpDir::new();
-    let _modfile = dir.new_temp_file_with_name("mymod.rs", modsrc);
+    dir.write_file("mymod.rs", modsrc);
     let got = get_one_completion(src, Some(dir));
     assert_eq!(got.matchstr, "field");
 }
@@ -743,17 +727,15 @@ fn completes_for_vec_iter_field_and_method() {
     ";
 
     let dir = TmpDir::new();
-    let _modfile = dir.new_temp_file_with_name("mymod.rs", modsrc);
-    let srcfile = dir.new_temp_file_with_name("src.rs", src);
-
-    let path = srcfile.path();
+    dir.write_file("mymod.rs", modsrc);
+    let path = dir.write_file("src.rs", src);
     let cache = core::FileCache::new();
     let session = core::Session::from_path(&cache, &path, &path);
-    let pos1 = session.load_file(path).coords_to_point(22, 18).unwrap();
+    let pos1 = session.load_file(&path).coords_to_point(22, 18).unwrap();
     let got1 = complete_from_file(src, &path, pos1, &session).nth(0).unwrap();
     println!("{:?}", got1);
     assert_eq!("stfield", got1.matchstr);
-    let pos2 = session.load_file(path).coords_to_point(23, 18).unwrap();
+    let pos2 = session.load_file(&path).coords_to_point(23, 18).unwrap();
     let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
     println!("{:?}", got2);
     assert_eq!("stmethod", got2.matchstr);
@@ -814,7 +796,7 @@ fn follows_use() {
     ";
 
     let dir = TmpDir::new();
-    let _f = dir.new_temp_file_with_name("src1.rs", src1);
+    dir.write_file("src1.rs", src1);
     let got = get_definition(src, Some(dir));
     assert_eq!(got.matchstr, "myfn");
     assert_eq!(got.contextstr, "pub fn myfn()");
@@ -835,7 +817,7 @@ fn follows_use_as() {
     ";
 
     let dir = TmpDir::new();
-    let _f = dir.new_temp_file_with_name("src2.rs", src2);
+    dir.write_file("src2.rs", src2);
     let got = get_definition(src, Some(dir));
     assert_eq!(got.matchstr, "myfn");
 }
@@ -854,7 +836,7 @@ fn follows_use_glob() {
     }
     ";
     let dir = TmpDir::new();
-    let _f = dir.new_temp_file_with_name("src3.rs", src3);
+    dir.write_file("src3.rs", src3);
     let got = get_definition(src, Some(dir));
     assert_eq!(got.matchstr, "myfn");
 }
@@ -877,8 +859,8 @@ fn follows_multiple_use_globs() {
     ";
 
     let dir = TmpDir::new();
-    let _tmpsrc1 = dir.new_temp_file_with_name("multiple_glob_test1.rs", src1);
-    let _tmpsrc2 = dir.new_temp_file_with_name("multiple_glob_test2.rs", src2);
+    dir.write_file("multiple_glob_test1.rs", src1);
+    dir.write_file("multiple_glob_test2.rs", src2);
 
     let mut has_1 = false;
     let mut has_2 = false;
@@ -907,7 +889,7 @@ fn finds_external_mod_docs() {
     ";
 
     let dir = TmpDir::new();
-    let _f = dir.new_temp_file_with_name("external_mod.rs", src1);
+    dir.write_file("external_mod.rs", src1);
     let got = get_one_completion(src, Some(dir));
     assert_eq!("external_mod", got.matchstr);
     assert_eq!("The mods multiline\ndocumentation", got.docs);
@@ -930,7 +912,7 @@ fn finds_external_struct_docs() {
     }";
 
     let dir = TmpDir::new();
-    let _f = dir.new_temp_file_with_name("external_struct.rs", src1);
+    dir.write_file("external_struct.rs", src1);
     let got = get_one_completion(src, Some(dir));
     assert_eq!("Apple", got.matchstr);
     assert_eq!("Orange\njuice", got.docs);
@@ -953,7 +935,7 @@ fn finds_external_fn_docs() {
     }";
 
     let dir = TmpDir::new();
-    let _f = dir.new_temp_file_with_name("external_fn.rs", src1);
+    dir.write_file("external_fn.rs", src1);
     let got = get_one_completion(src, Some(dir));
     assert_eq!("apple", got.matchstr);
     assert_eq!("Orange\njuice", got.docs);
@@ -1185,13 +1167,12 @@ fn follows_self_use() {
     ";
 
     let dir = TmpDir::new();
-    let mymod = TmpDir::with_name(dir.path().join("mymod").to_str().unwrap());
-    let _modrs = mymod.new_temp_file_with_name("mod.rs", modsrc);
-    let src4file = mymod.new_temp_file_with_name("src4.rs", src4);
-    let src4path = src4file.path().display().to_string();
+    let mymod = TmpDir::with_path(dir.path().join("mymod"));
+    mymod.write_file("mod.rs", modsrc);
+    let src4path = mymod.write_file("src4.rs", src4);
     let got = get_definition(src, Some(dir));
     assert_eq!(got.matchstr, "myfn");
-    assert_eq!(src4path, got.filepath.display().to_string());
+    assert_eq!(src4path, got.filepath);
     assert_eq!(28, got.point);
 }
 
@@ -1211,12 +1192,11 @@ fn finds_nested_submodule_file() {
 
     let dir = TmpDir::new();
     let sub2name = dir.path().join("sub1").join("sub2");
-    let _sub2dir = TmpDir::with_name(sub2name.to_str().unwrap());
+    let _sub2dir = TmpDir::with_path(&sub2name);
     let src3 = TmpFile::with_path(&sub2name.join("sub3.rs"), sub3src);
     let got = get_definition(src, Some(dir));
     assert_eq!(got.matchstr, "myfn");
-    assert_eq!(src3.path().display().to_string(),
-               got.filepath.display().to_string());
+    assert_eq!(src3.path(), got.filepath);
 }
 
 #[test]
@@ -1262,12 +1242,11 @@ fn follows_use_to_impl() {
     ";
 
     let dir = TmpDir::new();
-    let mod_file = dir.new_temp_file_with_name("mymod.rs", modsrc);
+    let mod_path = dir.write_file("mymod.rs", modsrc);
     let got = get_definition(src, Some(dir));
     assert_eq!(got.matchstr, "new");
     assert_eq!(90, got.point);
-    assert_eq!(mod_file.path().display().to_string(),
-               got.filepath.display().to_string());
+    assert_eq!(mod_path, got.filepath);
 }
 
 #[test]
@@ -1972,7 +1951,7 @@ fn completes_methods_on_deref_type() {
     ";
 
     let dir = TmpDir::new();
-    let _modfile = dir.new_temp_file_with_name("mymod.rs", modsrc);
+    dir.write_file("mymod.rs", modsrc);
     let got = get_one_completion(src, Some(dir));
     assert_eq!(got.matchstr, "one");
 }
@@ -2036,7 +2015,7 @@ fn completes_methods_on_deref_generic_type() {
     ";
 
     let dir = TmpDir::new();
-    let _modfile = dir.new_temp_file_with_name("mymod.rs", modsrc);
+    dir.write_file("mymod.rs", modsrc);
     let got = get_one_completion(src, Some(dir));
     assert_eq!(got.matchstr, "one");
 }
@@ -2062,10 +2041,10 @@ fn completes_multiple_use_bracket() {
     ";
 
     let dir = TmpDir::new();
-    let _tmpsrc1 = dir.new_temp_file_with_name("modfile1.rs", modfile);
+    dir.write_file("modfile1.rs", modfile);
     let gotwo = get_all_completions(srcwo, Some(dir));
     let dir = TmpDir::new();
-    let _tmpsrc2 = dir.new_temp_file_with_name("modfile1.rs", modfile);
+    dir.write_file("modfile1.rs", modfile);
     let gotwi = get_all_completions(srcwi, Some(dir));
 
     assert_eq!(gotwo.len(), gotwi.len());
@@ -2095,10 +2074,10 @@ fn completes_multiple_use_comma() {
     ";
 
     let dir = TmpDir::new();
-    let _tmpsrc1 = dir.new_temp_file_with_name("modfile2.rs", modfile);
+    dir.write_file("modfile2.rs", modfile);
     let gotwo = get_all_completions(srcwo, Some(dir));
     let dir = TmpDir::new();
-    let _tmpsrc2 = dir.new_temp_file_with_name("modfile2.rs", modfile);
+    dir.write_file("modfile2.rs", modfile);
     let gotwi = get_all_completions(srcwi, Some(dir));
 
     assert_eq!(gotwo.len(), gotwi.len());
