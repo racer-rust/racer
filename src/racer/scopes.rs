@@ -1,6 +1,7 @@
 use {ast, typeinf, util};
-use core::{Src, CompletionType, Session};
-#[cfg(test)] use core;
+use core::{Src, CompletionType};
+#[cfg(test)]
+use core;
 
 use std::iter::Iterator;
 use std::path::{Path, PathBuf};
@@ -109,13 +110,13 @@ fn finds_subnested_module() {
             here
         }
     }";
-    let point = coords_to_point(&src, 4, 12);
     let src = core::new_source(String::from(src));
+    let point = src.coords_to_point(4, 12).unwrap();
     let v = get_local_module_path(src.as_src(), point);
     assert_eq!("foo", &v[0][..]);
     assert_eq!("bar", &v[1][..]);
 
-    let point = coords_to_point(&src, 3, 8);
+    let point = src.coords_to_point(3, 8).unwrap();
     let v = get_local_module_path(src.as_src(), point);
     assert_eq!("foo", &v[0][..]);
 }
@@ -308,49 +309,6 @@ pub fn end_of_next_scope(src: &str) -> &str {
     }
 }
 
-pub fn coords_to_point(src: &str, mut linenum: usize, col: usize) -> usize {
-    let mut point = 0;
-    for line in src.split('\n') {
-        linenum -= 1;
-        if linenum == 0 { break }
-        point += line.len() + 1;  // +1 for the \n
-    }
-    point + col
-}
-
-pub fn point_to_coords(src: &str, point: usize) -> (usize, usize) {
-    let mut linestart = 0;
-    let mut nlines = 1;  // lines start at 1
-    for (i, &b) in src[..point].as_bytes().iter().enumerate() {
-        if b == b'\n' {
-            nlines += 1;
-            linestart = i+1;
-        }
-    }
-    (nlines, point - linestart)
-}
-
-pub fn point_to_coords_from_file(path: &Path, point: usize, session: &Session) -> Option<(usize, usize)> {
-    let mut p = 0;
-    for (lineno, line) in session.load_file(path).split('\n').enumerate() {
-        if point < (p + line.len()) {
-            return Some((lineno+1, point - p));
-        }
-        p += line.len() + 1;  // +1 for the newline char
-    }
-    None
-}
-
-
-#[test]
-fn coords_to_point_works() {
-    let src = "
-fn myfn() {
-    let a = 3;
-    print(a);
-}";
-    assert!(coords_to_point(src, 3, 5) == 18);
-}
 
 #[test]
 fn test_scope_start() {
@@ -361,7 +319,7 @@ fn myfn() {
 }
 ");
     let src = core::new_source(src);
-    let point = coords_to_point(&src, 4, 10);
+    let point = src.coords_to_point(4, 10).unwrap();
     let start = scope_start(src.as_src(), point);
     assert!(start == 12);
 }
@@ -378,7 +336,7 @@ fn myfn() {
 }
 ");
     let src = core::new_source(src);
-    let point = coords_to_point(&src, 7, 10);
+    let point = src.coords_to_point(7, 10).unwrap();
     let start = scope_start(src.as_src(), point);
     assert!(start == 12);
 }
@@ -397,31 +355,11 @@ some more
     // characters at the start are the same
     assert!(src.as_bytes()[5] == r.as_bytes()[5]);
     // characters in the comments are masked
-    let commentoffset = coords_to_point(&src,3,23);
+    let commentoffset = src.coords_to_point(3, 23).unwrap();
     assert!(char_at(&r, commentoffset) == ' ');
     assert!(src.as_bytes()[commentoffset] != r.as_bytes()[commentoffset]);
     // characters afterwards are the same
     assert!(src.as_bytes()[src.len()-3] == r.as_bytes()[src.len()-3]);
-}
-
-#[test]
-fn test_point_to_coords() {
-    let src = "
-fn myfn(b:usize) {
-   let a = 3;
-   if b == 12 {
-       let a = 24;
-       do_something_with(a);
-   }
-   do_something_with(a);
-}
-";
-    round_trip_point_and_coords(src, 4, 5);
-}
-
-pub fn round_trip_point_and_coords(src: &str, lineno: usize, charno: usize) {
-    let (a,b) = point_to_coords(src, coords_to_point(src, lineno, charno));
-     assert_eq!((a,b), (lineno,charno));
 }
 
 #[test]

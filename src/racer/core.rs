@@ -293,7 +293,8 @@ impl fmt::Debug for PathSearch {
 
 pub struct IndexedSource {
     pub code: String,
-    pub idx: Vec<(usize, usize)>
+    pub idx: Vec<(usize, usize)>,
+    pub lines: RefCell<Vec<(usize, usize)>>
 }
 
 #[derive(Clone,Copy)]
@@ -308,14 +309,16 @@ impl IndexedSource {
         let indices = codecleaner::code_chunks(&src).collect();
         IndexedSource {
             code: src,
-            idx: indices
+            idx: indices,
+            lines: RefCell::new(Vec::new())
         }
     }
 
     pub fn with_src(&self, new_src: String) -> IndexedSource {
         IndexedSource {
             code: new_src,
-            idx: self.idx.clone()
+            idx: self.idx.clone(),
+            lines: self.lines.clone()
         }
     }
 
@@ -330,7 +333,73 @@ impl IndexedSource {
             to: self.len()
         }
     }
+
+    fn cache_lineoffsets(&self) {
+        if self.lines.borrow().len() == 0 {
+            let mut result = Vec::new();
+            let mut point = 0;
+            for line in self.code.split('\n') {
+                result.push((point, line.len() + 1));
+                point += line.len() + 1;
+            }
+            *self.lines.borrow_mut() = result;
+        }
+    }
+
+    pub fn get_line(&self, linenum: usize) -> Option<&str> {
+        self.cache_lineoffsets();
+        self.lines.borrow().get(linenum - 1).map(|&(i, l)| &self.code[i..i+l])
+    }
+
+    pub fn coords_to_point(&self, linenum: usize, col: usize) -> Option<usize> {
+        self.cache_lineoffsets();
+        self.lines.borrow().get(linenum - 1).and_then(|&(i, l)| {
+            if col <= l { Some(i + col) } else { None }
+        })
+    }
+
+    pub fn point_to_coords(&self, point: usize) -> Option<(usize, usize)> {
+        self.cache_lineoffsets();
+        for (n, &(i, l)) in self.lines.borrow().iter().enumerate() {
+            if i <= point && (point - i) <= l {
+                return Some((n + 1, point - i));
+            }
+        }
+        None
+    }
 }
+
+#[test]
+fn coords_to_point_works() {
+    let src = "
+fn myfn() {
+    let a = 3;
+    print(a);
+}";
+    let src = new_source(src.into());
+    assert_eq!(src.coords_to_point(3, 5), Some(18));
+}
+
+#[test]
+fn test_point_to_coords() {
+    let src = "
+fn myfn(b:usize) {
+   let a = 3;
+   if b == 12 {
+       let a = 24;
+       do_something_with(a);
+   }
+   do_something_with(a);
+}
+";
+    fn round_trip_point_and_coords(src: &str, lineno: usize, charno: usize) {
+        let src = new_source(src.into());
+        let (a,b) = src.point_to_coords(src.coords_to_point(lineno, charno).unwrap()).unwrap();
+        assert_eq!((a,b), (lineno,charno));
+    }
+    round_trip_point_and_coords(src, 4, 5);
+}
+
 
 impl<'c> Src<'c> {
     pub fn iter_stmts(&self) -> Fuse<StmtIndicesIter<CodeChunkIter>> {

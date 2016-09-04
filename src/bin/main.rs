@@ -16,11 +16,7 @@ use racer::util;
 #[cfg(not(test))]
 use racer::core::Match;
 #[cfg(not(test))]
-use racer::util::getline;
-#[cfg(not(test))]
 use racer::nameres::{do_file_search, do_external_search, PATH_SEP};
-#[cfg(not(test))]
-use racer::scopes;
 #[cfg(not(test))]
 use std::path::{Path, PathBuf};
 #[cfg(not(test))]
@@ -32,7 +28,7 @@ use std::process::Command;
 
 #[cfg(not(test))]
 fn match_with_snippet_fn(m: Match, session: &core::Session, interface: Interface) {
-    let (linenum, charnum) = scopes::point_to_coords_from_file(&m.filepath, m.point, session).unwrap();
+    let (linenum, charnum) = session.load_file(&m.filepath).point_to_coords(m.point).unwrap();
     if m.matchstr == "" {
         panic!("MATCHSTR is empty - waddup?");
     }
@@ -64,9 +60,7 @@ fn match_with_snippet_fn(m: Match, session: &core::Session, interface: Interface
 
 #[cfg(not(test))]
 fn match_fn(m: Match, session: &core::Session, interface: Interface) {
-    if let Some((linenum, charnum)) = scopes::point_to_coords_from_file(&m.filepath,
-                                                                        m.point,
-                                                                        session) {
+    if let Some((linenum, charnum)) = session.load_file(&m.filepath).point_to_coords(m.point) {
         match interface {
             Interface::Text =>
                 println!("MATCH {},{},{},{},{:?},{}",
@@ -148,22 +142,23 @@ fn run_the_complete_fn(cfg: &Config, print_type: CompletePrinter) {
     }
 
     let src = session.load_file(fn_path);
-    let line = &getline(substitute_file, cfg.linenum, &session);
-    let (start, pos) = util::expand_ident(line, cfg.charnum);
-    match cfg.interface {
-        Interface::Text =>
-            println!("PREFIX {},{},{}", start, pos, &line[start..pos]),
-        Interface::TabText =>
-            println!("PREFIX\t{}\t{}\t{}", start, pos, &line[start..pos]),
-    }
+    if let Some(line) = src.get_line(cfg.linenum) {
+        let (start, pos) = util::expand_ident(line, cfg.charnum);
+        match cfg.interface {
+            Interface::Text =>
+                println!("PREFIX {},{},{}", start, pos, &line[start..pos]),
+            Interface::TabText =>
+                println!("PREFIX\t{}\t{}\t{}", start, pos, &line[start..pos]),
+        }
 
-    let point = scopes::coords_to_point(&src, cfg.linenum, cfg.charnum);
-
-    for m in core::complete_from_file(&src, fn_path, point, &session) {
-        match print_type {
-            CompletePrinter::Normal => match_fn(m, &session, cfg.interface),
-            CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session, cfg.interface),
-        };
+        if let Some(point) = src.coords_to_point(cfg.linenum, cfg.charnum) {
+            for m in core::complete_from_file(&src, fn_path, point, &session) {
+                match print_type {
+                    CompletePrinter::Normal => match_fn(m, &session, cfg.interface),
+                    CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session, cfg.interface),
+                };
+            }
+        }
     }
 }
 
@@ -207,13 +202,15 @@ fn prefix(cfg: Config) {
     }
 
     // print the start, end, and the identifier prefix being matched
-    let line = &getline(fn_path, cfg.linenum, &session);
-    let (start, pos) = util::expand_ident(line, cfg.charnum);
-    match cfg.interface {
-        Interface::Text =>
-            println!("PREFIX {},{},{}", start, pos, &line[start..pos]),
-        Interface::TabText =>
-            println!("PREFIX\t{}\t{}\t{}", start, pos, &line[start..pos]),
+    let src = session.load_file(fn_path);
+    if let Some(line) = src.get_line(cfg.linenum) {
+        let (start, pos) = util::expand_ident(line, cfg.charnum);
+        match cfg.interface {
+            Interface::Text =>
+                println!("PREFIX {},{},{}", start, pos, &line[start..pos]),
+            Interface::TabText =>
+                println!("PREFIX\t{}\t{}\t{}", start, pos, &line[start..pos]),
+        }
     }
 }
 
@@ -229,9 +226,9 @@ fn find_definition(cfg: Config) {
     }
 
     let src = session.load_file(fn_path);
-    let pos = scopes::coords_to_point(&src, cfg.linenum, cfg.charnum);
-
-    core::find_definition(&src, fn_path, pos, &session).map(|m| match_fn(m, &session, cfg.interface));
+    if let Some(pos) = src.coords_to_point(cfg.linenum, cfg.charnum) {
+        core::find_definition(&src, fn_path, pos, &session).map(|m| match_fn(m, &session, cfg.interface));
+    }
     println!("END");
 }
 
