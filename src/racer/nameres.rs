@@ -6,6 +6,7 @@ use core::{Match, Src, Session};
 use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, TraitImpl, MatchArm, Builtin};
 use core::Namespace::{self, TypeNamespace, ValueNamespace, BothNamespaces};
 use util::{symbol_matches, txt_matches, find_ident_end};
+use matchers::find_doc;
 use cargo;
 use std::path::{Path, PathBuf};
 use std::{self, vec};
@@ -138,7 +139,7 @@ fn search_scope_for_methods(point: usize, src: Src, searchstr: &str, filepath: &
                            contextstr: signature.to_owned(),
                            generic_args: Vec::new(),
                            generic_types: Vec::new(),
-                           docs: String::new(),
+                           docs: find_doc(&scopesrc, blobstart),
                 };
                 out.push(m);
             }
@@ -175,7 +176,7 @@ fn search_generic_impl_scope_for_methods(point: usize, src: Src, searchstr: &str
                            contextstr: signature.to_owned(),
                            generic_args: contextm.generic_args.clone(),  // Attach impl generic args
                            generic_types: contextm.generic_types.clone(), // Attach impl generic types
-                           docs: String::new(),
+                           docs: find_doc(&scopesrc, blobstart),
                 };
                 out.push(m);
             }
@@ -212,7 +213,7 @@ fn search_scope_for_method_declarations(point: usize, src: Src, searchstr: &str,
                            contextstr: signature.to_owned(),
                            generic_args: Vec::new(),
                            generic_types: Vec::new(),
-                           docs: String::new(),
+                           docs: find_doc(&scopesrc, blobstart),
                 };
                 out.push(m);
             }

@@ -666,7 +666,7 @@ pub fn match_macro(msrc: &str, blobstart: usize, blobend: usize,
     }
 }
 
-fn find_doc(msrc: &str, blobend: usize) -> String {
+pub fn find_doc(msrc: &str, blobend: usize) -> String {
     let blob = &msrc[0..blobend];
 
     blob.lines()
