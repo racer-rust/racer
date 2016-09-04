@@ -95,7 +95,7 @@ impl fmt::Debug for Match {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Match [{:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?} |{}|]",
                self.matchstr,
-               self.filepath.to_str(),
+               self.filepath.display(),
                self.point,
                self.local,
                self.mtype,
@@ -120,7 +120,7 @@ impl Scope {
 impl fmt::Debug for Scope {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Scope [{:?}, {:?}]",
-               self.filepath.to_str(),
+               self.filepath.display(),
                self.point)
     }
 }
@@ -286,7 +286,7 @@ impl fmt::Debug for PathSearch {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Search [{:?}, {:?}, {:?}]",
                self.path,
-               self.filepath.to_str(),
+               self.filepath.display(),
                self.point)
     }
 }
