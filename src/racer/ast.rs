@@ -399,7 +399,7 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &Sessio
         if types.is_empty() {
             Some(Ty::Match(m))
         } else {
-            Some(Ty::Match(m.with_generic_types(types.clone())))
+            Some(Ty::Match(m.with_generic_types(types)))
         }
     })
 }
@@ -454,21 +454,19 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
             ExprKind::Call(ref callee_expression, _/*ref arguments*/) => {
                 self.visit_expr(callee_expression);
 
-                self.result = self.result.as_ref().and_then(|m|
-                    match *m {
-                        Ty::Match(ref m) =>  {
-
-                            match m.mtype {
-                                MatchType::Function => typeinf::get_return_type_of_function(m, m, self.session)
-                                    .and_then(|ty| path_to_match(ty, self.session)),
-                                MatchType::Struct => Some(Ty::Match(m.clone())),
-                                _ => {
-                                    debug!("ExprTypeVisitor: Cannot handle ExprCall of {:?} type", m.mtype);
-                                    None
-                                }
+                self.result = self.result.take().and_then(|m|
+                    if let Ty::Match(m) = m {
+                        match m.mtype {
+                            MatchType::Function => typeinf::get_return_type_of_function(&m, &m, self.session)
+                                .and_then(|ty| path_to_match(ty, self.session)),
+                            MatchType::Struct => Some(Ty::Match(m)),
+                            _ => {
+                                debug!("ExprTypeVisitor: Cannot handle ExprCall of {:?} type", m.mtype);
+                                None
                             }
-                        },
-                        _ => None
+                        }
+                    } else {
+                        None
                     }
                 );
             }
@@ -596,7 +594,7 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
                     if let Some(Ty::Match(ref mut m)) = out {
                         for (_, typesearch) in it {
                             for gentypematch in m.generic_types.iter_mut()
-                                .filter(|ty| {ty.path.segments[0].name == typesearch.path.segments[0].name}) {
+                                .filter(|ty| ty.path.segments[0].name == typesearch.path.segments[0].name) {
                                     *gentypematch = typesearch.clone();
                                 }
                         }
