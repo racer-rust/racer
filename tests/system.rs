@@ -65,9 +65,7 @@ fn tmpname() -> String {
 
     let thread = thread::current();
     let taskname = thread.name().unwrap();
-    let s = taskname.replace("::", "_");
-    let mut p = "tmpfile.".to_string();
-    p.push_str(&s[..]);
+    let mut p = String::from("tmpfile.") + &taskname.replace("::", "_");
     // Add some random chars
     for c in ::rand::thread_rng().gen_ascii_chars().take(5) {
         p.push(c);
@@ -141,7 +139,7 @@ fn completes_fn() {
 
     let got = complete_from_file(src, path, pos, &session).nth(0).unwrap();
 
-    assert_eq!("apple".to_string(), got.matchstr.to_string());
+    assert_eq!("apple", got.matchstr);
 }
 
 
@@ -165,8 +163,8 @@ fn finds_fn_docs() {
     let pos = session.load_file(path).coords_to_point(8, 13).unwrap();
     let got = complete_from_file(src, path, pos, &session).nth(0).unwrap();
 
-    assert_eq!("apple".to_string(), got.matchstr.to_string());
-    assert_eq!("Orange\njuice".to_string(), got.docs.to_string());
+    assert_eq!("apple", got.matchstr);
+    assert_eq!("Orange\njuice", got.docs);
 }
 
 #[test]
@@ -189,8 +187,8 @@ fn finds_struct_docs() {
     let pos = session.load_file(path).coords_to_point(8, 13).unwrap();
     let got = complete_from_file(src, path, pos, &session).nth(0).unwrap();
 
-    assert_eq!("Apple".to_string(), got.matchstr.to_string());
-    assert_eq!("Orange\njuice".to_string(), got.docs.to_string());
+    assert_eq!("Apple", got.matchstr);
+    assert_eq!("Orange\njuice", got.docs);
 }
 
 #[test]
@@ -210,7 +208,7 @@ fn completes_fn_with_substitute_file() {
     let pos = session.load_file(substitute_file.path()).coords_to_point(6, 18).unwrap();
     let got = complete_from_file(src, &real_file, pos, &session).nth(0).unwrap();
 
-    assert_eq!("apple".to_string(), got.matchstr.to_string());
+    assert_eq!("apple", got.matchstr);
 }
 
 #[test]
@@ -228,7 +226,7 @@ fn completes_pub_fn_locally() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(6, 18).unwrap();
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
-    assert_eq!("apple".to_string(), got.matchstr.to_string());
+    assert_eq!("apple", got.matchstr);
 }
 
 #[test]
@@ -247,7 +245,7 @@ fn completes_pub_fn_locally_precached() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(6, 18).unwrap();
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
-    assert_eq!("apple".to_string(), got.matchstr.to_string());
+    assert_eq!("apple", got.matchstr);
 }
 
 #[test]
@@ -267,7 +265,7 @@ fn completes_pub_fn_from_local_package() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(7, 21).unwrap();
     let got = complete_from_file(src, &path, pos, &session).nth(0);
-    assert_eq!(got.unwrap().matchstr, "test".to_owned());
+    assert_eq!(got.unwrap().matchstr, "test");
 }
 
 #[test]
@@ -287,7 +285,7 @@ fn completes_pub_fn_from_local_submodule_package() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(7, 21).unwrap();
     let got = complete_from_file(src, &path, pos, &session).nth(0);
-    assert_eq!(got.unwrap().matchstr, "bartest".to_owned());
+    assert_eq!(got.unwrap().matchstr, "bartest");
 }
 
 #[test]
@@ -334,7 +332,7 @@ fn completes_pub_const_fn_locally() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(6, 18).unwrap();
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
-    assert_eq!("apple".to_string(), got.matchstr.to_string());
+    assert_eq!("apple", got.matchstr);
 }
 
 #[test]
@@ -350,7 +348,7 @@ fn completes_local_scope_let() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(4, 18).unwrap();
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
-    assert_eq!("apple".to_string(), got.matchstr);
+    assert_eq!("apple", got.matchstr);
     assert_eq!(29, got.point);
 }
 
@@ -369,7 +367,7 @@ fn main() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(5, 18).unwrap();
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
-    assert_eq!("apple".to_string(), got.matchstr);
+    assert_eq!("apple", got.matchstr);
     assert_eq!(25, got.point);
 }
 
@@ -443,11 +441,11 @@ fn completes_for_vec_field_and_method() {
     let pos1 = session.load_file(path).coords_to_point(22, 18).unwrap();
     let got1 = complete_from_file(src, &path, pos1, &session).nth(0).unwrap();
     println!("{:?}", got1);
-    assert_eq!("stfield".to_string(), got1.matchstr);
+    assert_eq!("stfield", got1.matchstr);
     let pos2 = session.load_file(path).coords_to_point(23, 18).unwrap();
     let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
     println!("{:?}", got2);
-    assert_eq!("stmethod".to_string(), got2.matchstr);
+    assert_eq!("stmethod", got2.matchstr);
 }
 
 #[test]
@@ -485,10 +483,10 @@ fn main() { // l16
     let got2 = complete_from_file(src, &path, pos2, &session2).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
-    assert_eq!(got1.matchstr, "traitf".to_string());
-    assert_eq!(got2.matchstr, "traitm".to_string());
-    assert_eq!(got1.contextstr, "fn traitf() -> bool".to_string());
-    assert_eq!(got2.contextstr, "fn traitm(&self) -> bool".to_string());
+    assert_eq!(got1.matchstr, "traitf");
+    assert_eq!(got2.matchstr, "traitm");
+    assert_eq!(got1.contextstr, "fn traitf() -> bool");
+    assert_eq!(got2.contextstr, "fn traitm(&self) -> bool");
 }
 
 #[test]
@@ -528,10 +526,10 @@ fn completes_trait_bounded_methods() {
     let got2 = complete_from_file(src, &path, pos2, &session2).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
-    assert_eq!(got1.matchstr, "traitf".to_string());
-    assert_eq!(got2.matchstr, "traitm".to_string());
-    assert_eq!(got1.contextstr, "fn traitf() -> bool".to_string());
-    assert_eq!(got2.contextstr, "fn traitm(&self) -> bool".to_string());
+    assert_eq!(got1.matchstr, "traitf");
+    assert_eq!(got2.matchstr, "traitm");
+    assert_eq!(got1.contextstr, "fn traitf() -> bool");
+    assert_eq!(got2.contextstr, "fn traitm(&self) -> bool");
 }
 
 #[test]
@@ -573,8 +571,8 @@ fn completes_trait_bounded_methods_generic_return() {
     let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
-    assert_eq!(got1.matchstr, "structfn".to_string());
-    assert_eq!(got2.matchstr, "traitfn".to_string());
+    assert_eq!(got1.matchstr, "structfn");
+    assert_eq!(got2.matchstr, "traitfn");
 }
 
 #[test]
@@ -663,7 +661,7 @@ fn completes_iter_variable_methods() {
     let pos = session.load_file(path).coords_to_point(35, 20).unwrap();  // item.fie
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
     println!("{:?}", got);
-    assert_eq!(got.matchstr, "field".to_string());
+    assert_eq!(got.matchstr, "field");
 }
 
 #[test]
@@ -751,11 +749,11 @@ fn completes_for_vec_iter_field_and_method() {
     let pos1 = session.load_file(path).coords_to_point(22, 18).unwrap();
     let got1 = complete_from_file(src, &path, pos1, &session).nth(0).unwrap();
     println!("{:?}", got1);
-    assert_eq!("stfield".to_string(), got1.matchstr);
+    assert_eq!("stfield", got1.matchstr);
     let pos2 = session.load_file(path).coords_to_point(23, 18).unwrap();
     let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
     println!("{:?}", got2);
-    assert_eq!("stmethod".to_string(), got2.matchstr);
+    assert_eq!("stmethod", got2.matchstr);
 }
 
 #[test]
@@ -791,10 +789,10 @@ fn main() { // l16
     let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
-    assert_eq!(got1.matchstr, "traitf".to_string());
-    assert_eq!(got2.matchstr, "traitm".to_string());
-    assert_eq!(got1.contextstr, "fn traitf() -> bool".to_string());
-    assert_eq!(got2.contextstr, "fn traitm(&self) -> bool".to_string());
+    assert_eq!(got1.matchstr, "traitf");
+    assert_eq!(got2.matchstr, "traitm");
+    assert_eq!(got1.contextstr, "fn traitf() -> bool");
+    assert_eq!(got2.contextstr, "fn traitm(&self) -> bool");
 }
 
 #[test]
@@ -817,8 +815,8 @@ fn follows_use() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(5, 10).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "myfn".to_string());
-    assert_eq!(got.contextstr, "pub fn myfn()".to_string());
+    assert_eq!(got.matchstr, "myfn");
+    assert_eq!(got.contextstr, "pub fn myfn()");
 }
 
 #[test]
@@ -841,7 +839,7 @@ fn follows_use_as() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(5, 10).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "myfn".to_string());
+    assert_eq!(got.matchstr, "myfn");
 }
 
 #[test]
@@ -864,7 +862,7 @@ fn follows_use_glob() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(5, 10).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "myfn".to_string());
+    assert_eq!(got.matchstr, "myfn");
 }
 
 #[test]
@@ -894,8 +892,10 @@ fn follows_multiple_use_globs() {
     let got = complete_from_file(src, &path, pos, &session);
     let completion_strings = got.into_iter().map(|raw_match| raw_match.matchstr).collect::<Vec<_>>();
 
-    assert!(completion_strings.contains(&"src1fn".to_string()) && completion_strings.contains(&"src2fn".to_string()),
-    format!("Results should contain BOTH \"src1fn\" and \"src2fn\". Actual returned results: {:?} ", completion_strings));
+    assert!(completion_strings.contains(&"src1fn".to_string()) &&
+            completion_strings.contains(&"src2fn".to_string()),
+            format!("Results should contain BOTH \"src1fn\" and \"src2fn\". Actual returned results: {:?} ",
+                    completion_strings));
 }
 
 #[test]
@@ -921,8 +921,8 @@ fn finds_external_mod_docs() {
     let pos = session.load_file(path).coords_to_point(2, 20).unwrap();
     let got = complete_from_file(src2, path, pos, &session).nth(0).unwrap();
 
-    assert_eq!("external_mod".to_string(), got.matchstr.to_string());
-    assert_eq!("The mods multiline\ndocumentation".to_string(), got.docs);
+    assert_eq!("external_mod", got.matchstr);
+    assert_eq!("The mods multiline\ndocumentation", got.docs);
 }
 
 #[test]
@@ -949,8 +949,8 @@ fn finds_external_struct_docs() {
     let pos = session.load_file(path).coords_to_point(6, 13).unwrap();
     let got = complete_from_file(src2, path, pos, &session).nth(0).unwrap();
 
-    assert_eq!("Apple".to_string(), got.matchstr.to_string());
-    assert_eq!("Orange\njuice".to_string(), got.docs.to_string());
+    assert_eq!("Apple", got.matchstr);
+    assert_eq!("Orange\njuice", got.docs);
 }
 
 #[test]
@@ -977,8 +977,8 @@ fn finds_external_fn_docs() {
     let pos = session.load_file(path).coords_to_point(6, 13).unwrap();
     let got = complete_from_file(src2, path, pos, &session).nth(0).unwrap();
 
-    assert_eq!("apple".to_string(), got.matchstr.to_string());
-    assert_eq!("Orange\njuice".to_string(), got.docs.to_string());
+    assert_eq!("apple", got.matchstr);
+    assert_eq!("Orange\njuice", got.docs);
 }
 
 #[test]
@@ -995,7 +995,7 @@ fn follows_use_local_package() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(4, 18).unwrap();
     let got = complete_from_file(src, &path, pos, &session).nth(0);
-    assert_eq!(got.unwrap().matchstr, "foo".to_owned());
+    assert_eq!(got.unwrap().matchstr, "foo");
 }
 
 #[test]
@@ -1015,7 +1015,7 @@ fn completes_struct_field_via_assignment() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(8, 9).unwrap();
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
-    assert_eq!("first".to_string(), got.matchstr);
+    assert_eq!("first", got.matchstr);
 }
 
 #[test]
@@ -1035,7 +1035,7 @@ fn finds_defn_of_struct_field() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(8, 9).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "first".to_string());
+    assert_eq!(got.matchstr, "first");
 }
 
 #[test]
@@ -1054,7 +1054,7 @@ fn finds_impl_fn() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(7, 10).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "new".to_string());
+    assert_eq!(got.matchstr, "new");
 }
 
 #[test]
@@ -1075,7 +1075,7 @@ fn follows_use_to_inline_mod() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(8, 9).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "myfn".to_string());
+    assert_eq!(got.matchstr, "myfn");
 }
 
 #[test]
@@ -1130,7 +1130,7 @@ fn finds_enum() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(6, 16).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "MyEnum".to_string());
+    assert_eq!(got.matchstr, "MyEnum");
 }
 
 #[test]
@@ -1145,7 +1145,7 @@ fn finds_type() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(3, 5).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "SpannedIdent".to_string());
+    assert_eq!(got.matchstr, "SpannedIdent");
 }
 
 #[test]
@@ -1160,8 +1160,8 @@ fn finds_trait() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(3, 5).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "MyTrait".to_string());
-    assert_eq!(got.contextstr, "pub trait MyTrait<E: Clone>".to_string());
+    assert_eq!(got.matchstr, "MyTrait");
+    assert_eq!(got.contextstr, "pub trait MyTrait<E: Clone>");
 }
 
 #[test]
@@ -1178,7 +1178,7 @@ fn finds_macro() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(5, 5).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "my_macro!".to_string());
+    assert_eq!(got.matchstr, "my_macro!");
 }
 
 #[test]
@@ -1193,7 +1193,7 @@ fn finds_extern_crate() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(3, 5).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "fixtures".to_string());
+    assert_eq!(got.matchstr, "fixtures");
 }
 
 #[test]
@@ -1209,7 +1209,7 @@ fn finds_fn_arg() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(3, 10).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "myarg".to_string());
+    assert_eq!(got.matchstr, "myarg");
 }
 
 #[test]
@@ -1224,7 +1224,7 @@ fn finds_fn_arg_in_incomplete_fn() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(3, 10).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "myarg".to_string());
+    assert_eq!(got.matchstr, "myarg");
 }
 
 #[test]
@@ -1243,8 +1243,8 @@ fn finds_inline_fn() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(7, 9).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "contains".to_string());
-    assert_eq!(got.contextstr, "fn contains<'a>(&needle: &'a str) -> bool".to_string());
+    assert_eq!(got.matchstr, "contains");
+    assert_eq!(got.contextstr, "fn contains<'a>(&needle: &'a str) -> bool");
 }
 
 #[test]
@@ -1277,7 +1277,7 @@ fn follows_self_use() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(6, 10).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "myfn".to_string());
+    assert_eq!(got.matchstr, "myfn");
     assert_eq!(mymod.pathbuf().join("src4.rs").display().to_string(),
                got.filepath.display().to_string());
     assert_eq!(28, got.point);
@@ -1311,7 +1311,7 @@ fn finds_nested_submodule_file() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(&path).coords_to_point(7, 23).unwrap();
     let got = find_definition(rootsrc, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "myfn".to_string());
+    assert_eq!(got.matchstr, "myfn");
     assert_eq!(sub2dir.join("sub3.rs").display().to_string(),
                got.filepath.display().to_string());
 }
@@ -1375,7 +1375,7 @@ fn follows_use_to_impl() {
     let pos = session.load_file(path).coords_to_point(5, 14).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
 
-    assert_eq!(got.matchstr, "new".to_string());
+    assert_eq!(got.matchstr, "new");
     assert_eq!(90, got.point);
     assert_eq!(mod_file.path().display().to_string(),
                got.filepath.display().to_string());
@@ -1383,7 +1383,7 @@ fn follows_use_to_impl() {
 
 #[test]
 fn finds_templated_impl_fn() {
-    let src="
+    let src = "
     struct Foo<T>;
     impl<T> Foo<T> {
         fn new() {}
@@ -1397,7 +1397,7 @@ fn finds_templated_impl_fn() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(7, 10).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "new".to_string());
+    assert_eq!(got.matchstr, "new");
 }
 
 #[test]
@@ -1420,7 +1420,7 @@ fn follows_fn_to_method() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(10, 12).unwrap();
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
-    assert_eq!("mymethod".to_string(), got.matchstr);
+    assert_eq!("mymethod", got.matchstr);
 }
 
 #[test]
@@ -1438,7 +1438,7 @@ fn simple_struct_contextstr() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(5, 18).unwrap();
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
-    assert_eq!(got.contextstr, "struct Foo<T>;".to_string());
+    assert_eq!(got.contextstr, "struct Foo<T>;");
 }
 
 #[test]
@@ -1459,7 +1459,7 @@ fn struct_contextstr() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(8, 18).unwrap();
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
-    assert_eq!(got.contextstr, "struct Foo<T>".to_string());
+    assert_eq!(got.contextstr, "struct Foo<T>");
 }
 
 #[test]
@@ -1480,7 +1480,7 @@ fn follows_arg_to_method() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(8, 12).unwrap();
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
-    assert_eq!("mymethod".to_string(), got.matchstr);
+    assert_eq!("mymethod", got.matchstr);
 }
 
 #[test]
@@ -1503,7 +1503,7 @@ fn follows_arg_to_enum_method() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(10, 12).unwrap();
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
-    assert_eq!("mymethod".to_string(), got.matchstr);
+    assert_eq!("mymethod", got.matchstr);
 }
 
 #[test]
@@ -1529,7 +1529,7 @@ fn follows_let_method_call() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(13, 12).unwrap();
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
-    assert_eq!("mybarmethod".to_string(), got.matchstr);
+    assert_eq!("mybarmethod", got.matchstr);
 }
 
 #[test]
@@ -1554,7 +1554,7 @@ fn follows_chained_method_call() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(12, 23).unwrap();
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
-    assert_eq!("mybarmethod".to_string(), got.matchstr);
+    assert_eq!("mybarmethod", got.matchstr);
 }
 
 #[test]
@@ -2218,7 +2218,7 @@ fn finds_unsafe_fn() {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(5, 9).unwrap();
     let got = find_definition(src, &path, pos, &session).unwrap();
-    assert_eq!(got.matchstr, "foo".to_string());
+    assert_eq!(got.matchstr, "foo");
     assert_eq!(got.point, 15);
 }
 
@@ -2273,7 +2273,7 @@ fn completes_methods_on_deref_type() {
     let got_str = complete_from_file(src, &path, pos, &session)
                                     .nth(0).expect("No match found").matchstr;
 
-    assert_eq!(got_str, "one".to_string());
+    assert_eq!(got_str, "one");
 }
 
 #[test]
@@ -2348,7 +2348,7 @@ fn completes_methods_on_deref_generic_type() {
 
     let got_str = complete_from_file(src, &path, pos, &session)
                                     .nth(0).expect("No match found").matchstr;
-    assert_eq!(got_str, "one".to_string());
+    assert_eq!(got_str, "one");
 }
 
 #[test]
@@ -2451,11 +2451,11 @@ mod sub {
     let session = core::Session::from_path(&cache, &path, &path);
     let pos = session.load_file(path).coords_to_point(11, 17).unwrap();  // fn trait
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
-    assert_eq!(got.matchstr, "traitf".to_string());
-    assert_eq!(got.contextstr, "fn traitf() -> bool".to_string());
+    assert_eq!(got.matchstr, "traitf");
+    assert_eq!(got.contextstr, "fn traitf() -> bool");
 
     let pos = session.load_file(path).coords_to_point(12, 17).unwrap();  // fn trait
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
-    assert_eq!(got.matchstr, "traitm".to_string());
-    assert_eq!(got.contextstr, "fn traitm(&self) -> bool".to_string());
+    assert_eq!(got.matchstr, "traitm");
+    assert_eq!(got.contextstr, "fn traitm(&self) -> bool");
 }

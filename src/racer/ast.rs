@@ -370,7 +370,7 @@ fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
         Ty::PathSearch(ref path, ref scope) =>
             find_type_match(path, &scope.filepath, scope.point, session),
         Ty::RefPtr(ty) => {
-            path_to_match(*ty.to_owned(), session)
+            path_to_match(*ty, session)
         },
         _ => Some(ty)
     }

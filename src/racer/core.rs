@@ -674,7 +674,7 @@ fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &S
             }
         },
         Ty::RefPtr(m) => {
-            complete_field_for_ty(*m.to_owned(), searchstr, stype, session, out)
+            complete_field_for_ty(*m, searchstr, stype, session, out)
         }
         _ => {}
     }

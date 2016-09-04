@@ -183,11 +183,10 @@ fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<core:
     let mut iter_stmt_trimmed = iter_stmt.replace(".iter()", ".into_iter()");
     iter_stmt_trimmed = iter_stmt_trimmed.replace(".iter_mut()", ".into_iter()");
 
-    
     src.push_str(&iter_stmt_trimmed);
     src = src.trim_right().to_owned();
     src.push_str(".into_iter().next() { }}");
-    
+
     let src = core::new_source(src);
 
     if let Some((start, end)) = src.as_src().iter_stmts().next() {

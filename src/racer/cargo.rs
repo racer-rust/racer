@@ -48,22 +48,22 @@ fn get_branch_from_source(source: &str) -> Option<&str> {
 
 #[test]
 fn gets_branch_from_git_source_with_hash() {
-    let source = "git+https://github.com/phildawes/racer.git?branch=dev#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1".to_owned();
-    let branch = get_branch_from_source(&source);
+    let source = "git+https://github.com/phildawes/racer.git?branch=dev#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1";
+    let branch = get_branch_from_source(source);
     assert_eq!(branch, Some("dev"));
 }
 
 #[test]
 fn gets_branch_from_git_source_without_hash() {
-    let source = "git+https://github.com/phildawes/racer.git?branch=dev".to_owned();
-    let branch = get_branch_from_source(&source);
+    let source = "git+https://github.com/phildawes/racer.git?branch=dev";
+    let branch = get_branch_from_source(source);
     assert_eq!(branch, Some("dev"));
 }
 
 #[test]
 fn empty_if_no_branch() {
-    let source = "git+https://github.com/phildawes/racer.git#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1".to_owned();
-    let branch = get_branch_from_source(&source);
+    let source = "git+https://github.com/phildawes/racer.git#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1";
+    let branch = get_branch_from_source(source);
     assert_eq!(branch, None);
 }
 
