@@ -754,7 +754,7 @@ pub struct ModVisitor {
 impl visit::Visitor for ModVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::Mod(_) = item.node {
-            self.name = Some((&item.ident.name).to_string());
+            self.name = Some(item.ident.name.to_string());
         }
     }
 }
@@ -767,7 +767,7 @@ pub struct ExternCrateVisitor {
 impl visit::Visitor for ExternCrateVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::ExternCrate(ref optional_s) = item.node {
-            self.name = Some((&item.ident.name).to_string());
+            self.name = Some(item.ident.name.to_string());
             if let Some(ref istr) = *optional_s {
                 self.realname = Some(istr.to_string());
             }
@@ -789,7 +789,7 @@ pub struct GenericsVisitor {
 impl visit::Visitor for GenericsVisitor {
     fn visit_generics(&mut self, g: &ast::Generics) {
         for ty in g.ty_params.iter() {
-            let generic_ty_name = (&ty.ident.name).to_string();
+            let generic_ty_name = ty.ident.name.to_string();
             let mut generic_bounds = Vec::new();
             for trait_bound in ty.bounds.iter() {
                 let bound_path = match *trait_bound {
@@ -797,7 +797,7 @@ impl visit::Visitor for GenericsVisitor {
                     _ => None,
                 };
                 if let Some(path) = bound_path.and_then(|path| { path.segments.get(0) }) {
-                    generic_bounds.push((path.identifier.name).to_string());
+                    generic_bounds.push(path.identifier.name.to_string());
                 };
             }
             self.generic_args.push(GenericArg {
@@ -816,14 +816,14 @@ pub struct StructDefVisitor {
 impl visit::Visitor for StructDefVisitor {
     fn visit_generics(&mut self, g: &ast::Generics) {
         for ty in g.ty_params.iter() {
-            self.generic_args.push((&ty.ident.name).to_string());
+            self.generic_args.push(ty.ident.name.to_string());
         }
     }
 
     fn visit_ident(&mut self, sp: codemap::Span, ident: ast::Ident) {
         /*! Visit the idents */
         let codemap::BytePos(point) = sp.lo;
-        let name = (&ident.name).to_string();
+        let name = ident.name.to_string();
         self.name = Some((name,point as usize));
     }
 }
@@ -836,7 +836,7 @@ pub struct EnumVisitor {
 impl visit::Visitor for EnumVisitor {
     fn visit_item(&mut self, i: &ast::Item) {
         if let ItemKind::Enum(ref enum_definition, _) = i.node {
-            self.name = (&i.ident.name).to_string();
+            self.name = i.ident.name.to_string();
             //visitor.visit_generics(type_parameters, env.clone());
             //visit::walk_enum_def(self, enum_definition, type_parameters, e)
 
@@ -846,7 +846,7 @@ impl visit::Visitor for EnumVisitor {
 
             for variant in &enum_definition.variants {
                 let codemap::BytePos(point) = variant.span.lo;
-                self.values.push(((&variant.node.name).to_string(), point as usize));
+                self.values.push((variant.node.name.to_string(), point as usize));
             }
         }
     }

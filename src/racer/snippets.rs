@@ -34,7 +34,7 @@ impl MethodInfo {
                         let decl = &msig.decl;
                         return Some(MethodInfo {
                             // ident.as_str calls Ident.name.as_str
-                            name: method.ident.name.as_str().to_string(),
+                            name: method.ident.name.to_string(),
                             args: decl.inputs
                                       .iter()
                                       .map(|arg| {
