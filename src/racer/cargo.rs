@@ -175,7 +175,10 @@ fn get_cargo_packages(cargofile: &Path) -> Option<Vec<PackageInfo>> {
 }
 
 fn get_package_name(cargofile: &Path) -> String {
-    let lock_table = parse_toml_file(cargofile).unwrap();
+    let lock_table = match parse_toml_file(cargofile) {
+        Some(t) => t,
+        None => return String::new(),
+    };
 
     debug!("get_package_name found lock_table {:?}", lock_table);
 
