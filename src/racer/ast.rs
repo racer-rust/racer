@@ -53,7 +53,8 @@ pub fn string_to_crate(source_str: String) -> Option<ast::Crate> {
         use std::result::Result::{Ok, Err};
         match p.parse_crate_mod() {
             Ok(e) => Some(e),
-            Err(_) => {
+            Err(mut err) => {
+                err.cancel();
                 debug!("unable to parse crate. Returning None |{}|", source_str);
                 None
             }
