@@ -6,26 +6,28 @@ use scopes;
 use std::path::Path;
 use std::rc::Rc;
 
-use syntex_syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, PatKind, PathListItemKind, StmtKind, TyKind, TyParamBound};
-use syntex_syntax::codemap::{self, Spanned};
+use syntex_errors::Handler;
+use syntex_errors::emitter::ColorConfig;
+use syntex_syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, PatKind, TyKind, TyParamBound};
+use syntex_syntax::codemap;
 use syntex_syntax::parse::parser::Parser;
 use syntex_syntax::parse::{lexer, ParseSess};
 use syntex_syntax::print::pprust;
 use syntex_syntax::visit::{self};
-use syntex_syntax::errors::Handler;
-use syntex_syntax::errors::emitter::ColorConfig;
 
 // This code ripped from libsyntax::util::parser_testing
 pub fn string_to_parser(ps: &ParseSess, source_str: String) -> Option<Parser> {
-    let fm = ps.codemap().new_filemap("bogofile".into(), source_str);
+    let fm = ps.codemap().new_filemap("bogofile".into(), None, source_str);
     let srdr = lexer::StringReader::new(&ps.span_diagnostic, fm);
     let p = Parser::new(ps, Vec::new(), Box::new(srdr));
     Some(p)
 }
 
-pub fn with_error_checking_parse<F, T>(s: String, f: F) -> Option<T> where F: Fn(&mut Parser) -> Option<T> {
+pub fn with_error_checking_parse<F, T>(s: String, f: F) -> Option<T>
+    where F: Fn(&mut Parser) -> Option<T>
+{
     let cm = Rc::new(codemap::CodeMap::new());
-    let sh = Handler::with_tty_emitter(ColorConfig::Never, None, false, false, cm.clone());
+    let sh = Handler::with_tty_emitter(ColorConfig::Never, false, false, Some(cm.clone()));
     let ps = ParseSess::with_span_handler(sh, cm);
 
     let mut p = match string_to_parser(&ps, s) {
@@ -36,11 +38,11 @@ pub fn with_error_checking_parse<F, T>(s: String, f: F) -> Option<T> where F: Fn
 }
 
 // parse a string, return a stmt
-pub fn string_to_stmt(source_str: String) -> Option<Spanned<StmtKind>> {
+pub fn string_to_stmt(source_str: String) -> Option<ast::Stmt> {
     with_error_checking_parse(source_str, |p| {
         match p.parse_stmt() {
-            Ok(p) => p,
-            Err(_) => None
+            Ok(Some(stmt)) => Some(stmt),
+            _ => None,
         }
     })
 }
@@ -67,8 +69,8 @@ pub struct UseVisitor {
     pub is_glob: bool
 }
 
-impl<'v> visit::Visitor<'v> for UseVisitor {
-    fn visit_item(&mut self, i: &'v ast::Item) {
+impl visit::Visitor for UseVisitor {
+    fn visit_item(&mut self, i: &ast::Item) {
         if let ItemKind::Use(ref path) = i.node {
             match path.node {
                 ast::ViewPathSimple(ident, ref path) => {
@@ -78,19 +80,12 @@ impl<'v> visit::Visitor<'v> for UseVisitor {
                 ast::ViewPathList(ref pth, ref paths) => {
                     let basepath = to_racer_path(pth);
                     for path in paths {
-                        match path.node {
-                            PathListItemKind::Ident{name, ..} => {
-                                let name = name.name.to_string();
-                                let seg = core::PathSegment{ name: name, types: Vec::new() };
-                                let mut newpath = basepath.clone();
+                        let name = path.node.name.name.to_string();
+                        let seg = core::PathSegment{ name: name, types: Vec::new() };
+                        let mut newpath = basepath.clone();
 
-                                newpath.segments.push(seg);
-                                self.paths.push(newpath);
-                            },
-                            PathListItemKind::Mod{..} => {
-                                self.paths.push(basepath.clone());
-                            }
-                        }
+                        newpath.segments.push(seg);
+                        self.paths.push(newpath);
                     }
                 }
                 ast::ViewPathGlob(ref pth) => {
@@ -107,13 +102,13 @@ pub struct PatBindVisitor {
     ident_points: Vec<(usize, usize)>
 }
 
-impl<'v> visit::Visitor<'v> for PatBindVisitor {
-    fn visit_local(&mut self, local: &'v ast::Local) {
+impl visit::Visitor for PatBindVisitor {
+    fn visit_local(&mut self, local: &ast::Local) {
         // don't visit the RHS (init) side of the let stmt
         self.visit_pat(&*local.pat);
     }
 
-    fn visit_expr(&mut self, ex: &'v ast::Expr) {
+    fn visit_expr(&mut self, ex: &ast::Expr) {
         // don't visit the RHS or block of an 'if let' or 'for' stmt
         if let ExprKind::IfLet(ref pattern, _,_,_) = ex.node {
             self.visit_pat(pattern);
@@ -126,7 +121,7 @@ impl<'v> visit::Visitor<'v> for PatBindVisitor {
         }
     }
 
-    fn visit_pat(&mut self, p: &'v ast::Pat) {
+    fn visit_pat(&mut self, p: &ast::Pat) {
         match p.node {
             PatKind::Ident(_ , ref spannedident, _) => {
                 let codemap::BytePos(lo) = spannedident.span.lo;
@@ -144,8 +139,8 @@ pub struct PatVisitor {
     ident_points: Vec<(usize, usize)>
 }
 
-impl<'v> visit::Visitor<'v> for PatVisitor {
-    fn visit_pat(&mut self, p: &'v ast::Pat) {
+impl visit::Visitor for PatVisitor {
+    fn visit_pat(&mut self, p: &ast::Pat) {
         match p.node {
             PatKind::Ident(_ , ref spannedident, _) => {
                 let codemap::BytePos(lo) = spannedident.span.lo;
@@ -183,6 +178,9 @@ fn to_racer_ty(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
         TyKind::Vec(ref ty) => {
             to_racer_ty(ty, scope).map(|ref_ty| Ty::Vec(Box::new(ref_ty)) )
         }
+        TyKind::Never => {
+            None
+        }
         _ => {
             trace!("unhandled Ty node: {:?}", ty.node);
             None
@@ -212,7 +210,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
                 panic!("Expecting the point to be in the patident span. pt: {}", point);
             }
         }
-        PatKind::Tup(ref tuple_elements) => {
+        PatKind::Tuple(ref tuple_elements, _) => {
             match *ty {
                 Ty::Tuple(ref typeelems) => {
                     let mut res = None;
@@ -229,10 +227,10 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
 
             }
         }
-        PatKind::TupleStruct(ref path, ref children) => {
+        PatKind::TupleStruct(ref path, ref children, _) => {
             let m = resolve_ast_path(path, &scope.filepath, scope.point, session);
             let contextty = path_to_match(ty.clone(), session);
-            if let (Some(m), Some(children)) = (m, children.as_ref()) {
+            if let Some(m) = m {
                 let mut res = None;
 
                 for (i, p) in children.iter().enumerate() {
@@ -271,8 +269,8 @@ struct LetTypeVisitor<'c: 's, 's> {
     result: Option<Ty>
 }
 
-impl<'c, 's, 'v> visit::Visitor<'v> for LetTypeVisitor<'c, 's> {
-    fn visit_expr(&mut self, ex: &'v ast::Expr) {
+impl<'c, 's> visit::Visitor for LetTypeVisitor<'c, 's> {
+    fn visit_expr(&mut self, ex: &ast::Expr) {
         match ex.node {
             ExprKind::IfLet(ref pattern, ref expr, _, _) |
             ExprKind::WhileLet(ref pattern, ref expr, _, _) => {
@@ -289,7 +287,7 @@ impl<'c, 's, 'v> visit::Visitor<'v> for LetTypeVisitor<'c, 's> {
         }
     }
 
-    fn visit_local(&mut self, local: &'v ast::Local) {
+    fn visit_local(&mut self, local: &ast::Local) {
         let mut ty = None;
         if let Some(ref local_ty) = local.ty {
             ty = to_racer_ty(local_ty, &self.scope);
@@ -320,8 +318,8 @@ struct MatchTypeVisitor<'c: 's, 's> {
     result: Option<Ty>
 }
 
-impl<'c, 's, 'v> visit::Visitor<'v> for MatchTypeVisitor<'c, 's> {
-    fn visit_expr(&mut self, ex: &'v ast::Expr) {
+impl<'c, 's> visit::Visitor for MatchTypeVisitor<'c, 's> {
+    fn visit_expr(&mut self, ex: &ast::Expr) {
         if let ExprKind::Match(ref subexpression, ref arms) = ex.node {
             debug!("PHIL sub expr is {:?}", subexpression);
 
@@ -433,7 +431,7 @@ struct ExprTypeVisitor<'c: 's, 's> {
     result: Option<Ty>,
 }
 
-impl<'c, 's, 'v> visit::Visitor<'v> for ExprTypeVisitor<'c, 's> {
+impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
     fn visit_expr(&mut self, expr: &ast::Expr) {
         debug!("visit_expr {:?}", expr);
         //walk_expr(self, ex, e)
@@ -651,7 +649,7 @@ struct StructVisitor {
     pub fields: Vec<(String, usize, Option<core::Ty>)>
 }
 
-impl<'v> visit::Visitor<'v> for StructVisitor {
+impl visit::Visitor for StructVisitor {
     fn visit_variant_data(&mut self,
                           struct_definition: &ast::VariantData,
                           _: ast::Ident,
@@ -678,7 +676,7 @@ pub struct TypeVisitor {
     pub type_: Option<core::Path>
 }
 
-impl<'v> visit::Visitor<'v> for TypeVisitor {
+impl visit::Visitor for TypeVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::Ty(ref ty, _) = item.node {
             self.name = Some(item.ident.name.to_string());
@@ -711,7 +709,7 @@ pub struct TraitVisitor {
     pub name: Option<String>
 }
 
-impl<'v> visit::Visitor<'v> for TraitVisitor {
+impl visit::Visitor for TraitVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::Trait(_, _, _, _) = item.node {
             self.name = Some(item.ident.name.to_string());
@@ -725,7 +723,7 @@ pub struct ImplVisitor {
     pub trait_path: Option<core::Path>,
 }
 
-impl<'v> visit::Visitor<'v> for ImplVisitor {
+impl visit::Visitor for ImplVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::Impl(_, _, _, ref otrait, ref typ, _) = item.node {
             match typ.node {
@@ -752,7 +750,7 @@ pub struct ModVisitor {
     pub name: Option<String>
 }
 
-impl<'v> visit::Visitor<'v> for ModVisitor {
+impl visit::Visitor for ModVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::Mod(_) = item.node {
             self.name = Some((&item.ident.name).to_string());
@@ -765,7 +763,7 @@ pub struct ExternCrateVisitor {
     pub realname: Option<String>
 }
 
-impl<'v> visit::Visitor<'v> for ExternCrateVisitor {
+impl visit::Visitor for ExternCrateVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::ExternCrate(ref optional_s) = item.node {
             self.name = Some((&item.ident.name).to_string());
@@ -787,7 +785,7 @@ pub struct GenericsVisitor {
     pub generic_args: Vec<GenericArg>,
 }
 
-impl<'v> visit::Visitor<'v> for GenericsVisitor {
+impl visit::Visitor for GenericsVisitor {
     fn visit_generics(&mut self, g: &ast::Generics) {
         for ty in g.ty_params.iter() {
             let generic_ty_name = (&ty.ident.name).to_string();
@@ -814,7 +812,7 @@ pub struct StructDefVisitor {
     pub generic_args: Vec<String>
 }
 
-impl<'v> visit::Visitor<'v> for StructDefVisitor {
+impl visit::Visitor for StructDefVisitor {
     fn visit_generics(&mut self, g: &ast::Generics) {
         for ty in g.ty_params.iter() {
             self.generic_args.push((&ty.ident.name).to_string());
@@ -834,7 +832,7 @@ pub struct EnumVisitor {
     pub values: Vec<(String, usize)>
 }
 
-impl<'v> visit::Visitor<'v> for EnumVisitor {
+impl visit::Visitor for EnumVisitor {
     fn visit_item(&mut self, i: &ast::Item) {
         if let ItemKind::Enum(ref enum_definition, _) = i.node {
             self.name = (&i.ident.name).to_string();
@@ -1020,11 +1018,11 @@ pub struct FnOutputVisitor {
     pub result: Option<Ty>
 }
 
-impl<'v> visit::Visitor<'v> for FnOutputVisitor {
+impl visit::Visitor for FnOutputVisitor {
     fn visit_fn(&mut self,  _: visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId) {
         self.result = match fd.output {
             FunctionRetTy::Ty(ref ty) => to_racer_ty(ty, &self.scope),
-            FunctionRetTy::None(_) | FunctionRetTy::Default(_) => None
+            FunctionRetTy::Default(_) => None
         };
     }
 }
@@ -1036,7 +1034,7 @@ pub struct FnArgTypeVisitor<'c: 's, 's> {
     pub result: Option<Ty>
 }
 
-impl<'c, 's, 'v> visit::Visitor<'v> for FnArgTypeVisitor<'c, 's> {
+impl<'c, 's> visit::Visitor for FnArgTypeVisitor<'c, 's> {
     fn visit_fn(&mut self, _: visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId) {
         for arg in &fd.inputs {
             let codemap::BytePos(lo) = arg.pat.span.lo;

@@ -21,7 +21,8 @@ debug = true
 
 [dependencies]
 log = "~0.3.6"
-syntex_syntax = "~0.32.0"
+syntex_syntax = "~0.43.0"
+syntex_errors = "~0.43.0"
 toml = "~0.1.30"
 env_logger = "~0.3.4"
 typed-arena = "~1.2.0"
