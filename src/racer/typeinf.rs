@@ -2,7 +2,7 @@
 
 use core::{Match, Src, Scope, Session};
 use nameres::resolve_path_with_str;
-use core::Namespace::TypeNamespace;
+use core::Namespace;
 use core;
 use ast;
 use scopes;
@@ -87,7 +87,7 @@ fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<core:
             debug!("get_type_of_self_arg implres |{:?}|", implres);
             resolve_path_with_str(&implres.name_path.expect("failed parsing impl name"),
                                   &m.filepath, start,
-                                  ExactMatch, TypeNamespace,
+                                  ExactMatch, Namespace::Type,
                                   session).nth(0).map(core::Ty::Match)
         } else {
             // // must be a trait
@@ -339,7 +339,7 @@ pub fn get_return_type_of_function(fnmatch: &Match, contextm: &Match, session: &
     if let Some(core::Ty::PathSearch(ref mut path, _)) = out {
         if let Some(ref mut path_seg) = path.clone().segments.get(0) {
             if path.segments.len() == 1 && path_seg.types.is_empty() {
-                for type_name in fnmatch.generic_args.iter() {
+                for type_name in &fnmatch.generic_args {
                     if type_name == &path_seg.name {
                         return Some(core::Ty::Match(contextm.clone()));
                     }

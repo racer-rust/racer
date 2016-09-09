@@ -4,7 +4,7 @@ use {core, ast, matchers, scopes, typeinf};
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{Match, Src, Session};
 use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, TraitImpl, MatchArm, Builtin};
-use core::Namespace::{self, TypeNamespace, ValueNamespace, BothNamespaces};
+use core::Namespace;
 use util::{symbol_matches, txt_matches, find_ident_end};
 use cargo;
 use std::path::{Path, PathBuf};
@@ -76,7 +76,7 @@ pub fn search_for_impl_methods(match_request: &Match,
                 out.push(m);
             }
         });
-        for gen_m in search_for_generic_impls(m.point, &m.matchstr, &match_request, &m.filepath, session) {
+        for gen_m in search_for_generic_impls(m.point, &m.matchstr, match_request, &m.filepath, session) {
             debug!("found generic impl!! {:?}", gen_m);
             let src = session.load_file(&gen_m.filepath);
             // find the opening brace and skip to it.
@@ -93,7 +93,7 @@ pub fn search_for_impl_methods(match_request: &Match,
             if let Ok(mut m_filestring) = m_copy.filepath.into_os_string().into_string() {
                 m_filestring = m_filestring.replace("iterator.rs", "traits.rs");
                 m_copy.filepath = PathBuf::from(&m_filestring);
-                for m in search_for_generic_impls(m_copy.point, &m_copy.matchstr, &match_request, &m_copy.filepath, session) {
+                for m in search_for_generic_impls(m_copy.point, &m_copy.matchstr, match_request, &m_copy.filepath, session) {
                     debug!("found generic impl!! {:?}", m);
                     let src = session.load_file(&m.filepath);
                     // find the opening brace and skip to it.
@@ -241,10 +241,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                     debug!("impl decl {}", decl);
                     let implres = ast::parse_impl(decl);
                     let is_trait_impl = implres.trait_path.is_some();
-                    let mtype = match is_trait_impl {
-                        true => TraitImpl,
-                        false => Impl
-                    };
+                    let mtype = if is_trait_impl { TraitImpl } else { Impl };
 
                     implres.name_path.map(|name_path| {
                         name_path.segments.last().map(|name| {
@@ -271,7 +268,7 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
                     if include_traits && is_trait_impl {
                         let trait_path = implres.trait_path.unwrap();
                         let mut m = resolve_path(&trait_path,
-                                             filepath, scope_start + start, ExactMatch, TypeNamespace,
+                                             filepath, scope_start + start, ExactMatch, Namespace::Type,
                                              session).nth(0);
                         debug!("found trait |{:?}| {:?}", trait_path, m);
 
@@ -313,7 +310,7 @@ pub fn search_for_generic_impls(pos: usize, searchstr: &str, contextm: &Match, f
         let blob = &src[start..end];
 
         if blob.starts_with("impl")
-            && !blob.contains("!") { // Guard against macros 
+            && !blob.contains('!') { // Guard against macros
             blob.find('{').map(|n| {
                 let mut decl = (&blob[..n+1]).to_owned();
                 decl.push_str("}");
@@ -322,11 +319,11 @@ pub fn search_for_generic_impls(pos: usize, searchstr: &str, contextm: &Match, f
                 if let (Some(name_path), Some(trait_path)) = (implres.name_path, implres.trait_path) {
                     if let (Some(name), Some(trait_name)) = (name_path.segments.last(), trait_path.segments.last()) {
                         for gen_arg in &generics.generic_args {
-                        if symbol_matches(ExactMatch, &gen_arg.name, &name.name) 
+                        if symbol_matches(ExactMatch, &gen_arg.name, &name.name)
                            && gen_arg.bounds.len() == 1
                            && gen_arg.bounds[0] == searchstr {
                                   debug!("generic impl decl {}", decl);
-                                  
+
                                   let trait_pos = blob.find(&trait_name.name).unwrap();
                                   let self_path = core::Path::from_vec(false, vec![&contextm.matchstr]);
                                   let self_pathsearch = core::PathSearch {
@@ -334,7 +331,7 @@ pub fn search_for_generic_impls(pos: usize, searchstr: &str, contextm: &Match, f
                                       filepath: contextm.filepath.clone(),
                                       point: contextm.point
                                   };
-                                  
+
                                   let m = Match {
                                       matchstr: trait_name.name.clone(),
                                       filepath: filepath.to_path_buf(),
@@ -348,7 +345,7 @@ pub fn search_for_generic_impls(pos: usize, searchstr: &str, contextm: &Match, f
                                   };
                                   debug!("Found a trait! {:?}", m);
                                   out.push(m);
-                              }           
+                              }
                         }
                     }
                 }
@@ -464,7 +461,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: Src, searchstr: &
             return out.into_iter();
         } else if preblock.starts_with("impl") {
             if let Some(n) = preblock.find(" for ") {
-                let start = scopes::get_start_of_search_expr(&preblock, n);
+                let start = scopes::get_start_of_search_expr(preblock, n);
                 let expr = &preblock[start..n];
 
                 debug!("found impl of trait : expr is |{}|", expr);
@@ -473,7 +470,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: Src, searchstr: &
                                      filepath,
                                      stmtstart + n - 1,
                                      SearchType::ExactMatch,
-                                     Namespace::BothNamespaces,
+                                     Namespace::Both,
                                      session)
                     .filter(|m| m.mtype == Trait)
                     .nth(0);
@@ -883,7 +880,7 @@ fn run_matchers_on_blob(src: Src, start: usize, end: usize, searchstr: &str,
                          namespace: Namespace, session: &Session) -> Vec<Match> {
     let mut out = Vec::new();
     match namespace {
-        TypeNamespace =>
+        Namespace::Type =>
             for m in matchers::match_types(src, start,
                                            end, searchstr,
                                            filepath, search_type, local, session) {
@@ -892,7 +889,7 @@ fn run_matchers_on_blob(src: Src, start: usize, end: usize, searchstr: &str,
                     return out;
                 }
             },
-        ValueNamespace =>
+        Namespace::Value =>
             for m in matchers::match_values(src, start,
                                             end, searchstr,
                                             filepath, search_type, local) {
@@ -901,7 +898,7 @@ fn run_matchers_on_blob(src: Src, start: usize, end: usize, searchstr: &str,
                     return out;
                 }
             },
-        BothNamespaces => {
+        Namespace::Both => {
             for m in matchers::match_types(src, start,
                                            end, searchstr,
                                            filepath, search_type, local, session) {
@@ -1147,7 +1144,7 @@ pub fn get_super_scope(filepath: &Path, pos: usize, session: &Session) -> Option
         let path = core::Path::from_svec(false, path);
         debug!("get_super_scope looking for local scope {:?}", path);
         resolve_path(&path, filepath, 0, SearchType::ExactMatch,
-                            Namespace::TypeNamespace, session).nth(0)
+                            Namespace::Type, session).nth(0)
             .and_then(|m| msrc[m.point..].find('{')
                       .map(|p| core::Scope{ filepath: filepath.to_path_buf(),
                                              point:m.point + p + 1 }))
@@ -1188,7 +1185,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
         let mut out = Vec::new();
         let mut parent_path: core::Path = path.clone();
         parent_path.segments.remove(len-1);
-        let context = resolve_path(&parent_path, filepath, pos, ExactMatch, TypeNamespace, session).nth(0);
+        let context = resolve_path(&parent_path, filepath, pos, ExactMatch, Namespace::Type, session).nth(0);
         context.map(|m| {
             match m.mtype {
                 Module => {
@@ -1246,7 +1243,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                                     out.push(m_gen);
                                 }
                             });
-                        }                     
+                        }
                     };
                 }
                 _ => ()
@@ -1290,7 +1287,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
         });
     } else {
         let parent_path = &path[..(path.len()-1)];
-        let context = do_external_search(parent_path, filepath, pos, ExactMatch, TypeNamespace, session).nth(0);
+        let context = do_external_search(parent_path, filepath, pos, ExactMatch, Namespace::Type, session).nth(0);
         context.map(|m| {
             match m.mtype {
                 Module => {
@@ -1400,7 +1397,7 @@ fn search_for_deref_matches(impl_match: &Match, type_match: &Match, fieldsearchs
             let type_match = resolve_path_with_str(&inner_type_path.path.clone(),
                                                    inner_type_path.filepath.as_path(),
                                                    0, SearchType::ExactMatch,
-                                                   Namespace::TypeNamespace,
+                                                   Namespace::Type,
                                                    session).nth(0);
             let subpath = get_subpathsearch(&inner_type_path);
             if let Some(mut m) = type_match {
@@ -1421,7 +1418,7 @@ fn search_for_deref_matches(impl_match: &Match, type_match: &Match, fieldsearchs
                     types: Vec::new()
                 }]
             };
-            let type_match = resolve_path_with_str(&deref_type_path, fpath, 0, SearchType::ExactMatch, Namespace::TypeNamespace, session).nth(0);
+            let type_match = resolve_path_with_str(&deref_type_path, fpath, 0, SearchType::ExactMatch, Namespace::Type, session).nth(0);
             if let Some(m) = type_match {
                 let methods = search_for_field_or_method(m, fieldsearchstr, SearchType::StartsWith, session);
                 out.extend(methods);

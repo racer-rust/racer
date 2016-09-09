@@ -347,7 +347,7 @@ impl<'c, 's> visit::Visitor for MatchTypeVisitor<'c, 's> {
 fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: usize, session: &Session) -> Option<Match> {
     debug!("resolve_ast_path {:?}", to_racer_path(path));
     nameres::resolve_path_with_str(&to_racer_path(path), filepath, pos, core::SearchType::ExactMatch,
-                                   core::Namespace::BothNamespaces, session).nth(0)
+                                   core::Namespace::Both, session).nth(0)
 }
 
 fn to_racer_path(pth: &ast::Path) -> core::Path {
@@ -379,13 +379,13 @@ fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
 fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &Session) -> Option<Ty> {
     debug!("find_type_match {:?}, {:?}", path, fpath);
     let res = resolve_path_with_str(path, fpath, pos, core::SearchType::ExactMatch,
-               core::Namespace::TypeNamespace, session).nth(0).and_then(|m| {
+               core::Namespace::Type, session).nth(0).and_then(|m| {
                    match m.mtype {
                        MatchType::Type => get_type_of_typedef(m, session, fpath),
                        _ => Some(m)
                    }
                });
-    
+
     res.and_then(|m| {
         // add generic types to match (if any)
         let types: Vec<core::PathSearch> = path.generic_types()
@@ -420,9 +420,9 @@ fn get_type_of_typedef(m: Match, session: &Session, fpath: &Path) -> Option<Matc
         let src = session.load_file(fpath);
         let scope_start = scopes::scope_start(src.as_src(), m.point);
         // Type of TypeDef cannot be inside the impl block so look outside
-        let outer_scope_start = scopes::scope_start(src.as_src(), scope_start - 1); 
+        let outer_scope_start = scopes::scope_start(src.as_src(), scope_start - 1);
         nameres::resolve_path_with_str(&type_, &m.filepath, outer_scope_start, core::SearchType::ExactMatch,
-                                       core::Namespace::TypeNamespace, session).nth(0)
+                                       core::Namespace::Type, session).nth(0)
     })
 }
 
@@ -501,7 +501,7 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
                                 core::SearchType::ExactMatch,
                                 self.session);
                             omethod
-                                .map(|method| typeinf::get_return_type_of_function(&method, &contextm, self.session))
+                                .map(|method| typeinf::get_return_type_of_function(&method, contextm, self.session))
                                 .filter_map(|ty| ty
                                      .and_then(|ty| {path_to_match_including_generics(ty, contextm, self.session)}))
                                 .nth(0)
@@ -569,7 +569,7 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
                     .zip(contextm.generic_types.iter().cloned());
                 let mut typepath = fieldtypepath.clone();
                 let mut gentypefound = false;
-                
+
                 for (name, typesearch) in it.clone() {
                     if name == typename {
                         // yes! a generic type match!
@@ -579,7 +579,7 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
                                                session);
                     }
 
-                    for typ in typepath.segments[0].types.iter_mut() {
+                    for typ in &mut typepath.segments[0].types {
                         let gentypename = typ.segments[0].name.clone();
                         if name == gentypename {
                             // A generic type on ty matches one on contextm
@@ -591,7 +591,7 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
 
                 if gentypefound {
                     let mut out = find_type_match(&typepath, &scope.filepath, scope.point, session);
-                    
+
                     // Fix the paths on the generic types in out
                     if let Some(Ty::Match(ref mut m)) = out {
                         for (_, typesearch) in it {
@@ -740,7 +740,7 @@ impl visit::Visitor for ImplVisitor {
                 }
                 _ => {}
             }
-            otrait.as_ref().map(|ref t| {
+            otrait.as_ref().map(|t| {
                 self.trait_path = Some(to_racer_path(&t.path));
             });
         }
@@ -792,9 +792,9 @@ impl visit::Visitor for GenericsVisitor {
             let generic_ty_name = (&ty.ident.name).to_string();
             let mut generic_bounds = Vec::new();
             for trait_bound in ty.bounds.iter() {
-                let bound_path = match trait_bound {
-                    &TyParamBound::TraitTyParamBound(ref ptrait_ref, _) => Some(&ptrait_ref.trait_ref.path),
-                    _ => None, 
+                let bound_path = match *trait_bound {
+                    TyParamBound::TraitTyParamBound(ref ptrait_ref, _) => Some(&ptrait_ref.trait_ref.path),
+                    _ => None,
                 };
                 if let Some(path) = bound_path.and_then(|path| { path.segments.get(0) }) {
                     generic_bounds.push((path.identifier.name).to_string());

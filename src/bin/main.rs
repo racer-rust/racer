@@ -185,7 +185,7 @@ fn external_complete(cfg: Config, print_type: CompletePrinter) {
         } else {
             for m in do_external_search(&p[1..], &m.filepath, m.point,
                                         core::SearchType::StartsWith,
-                                        core::Namespace::BothNamespaces, &session) {
+                                        core::Namespace::Both, &session) {
                 match print_type {
                     CompletePrinter::Normal => match_fn(m, &session, cfg.interface),
                     CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session, cfg.interface),

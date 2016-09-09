@@ -50,9 +50,9 @@ pub enum SearchType {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Namespace {
-    TypeNamespace,
-    ValueNamespace,
-    BothNamespaces
+    Type,
+    Value,
+    Both
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -579,7 +579,7 @@ pub fn complete_from_file(src: &str, filepath: &path::Path,
 
             let path = Path::from_vec(is_global, v);
             for m in nameres::resolve_path(&path, filepath, pos,
-                                         SearchType::StartsWith, Namespace::BothNamespaces,
+                                         SearchType::StartsWith, Namespace::Both,
                                          session) {
                 out.push(m);
             }
@@ -637,7 +637,7 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &
             let path = Path{ global: global, segments: segs };
 
             nameres::resolve_path(&path, filepath, pos,
-                                  SearchType::ExactMatch, Namespace::BothNamespaces,
+                                  SearchType::ExactMatch, Namespace::Both,
                                   session).nth(0)
         },
         CompletionType::Field => {
