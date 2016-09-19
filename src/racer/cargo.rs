@@ -48,22 +48,22 @@ fn get_branch_from_source(source: &str) -> Option<&str> {
 
 #[test]
 fn gets_branch_from_git_source_with_hash() {
-    let source = "git+https://github.com/phildawes/racer.git?branch=dev#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1".to_owned();
-    let branch = get_branch_from_source(&source);
+    let source = "git+https://github.com/phildawes/racer.git?branch=dev#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1";
+    let branch = get_branch_from_source(source);
     assert_eq!(branch, Some("dev"));
 }
 
 #[test]
 fn gets_branch_from_git_source_without_hash() {
-    let source = "git+https://github.com/phildawes/racer.git?branch=dev".to_owned();
-    let branch = get_branch_from_source(&source);
+    let source = "git+https://github.com/phildawes/racer.git?branch=dev";
+    let branch = get_branch_from_source(source);
     assert_eq!(branch, Some("dev"));
 }
 
 #[test]
 fn empty_if_no_branch() {
-    let source = "git+https://github.com/phildawes/racer.git#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1".to_owned();
-    let branch = get_branch_from_source(&source);
+    let source = "git+https://github.com/phildawes/racer.git#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1";
+    let branch = get_branch_from_source(source);
     assert_eq!(branch, None);
 }
 
@@ -73,16 +73,16 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
         trace!("find_src_via_lockfile got packages");
         for package in packages {
             trace!("find_src_via_lockfile examining {:?}", package);
-            if let Some(package_source) = package.source.clone() {
+            if let Some(package_source) = package.source {
                 trace!("find_src_via_lockfile package_source {:?}", package_source);
-                if let Some(tomlfile) = find_cargo_tomlfile(package_source.as_path()) {
+                if let Some(tomlfile) = find_cargo_tomlfile(package_source.clone()) {
                     trace!("find_src_via_lockfile tomlfile {:?}", tomlfile);
                     let package_name = get_package_name(tomlfile.as_path());
 
                     debug!("find_src_via_lockfile package_name: {}", package_name);
 
                     if package_name == kratename {
-                        return package.source;
+                        return Some(package_source);
                     }
                 }
             }
@@ -339,9 +339,9 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     debug!("find_src_via_tomlfile found local packages: {:?}", local_packages);
     debug!("find_src_via_tomlfile found local packages dev: {:?}", local_packages_dev);
 
-    for package in local_packages.iter().chain(local_packages_dev.iter()) {
-        if let Some(package_source) = package.source.clone() {
-            if let Some(tomlfile) = find_cargo_tomlfile(package_source.as_path()) {
+    for package in local_packages.into_iter().chain(local_packages_dev) {
+        if let Some(package_source) = package.source {
+            if let Some(tomlfile) = find_cargo_tomlfile(package_source.clone()) {
                 let package_name = get_package_name(tomlfile.as_path());
 
                 debug!("find_src_via_tomlfile package_name: {}", package_name);
@@ -473,20 +473,19 @@ fn getstr(t: &toml::Table, k: &str) -> Option<String> {
     }
 }
 
-fn find_cargo_tomlfile(currentfile: &Path) -> Option<PathBuf> {
-    let mut f = currentfile.to_path_buf();
+fn find_cargo_tomlfile(mut f: PathBuf) -> Option<PathBuf> {
     f.push("Cargo.toml");
     if f.exists() {
         Some(f)
     } else if f.pop() && f.pop() {
-        find_cargo_tomlfile(&f)
+        find_cargo_tomlfile(f)
     } else {
         None
     }
 }
 
 pub fn get_crate_file(kratename: &str, from_path: &Path) -> Option<PathBuf> {
-    if let Some(tomlfile) = find_cargo_tomlfile(from_path) {
+    if let Some(tomlfile) = find_cargo_tomlfile(from_path.to_path_buf()) {
         // look in the lockfile first, if there is one
         debug!("get_crate_file tomlfile is {:?}", tomlfile);
         let mut lockfile = tomlfile.clone();

@@ -218,7 +218,7 @@ pub fn match_for(msrc: &str, blobstart: usize, blobend: usize,
 }
 
 pub fn first_line(blob: &str) -> String {
-    (&blob[..blob.find('\n').unwrap_or(blob.len())]).to_owned()
+    blob[..blob.find('\n').unwrap_or(blob.len())].to_owned()
 }
 
 /// Get the match's cleaned up context string
@@ -226,7 +226,7 @@ pub fn first_line(blob: &str) -> String {
 /// Strip all whitespace, including newlines in order to have a single line
 /// context string.
 pub fn get_context(blob: &str, context_end: &str) -> String {
-    (&blob[..blob.find(context_end).unwrap_or(blob.len())])
+    blob[..blob.find(context_end).unwrap_or(blob.len())]
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
@@ -332,14 +332,15 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
             }
             if let Some(modpath) = get_module_file(l, &searchdir) {
                 let msrc = session.load_file(&modpath);
+                let context = modpath.to_str().unwrap().to_owned();
 
                 return Some(Match {
                     matchstr: l.to_owned(),
-                    filepath: modpath.to_path_buf(),
+                    filepath: modpath,
                     point: 0,
                     local: false,
                     mtype: Module,
-                    contextstr: modpath.to_str().unwrap().to_owned(),
+                    contextstr: context,
                     generic_args: Vec::new(),
                     generic_types: Vec::new(),
                     docs: find_mod_doc(&msrc, 0),
@@ -452,9 +453,9 @@ pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize,
         let parsed_enum = ast::parse_enum(blob.to_owned());
 
         for (name, offset) in parsed_enum.values.into_iter() {
-            if (&name).starts_with(searchstr) {
+            if name.starts_with(searchstr) {
                 let m = Match {
-                    matchstr: name.clone(),
+                    matchstr: name,
                     filepath: filepath.to_path_buf(),
                     point: blobstart + offset,
                     local: local,

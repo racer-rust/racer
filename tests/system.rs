@@ -5,7 +5,6 @@ extern crate rand;
 use racer::core::complete_from_file;
 use racer::core::find_definition;
 use racer::core;
-use racer::scopes;
 
 use std::io::Write;
 use std::fs::{self, File};
@@ -42,20 +41,12 @@ impl TmpFile {
         tmp
     }
 
-    /// Create a file with `name` and `contents`.
-    pub fn with_name(name: &str, contents: &str) -> TmpFile {
-        TmpFile::with_path(&Path::new(name), contents)
-    }
-
     fn write_contents(&self, contents: &str) {
-        let mut f = File::create(self.path()).unwrap();
-        f.write_all(contents.as_bytes()).unwrap();
-        f.flush().unwrap();
+        File::create(self.path()).unwrap().write_all(contents.as_bytes()).unwrap();
     }
-
 
     /// Get the Path of the TmpFile
-    pub fn path<'a>(&'a self) -> &'a Path {
+    pub fn path(&self) -> &Path {
         self.path_buf.as_path()
     }
 }
@@ -66,9 +57,7 @@ fn tmpname() -> String {
 
     let thread = thread::current();
     let taskname = thread.name().unwrap();
-    let s = taskname.replace("::", "_");
-    let mut p = "tmpfile.".to_string();
-    p.push_str(&s[..]);
+    let mut p = String::from("tmpfile.") + &taskname.replace("::", "_");
     // Add some random chars
     for c in ::rand::thread_rng().gen_ascii_chars().take(5) {
         p.push(c);
@@ -79,7 +68,11 @@ fn tmpname() -> String {
 
 impl Drop for TmpFile {
     fn drop(&mut self) {
-        fs::remove_file(self.path_buf.as_path()).unwrap();
+        if self.path().exists() {
+            if let Err(e) = fs::remove_file(self.path()) {
+                println!("could not remove tmpfile {}: {:?}", self.path().display(), e);
+            }
+        }
     }
 }
 
@@ -89,11 +82,11 @@ pub struct TmpDir {
 
 impl TmpDir {
     pub fn new() -> TmpDir {
-        TmpDir::with_name(&tmpname()[..])
+        TmpDir::with_path(tmpname())
     }
 
-    pub fn with_name(name: &str) -> TmpDir {
-        let pb = PathBuf::from(name);
+    pub fn with_path<P: AsRef<Path>>(name: P) -> TmpDir {
+        let pb = PathBuf::from(name.as_ref());
         fs::create_dir_all(&pb).unwrap();
 
         TmpDir {
@@ -101,187 +94,206 @@ impl TmpDir {
         }
     }
 
-    /// Create a new temp file in the directory.
-    pub fn new_temp_file(&self, contents: &str) -> TmpFile {
-        self.new_temp_file_with_name(&tmpname()[..], contents)
-    }
-
-    /// Create new temp file with name in the directory
-    pub fn new_temp_file_with_name(&self, name: &str, contents: &str) -> TmpFile {
+    /// Create new file with name in the directory
+    pub fn write_file<P: AsRef<Path>>(&self, name: P, contents: &str) -> PathBuf {
         let name = self.path_buf.join(name);
-        TmpFile::with_path(name, contents)
+        File::create(&name).unwrap().write_all(contents.as_bytes()).unwrap();
+        name
     }
 
-    pub fn pathbuf(&self) -> &PathBuf {
-        &self.path_buf
+    pub fn path(&self) -> &Path {
+        self.path_buf.as_path()
     }
 }
 
 impl Drop for TmpDir {
     fn drop(&mut self) {
-        fs::remove_dir_all(&self.path_buf).unwrap();
+        if self.path().exists() {
+            if let Err(e) = fs::remove_dir_all(self.path()) {
+                println!("could not remove tmpdir {}: {:?}", self.path().display(), e);
+            }
+        }
     }
 }
 
+fn get_pos_and_source(src: &str) -> (usize, String) {
+    let point = src.find('~').unwrap();
+    (point, src.replace('~', ""))
+}
+
+/// Return the completions for the given source.
+///
+/// The point to find completions at must be marked with '~'.
+fn get_all_completions(src: &str, dir: Option<TmpDir>) -> Vec<core::Match> {
+    let dir = dir.unwrap_or_else(|| TmpDir::new());
+    let (completion_point, clean_src) = get_pos_and_source(src);
+    let path = dir.write_file("src.rs", &clean_src);
+    let cache = core::FileCache::new();
+    let session = core::Session::from_path(&cache, &path, &path);
+
+    complete_from_file(&clean_src, &path, completion_point, &session).collect()
+}
+
+/// Return the first completion for the given source.
+fn get_one_completion(src: &str, dir: Option<TmpDir>) -> core::Match {
+    get_all_completions(src, dir).swap_remove(0)
+}
+
+/// Return the first completion for the given source, which must be
+/// the only one.
+fn get_only_completion(src: &str, dir: Option<TmpDir>) -> core::Match {
+    let mut all = get_all_completions(src, dir);
+    assert_eq!(all.len(), 1);
+    all.pop().unwrap()
+}
+
+/// Return the definition for the given source.
+///
+/// The point to find the definition at must be marked with '~'.
+fn get_definition(src: &str, dir: Option<TmpDir>) -> core::Match {
+    let dir = dir.unwrap_or_else(|| TmpDir::new());
+    let (completion_point, clean_src) = get_pos_and_source(src);
+    let path = dir.write_file("src.rs", &clean_src);
+    let cache = core::FileCache::new();
+    let session = core::Session::from_path(&cache, &path, &path);
+
+    find_definition(&clean_src, &path, completion_point, &session).unwrap()
+}
+
+
 #[test]
 fn completes_fn() {
-    let src="
+    let src = "
     fn  apple() {
     }
 
     fn main() {
-        let b = ap
+        let b = ap~
     }";
 
-    let f = TmpFile::new(src);
-    let path = f.path();
-
-    let pos = scopes::coords_to_point(src, 6, 18);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, path, pos, &core::Session::from_path(&cache, path, path)).nth(0).unwrap();
-
-    assert_eq!("apple".to_string(), got.matchstr.to_string());
+    let got = get_one_completion(src, None);
+    assert_eq!("apple", got.matchstr);
 }
 
 
 #[test]
 fn finds_fn_docs() {
-    let src="
+    let src = "
     /// Orange
     /// juice
     fn apple() {
     }
 
     fn main() {
-        apple
+        apple~
     }";
 
-    let f = TmpFile::new(src);
-    let path = f.path();
-
-    let pos = scopes::coords_to_point(src, 8, 13);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, path, pos, &core::Session::from_path(&cache, path, path)).nth(0).unwrap();
-
-    assert_eq!("apple".to_string(), got.matchstr.to_string());
-    assert_eq!("Orange\njuice".to_string(), got.docs.to_string());
+    let got = get_one_completion(src, None);
+    assert_eq!("apple", got.matchstr);
+    assert_eq!("Orange\njuice", got.docs);
 }
 
 #[test]
 fn finds_struct_docs() {
-    let src="
+    let src = "
     /// Orange
     /// juice
     struct Apple {
     }
 
     fn main() {
-        Apple
+        Apple~
     }";
 
-    let f = TmpFile::new(src);
-    let path = f.path();
-
-    let pos = scopes::coords_to_point(src, 8, 13);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, path, pos, &core::Session::from_path(&cache, path, path)).nth(0).unwrap();
-
-    assert_eq!("Apple".to_string(), got.matchstr.to_string());
-    assert_eq!("Orange\njuice".to_string(), got.docs.to_string());
+    let got = get_one_completion(src, None);
+    assert_eq!("Apple", got.matchstr);
+    assert_eq!("Orange\njuice", got.docs);
 }
 
 #[test]
 fn completes_fn_with_substitute_file() {
-    let src="
+    let src = "
     fn  apple() {
     }
 
     fn main() {
-        let b = ap
+        let b = ap~
     }";
 
-    let substitute_file = TmpFile::new(src);
-    let pos = scopes::coords_to_point(src, 6, 18);
+    let (pos, src) = get_pos_and_source(src);
+    let substitute_file = TmpFile::new(&src);
     let cache = core::FileCache::new();
-    let real_file = &Path::new("not_real.rs");
-    let session = core::Session::from_path(&cache, &real_file, substitute_file.path());
-    let got = complete_from_file(src, &real_file, pos, &session).nth(0).unwrap();
+    let real_file = Path::new("not_real.rs");
+    let session = core::Session::from_path(&cache, real_file, substitute_file.path());
+    let got = complete_from_file(&src, real_file, pos, &session).nth(0).unwrap();
 
-    assert_eq!("apple".to_string(), got.matchstr.to_string());
+    assert_eq!("apple", got.matchstr);
 }
 
 #[test]
 fn completes_pub_fn_locally() {
-    let src="
+    let src = "
     pub fn apple() {
     }
 
     fn main() {
-        let b = ap
+        let b = ap~
     }";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 6, 18);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
-    assert_eq!("apple".to_string(), got.matchstr.to_string());
+
+    let got = get_one_completion(src, None);
+    assert_eq!("apple", got.matchstr);
 }
 
 #[test]
 fn completes_pub_fn_locally_precached() {
-    let src="
+    let src = "
     pub fn apple() {
     }
 
     fn main() {
-        let b = ap
+        let b = ap~
     }";
-    let f = TmpFile::new(src);
+
+    let (pos, src) = get_pos_and_source(src);
+    let f = TmpFile::new(&src);
     let path = f.path();
-    let pos = scopes::coords_to_point(src, 6, 18);
     let cache = core::FileCache::new();
-    cache.cache_file_contents(&path, src);
+    cache.cache_file_contents(&path, src.clone());
     let session = core::Session::from_path(&cache, &path, &path);
-    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
-    assert_eq!("apple".to_string(), got.matchstr.to_string());
+    let got = complete_from_file(&src, &path, pos, &session).nth(0).unwrap();
+    assert_eq!("apple", got.matchstr);
 }
 
 #[test]
 fn completes_pub_fn_from_local_package() {
-    let src="
+    let src = "
     extern crate fixtures;
 
     use fixtures::foo;
 
     fn main() {
-        let x = foo::
+        let x = foo::~
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 7, 21);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0);
-    assert_eq!(got.unwrap().matchstr, "test".to_owned());
+
+    let got = get_one_completion(src, None);
+    assert_eq!("test", got.matchstr);
 }
 
 #[test]
 fn completes_pub_fn_from_local_submodule_package() {
-    let src="
+    let src = "
     extern crate fixtures;
 
     use fixtures::bar;
 
     fn main() {
-        let x = bar::
+        let x = bar::~
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 7, 21);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0);
-    assert_eq!(got.unwrap().matchstr, "bartest".to_owned());
+
+    let got = get_one_completion(src, None);
+    assert_eq!("bartest", got.matchstr);
 }
 
 #[test]
@@ -292,17 +304,17 @@ fn overwriting_cached_files() {
     let src4 = "src4";
 
     // Need session and path to cache files
-    let path = &Path::new("not_on_disk");
+    let path = Path::new("not_on_disk");
     let cache = core::FileCache::new();
 
     // Cache contents for a file and assert that load_file and load_file_and_mask_comments return
     // the newly cached contents.
     macro_rules! cache_and_assert {
         ($src:ident) => {{
-            cache.cache_file_contents(&path, $src);
-            let session = core::Session::from_path(&cache, &path, &path);
-            assert_eq!($src, &session.load_file(&path).code[..]);
-            assert_eq!($src, &session.load_file_and_mask_comments(&path).code[..]);
+            cache.cache_file_contents(path, $src);
+            let session = core::Session::from_path(&cache, path, path);
+            assert_eq!($src, &session.load_file(path).code[..]);
+            assert_eq!($src, &session.load_file_and_mask_comments(path).code[..]);
         }}
     }
 
@@ -315,53 +327,44 @@ fn overwriting_cached_files() {
 
 #[test]
 fn completes_pub_const_fn_locally() {
-    let src="
+    let src = "
     pub const fn apple() {
     }
 
     fn main() {
-        let b = ap
+        let b = ap~
     }";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 6, 18);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
-    assert_eq!("apple".to_string(), got.matchstr.to_string());
+
+    let got = get_one_completion(src, None);
+    assert_eq!("apple", got.matchstr);
 }
 
 #[test]
 fn completes_local_scope_let() {
-    let src="
+    let src = "
     fn main() {
         let apple = 35;
-        let b = ap
+        let b = ap~
     }";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 4, 18);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
-    assert_eq!("apple".to_string(), got.matchstr);
+
+    let got = get_one_completion(src, None);
+    assert_eq!("apple", got.matchstr);
     assert_eq!(29, got.point);
 }
 
 #[test]
-fn completes_via_parent_scope_let(){
-    let src="
-fn main() {
-    let mut apple = 35;
-    if foo {
-        let b = ap
-    }
-}";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 5, 18);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
-    assert_eq!("apple".to_string(), got.matchstr);
-    assert_eq!(25, got.point);
+fn completes_via_parent_scope_let() {
+    let src = "
+    fn main() {
+        let mut apple = 35;
+        if foo {
+            let b = ap~
+        }
+    }";
+
+    let got = get_one_completion(src, None);
+    assert_eq!("apple", got.matchstr);
+    assert_eq!(33, got.point);
 }
 
 #[test]
@@ -397,7 +400,7 @@ fn completes_for_vec_field_and_method() {
         Some(T)
     }
     ";
-    let src="
+    let src = "
     pub mod mymod;
     use mymod::{Vec, IntoIter, IntoIterator, Option};
     use Option::{Some, None};
@@ -425,100 +428,101 @@ fn completes_for_vec_field_and_method() {
     ";
 
     let dir = TmpDir::new();
-    let _modfile = dir.new_temp_file_with_name("mymod.rs", modsrc);
-    let srcfile = dir.new_temp_file_with_name("src.rs", src);
-
-    let path = srcfile.path();
-    let pos1 = scopes::coords_to_point(src, 22, 18);
-    let cache1 = core::FileCache::new();
-    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&cache1, &path, &path)).nth(0).unwrap();
+    dir.write_file("mymod.rs", modsrc);
+    let path = dir.write_file("src.rs", src);
+    let cache = core::FileCache::new();
+    let session = core::Session::from_path(&cache, &path, &path);
+    let pos1 = session.load_file(&path).coords_to_point(22, 18).unwrap();
+    let got1 = complete_from_file(src, &path, pos1, &session).nth(0).unwrap();
     println!("{:?}", got1);
-    assert_eq!("stfield".to_string(), got1.matchstr);
-    let pos2 = scopes::coords_to_point(src, 23, 18);
-    let cache2 = core::FileCache::new();
-    let got2 = complete_from_file(src, &path, pos2, &core::Session::from_path(&cache2, &path, &path)).nth(0).unwrap();
+    assert_eq!("stfield", got1.matchstr);
+    let pos2 = session.load_file(&path).coords_to_point(23, 18).unwrap();
+    let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
     println!("{:?}", got2);
-    assert_eq!("stmethod".to_string(), got2.matchstr);
+    assert_eq!("stmethod", got2.matchstr);
 }
 
 #[test]
 fn completes_trait_methods() {
     let src = "
-mod sub {
-    pub trait Trait {
-        fn traitf() -> bool;
-        fn traitm(&self) -> bool;
+    mod sub {
+        pub trait Trait {
+            fn traitf() -> bool;
+            fn traitm(&self) -> bool;
+        }
+
+        pub struct Foo(pub bool);
+
+        impl Trait for Foo {
+            fn traitf() -> bool { false }
+            fn traitm(&self) -> bool { true }
+        }
     }
 
-    pub struct Foo(pub bool);
-
-    impl Trait for Foo {
-        fn traitf() -> bool { false }
-        fn traitm(&self) -> bool { true }
+    fn main() { // l16
+        let t = sub::Foo(true);
+        sub::Foo::
+        t.t
     }
-}
-
-fn main() { // l16
-    let t = sub::Foo(true);
-    sub::Foo::
-    t.t
-}
-";
+    ";
     let f = TmpFile::new(src);
     let path = f.path();
-    let pos1 = scopes::coords_to_point(src, 18, 14);  // sub::Foo::
     let cache1 = core::FileCache::new();
-    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&cache1, &path, &path)).nth(0).unwrap();
-    let pos2 = scopes::coords_to_point(src, 19, 7);   // t.t
+    let session1 = core::Session::from_path(&cache1, &path, &path);
+    let pos1 = session1.load_file(path).coords_to_point(18, 18).unwrap(); // sub::Foo::
+    let got1 = complete_from_file(src, &path, pos1, &session1).nth(0).unwrap();
     let cache2 = core::FileCache::new();
-    let got2 = complete_from_file(src, &path, pos2, &core::Session::from_path(&cache2, &path, &path)).nth(0).unwrap();
+    let session2 = core::Session::from_path(&cache2, &path, &path);
+    let pos2 = session2.load_file(path).coords_to_point(19, 11).unwrap(); // t.t
+    let got2 = complete_from_file(src, &path, pos2, &session2).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
-    assert_eq!(got1.matchstr, "traitf".to_string());
-    assert_eq!(got2.matchstr, "traitm".to_string());
-    assert_eq!(got1.contextstr, "fn traitf() -> bool".to_string());
-    assert_eq!(got2.contextstr, "fn traitm(&self) -> bool".to_string());
+    assert_eq!(got1.matchstr, "traitf");
+    assert_eq!(got2.matchstr, "traitm");
+    assert_eq!(got1.contextstr, "fn traitf() -> bool");
+    assert_eq!(got2.contextstr, "fn traitm(&self) -> bool");
 }
 
 #[test]
 fn completes_trait_bounded_methods() {
     let src = "
     pub trait Trait1 {}
-    
+
     impl Trait1 for Foo {}
-    
+
     pub trait Trait2 {
         fn traitf() -> bool;
         fn traitm(&self) -> bool;
     }
-    
+
     impl<T: Trait1> Trait2 for T {
         fn traitf() -> bool { true }
         fn traitm(&self) -> bool { false }
     }
-    
+
     pub struct Foo(pub bool);
-    
+
     fn main() {
         let t = Foo(true);
         Foo::tra
         t.tr
-    }
-";
+    }";
     let f = TmpFile::new(src);
     let path = f.path();
-    let pos1 = scopes::coords_to_point(src, 20, 16);  // sub::Foo::
     let cache1 = core::FileCache::new();
-    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&cache1, &path, &path)).nth(0).unwrap();
-    let pos2 = scopes::coords_to_point(src, 21, 12);   // t.t
+    let session1 = core::Session::from_path(&cache1, &path, &path);
+    let pos1 = session1.load_file(path).coords_to_point(20, 16).unwrap(); // sub::Foo::
+    let got1 = complete_from_file(src, &path, pos1, &session1).nth(0).unwrap();
     let cache2 = core::FileCache::new();
-    let got2 = complete_from_file(src, &path, pos2, &core::Session::from_path(&cache2, &path, &path)).nth(0).unwrap();
+    let session2 = core::Session::from_path(&cache2, &path, &path);
+    let pos2 = session2.load_file(path).coords_to_point(21, 12).unwrap(); // t.t
+    let got2 = complete_from_file(src, &path, pos2, &session2).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
-    assert_eq!(got1.matchstr, "traitf".to_string());
-    assert_eq!(got2.matchstr, "traitm".to_string());
-    assert_eq!(got1.contextstr, "fn traitf() -> bool".to_string());
-    assert_eq!(got2.contextstr, "fn traitm(&self) -> bool".to_string());
+    assert_eq!(got1.matchstr, "traitf");
+    assert_eq!(got2.matchstr, "traitm");
+    assert_eq!(got1.contextstr, "fn traitf() -> bool");
+    assert_eq!(got2.contextstr, "fn traitm(&self) -> bool");
 }
 
 #[test]
@@ -527,41 +531,41 @@ fn completes_trait_bounded_methods_generic_return() {
     pub trait Trait1 {
         fn traitfn(&self) -> u32 { 2 }
     }
-    
+
     impl Trait1 for Foo {}
-    
+
     pub trait Trait2 {
         fn traitm(self) -> Self;
     }
-    
+
     impl<T: Trait1> Trait2 for T {
         fn traitm(self) -> T { self }
     }
-    
+
     pub struct Foo(pub bool);
-    
+
     impl Foo {
         pub fn structfn(&self) -> bool {self.0}
     }
-    
+
     fn main() {
         let t = Foo(true);
         t.traitm().struc
         t.traitm().traitf
-    }
-";
+    }";
+
     let f = TmpFile::new(src);
     let path = f.path();
-    let pos1 = scopes::coords_to_point(src, 24, 24);  // sub::Foo::
-    let pos2 = scopes::coords_to_point(src, 25, 25);  // sub::Foo::
-    let cache1 = core::FileCache::new();
-    let cache2 = core::FileCache::new();
-    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&cache1, &path, &path)).nth(0).unwrap();
-    let got2 = complete_from_file(src, &path, pos2, &core::Session::from_path(&cache2, &path, &path)).nth(0).unwrap();
+    let cache = core::FileCache::new();
+    let session = core::Session::from_path(&cache, &path, &path);
+    let pos1 = session.load_file(path).coords_to_point(24, 24).unwrap();  // struc
+    let pos2 = session.load_file(path).coords_to_point(25, 25).unwrap();  // traitf
+    let got1 = complete_from_file(src, &path, pos1, &session).nth(0).unwrap();
+    let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
-    assert_eq!(got1.matchstr, "structfn".to_string());
-    assert_eq!(got2.matchstr, "traitfn".to_string());
+    assert_eq!(got1.matchstr, "structfn");
+    assert_eq!(got2.matchstr, "traitfn");
 }
 
 #[test]
@@ -569,22 +573,22 @@ fn completes_iter_variable_methods() {
     let modsrc = "
     pub trait Iterator {
         type Item;
-        
+
         fn next(&mut self) -> Option<Self::Item>;
     }
 
     pub trait IntoIterator {
         type Item;
-        
+
         type IntoIter: Iterator<Item=Self::Item>;
-        
+
         fn into_iter(self) -> Self::IntoIter;
     }
 
     impl<I: Iterator> IntoIterator for I {
         type Item = I::Item;
         type IntoIter = I;
-    
+
         fn into_iter(self) -> I {
             self
         }
@@ -592,7 +596,7 @@ fn completes_iter_variable_methods() {
 
     impl<T> Iterator for IntoIter<T> {
         type Item = T;
-        
+
         fn next(&mut self) -> Option<T> {}
     }
 
@@ -601,7 +605,7 @@ fn completes_iter_variable_methods() {
         Some(T)
     }
     ";
-    
+
     let src = "
     pub mod mymod;
     use mymod::{Iterator, Option};
@@ -615,10 +619,10 @@ fn completes_iter_variable_methods() {
     struct StItem {
         pub field: u32
     }
-    
+
     impl Iterator for St {
         type Item: StItem;
-    
+
         fn next(&mut self) -> Option<StItem> {
             if self.used {
                 self.used = false;
@@ -627,29 +631,24 @@ fn completes_iter_variable_methods() {
             None
         }
     }
-    
+
     fn main()
     {
         let it = St {
             text: StItem { field: 22 },
             used: false
         }
-        
+
         for item in it {
-            item.fie
+            item.fie~
         }
     }
-";
+    ";
+
     let dir = TmpDir::new();
-    let _modfile = dir.new_temp_file_with_name("mymod.rs", modsrc);
-    let srcfile = dir.new_temp_file_with_name("src.rs", src);
-    
-    let path = srcfile.path();
-    let pos = scopes::coords_to_point(src, 35, 20);  // sub::Foo::
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
-    println!("{:?}", got);
-    assert_eq!(got.matchstr, "field".to_string());
+    dir.write_file("mymod.rs", modsrc);
+    let got = get_one_completion(src, Some(dir));
+    assert_eq!(got.matchstr, "field");
 }
 
 #[test]
@@ -657,42 +656,42 @@ fn completes_for_vec_iter_field_and_method() {
     let modsrc = "
     pub trait Iterator {
         type Item;
-        
+
         fn next(&mut self) -> Option<Self::Item>;
     }
 
     pub trait IntoIterator {
         type Item;
-        
+
         type IntoIter: Iterator<Item=Self::Item>;
-        
+
         fn into_iter(self) -> Self::IntoIter;
     }
-    
+
     impl<T> IntoIterator for Vec<T> {
         type Item = T;
         type IntoIter = IntoIter<T>;
-        
+
         fn into_iter(mut self) -> IntoIter<T> {}
     }
-    
+
     pub struct IntoIter<T> {}
-    
+
     impl<T> Iterator for IntoIter<T> {
         type Item = T;
-        
+
         fn next(&mut self) -> Option<T> {}
     }
 
     impl<I: Iterator> IntoIterator for I {
         type Item = I::Item;
         type IntoIter = I;
-    
+
         fn into_iter(self) -> I {
             self
         }
     }
-    
+
     pub struct Vec<T> {}
 
     pub enum Option<T> {
@@ -700,7 +699,7 @@ fn completes_for_vec_iter_field_and_method() {
         Some(T)
     }
     ";
-    let src="
+    let src = "
     pub mod mymod;
     use mymod::{Vec, IntoIter, IntoIterator, Option};
     use Option::{Some, None};
@@ -709,16 +708,16 @@ fn completes_for_vec_iter_field_and_method() {
     {
         stfield: i32,
     }
-    
+
     impl St {
         pub fn stmethod(&self) -> u32 {2}
     }
-    
+
     fn main()
     {
         let mut arr: Vec<St> = Vec::new();
         arr.push( St{stfield: 4} );
-    
+
         for it in arr.iter()
         {
             it.stf
@@ -728,134 +727,126 @@ fn completes_for_vec_iter_field_and_method() {
     ";
 
     let dir = TmpDir::new();
-    let _modfile = dir.new_temp_file_with_name("mymod.rs", modsrc);
-    let srcfile = dir.new_temp_file_with_name("src.rs", src);
-    
-    let path = srcfile.path();
-    let pos1 = scopes::coords_to_point(src, 22, 18);
-    let cache1 = core::FileCache::new();
-    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&cache1, &path, &path)).nth(0).unwrap();
+    dir.write_file("mymod.rs", modsrc);
+    let path = dir.write_file("src.rs", src);
+    let cache = core::FileCache::new();
+    let session = core::Session::from_path(&cache, &path, &path);
+    let pos1 = session.load_file(&path).coords_to_point(22, 18).unwrap();
+    let got1 = complete_from_file(src, &path, pos1, &session).nth(0).unwrap();
     println!("{:?}", got1);
-    assert_eq!("stfield".to_string(), got1.matchstr);
-    let pos2 = scopes::coords_to_point(src, 23, 18);
-    let cache2 = core::FileCache::new();
-    let got2 = complete_from_file(src, &path, pos2, &core::Session::from_path(&cache2, &path, &path)).nth(0).unwrap();
+    assert_eq!("stfield", got1.matchstr);
+    let pos2 = session.load_file(&path).coords_to_point(23, 18).unwrap();
+    let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
     println!("{:?}", got2);
-    assert_eq!("stmethod".to_string(), got2.matchstr);
+    assert_eq!("stmethod", got2.matchstr);
 }
 
 #[test]
 fn completes_trait_methods_when_at_scope_end() {
     let src = "
-mod sub {
-    pub trait Trait {
-        fn traitf() -> bool;
-        fn traitm(&self) -> bool;
+    mod sub {
+        pub trait Trait {
+            fn traitf() -> bool;
+            fn traitm(&self) -> bool;
+        }
+
+        impl Trait for Foo {
+            fn traitf() -> bool { false }
+            fn traitm(&self) -> bool { true }
+        }
+
+        pub struct Foo(pub bool);
     }
 
-    impl Trait for Foo {
-        fn traitf() -> bool { false }
-        fn traitm(&self) -> bool { true }
+    fn main() { // l16
+        let t = sub::Foo(true);
+        sub::Foo::
+        t.t
     }
+    ";
 
-    pub struct Foo(pub bool);
-}
-
-fn main() { // l16
-    let t = sub::Foo(true);
-    sub::Foo::
-    t.t
-}
-";
     let f = TmpFile::new(src);
     let path = f.path();
-    let pos1 = scopes::coords_to_point(src, 18, 14);  // sub::Foo::
-    let cache1 = core::FileCache::new();
-    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&cache1, &path, &path)).nth(0).unwrap();
-    let pos2 = scopes::coords_to_point(src, 19, 7);   // t.t
-    let cache2 = core::FileCache::new();
-    let got2 = complete_from_file(src, &path, pos2, &core::Session::from_path(&cache2, &path, &path)).nth(0).unwrap();
+    let cache = core::FileCache::new();
+    let session = core::Session::from_path(&cache, &path, &path);
+    let pos1 = session.load_file(path).coords_to_point(18, 18).unwrap();  // sub::Foo::
+    let got1 = complete_from_file(src, &path, pos1, &session).nth(0).unwrap();
+    let pos2 = session.load_file(path).coords_to_point(19, 11).unwrap();   // t.t
+    let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
-    assert_eq!(got1.matchstr, "traitf".to_string());
-    assert_eq!(got2.matchstr, "traitm".to_string());
-    assert_eq!(got1.contextstr, "fn traitf() -> bool".to_string());
-    assert_eq!(got2.contextstr, "fn traitm(&self) -> bool".to_string());
+    assert_eq!(got1.matchstr, "traitf");
+    assert_eq!(got2.matchstr, "traitm");
+    assert_eq!(got1.contextstr, "fn traitf() -> bool");
+    assert_eq!(got2.contextstr, "fn traitm(&self) -> bool");
 }
 
 #[test]
 fn follows_use() {
-    let src1="
+    let src1 = "
     pub fn myfn() {}
     pub fn foo() {}
     ";
-    let src="
+    let src = "
     use src1::{foo,myfn};
     mod src1;
     fn main() {
-        myfn();
+        myfn~();
     }
     ";
-    let _f = TmpFile::with_name("src1.rs", src1);
-    let tmp = TmpFile::new(src);
-    let path = tmp.path();
-    let pos = scopes::coords_to_point(src, 5, 10);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-    assert_eq!(got.matchstr, "myfn".to_string());
-    assert_eq!(got.contextstr, "pub fn myfn()".to_string());
+
+    let dir = TmpDir::new();
+    dir.write_file("src1.rs", src1);
+    let got = get_definition(src, Some(dir));
+    assert_eq!(got.matchstr, "myfn");
+    assert_eq!(got.contextstr, "pub fn myfn()");
 }
 
 #[test]
 fn follows_use_as() {
-    let src2="
+    let src2 = "
     pub fn myfn() {}
     pub fn foo() {}
     ";
-    let src="
+    let src = "
     use src2::myfn as myfoofn;
     mod src2;
     fn main() {
-        myfoofn();
+        my~foofn();
     }
     ";
-    let _f = TmpFile::with_name("src2.rs", src2);
-    let tmp = TmpFile::new(src);
-    let path = tmp.path();
-    let pos = scopes::coords_to_point(src, 5, 10);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-    assert_eq!(got.matchstr, "myfn".to_string());
+
+    let dir = TmpDir::new();
+    dir.write_file("src2.rs", src2);
+    let got = get_definition(src, Some(dir));
+    assert_eq!(got.matchstr, "myfn");
 }
 
 #[test]
 fn follows_use_glob() {
-    let src3="
+    let src3 = "
     pub fn myfn() {}
     pub fn foo() {}
     ";
-    let src="
+    let src = "
     use src3::*;
     mod src3;
     fn main() {
-        myfn();
+        my~fn();
     }
     ";
-    let _f = TmpFile::with_name("src3.rs", src3);
-    let tmp = TmpFile::new(src);
-    let path = tmp.path();
-    let pos = scopes::coords_to_point(src, 5, 10);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-    assert_eq!(got.matchstr, "myfn".to_string());
+    let dir = TmpDir::new();
+    dir.write_file("src3.rs", src3);
+    let got = get_definition(src, Some(dir));
+    assert_eq!(got.matchstr, "myfn");
 }
 
 #[test]
 fn follows_multiple_use_globs() {
-	let src1="
+    let src1 = "
     pub fn src1fn() {}
     ";
-	let src2="
+    let src2 = "
     pub fn src2fn() {}
     ";
     let src ="
@@ -864,192 +855,166 @@ fn follows_multiple_use_globs() {
     mod multiple_glob_test1;
     mod multiple_glob_test2;
 
-    src
+    src~
     ";
 
-    let _tmpsrc1 = TmpFile::with_name("multiple_glob_test1.rs", src1);
-    let _tmpsrc2 = TmpFile::with_name("multiple_glob_test2.rs", src2);
-    let tmpsrc = TmpFile::new(src);
-    let path = tmpsrc.path();
-    let pos = scopes::coords_to_point(src, 7, 7);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path));
-    let completion_strings = got.into_iter().map(|raw_match| raw_match.matchstr).collect::<Vec<_>>();
+    let dir = TmpDir::new();
+    dir.write_file("multiple_glob_test1.rs", src1);
+    dir.write_file("multiple_glob_test2.rs", src2);
 
-    assert!(completion_strings.contains(&"src1fn".to_string()) && completion_strings.contains(&"src2fn".to_string()),
-    format!("Results should contain BOTH \"src1fn\" and \"src2fn\". Actual returned results: {:?} ", completion_strings));
+    let mut has_1 = false;
+    let mut has_2 = false;
+    let completions = get_all_completions(src, Some(dir));
+    for m in completions {
+        if m.matchstr == "src1fn" { has_1 = true; }
+        if m.matchstr == "src2fn" { has_2 = true; }
+    }
+    assert!(has_1 && has_2);
 }
 
 #[test]
 fn finds_external_mod_docs() {
-    let src1="// Copyright notice
+    let src1 = "// Copyright notice
 
 //! The mods multiline
 //! documentation
     ";
-    let src2="
+    let src = "
     mod external_mod;
     use external_mod;
 
     fn main() {
-        external_mod
-    }";
-    let _tmpsrc = TmpFile::with_name("external_mod.rs", src1);
-    let f = TmpFile::new(src2);
-    let path = f.path();
+        external_mod~
+    }
+    ";
 
-    let pos = scopes::coords_to_point(src2, 2, 20);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src2, path, pos, &core::Session::from_path(&cache, path, path)).nth(0).unwrap();
-
-    assert_eq!("external_mod".to_string(), got.matchstr.to_string());
-    assert_eq!("The mods multiline\ndocumentation".to_string(), got.docs);
+    let dir = TmpDir::new();
+    dir.write_file("external_mod.rs", src1);
+    let got = get_one_completion(src, Some(dir));
+    assert_eq!("external_mod", got.matchstr);
+    assert_eq!("The mods multiline\ndocumentation", got.docs);
 }
 
 #[test]
 fn finds_external_struct_docs() {
-    let src1="
+    let src1 = "
     /// Orange
     /// juice
     pub struct Apple {
         pub a: u8,
     }";
-    let src2="
+    let src = "
     use external_struct::Apple;
     mod external_struct;
 
     fn main() {
-        Apple
+        Apple~
     }";
-    let _tmpsrc = TmpFile::with_name("external_struct.rs", src1);
-    let f = TmpFile::new(src2);
-    let path = f.path();
 
-    let pos = scopes::coords_to_point(src2, 6, 13);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src2, path, pos, &core::Session::from_path(&cache, path, path)).nth(0).unwrap();
-
-    assert_eq!("Apple".to_string(), got.matchstr.to_string());
-    assert_eq!("Orange\njuice".to_string(), got.docs.to_string());
+    let dir = TmpDir::new();
+    dir.write_file("external_struct.rs", src1);
+    let got = get_one_completion(src, Some(dir));
+    assert_eq!("Apple", got.matchstr);
+    assert_eq!("Orange\njuice", got.docs);
 }
 
 #[test]
 fn finds_external_fn_docs() {
-    let src1="
+    let src1 = "
     /// Orange
     /// juice
     pub fn apple() {
         let x = 1;
     }";
-    let src2="
+    let src = "
     use external_fn::apple;
     mod external_fn;
 
     fn main() {
-        apple
+        apple~
     }";
-    let _tmpsrc = TmpFile::with_name("external_fn.rs", src1);
-    let f = TmpFile::new(src2);
-    let path = f.path();
 
-    let pos = scopes::coords_to_point(src2, 6, 13);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src2, path, pos, &core::Session::from_path(&cache, path, path)).nth(0).unwrap();
-
-    assert_eq!("apple".to_string(), got.matchstr.to_string());
-    assert_eq!("Orange\njuice".to_string(), got.docs.to_string());
+    let dir = TmpDir::new();
+    dir.write_file("external_fn.rs", src1);
+    let got = get_one_completion(src, Some(dir));
+    assert_eq!("apple", got.matchstr);
+    assert_eq!("Orange\njuice", got.docs);
 }
 
 #[test]
 fn follows_use_local_package() {
-    let src="
+    let src = "
     extern crate fixtures;
 
-    use fixtures::
+    use fixtures::~
     ";
 
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 4, 18);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0);
-    assert_eq!(got.unwrap().matchstr, "foo".to_owned());
+    let got = get_one_completion(src, None);
+    assert_eq!(got.matchstr, "foo");
 }
 
 #[test]
 fn completes_struct_field_via_assignment() {
-    let src="
+    let src = "
     struct Point {
         first: f64,
         second: f64
     }
 
     let var = Point {first: 35, second: 22};
-    var.f
-";
-    let tmp = TmpFile::new(src);
-    let path = tmp.path();
-    let pos = scopes::coords_to_point(src, 8, 9);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
-    assert_eq!("first".to_string(), got.matchstr);
+    var.f~
+    ";
+
+    let got = get_one_completion(src, None);
+    assert_eq!(got.matchstr, "first");
 }
 
 #[test]
 fn finds_defn_of_struct_field() {
-    let src="
+    let src = "
     struct Point {
         first: f64,
         second: f64
     }
 
     let var = Point {first: 35, second: 22};
-    var.first
-";
-    let tmp = TmpFile::new(src);
-    let path = tmp.path();
-    let pos = scopes::coords_to_point(src, 8, 9);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-    assert_eq!(got.matchstr, "first".to_string());
+    var.f~irst
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "first");
 }
 
 #[test]
 fn finds_impl_fn() {
-    let src="
+    let src = "
     struct Foo;
     impl Foo {
         fn new() {}
     }
 
-    Foo::new();
-";
-    let tmp = TmpFile::new(src);
-    let path = tmp.path();
-    let pos = scopes::coords_to_point(src, 7, 10);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-    assert_eq!(got.matchstr, "new".to_string());
+    Foo::n~ew();
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "new");
 }
 
 #[test]
 fn follows_use_to_inline_mod() {
-    let src="
+    let src = "
     use foo::myfn;
     mod foo {
         pub fn myfn() {}
     }
 
     fn main() {
-        myfn();
+        m~yfn();
     }
     ";
-    let tmp = TmpFile::new(src);
-    let path = tmp.path();
-    let pos = scopes::coords_to_point(src, 8, 9);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-    assert_eq!(got.matchstr, "myfn".to_string());
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "myfn");
 }
 
 #[test]
@@ -1062,20 +1027,14 @@ fn struct_field_scalar_primitive_types() {
     }
 
     fn foo(x: Foo) {
-        x.
+        x.~
     }
     ";
 
-    let tmp = TmpFile::new(src);
-    let path = tmp.path();
-    let pos = scopes::coords_to_point(src, 9, 10);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path));
-
-    let completions = got.collect::<Vec<_>>();
+    let completions = get_all_completions(src, None);
     assert_eq!(completions.len(), 3);
 
-    for completion in completions.into_iter() {
+    for completion in completions {
         println!("match: {:?}", completion);
         let expected = match completion.matchstr.as_ref() {
             "reference" => "&u8",
@@ -1090,126 +1049,102 @@ fn struct_field_scalar_primitive_types() {
 
 #[test]
 fn finds_enum() {
-    let src="
+    let src = "
     enum MyEnum {
         One, Two
     }
 
-    fn myfn(e: MyEnum) {}
+    fn myfn(e: M~yEnum) {}
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 6, 16);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-    assert_eq!(got.matchstr, "MyEnum".to_string());
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "MyEnum");
 }
 
 #[test]
 fn finds_type() {
-    let src="
+    let src = "
     type SpannedIdent = Spanned<Ident>
-    SpannedIdent;
+    S~pannedIdent;
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 3, 5);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-    assert_eq!(got.matchstr, "SpannedIdent".to_string());
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "SpannedIdent");
 }
 
 #[test]
 fn finds_trait() {
-    let src="
+    let src = "
     pub trait MyTrait<E: Clone> {}
-    MyTrait
+    M~yTrait
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 3, 5);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-    assert_eq!(got.matchstr, "MyTrait".to_string());
-    assert_eq!(got.contextstr, "pub trait MyTrait<E: Clone>".to_string());
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "MyTrait");
+    assert_eq!(got.contextstr, "pub trait MyTrait<E: Clone>");
 }
 
 #[test]
 fn finds_macro() {
     let src = "
     macro_rules! my_macro {
-    	() => {}
+        () => {}
     }
-    my_macro!();
+    m~y_macro!();
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 5, 5);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-    assert_eq!(got.matchstr, "my_macro!".to_string());
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "my_macro!");
 }
 
 #[test]
 fn finds_extern_crate() {
-	let src = "
+    let src = "
     extern crate fixtures;
-    fixtures
+    f~ixtures
     ";
-	let f = TmpFile::new(src);
-	let path = f.path();
-	let pos = scopes::coords_to_point(src, 3, 5);
-	let cache = core::FileCache::new();
-	let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-	assert_eq!(got.matchstr, "fixtures".to_string());
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "fixtures");
 }
 
 #[test]
 fn finds_fn_arg() {
-    let src="
+    let src = "
     fn myfn(myarg: &str) {
-         myarg
+         my~arg
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 3, 10);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-    assert_eq!(got.matchstr, "myarg".to_string());
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "myarg");
 }
 
 #[test]
 fn finds_fn_arg_in_incomplete_fn() {
-    let src="
+    let src = "
     fn myfn(myarg: &str) {
-         myarg
+         my~arg
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 3, 10);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-    assert_eq!(got.matchstr, "myarg".to_string());
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "myarg");
 }
 
 #[test]
 fn finds_inline_fn() {
-    let src="
+    let src = "
     #[inline]
     fn contains<'a>(&needle: &'a str)
         -> bool {
     }
 
-    contains();
+    conta~ins();
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 6, 9);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-    assert_eq!(got.matchstr, "contains".to_string());
-    assert_eq!(got.contextstr, "fn contains<'a>(&needle: &'a str) -> bool".to_string());
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "contains");
+    assert_eq!(got.contextstr, "fn contains<'a>(&needle: &'a str) -> bool");
 }
 
 #[test]
@@ -1227,85 +1162,64 @@ fn follows_self_use() {
     pub mod mymod;
 
     fn main() {
-        myfn();
+        my~fn();
     }
     ";
 
-    let mymod = TmpDir::with_name("mymod");
-    let _modrs = mymod.new_temp_file_with_name("mod.rs", modsrc);
-    let _src4 = mymod.new_temp_file_with_name("src4.rs", src4);
-
-    let src_file = TmpFile::with_name("src.rs", src);
-    let srcpath = src_file.path();
-
-    let pos = scopes::coords_to_point(src, 6, 10);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &srcpath, pos, &core::Session::from_path(&cache, &srcpath, &srcpath)).unwrap();
-    assert_eq!(got.matchstr, "myfn".to_string());
-    assert_eq!(mymod.pathbuf().join("src4.rs").display().to_string(),
-               got.filepath.display().to_string());
+    let dir = TmpDir::new();
+    let mymod = TmpDir::with_path(dir.path().join("mymod"));
+    mymod.write_file("mod.rs", modsrc);
+    let src4path = mymod.write_file("src4.rs", src4);
+    let got = get_definition(src, Some(dir));
+    assert_eq!(got.matchstr, "myfn");
+    assert_eq!(src4path, got.filepath);
     assert_eq!(28, got.point);
 }
 
 #[test]
 fn finds_nested_submodule_file() {
-    let rootsrc = "
+    let sub3src = "
+    pub fn myfn() {}
+    ";
+    let src = "
     pub mod sub1 {
         pub mod sub2 {
             pub mod sub3;
         }
     }
-    sub1::sub2::sub3::myfn();
+    sub1::sub2::sub3::m~yfn();
     ";
 
-    let sub3src = "
-    pub fn myfn() {}
-    ";
-
-    let basedir = PathBuf::from(tmpname());
-    let srcpath = basedir.join("root.rs");
-    let sub2dir = basedir.join("sub1").join("sub2");
-    let _rootdir = TmpDir::with_name(basedir.as_path().to_str().unwrap());
-    let _dir2 = TmpDir::with_name(sub2dir.as_path().to_str().unwrap());
-
-    let _src = TmpFile::with_path(&srcpath, rootsrc);
-    let _src3 = TmpFile::with_path(&sub2dir.join("sub3.rs"), sub3src);
-
-    let pos = scopes::coords_to_point(rootsrc, 7, 23);
-    let cache = core::FileCache::new();
-    let got = find_definition(rootsrc, &srcpath, pos, &core::Session::from_path(&cache, &srcpath, &srcpath)).unwrap();
-    assert_eq!(got.matchstr, "myfn".to_string());
-    assert_eq!(sub2dir.join("sub3.rs").display().to_string(),
-               got.filepath.display().to_string());
+    let dir = TmpDir::new();
+    let sub2name = dir.path().join("sub1").join("sub2");
+    let _sub2dir = TmpDir::with_path(&sub2name);
+    let src3 = TmpFile::with_path(&sub2name.join("sub3.rs"), sub3src);
+    let got = get_definition(src, Some(dir));
+    assert_eq!(got.matchstr, "myfn");
+    assert_eq!(src3.path(), got.filepath);
 }
 
 #[test]
 fn follows_super_in_sub_module() {
-    let src="
+    let src = "
     pub fn iamhere() { }
-    mod inner { pub use super::iamhere; }
+    mod inner { pub use super::ia~mhere; }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 3, 33);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("iamhere", got.matchstr);
 }
 
 #[test]
 fn follows_super_in_local_sub_module() {
-    let src="
+    let src = "
     mod inner {
       pub fn iamhere() { }
-      mod inner2 { pub use super::iamhere; }
+      mod inner2 { pub use super::iamh~ere; }
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 4, 38);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("iamhere", got.matchstr);
 }
 
@@ -1323,45 +1237,36 @@ fn follows_use_to_impl() {
     use mymod::{Foo};
     mod mymod;
     fn main() {
-        Foo::new();
+        Foo::n~ew();
     }
     ";
-    let dir = TmpDir::with_name("tmp");
-    let mod_file = dir.new_temp_file_with_name("mymod.rs", modsrc);
-    let src_file = dir.new_temp_file_with_name("src.rs", src);
-    let srcpath = src_file.path();
 
-    let pos = scopes::coords_to_point(src, 5, 14);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &srcpath, pos, &core::Session::from_path(&cache, &srcpath, &srcpath)).unwrap();
-
-    assert_eq!(got.matchstr, "new".to_string());
+    let dir = TmpDir::new();
+    let mod_path = dir.write_file("mymod.rs", modsrc);
+    let got = get_definition(src, Some(dir));
+    assert_eq!(got.matchstr, "new");
     assert_eq!(90, got.point);
-    assert_eq!(mod_file.path().display().to_string(),
-               got.filepath.display().to_string());
+    assert_eq!(mod_path, got.filepath);
 }
 
 #[test]
 fn finds_templated_impl_fn() {
-    let src="
+    let src = "
     struct Foo<T>;
     impl<T> Foo<T> {
         fn new() {}
     }
 
-    Foo::new();
-";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 7, 10);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-    assert_eq!(got.matchstr, "new".to_string());
+    Foo::n~ew();
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "new");
 }
 
 #[test]
 fn follows_fn_to_method() {
-    let src="
+    let src = "
     struct Foo<T>;
     impl<T> Foo<T> {
         fn new() -> Foo<T> {}
@@ -1370,77 +1275,65 @@ fn follows_fn_to_method() {
 
     fn main() {
         let v = Foo::new();
-        v.my
+        v.my~
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 10, 12);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
-    assert_eq!("mymethod".to_string(), got.matchstr);
+
+    let got = get_one_completion(src, None);
+    assert_eq!("mymethod", got.matchstr);
 }
 
 #[test]
 fn simple_struct_contextstr() {
-    let src="
+    let src = "
     struct Foo<T>;
 
     fn myfn() {
-        let x: Foo
+        let x: Foo~
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 5, 18);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
-    assert_eq!(got.contextstr, "struct Foo<T>;".to_string());
+
+    let got = get_one_completion(src, None);
+    assert_eq!(got.contextstr, "struct Foo<T>;");
 }
 
 #[test]
 fn struct_contextstr() {
-    let src="
+    let src = "
     struct
         Foo<T> {
         pub fn foo1();
     }
 
     fn myfn() {
-        let x: Foo
+        let x: Foo~
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 8, 18);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
-    assert_eq!(got.contextstr, "struct Foo<T>".to_string());
+
+    let got = get_one_completion(src, None);
+    assert_eq!(got.contextstr, "struct Foo<T>");
 }
 
 #[test]
 fn follows_arg_to_method() {
-    let src="
+    let src = "
     struct Foo<T>;
     impl<T> Foo<T> {
         fn mymethod(&self) {}
     }
 
     fn myfn(v: &Foo) {
-        v.my
+        v.my~
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 8, 12);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
-    assert_eq!("mymethod".to_string(), got.matchstr);
+
+    let got = get_one_completion(src, None);
+    assert_eq!("mymethod", got.matchstr);
 }
 
 #[test]
 fn follows_arg_to_enum_method() {
-    let src="
+    let src = "
     enum Foo<T> {
        EnumVal
     }
@@ -1449,20 +1342,17 @@ fn follows_arg_to_enum_method() {
     }
 
     fn myfn(v: &Foo) {
-        v.my
+        v.my~
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 10, 12);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
-    assert_eq!("mymethod".to_string(), got.matchstr);
+
+    let got = get_one_completion(src, None);
+    assert_eq!("mymethod", got.matchstr);
 }
 
 #[test]
 fn follows_let_method_call() {
-    let src="
+    let src = "
     struct Foo;
     struct Bar;
     impl Foo {
@@ -1474,20 +1364,17 @@ fn follows_let_method_call() {
 
     fn myfn(v: &Foo) {
         let f = v.mymethod();
-        f.my
+        f.my~
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 13, 12);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
-    assert_eq!("mybarmethod".to_string(), got.matchstr);
+
+    let got = get_one_completion(src, None);
+    assert_eq!("mybarmethod", got.matchstr);
 }
 
 #[test]
 fn follows_chained_method_call() {
-    let src="
+    let src = "
     struct Foo;
     struct Bar;
     impl<T> Foo<T> {
@@ -1498,20 +1385,17 @@ fn follows_chained_method_call() {
     }
 
     fn myfn(v: &Foo) {
-        v.mymethod().my
+        v.mymethod().my~
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 12, 23);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0).unwrap();
-    assert_eq!("mybarmethod".to_string(), got.matchstr);
+
+    let got = get_one_completion(src, None);
+    assert_eq!("mybarmethod", got.matchstr);
 }
 
 #[test]
 fn discards_inner_fns() {
-    let src="
+    let src = "
     struct Foo;
     impl<T> Foo<T> {
         fn mymethod(&self) -> Bar {
@@ -1521,15 +1405,12 @@ fn discards_inner_fns() {
     }
 
     fn myfn(v: &Foo) {
-        v.i
+        v.i~
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 11, 11);
-    let cache = core::FileCache::new();
-    let got = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).nth(0);
-    assert!(got.is_none(), "should not match inner function");
+
+    let got = get_all_completions(src, None);
+    assert!(got.is_empty(), "should not match inner function");
 }
 
 #[test]
@@ -1538,13 +1419,10 @@ fn differentiates_type_and_value_namespaces() {
     enum MyEnum{ Foo }
     struct Foo;
     impl Foo { pub fn new() -> Foo {} }
-    let l = Foo::new();
+    let l = Foo::n~ew();
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 5, 18);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     println!("{}", got.matchstr);
     println!("{:?}", got.mtype);
     assert_eq!("new", got.matchstr);
@@ -1552,28 +1430,25 @@ fn differentiates_type_and_value_namespaces() {
 
 #[test]
 fn follows_self_to_method() {
-    let src= "
+    let src = "
     struct Foo;
     impl Bar for Foo {
         pub fn method(self) {
         }
 
         pub fn another_method(self, feio: uint) {
-            self.method()
+            self.met~hod()
         }
     }";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 8, 20);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("method", got.matchstr);
 }
 
 #[test]
 #[ignore]
 fn follows_self_to_method_when_call_on_new_line() {
-    let src= "
+    let src = "
     struct Foo;
     impl Bar for Foo {
         pub fn method(self) -> Foo {
@@ -1581,32 +1456,26 @@ fn follows_self_to_method_when_call_on_new_line() {
 
         pub fn another_method(self, feio: uint) {
             self.method()
-                .method()
+                .met~hod()
         }
     }";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 9, 20);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("method", got.matchstr);
 }
 
 #[test]
 fn follows_self_to_trait_method() {
-    let src= "
+    let src = "
     trait Bar {
         pub fn method(self) {
         }
         pub fn another_method(self) {
-            self.method()
+            self.met~hod()
         }
     }";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 6, 20);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("method", got.matchstr);
 }
 
@@ -1621,14 +1490,11 @@ fn finds_trait_method() {
     struct Foo;
     impl MyTrait for Foo {
         fn op(self) {
-            self.trait_method();
+            self.trait~_method();
         }
     }";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 10, 22);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("trait_method", got.matchstr);
 }
 
@@ -1642,37 +1508,31 @@ fn finds_field_type() {
     }
 
     let f = Foo{ myfield: Blah { subfield: 3}};
-    f.myfield.subfield
+    f.myfield.subfi~eld
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 9, 16);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("subfield", got.matchstr);
 }
 
 #[test]
 fn finds_a_generic_retval_from_a_function() {
-    let src="
+    let src = "
     pub struct Blah { subfield: uint }
     pub struct Foo<T> {
         myfield: T
     }
     fn myfn() -> Foo<Blah> {}
-    myfn().myfield.subfield
+    myfn().myfield.subfi~eld
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 7, 24);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("subfield", got.matchstr);
 }
 
 #[test]
 fn handles_an_enum_option_style_return_type() {
-    let src="
+    let src = "
     pub struct Blah { subfield: uint }
     pub enum MyOption<T> {
         MySome(T),
@@ -1683,284 +1543,228 @@ fn handles_an_enum_option_style_return_type() {
     }
     fn myfn() -> MyOption<Blah> {}
     let s = myfn();
-    s.unwrap().subfield
+    s.unwrap().sub~field
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 12, 18);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("subfield", got.matchstr);
 }
 
 #[test]
 fn finds_definition_of_const() {
-    let src="
+    let src = "
     pub const MYCONST:uint = 3;
-    MYCONST
+    MYC~ONST
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 3, 7);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("MYCONST", got.matchstr);
 }
 
 #[test]
 fn finds_definition_of_static() {
-    let src="
+    let src = "
     pub static MYSTATIC:uint = 3;
-    MYSTATIC
+    MYS~TATIC
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 3, 7);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("MYSTATIC", got.matchstr);
 }
 
 #[test]
 fn handles_dotdot_before_searchstr() {
-    let src="
+    let src = "
     static MYLEN:uint = 30;
-    let f = [0i32, ..MYLEN];
+    let f = [0i32, ..M~YLEN];
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 3, 22);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("MYLEN", got.matchstr);
 }
 
 #[test]
 #[ignore]
 fn finds_definition_of_lambda_argument() {
-    let src="
+    let src = "
     fn myfn(&|int|) {}
-    myfn(|a|a+3);
+    myfn(|a|~a+3);
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 3, 12);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("a", got.matchstr);
 }
 
 #[test]
 fn finds_definition_of_let_tuple() {
-    let src="
+    let src = "
     let (a, b) = (2,3);
-    a
+    ~a
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 3, 4);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("a", got.matchstr);
 }
 
 #[test]
 fn finds_type_of_tuple_member_via_let_type() {
-    let src="
+    let src = "
     pub struct Blah { subfield: uint }
     let (a, b): (uint, Blah);
-    b.subfield
+    b.subfi~eld
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 4, 11);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("subfield", got.matchstr);
 }
 
 #[test]
 fn finds_type_of_tuple_member_via_let_expr() {
-    let src="
+    let src = "
     pub struct Blah { subfield: uint }
     let (a, b) = (3, Blah{subfield:3});
-    b.subfield
+    b.subfi~eld
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 4, 11);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("subfield", got.matchstr);
 }
 
 #[test]
 fn finds_type_of_tuple_member_via_fn_retval() {
-    let src="
+    let src = "
     pub struct Blah { subfield: uint }
     fn myfn() -> (uint, Blah) {}
     let (a, b) = myfn();
-    b.subfield
+    b.subfi~eld
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 5, 11);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("subfield", got.matchstr);
 }
 
 #[test]
 fn finds_type_of_tuple_member_in_fn_arg() {
-    let src="
+    let src = "
     pub struct Blah { subfield: uint }
     fn myfn(a: uint, (b, c): (uint, Blah)) {
-        c.subfield
+        c.s~ubfield
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 4, 11);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("subfield", got.matchstr);
 }
 
 #[test]
 fn finds_namespaced_enum_variant() {
-    let src="
+    let src = "
     pub enum Blah { MyVariant }
-    Blah::MyVariant
+    Blah::MyVa~riant
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 3, 14);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("MyVariant", got.matchstr);
 }
 
 #[test]
 fn finds_glob_imported_enum_variant() {
-    let src="
+    let src = "
     use self::Blah::*;
     pub enum Blah { MyVariant, MyVariant2 }
-    MyVariant
+    MyVa~riant
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 4, 8);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("MyVariant", got.matchstr);
 }
 
 #[test]
 #[ignore]
 fn uses_generic_arg_to_resolve_trait_method() {
-    let src="
+    let src = "
     pub trait MyTrait {
         fn trait_method(self){}
     }
     pub fn doit<T:MyTrait>(stream: &mut T) {
-        T.trait_method
+        T.trait_met~hod
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 6, 19);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("trait_method", got.matchstr);
 }
 
 #[test]
 fn destructures_a_tuplestruct() {
-    let src="
+    let src = "
     pub struct Blah { subfield: uint }
     pub struct TupleStruct(Blah);
     let TupleStruct(var) = TupleStruct(Blah{subfield:35});
-    var.subfield
+    var.su~bfield
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 5, 10);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("subfield", got.matchstr);
 }
 
 #[test]
 fn destructures_a_tuplestruct_with_generic_arg() {
-    let src="
+    let src = "
     pub struct Blah { subfield: uint }
     pub struct TupleStruct<T>(T);
     let a : TupleStruct<Blah> = TupleStruct(Blah{subfield:35});
     let TupleStruct(var) = a;
-    var.subfield
+    var.su~bfield
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 6, 10);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("subfield", got.matchstr);
 }
 
 #[test]
 fn finds_if_let_ident_defn() {
-    let src="
+    let src = "
     if let MyOption(myvar) = myvar {
-        myvar
+        myvar~
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 3, 13);
-    let cache = core::FileCache::new();
-    let mut it = complete_from_file(src, &path, pos, &core::Session::from_path(&cache, &path, &path));
-    let got = it.next().unwrap();
-    assert_eq!("myvar", &*got.matchstr);
-    assert!(it.next().is_none(), "should only match the first one");
+
+    let got = get_only_completion(src, None);
+    assert_eq!("myvar", got.matchstr);
 }
 
 #[test]
 fn doesnt_find_if_let_if_not_in_the_subscope() {
-    let src="
+    let src = "
     let myvar = 3u32;
     if let MyOption(myvar) = myvar {
         myvar
     }
-    myvar
+    my~var
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 6, 6);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-    assert_eq!("myvar", &*got.matchstr);
+
+    let got = get_definition(src, None);
+    assert_eq!("myvar", got.matchstr);
     assert_eq!(9, got.point);
 }
 
 #[test]
 fn finds_rebound_var_in_iflet() {
-    let src="
+    let src = "
     let o: MyOption<Blah>;
     if let MyOption::MySome(o) = o {
-        o
+        ~o
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 4, 8);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!(56, got.point);
 }
 
 #[test]
 fn handles_if_let() {
-    let src="
+    let src = "
     pub struct Blah { subfield: uint }
     pub enum MyOption<T> {
         MySome(T),
@@ -1968,20 +1772,17 @@ fn handles_if_let() {
     }
     let o: MyOption<Blah>;
     if let MyOption::MySome(a) = o {
-        a.subfield
+        a.sub~field
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 9, 13);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("subfield", got.matchstr);
 }
 
 #[test]
 fn handles_if_let_as_expression() {
-    let src="
+    let src = "
     pub struct Blah { subfield: uint }
     pub enum MyOption<T> {
         MySome(T),
@@ -1989,87 +1790,72 @@ fn handles_if_let_as_expression() {
     }
     let o: MyOption<Blah>;
     let foo = if let MyOption::MySome(a) = o { // iflet is an expression
-        a.subfield
+        a.sub~field
     };
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 9, 13);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("subfield", got.matchstr);
 }
 
 #[test]
 fn finds_match_arm_var() {
-    let src="
+    let src = "
     match foo {
-       Some(a) => a
+       Some(a) => ~a
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 3, 18);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("a", got.matchstr);
 }
 
 #[test]
 fn finds_match_arm_var_in_scope() {
-    let src="
+    let src = "
     match foo {
-       Some(a) => { a }
+       Some(a) => { ~a }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 3, 20);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("a", got.matchstr);
 }
 
 #[test]
 fn finds_match_arm_enum() {
-    let src="
+    let src = "
     enum MyEnum {
         Foo,
         Bar
     }
     match foo {
-       MyEnum::Foo => 1,
+       MyEnum::Foo~ => 1,
        MyEnum::Bar => 2
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 7, 18);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("Foo", got.matchstr);
 }
 
 #[test]
 fn finds_match_arm_var_with_nested_match() {
-    let src="
+    let src = "
     match foo {
        bar => {something}
        Some(a) => {
                let b = match blah {
                            None => ()
                }
-               a
+               ~a
        }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 8, 15);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("a", got.matchstr);
 }
 
 #[test]
 fn gets_type_via_match_arm() {
-    let src="
+    let src = "
     pub struct Blah { subfield: uint }
     pub enum MyOption<T> {
         MySome(T),
@@ -2077,64 +1863,52 @@ fn gets_type_via_match_arm() {
     }
     let o: MyOption<Blah>;
     match o {
-        MyOption::MySome(a) => a.subfield
+        MyOption::MySome(a) => a.subfi~eld
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 9, 38);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("subfield", got.matchstr);
 }
 
 #[test]
 fn handles_default_arm() {
-    let src="
+    let src = "
     let o: MyOption<Blah>;
     match o {
         Foo => { }
-        _ => o
+        _ => ~o
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 5, 13);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("o", got.matchstr);
     assert_eq!(9, got.point);
 }
 
 #[test]
 fn doesnt_match_rhs_of_let_in_same_stmt() {
-    let src="
+    let src = "
     let a = 3;      // <--- should match this 'a'
-    let a = a + 2;  // not this one
+    let a = ~a + 2;  // not this one
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 3, 12);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("a", got.matchstr);
     assert_eq!(9, got.point);
 }
 
 #[test]
 fn finds_unsafe_fn() {
-    let src="
+    let src = "
     unsafe fn foo() {}
 
     fn bar() {
-        foo()
+        f~oo()
     }
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 5, 9);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
-    assert_eq!(got.matchstr, "foo".to_string());
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "foo");
     assert_eq!(got.point, 15);
 }
 
@@ -2172,23 +1946,14 @@ fn completes_methods_on_deref_type() {
 
     fn main() {
         let b: B = B{ c: C};
-        b.o
+        b.o~
     }
     ";
 
     let dir = TmpDir::new();
-
-    let _modfile = dir.new_temp_file_with_name("mymod.rs", modsrc);
-    let srcfile = dir.new_temp_file_with_name("src.rs", src);
-    let srcpath = srcfile.path();
-
-    let pos = scopes::coords_to_point(src, 7, 11);
-    let cache = core::FileCache::new();
-
-    let got_str = complete_from_file(src, &srcpath, pos, &core::Session::from_path(&cache, &srcpath, &srcpath))
-                                    .nth(0).expect("No match found").matchstr;
-
-    assert_eq!(got_str, "one".to_string());
+    dir.write_file("mymod.rs", modsrc);
+    let got = get_one_completion(src, Some(dir));
+    assert_eq!(got.matchstr, "one");
 }
 
 #[test]
@@ -2204,13 +1969,10 @@ fn finds_self_param_when_fn_has_generic_closure_arg() {
     }
 
     let a: MyOption;
-    a.map
+    a.~map
     ";
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let pos = scopes::coords_to_point(src, 11, 6);
-    let cache = core::FileCache::new();
-    let got = find_definition(src, &path, pos, &core::Session::from_path(&cache, &path, &path)).unwrap();
+
+    let got = get_definition(src, None);
     assert_eq!("map", got.matchstr);
 }
 
@@ -2248,55 +2010,45 @@ fn completes_methods_on_deref_generic_type() {
 
     fn main() {
         let b: B<C> = B{ c: C};
-        b.o
+        b.o~
     }
     ";
+
     let dir = TmpDir::new();
-    let _modfile = dir.new_temp_file_with_name("mymod.rs", modsrc);
-    let srcfile = dir.new_temp_file_with_name("src.rs", src);
-    let srcpath = srcfile.path();
-
-    let pos = scopes::coords_to_point(src, 7, 11);
-    let cache = core::FileCache::new();
-
-    let got_str = complete_from_file(src, &srcpath, pos, &core::Session::from_path(&cache, &srcpath, &srcpath))
-                                    .nth(0).expect("No match found").matchstr;
-    assert_eq!(got_str, "one".to_string());
+    dir.write_file("mymod.rs", modsrc);
+    let got = get_one_completion(src, Some(dir));
+    assert_eq!(got.matchstr, "one");
 }
 
 #[test]
 fn completes_multiple_use_bracket() {
     // issue # 96
     // wo: without bracket, wi: with bracket
-    let modfile="
+    let modfile = "
     pub struct StarWars {
         pub Vadar: u8,
     };
     pub struct StarTrek {
         pub Spock: u8,
     };";
-    let srcwo="
+    let srcwo = "
     mod modfile1;
-    use modfile1::S
+    use modfile1::~S
     ";
-    let srcwi="
+    let srcwi = "
     mod modfile1;
-    use modfile1::{S
+    use modfile1::{~S
     ";
-    let _tmpsrc = TmpFile::with_name("modfile1.rs", modfile);
-    let _fwo = TmpFile::new(srcwo);
-    let fwi = TmpFile::new(srcwi);
-    let path = fwi.path();
 
-    let poswo = scopes::coords_to_point(srcwo, 3, 18);
-    let poswi = scopes::coords_to_point(srcwi, 3, 19);
-    let cachewo = core::FileCache::new();
-    let cachewi = core::FileCache::new();
-    let gotwo = complete_from_file(srcwo, &path, poswo, &core::Session::from_path(&cachewo, &path, &path));
-    let gotwi = complete_from_file(srcwi, &path, poswi, &core::Session::from_path(&cachewi, &path, &path));
+    let dir = TmpDir::new();
+    dir.write_file("modfile1.rs", modfile);
+    let gotwo = get_all_completions(srcwo, Some(dir));
+    let dir = TmpDir::new();
+    dir.write_file("modfile1.rs", modfile);
+    let gotwi = get_all_completions(srcwi, Some(dir));
 
-    assert_eq!(gotwo.size_hint().0, gotwi.size_hint().0);
-    for (wo, wi) in gotwo.zip(gotwi) {
+    assert_eq!(gotwo.len(), gotwi.len());
+    for (wo, wi) in gotwo.into_iter().zip(gotwi) {
         assert_eq!(wo.matchstr, wi.matchstr);
     }
 }
@@ -2305,35 +2057,31 @@ fn completes_multiple_use_bracket() {
 fn completes_multiple_use_comma() {
     // issue # 96
     // wo: without comma, wi: with comma
-    let modfile="
+    let modfile = "
     pub struct StarWars {
         pub Kenobi: u8,
     };
     pub struct StarTrek {
         pub Spock: u8,
     };";
-    let srcwo="
+    let srcwo = "
     mod modfile2;
-    use modfile2::S
+    use modfile2::~S
     ";
-    let srcwi="
+    let srcwi = "
     mod modfile2;
-    use modfile2::{StarWars, S
+    use modfile2::{StarWars, ~S
     ";
-    let _tmpsrc = TmpFile::with_name("modfile2.rs", modfile);
-    let _fwo = TmpFile::new(srcwo);
-    let fwi = TmpFile::new(srcwi);
-    let path = fwi.path();
 
-    let poswo = scopes::coords_to_point(srcwo, 3, 18);
-    let poswi = scopes::coords_to_point(srcwi, 3, 29);
-    let cachewo = core::FileCache::new();
-    let cachewi = core::FileCache::new();
-    let gotwo = complete_from_file(srcwo, &path, poswo, &core::Session::from_path(&cachewo, &path, &path));
-    let gotwi = complete_from_file(srcwi, &path, poswi, &core::Session::from_path(&cachewi, &path, &path));
+    let dir = TmpDir::new();
+    dir.write_file("modfile2.rs", modfile);
+    let gotwo = get_all_completions(srcwo, Some(dir));
+    let dir = TmpDir::new();
+    dir.write_file("modfile2.rs", modfile);
+    let gotwi = get_all_completions(srcwi, Some(dir));
 
-    assert_eq!(gotwo.size_hint().0, gotwi.size_hint().0);
-    for (wo, wi) in gotwo.zip(gotwi) {
+    assert_eq!(gotwo.len(), gotwi.len());
+    for (wo, wi) in gotwo.into_iter().zip(gotwi) {
         assert_eq!(wo.matchstr, wi.matchstr);
     }
 }
@@ -2342,29 +2090,32 @@ fn completes_multiple_use_comma() {
 #[test]
 fn completes_trait_methods_in_trait_impl() {
     let src = "
-mod sub {
-    pub trait Trait {
-        fn traitf() -> bool;
-        fn traitm(&self) -> bool;
-    }
+    mod sub {
+        pub trait Trait {
+            fn traitf() -> bool;
+            fn traitm(&self) -> bool;
+        }
 
-    pub struct Foo(bool);
+        pub struct Foo(bool);
 
-    impl Trait for Foo {
-        fn traitf() -> bool { false }
-        fn traitm(&self) -> bool { true }
+        impl Trait for Foo {
+            fn traitf() -> bool { false }
+            fn traitm(&self) -> bool { true }
+        }
     }
-}
-";
+    ";
+
     let f = TmpFile::new(src);
     let path = f.path();
-    let pos1 = scopes::coords_to_point(src, 11, 17);  // fn trait
-    let cache1 = core::FileCache::new();
-    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&cache1, &path, &path)).nth(0).unwrap();
-    assert_eq!(got1.matchstr, "traitf".to_string());
-    assert_eq!(got1.contextstr, "fn traitf() -> bool".to_string());
-    let pos1 = scopes::coords_to_point(src, 12, 17);  // fn trait
-    let got1 = complete_from_file(src, &path, pos1, &core::Session::from_path(&cache1, &path, &path)).nth(0).unwrap();
-    assert_eq!(got1.matchstr, "traitm".to_string());
-    assert_eq!(got1.contextstr, "fn traitm(&self) -> bool".to_string());
+    let cache = core::FileCache::new();
+    let session = core::Session::from_path(&cache, &path, &path);
+    let pos = session.load_file(path).coords_to_point(11, 21).unwrap();  // fn trait
+    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    assert_eq!(got.matchstr, "traitf");
+    assert_eq!(got.contextstr, "fn traitf() -> bool");
+
+    let pos = session.load_file(path).coords_to_point(12, 21).unwrap();  // fn trait
+    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    assert_eq!(got.matchstr, "traitm");
+    assert_eq!(got.contextstr, "fn traitm(&self) -> bool");
 }

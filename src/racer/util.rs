@@ -1,14 +1,7 @@
 // Small functions of utility
 
 use core::SearchType::{self, ExactMatch, StartsWith};
-use core::Session;
 use std::cmp;
-use std::path::Path;
-
-pub fn getline(filepath: &Path, linenum: usize, session: &Session) -> String {
-    let src = session.load_file(filepath);
-    src.code.lines().nth(linenum - 1).unwrap_or("not found").to_string()
-}
 
 pub fn is_pattern_char(c: char) -> bool {
     c.is_alphanumeric() || c.is_whitespace() || (c == '_') || (c == ':') || (c == '.')

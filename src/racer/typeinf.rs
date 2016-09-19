@@ -183,11 +183,10 @@ fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<core:
     let mut iter_stmt_trimmed = iter_stmt.replace(".iter()", ".into_iter()");
     iter_stmt_trimmed = iter_stmt_trimmed.replace(".iter_mut()", ".into_iter()");
 
-    
     src.push_str(&iter_stmt_trimmed);
     src = src.trim_right().to_owned();
     src.push_str(".into_iter().next() { }}");
-    
+
     let src = core::new_source(src);
 
     if let Some((start, end)) = src.as_src().iter_stmts().next() {
@@ -225,7 +224,7 @@ pub fn get_tuplestruct_field_type(fieldnum: usize, structmatch: &Match, session:
 
     let structsrc = if let core::MatchType::EnumVariant = structmatch.mtype {
         // decorate the enum variant src to make it look like a tuple struct
-        let to = (&src[structmatch.point..]).find('(')
+        let to = src[structmatch.point..].find('(')
             .map(|n| scopes::find_closing_paren(&src, structmatch.point + n+1))
             .unwrap();
         "struct ".to_owned() + &src[structmatch.point..(to+1)] + ";"
@@ -281,7 +280,7 @@ pub fn get_type_from_match_arm(m: &Match, msrc: Src, session: &Session) -> Optio
     // match stmt may be incomplete (half written) in the real code
 
     // skip to end of match arm pattern so we can search backwards
-    let arm = otry!((&msrc[m.point..]).find("=>")) + m.point;
+    let arm = otry!(msrc[m.point..].find("=>")) + m.point;
     let scopestart = scopes::scope_start(msrc, arm);
 
     let stmtstart = otry!(scopes::find_stmt_start(msrc, scopestart-1));
@@ -292,7 +291,7 @@ pub fn get_type_from_match_arm(m: &Match, msrc: Src, session: &Session) -> Optio
     let lhs_start = scopes::get_start_of_pattern(&msrc, arm);
     let lhs = &msrc[lhs_start..arm];
     // construct faux match statement and recreate point
-    let mut fauxmatchstmt = (&msrc[matchstart..scopestart]).to_owned();
+    let mut fauxmatchstmt = msrc[matchstart..scopestart].to_owned();
     let faux_prefix_size = fauxmatchstmt.len();
     fauxmatchstmt = fauxmatchstmt + lhs + " => () };";
     let faux_point = faux_prefix_size + (m.point - lhs_start);
@@ -312,14 +311,14 @@ pub fn get_function_declaration(fnmatch: &Match, session: &Session) -> String {
     let src = session.load_file(&fnmatch.filepath);
     let start = scopes::find_stmt_start(src.as_src(), fnmatch.point).unwrap();
     let def_end: &[_] = &['{', ';'];
-    let end = (&src[start..]).find(def_end).unwrap();
-    (&src[start..end+start]).to_owned()
+    let end = src[start..].find(def_end).unwrap();
+    src[start..end+start].to_owned()
 }
 
 pub fn get_return_type_of_function(fnmatch: &Match, contextm: &Match, session: &Session) -> Option<core::Ty> {
     let src = session.load_file(&fnmatch.filepath);
     let point = scopes::find_stmt_start(src.as_src(), fnmatch.point).unwrap();
-    let mut out = (&src[point..]).find(|c| {c == '{' || c == ';'}).and_then(|n| {
+    let mut out = src[point..].find(|c| {c == '{' || c == ';'}).and_then(|n| {
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut decl = String::new();
         decl.push_str("impl blah {");

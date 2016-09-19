@@ -106,7 +106,7 @@ pub struct PatBindVisitor {
 impl visit::Visitor for PatBindVisitor {
     fn visit_local(&mut self, local: &ast::Local) {
         // don't visit the RHS (init) side of the let stmt
-        self.visit_pat(&*local.pat);
+        self.visit_pat(&local.pat);
     }
 
     fn visit_expr(&mut self, ex: &ast::Expr) {
@@ -166,7 +166,7 @@ fn to_racer_ty(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
             Some(Ty::Tuple(res))
         },
         TyKind::Rptr(ref _lifetime, ref ty) => {
-            to_racer_ty(&*ty.ty, scope).map(|ref_ty| Ty::RefPtr(Box::new(ref_ty)) )
+            to_racer_ty(&ty.ty, scope).map(|ref_ty| Ty::RefPtr(Box::new(ref_ty)) )
         }
         TyKind::Path(_, ref path) => {
             Some(Ty::PathSearch(to_racer_path(path), scope.clone()))
@@ -307,7 +307,7 @@ impl<'c, 's> visit::Visitor for LetTypeVisitor<'c, 's> {
 
         debug!("LetTypeVisitor: ty is {:?}. pos is {}, src is |{}|", ty, self.pos, self.srctxt);
         self.result = ty.and_then(|ty|
-           destructure_pattern_to_ty(&*local.pat, self.pos, &ty, &self.scope, self.session))
+           destructure_pattern_to_ty(&local.pat, self.pos, &ty, &self.scope, self.session))
             .and_then(|ty| path_to_match(ty, self.session));
     }
 }
@@ -370,7 +370,7 @@ fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
         Ty::PathSearch(ref path, ref scope) =>
             find_type_match(path, &scope.filepath, scope.point, session),
         Ty::RefPtr(ty) => {
-            path_to_match(*ty.to_owned(), session)
+            path_to_match(*ty, session)
         },
         _ => Some(ty)
     }
@@ -399,7 +399,7 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &Sessio
         if types.is_empty() {
             Some(Ty::Match(m))
         } else {
-            Some(Ty::Match(m.with_generic_types(types.clone())))
+            Some(Ty::Match(m.with_generic_types(types)))
         }
     })
 }
@@ -454,21 +454,19 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
             ExprKind::Call(ref callee_expression, _/*ref arguments*/) => {
                 self.visit_expr(callee_expression);
 
-                self.result = self.result.as_ref().and_then(|m|
-                    match *m {
-                        Ty::Match(ref m) =>  {
-
-                            match m.mtype {
-                                MatchType::Function => typeinf::get_return_type_of_function(m, m, self.session)
-                                    .and_then(|ty| path_to_match(ty, self.session)),
-                                MatchType::Struct => Some(Ty::Match(m.clone())),
-                                _ => {
-                                    debug!("ExprTypeVisitor: Cannot handle ExprCall of {:?} type", m.mtype);
-                                    None
-                                }
+                self.result = self.result.take().and_then(|m|
+                    if let Ty::Match(m) = m {
+                        match m.mtype {
+                            MatchType::Function => typeinf::get_return_type_of_function(&m, &m, self.session)
+                                .and_then(|ty| path_to_match(ty, self.session)),
+                            MatchType::Struct => Some(Ty::Match(m)),
+                            _ => {
+                                debug!("ExprTypeVisitor: Cannot handle ExprCall of {:?} type", m.mtype);
+                                None
                             }
-                        },
-                        _ => None
+                        }
+                    } else {
+                        None
                     }
                 );
             }
@@ -596,7 +594,7 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
                     if let Some(Ty::Match(ref mut m)) = out {
                         for (_, typesearch) in it {
                             for gentypematch in m.generic_types.iter_mut()
-                                .filter(|ty| {ty.path.segments[0].name == typesearch.path.segments[0].name}) {
+                                .filter(|ty| ty.path.segments[0].name == typesearch.path.segments[0].name) {
                                     *gentypematch = typesearch.clone();
                                 }
                         }
@@ -616,7 +614,7 @@ fn find_type_match_including_generics(fieldtype: &core::Ty,
                                       pos: usize,
                                       structm: &Match,
                                       session: &Session) -> Option<Ty>{
-    assert_eq!(&structm.filepath, &filepath.to_path_buf());
+    assert_eq!(&structm.filepath, filepath);
     let fieldtypepath = match *fieldtype {
         Ty::PathSearch(ref path, _) => path,
         _ => {
@@ -660,7 +658,7 @@ impl visit::Visitor for StructVisitor {
         for field in struct_definition.fields() {
             let codemap::BytePos(point) = field.span.lo;
 
-            let ty = to_racer_ty(&*field.ty, &self.scope);
+            let ty = to_racer_ty(&field.ty, &self.scope);
             let name = match field.ident {
                 Some(ref ident) => ident.to_string(),
                 // name unnamed field by its ordinal, since self.0 works
@@ -754,7 +752,7 @@ pub struct ModVisitor {
 impl visit::Visitor for ModVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::Mod(_) = item.node {
-            self.name = Some((&item.ident.name).to_string());
+            self.name = Some(item.ident.name.to_string());
         }
     }
 }
@@ -767,7 +765,7 @@ pub struct ExternCrateVisitor {
 impl visit::Visitor for ExternCrateVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::ExternCrate(ref optional_s) = item.node {
-            self.name = Some((&item.ident.name).to_string());
+            self.name = Some(item.ident.name.to_string());
             if let Some(ref istr) = *optional_s {
                 self.realname = Some(istr.to_string());
             }
@@ -789,7 +787,7 @@ pub struct GenericsVisitor {
 impl visit::Visitor for GenericsVisitor {
     fn visit_generics(&mut self, g: &ast::Generics) {
         for ty in g.ty_params.iter() {
-            let generic_ty_name = (&ty.ident.name).to_string();
+            let generic_ty_name = ty.ident.name.to_string();
             let mut generic_bounds = Vec::new();
             for trait_bound in ty.bounds.iter() {
                 let bound_path = match *trait_bound {
@@ -797,7 +795,7 @@ impl visit::Visitor for GenericsVisitor {
                     _ => None,
                 };
                 if let Some(path) = bound_path.and_then(|path| { path.segments.get(0) }) {
-                    generic_bounds.push((path.identifier.name).to_string());
+                    generic_bounds.push(path.identifier.name.to_string());
                 };
             }
             self.generic_args.push(GenericArg {
@@ -816,14 +814,14 @@ pub struct StructDefVisitor {
 impl visit::Visitor for StructDefVisitor {
     fn visit_generics(&mut self, g: &ast::Generics) {
         for ty in g.ty_params.iter() {
-            self.generic_args.push((&ty.ident.name).to_string());
+            self.generic_args.push(ty.ident.name.to_string());
         }
     }
 
     fn visit_ident(&mut self, sp: codemap::Span, ident: ast::Ident) {
         /*! Visit the idents */
         let codemap::BytePos(point) = sp.lo;
-        let name = (&ident.name).to_string();
+        let name = ident.name.to_string();
         self.name = Some((name,point as usize));
     }
 }
@@ -836,7 +834,7 @@ pub struct EnumVisitor {
 impl visit::Visitor for EnumVisitor {
     fn visit_item(&mut self, i: &ast::Item) {
         if let ItemKind::Enum(ref enum_definition, _) = i.node {
-            self.name = (&i.ident.name).to_string();
+            self.name = i.ident.name.to_string();
             //visitor.visit_generics(type_parameters, env.clone());
             //visit::walk_enum_def(self, enum_definition, type_parameters, e)
 
@@ -846,7 +844,7 @@ impl visit::Visitor for EnumVisitor {
 
             for variant in &enum_definition.variants {
                 let codemap::BytePos(point) = variant.span.lo;
-                self.values.push(((&variant.node.name).to_string(), point as usize));
+                self.values.push((variant.node.name.to_string(), point as usize));
             }
         }
     }
@@ -1042,8 +1040,8 @@ impl<'c, 's> visit::Visitor for FnArgTypeVisitor<'c, 's> {
             let codemap::BytePos(hi) = arg.pat.span.hi;
             if self.argpos >= (lo as usize) && self.argpos <= (hi as usize) {
                 debug!("fn arg visitor found type {:?}", arg.ty);
-                self.result = to_racer_ty(&*arg.ty, &self.scope)
-                    .and_then(|ty| destructure_pattern_to_ty(&*arg.pat, self.argpos,
+                self.result = to_racer_ty(&arg.ty, &self.scope)
+                    .and_then(|ty| destructure_pattern_to_ty(&arg.pat, self.argpos,
                                                              &ty, &self.scope, self.session))
                     .and_then(|ty| path_to_match(ty, self.session));
                 break;
@@ -1110,7 +1108,7 @@ fn ast_sandbox() {
     //parse_let("let l : Vec<Blah>;".to_string(), Path::new("./ast.rs"), 0, true);
     //parse_let("let l = Vec<Blah>::new();".to_string(), Path::new("./ast.rs"), 0, true);
 
-    //get_type_of("let l : Vec<Blah>;".to_string(), &Path::new("./ast.rs"), 0);
+    //get_type_of("let l : Vec<Blah>;".to_string(), Path::new("./ast.rs"), 0);
     //panic!();
 
 
