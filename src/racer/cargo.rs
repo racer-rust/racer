@@ -632,14 +632,14 @@ fn get_crate_file_from_overrides<P>(crate_name: &str, path: P) -> Option<PathBuf
 /// 2. lock file
 /// 3. toml file
 pub fn get_crate_file(kratename: &str, from_path: &Path) -> Option<PathBuf> {
-    info!("get_crate_file: from_path={:?}", from_path);
+    debug!("get_crate_file: from_path={:?}", from_path);
     if let Some(src) = get_crate_file_from_overrides(kratename, from_path) {
         return Some(src);
     }
 
     if let Some(tomlfile) = find_cargo_tomlfile(from_path.to_path_buf()) {
         // look in the lockfile first, if there is one
-        debug!("get_crate_file tomlfile is {:?}", tomlfile);
+        trace!("get_crate_file tomlfile is {:?}", tomlfile);
         let mut lockfile = tomlfile.clone();
         lockfile.pop();
         lockfile.push("Cargo.lock");
