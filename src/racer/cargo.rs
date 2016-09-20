@@ -94,6 +94,7 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
 }
 
 fn parse_toml_file(toml_file: &Path) -> Option<BTreeMap<String, toml::Value>> {
+    trace!("parse_toml_file: {:?}", toml_file);
     let mut file = otry2!(File::open(toml_file));
     let mut string = String::new();
     otry2!(file.read_to_string(&mut string));
@@ -286,44 +287,50 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
     None
  }
 
+/// Return path to library source if the Cargo.toml name matches crate_name
+fn path_if_desired_lib(crate_name: &str, path: &Path, cargo_toml: &toml::Table) -> Option<PathBuf> {
+    let parent = otry!(path.parent());
+
+    // is it this lib?  (e.g. you're searching from tests to find the main library crate)
+    let package_name = otry!(cargo_toml.get("package")
+        .and_then(|package| package.as_table())
+        .and_then(|package| package.get("name"))
+        .and_then(|name| name.as_str()));
+
+    let mut lib_name = package_name.replace("-", "_");
+    let mut lib_path = parent.join("src").join("lib.rs");
+
+    if let Some(&toml::Value::Table(ref t)) = cargo_toml.get("lib") {
+        if let Some(&toml::Value::String(ref name)) = t.get("name") {
+            lib_name = name.clone();
+        }
+
+        if let Some(&toml::Value::String(ref pathstr)) = t.get("path") {
+            let p = Path::new(pathstr);
+            lib_path = parent.join(p);
+        }
+    }
+
+    if lib_name == crate_name {
+        debug!("found {} as lib entry in Cargo.toml", crate_name);
+
+        if ::std::fs::metadata(&lib_path).ok().map_or(false, |m| m.is_file()) {
+            return Some(lib_path);
+        }
+    }
+
+    None
+}
+
 fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     trace!("find_src_via_tomlfile looking for {}", kratename);
     // only look for 'path' references here.
     // We find the git and crates.io stuff via the lockfile
-    let table = parse_toml_file(cargofile).unwrap();
-    let parent = otry!(cargofile.parent());
+    let table = otry!(parse_toml_file(cargofile));
 
-    // is it this lib?  (e.g. you're searching from tests to find the main library crate)
-    {
-        let package_name = if let Some(&toml::Value::Table(ref t)) = table.get("package") {
-            if let Some(&toml::Value::String(ref name)) = t.get("name") {
-                name
-            } else {
-                // it's invalid for a package to be nameless anyway
-                return None;
-            }
-        } else {
-            return None;
-        };
-
-        let mut lib_name = package_name.replace("-", "_");
-        let mut lib_path = parent.join("src").join("lib.rs");
-        if let Some(&toml::Value::Table(ref t)) = table.get("lib") {
-            if let Some(&toml::Value::String(ref name)) = t.get("name") {
-                lib_name = name.clone();
-            }
-            if let Some(&toml::Value::String(ref pathstr)) = t.get("path") {
-                let p = Path::new(pathstr);
-                lib_path = parent.join(p);
-            }
-        }
-
-        if lib_name == kratename {
-            debug!("found {} as lib entry in Cargo.toml", kratename);
-            if ::std::fs::metadata(&lib_path).ok().map_or(false, |m| m.is_file()) {
-                return Some(lib_path);
-            }
-        }
+    // Check if current cargo file is for requested library
+    if let Some(lib_path) = path_if_desired_lib(kratename, cargofile, &table) {
+        return Some(lib_path);
     }
 
     // otherwise search the dependencies
@@ -473,21 +480,166 @@ fn getstr(t: &toml::Table, k: &str) -> Option<String> {
     }
 }
 
-fn find_cargo_tomlfile(mut f: PathBuf) -> Option<PathBuf> {
-    f.push("Cargo.toml");
-    if f.exists() {
-        Some(f)
-    } else if f.pop() && f.pop() {
-        find_cargo_tomlfile(f)
+#[inline]
+fn find_cargo_tomlfile<P>(file: P) -> Option<PathBuf>
+    where P: Into<PathBuf>
+{
+    find_next_crate_root(file)
+        .map(|mut f| { f.push("Cargo.toml"); f })
+}
+
+/// Find crate root by traversing up the directory tree searching
+///
+/// Any directory that contains a Cargo.toml is considered to be a crate root.
+/// If the provided `path` contains a Cargo.toml, that path is returned.
+fn find_next_crate_root<P>(path: P) -> Option<PathBuf>
+    where P: Into<PathBuf>
+{
+    let mut path = path.into();
+    path.push("Cargo.toml");
+    if path.exists() {
+        path.pop();
+        Some(path)
+    } else if path.pop() && path.pop() {
+        find_next_crate_root(path)
     } else {
         None
     }
 }
 
+fn get_override_paths(path: &Path) -> Vec<String> {
+    macro_rules! vtry {
+        ($opt:expr) => {
+            match $opt {
+                Some(thing) => thing,
+                None => return Vec::new(),
+            }
+        }
+    }
+
+    let config = vtry!(parse_toml_file(path));
+    let paths = vtry!(config.get("paths"));
+    let paths = vtry!(paths.as_slice());
+
+    paths
+        .iter()
+        .map(|v| v.as_str())
+        .filter(|s| s.is_some())
+        .map(|s| s.unwrap())
+        .map(String::from)
+        .collect()
+}
+
+/// An iterator yielding PathBuf for cargo override files
+///
+/// The iterator starts in the provided path and works its way up to the root
+/// directory.
+struct CargoOverrides(pub PathBuf);
+
+impl Iterator for CargoOverrides {
+    type Item = PathBuf;
+
+    fn next(&mut self) -> Option<PathBuf> {
+        // Is this the end?
+        if self.0.file_name().is_none() {
+            trace!("file_name() is none");
+            return None;
+        }
+
+        // Append .cargo/config to current path
+        let mut path = self.0.clone();
+        path.push(".cargo");
+        path.push("config");
+
+        // Traverse current path up a level for `next()`
+        self.0.pop();
+
+        trace!("trying path={:?}", path);
+
+        if path.exists() {
+            Some(path)
+        } else {
+            self.next()
+        }
+    }
+}
+
+/// Attempt to resolve `crate_name` as an override in `path`'s package
+///
+/// This resolves the crate root for `path`, loads any overrides in
+/// `.cargo/config`, and checks if any of those paths are a crate matching
+/// `crate_name`.
+///
+/// The path to `crate_name`'s library root will be returned if a match is
+/// found.
+fn get_crate_file_from_overrides<P>(crate_name: &str, path: P) -> Option<PathBuf>
+    where P: Into<PathBuf>
+{
+    let path = path.into();
+    trace!("get_crate_file_from_overrides; crate_name={:?}, path={:?}", crate_name, path);
+
+    // For each .cargo/config file
+    for cargo_config in CargoOverrides(path) {
+        // For each path in .cargo/config `paths`
+        for override_path in get_override_paths(cargo_config.as_path()).into_iter() {
+            trace!("examining override_path={:?}", override_path);
+            let mut path = PathBuf::from(override_path);
+
+            // If path is relative, convert it to an absolute path relative to
+            // cargo_config parent directory.
+            if path.is_relative() {
+                // the cargo config path is minimally /.cargo/config, so
+                // popping parent() twice should always work (hence the unwraps
+                // are fine).
+                let mut tmp = cargo_config
+                    .parent().expect("config in path")
+                    .parent().expect(".cargo in path")
+                    .to_path_buf();
+
+                tmp.push(path);
+                path = tmp;
+            }
+
+            // Continue to next override if current directory doesn't contain
+            // a Cargo.toml.
+            path.push("Cargo.toml");
+            if !path.exists() {
+                trace!("override_path={:?} does not have Cargo.toml", path);
+                continue;
+            }
+
+            // Read cargo file and see if it's the crate we need.
+            if let Some(toml) = parse_toml_file(path.as_path()) {
+                if let Some(lib_path) = path_if_desired_lib(crate_name, path.as_path(), &toml) {
+                    return Some(lib_path);
+                } else {
+                    trace!("not desired lib");
+                }
+            } else {
+                trace!("failed parsing toml");
+            }
+        }
+    }
+
+    None
+}
+
+/// Find the library root for kratename
+///
+/// The library is searched for by checking
+///
+/// 1. overrides
+/// 2. lock file
+/// 3. toml file
 pub fn get_crate_file(kratename: &str, from_path: &Path) -> Option<PathBuf> {
+    debug!("get_crate_file: from_path={:?}", from_path);
+    if let Some(src) = get_crate_file_from_overrides(kratename, from_path) {
+        return Some(src);
+    }
+
     if let Some(tomlfile) = find_cargo_tomlfile(from_path.to_path_buf()) {
         // look in the lockfile first, if there is one
-        debug!("get_crate_file tomlfile is {:?}", tomlfile);
+        trace!("get_crate_file tomlfile is {:?}", tomlfile);
         let mut lockfile = tomlfile.clone();
         lockfile.pop();
         lockfile.push("Cargo.lock");
@@ -503,4 +655,26 @@ pub fn get_crate_file(kratename: &str, from_path: &Path) -> Option<PathBuf> {
         return find_src_via_tomlfile(kratename, &tomlfile)
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    #[test]
+    fn get_crate_file_from_overrides() {
+        let _ = ::env_logger::init();
+
+        let mut start_from = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        start_from.push("fixtures");
+
+        let mut expected = start_from.clone();
+        expected.push("arst");
+        expected.push("src");
+        expected.push("lib.rs");
+
+        let actual = super::get_crate_file_from_overrides("arst", start_from)
+            .expect("finds arst/src/lib.rs");
+        assert_eq!(actual.canonicalize().expect("canonicalize path"), expected);
+    }
 }
