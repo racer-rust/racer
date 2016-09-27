@@ -713,10 +713,11 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("context is {:?}", context);
 
+            let match_type:MatchType = if src[end..].starts_with('(') { MatchType::Function } else { MatchType::StructField };
             context.and_then(|ty| {
                 // for now, just handle matches
                 if let Ty::Match(m) = ty {
-                    nameres::search_for_field_or_method(m, searchstr, SearchType::ExactMatch, session).nth(0)
+                    nameres::search_for_field_or_method(m, searchstr, SearchType::ExactMatch, session).filter(|m| m.mtype == match_type).nth(0)
                 } else {
                     None
                 }
