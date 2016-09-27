@@ -4,6 +4,7 @@ extern crate rand;
 
 use racer::core::complete_from_file;
 use racer::core::find_definition;
+use racer::core::MatchType;
 use racer::core;
 
 use std::io::Write;
@@ -1969,7 +1970,7 @@ fn finds_self_param_when_fn_has_generic_closure_arg() {
     }
 
     let a: MyOption;
-    a.~map
+    a.~map()
     ";
 
     let got = get_definition(src, None);
@@ -2118,4 +2119,32 @@ fn completes_trait_methods_in_trait_impl() {
     let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
     assert_eq!(got.matchstr, "traitm");
     assert_eq!(got.contextstr, "fn traitm(&self) -> bool");
+}
+
+#[test]
+fn finds_field_with_same_name_as_method() {
+    let src = "
+    struct Foo { same_name: uint }
+    impl Foo { fn same_name(&self){} }
+    let a: Foo;
+    a.same_na~me;
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("same_name", got.matchstr);
+    assert_eq!(MatchType::StructField, got.mtype);
+}
+
+#[test]
+fn finds_method_with_same_name_as_field() {
+    let src = "
+    struct Foo { same_name: uint }
+    impl Foo { fn same_name(&self){}}
+    let a: Foo;
+    a.same_na~me();
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("same_name", got.matchstr);
+    assert_eq!(MatchType::Function, got.mtype);
 }
