@@ -675,6 +675,7 @@ mod tests {
 
         let actual = super::get_crate_file_from_overrides("arst", start_from)
             .expect("finds arst/src/lib.rs");
-        assert_eq!(actual.canonicalize().expect("canonicalize path"), expected);
+        assert_eq!(actual.canonicalize().expect("canonicalize path"),
+         expected.canonicalize().expect("canonicalize path"));
     }
 }
