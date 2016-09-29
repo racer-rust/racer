@@ -334,6 +334,15 @@ pub fn get_return_type_of_function(fnmatch: &Match, contextm: &Match, session: &
         ast::parse_fn_output(decl, Scope::from_match(fnmatch))
     });
 
+    // Convert output arg of type Self to the correct type
+    if let Some(core::Ty::PathSearch(ref mut path, _)) = out {
+        if let Some(ref mut path_seg) = path.clone().segments.get(0) {
+            if "Self" == &path_seg.name {
+                return get_type_of_self_arg(fnmatch, src.as_src(), session);
+            }
+        }
+    }
+
     // Convert a generic output arg to the correct type
     if let Some(core::Ty::PathSearch(ref mut path, _)) = out {
         if let Some(ref mut path_seg) = path.clone().segments.get(0) {
