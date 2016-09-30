@@ -28,12 +28,16 @@ As mentioned in the command output, don't forget to add the installation directo
 
 ## Configuration
 
-1. Fetch the Rust sourcecode from git, or download from https://www.rust-lang.org/install.html (the 'rustc' source download behind the 'source' link is the right one)
+1. Fetch the Rust sourcecode
+
+ a) manually from git, or download from https://www.rust-lang.org/install.html (the 'rustc' source download behind the 'source' link is the right one).
+ 
+ b) automatically via [rustup](https://www.rustup.rs/) and run `rustup component add rust-src` in order to install the source to `~/.multirust/toolchains/[your-toolchain]/lib/rustlib/src/rust/src`. Rustup will keep the sources in sync with the toolchain if you run `rustup update`.
 
 2. Set the ```RUST_SRC_PATH``` environment variable to point to the 'src' dir in the Rust source installation
 
-   (e.g. ```% export RUST_SRC_PATH=/usr/local/src/rust/src``` )
-
+   (e.g. ```% export RUST_SRC_PATH=/usr/local/src/rust/src``` or ```% export RUST_SRC_PATH=~/.multirust/toolchains/[your-toolchain]/lib/rustlib/src/rust/src``` )
+   
 3. Test on the command line:
 
    ```racer complete std::io::B ```  (should show some completions)
