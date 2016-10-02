@@ -1,7 +1,6 @@
-use codecleaner;
 use std::iter::{Fuse, Iterator};
 
-pub struct StmtIndicesIter<'a,I> 
+pub struct StmtIndicesIter<'a,I>
     where I: Iterator<Item=(usize,usize)>
 {
     src: &'a str,
@@ -10,7 +9,7 @@ pub struct StmtIndicesIter<'a,I>
     end: usize
 }
 
-impl<'a,I> Iterator for StmtIndicesIter<'a,I> 
+impl<'a,I> Iterator for StmtIndicesIter<'a,I>
     where I: Iterator<Item=(usize,usize)>
 {
     type Item = (usize, usize);
@@ -117,14 +116,9 @@ fn is_a_use_stmt(src_bytes: &[u8], start: usize, pos: usize) -> bool {
      whitespace.contains(&src_bytes[start+7]))
 }
 
-pub fn iter_stmts(src: &str) -> Fuse<StmtIndicesIter<codecleaner::CodeIndicesIter>> {
-    let it = codecleaner::code_chunks(src);
-    StmtIndicesIter{ src: src, it: it, pos: 0, end: 0 }.fuse()
-}
-
-impl<'a,I> StmtIndicesIter<'a,I> 
-        where I: Iterator<Item=(usize,usize)> {
-
+impl<'a, I> StmtIndicesIter<'a,I>
+    where I: Iterator<Item=(usize,usize)>
+{
     pub fn from_parts(src: &str, it: I) -> Fuse<StmtIndicesIter<I>> {
         StmtIndicesIter{ src: src, it: it, pos: 0, end: 0 }.fuse()
     }
@@ -133,8 +127,18 @@ impl<'a,I> StmtIndicesIter<'a,I>
 
 #[cfg(test)]
 mod test {
+    use std::iter::Fuse;
+
+    use codecleaner;
     use testutils::{rejustify, slice};
+
     use super::*;
+
+    fn iter_stmts(src: &str) -> Fuse<StmtIndicesIter<codecleaner::CodeIndicesIter>> {
+        let it = codecleaner::code_chunks(src);
+        StmtIndicesIter{ src: src, it: it, pos: 0, end: 0 }.fuse()
+    }
+
 
     #[test]
     fn iterates_single_use_stmts() {

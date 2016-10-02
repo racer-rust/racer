@@ -7,15 +7,24 @@ extern crate env_logger;
 extern crate typed_arena;
 
 #[macro_use]
-pub mod testutils;
-pub mod core;
-pub mod scopes;
-pub mod ast;
-pub mod typeinf;
-pub mod nameres;
-pub mod codeiter;
-pub mod codecleaner;
-pub mod util;
-pub mod matchers;
-pub mod snippets;
-pub mod cargo;
+mod testutils;
+
+mod core;
+mod scopes;
+mod ast;
+mod typeinf;
+mod nameres;
+mod util;
+mod codeiter;
+mod codecleaner;
+mod matchers;
+mod snippets;
+mod cargo;
+
+pub use core::{find_definition, complete_from_file, complete_fully_qualified_name};
+pub use snippets::snippet_for_match;
+pub use core::{Match, MatchType, PathSearch};
+pub use core::{FileCache, Session};
+pub use util::expand_ident;
+
+pub use util::{RustSrcPathError, check_rust_src_env_var};

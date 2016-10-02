@@ -262,7 +262,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
             debug!("extern crate {}", name);
 
             let realname = extern_crate.realname.as_ref().unwrap_or(name);
-            get_crate_file(realname, filepath).map(|cratepath| {
+            get_crate_file(realname, filepath, session).map(|cratepath| {
                 res = Some(Match { matchstr: name.clone(),
                                   filepath: cratepath.to_path_buf(),
                                   point: 0,
@@ -330,7 +330,7 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
             for s in internalpath {
                 searchdir.push(&s);
             }
-            if let Some(modpath) = get_module_file(l, &searchdir) {
+            if let Some(modpath) = get_module_file(l, &searchdir, session) {
                 let msrc = session.load_file(&modpath);
                 let context = modpath.to_str().unwrap().to_owned();
 

@@ -4,14 +4,40 @@ use typeinf::get_function_declaration;
 
 use syntex_syntax::ast::ImplItemKind;
 
+/// Returns completion snippets usable by some editors
+///
+/// Generates a snippet string given a `Match`. The provided snippet contains
+/// substrings like "${1:name}" which some editors can use to quickly fill in
+/// arguments.
+///
+/// # Examples
+///
+/// ```no_run
+/// extern crate racer;
+///
+/// use std::path::Path;
+///
+/// let path = Path::new(".");
+/// let cache = racer::FileCache::new();
+/// let session = racer::Session::new(&cache);
+///
+/// let m = racer::complete_fully_qualified_name(
+///     "std::fs::canonicalize",
+///     &path,
+///     &session
+/// ).next().unwrap();
+///
+/// let snip = racer::snippet_for_match(&m, &session);
+/// assert_eq!(snip, "canonicalize(${1:path})");
+/// ```
 pub fn snippet_for_match(m: &Match, session: &Session) -> String {
     if m.mtype == MatchType::Function {
-            let method = get_function_declaration(m, session);
-            if let Some(m) = MethodInfo::from_source_str(&method) {
-                m.snippet()
-            } else {
-                "".into()
-            }
+        let method = get_function_declaration(m, session);
+        if let Some(m) = MethodInfo::from_source_str(&method) {
+            m.snippet()
+        } else {
+            "".into()
+        }
     } else {
         m.matchstr.clone()
     }

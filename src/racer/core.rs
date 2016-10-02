@@ -17,6 +17,9 @@ use nameres;
 use ast;
 use codecleaner;
 
+/// Within a [`Match`], specifies what was matched
+///
+/// [`Match`]: struct.Match.html
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MatchType {
     Struct,
@@ -49,6 +52,7 @@ pub enum SearchType {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[allow(dead_code)]
 pub enum Namespace {
     Type,
     Value,
@@ -61,6 +65,7 @@ pub enum CompletionType {
     Path
 }
 
+/// Context, source, and etc. for detected completion or definition
 #[derive(Clone)]
 pub struct Match {
     pub matchstr: String,
@@ -72,23 +77,6 @@ pub struct Match {
     pub generic_args: Vec<String>,
     pub generic_types: Vec<PathSearch>,  // generic types are evaluated lazily
     pub docs: String,
-}
-
-
-impl Match {
-    pub fn with_generic_types(self, generic_types: Vec<PathSearch>) -> Match {
-        Match {
-            matchstr: self.matchstr,
-            filepath: self.filepath,
-            point: self.point,
-            local: self.local,
-            mtype: self.mtype,
-            contextstr: self.contextstr,
-            generic_args: self.generic_args,
-            generic_types: generic_types,
-            docs: self.docs,
-        }
-    }
 }
 
 impl fmt::Debug for Match {
@@ -275,6 +263,7 @@ pub struct PathSegment {
     pub types: Vec<Path>
 }
 
+/// Information about generic types in a match
 #[derive(Clone)]
 pub struct PathSearch {
     pub path: Path,
@@ -484,20 +473,28 @@ pub fn new_source(src: String) -> IndexedSource {
     IndexedSource::new(src)
 }
 
+/// Caches file contents for re-use between sessions.
+///
+/// The file cache is an opaque blob outside of racer which contains maps of loaded and masked
+/// files.
 pub struct FileCache {
     /// raw source for cached files
     raw_map: RefCell<HashMap<path::PathBuf, Rc<IndexedSource>>>,
+
     /// masked source for cached files
+    ///
+    /// a version with comments and strings replaced by spaces, so that they
+    /// aren't found when scanning the source for signatures.
     masked_map: RefCell<HashMap<path::PathBuf, Rc<IndexedSource>>>,
 }
 
-/// Caches file contents for re-use between sessions.
-///
-/// There are two versions of each file that can be cached indepdendently:
-/// "raw" and "masked", where "masked" is a version with comments and
-/// strings replaced by spaces, so that they aren't found when scanning
-/// the source for signatures.
 impl FileCache {
+    /// Create a new file cache
+    ///
+    /// In order to load files into the cache, please see
+    /// [`Session::cache_file_contents()`]
+    ///
+    /// [`Session::cache_file_contents()`]: struct.Session.html#method.cache_file_contents
     pub fn new() -> FileCache {
         FileCache {
             raw_map: RefCell::new(HashMap::new()),
@@ -506,13 +503,15 @@ impl FileCache {
     }
 
     /// Add/Replace a file in both versions.
-    pub fn cache_file_contents<T>(&self, filepath: &path::Path, buf: T)
-        where T: Into<String>
+    fn cache_file_contents<P, T>(&self, filepath: P, buf: T)
+        where T: Into<String>,
+              P: Into<path::PathBuf>
     {
+        let pathbuf = filepath.into();
         let src = IndexedSource::new(buf.into());
         let masked_src = IndexedSource::new(scopes::mask_comments(src.as_src()));
-        self.raw_map.borrow_mut().insert(filepath.to_path_buf(), Rc::new(src));
-        self.masked_map.borrow_mut().insert(filepath.to_path_buf(), Rc::new(masked_src));
+        self.raw_map.borrow_mut().insert(pathbuf.clone(), Rc::new(src));
+        self.masked_map.borrow_mut().insert(pathbuf, Rc::new(masked_src));
     }
 
     fn open_file(&self, path: &path::Path) -> io::Result<File> {
@@ -533,7 +532,7 @@ impl FileCache {
         }
     }
 
-    pub fn load_file(&self, filepath: &path::Path) -> Rc<IndexedSource> {
+    fn load_file(&self, filepath: &path::Path) -> Rc<IndexedSource> {
         if let Some(src) = self.raw_map.borrow().get(filepath) {
             return src.clone();
         }
@@ -545,7 +544,7 @@ impl FileCache {
         src
     }
 
-    pub fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Rc<IndexedSource> {
+    fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Rc<IndexedSource> {
         if let Some(src) = self.masked_map.borrow().get(filepath) {
             return src.clone();
         }
@@ -558,59 +557,210 @@ impl FileCache {
     }
 }
 
+/// Context for a Racer operation
 pub struct Session<'c> {
-    query_path: path::PathBuf,            // the input path of the query
-    substitute_file: path::PathBuf,       // the temporary file
-    cache: &'c FileCache,                 // cache for file contents
+    /// Cache for files
+    ///
+    /// The file cache is used within a session to prevent multiple reads. It is
+    /// borrowed here in order to support reuse across Racer operations.
+    cache: &'c FileCache,
 }
 
-
 impl<'c> fmt::Debug for Session<'c> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        write!(f, "Session({:?}, {:?})", self.query_path, self.substitute_file)
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Session {{ .. }}")
     }
 }
 
 impl<'c> Session<'c> {
-    pub fn from_path(cache: &'c FileCache,
-                     query_path: &path::Path,
-                     substitute_file: &path::Path) -> Session<'c> {
+    /// Create a Session for use in Racer operations
+    ///
+    /// * `cache` is a reference to a `FileCache`. It's take by reference for
+    ///   use across racer operations.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// extern crate racer;
+    ///
+    /// let cache = racer::FileCache::new();
+    /// let session = racer::Session::new(&cache);
+    /// ```
+    ///
+    /// [`FileCache`]: struct.FileCache.html
+    pub fn new(cache: &'c FileCache) -> Session<'c> {
         Session {
-            query_path: query_path.to_path_buf(),
-            substitute_file: substitute_file.to_path_buf(),
             cache: cache
         }
     }
 
-    /// Resolve appropriate path for current query
+    /// Specify the contents of a file to be used in completion operations
     ///
-    /// If path is the query path, returns the substitute file
-    fn resolve_path<'a>(&'a self, path: &'a path::Path) -> &path::Path {
-        if path == self.query_path.as_path() {
-            &self.substitute_file
-        } else {
-            path
-        }
-    }
-
-    pub fn cache_file_contents<T>(&self, filepath: &path::Path, buf: T)
-        where T: Into<String>
+    /// The path to the file and the file's contents must both be specified.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// extern crate racer;
+    ///
+    /// let cache = racer::FileCache::new();
+    /// let session = racer::Session::new(&cache);
+    ///
+    /// session.cache_file_contents("foo.rs", "pub struct Foo;\\n");
+    /// ```
+    pub fn cache_file_contents<T, P>(&self, filepath: P, buf: T)
+        where T: Into<String>,
+              P: Into<path::PathBuf>
     {
         self.cache.cache_file_contents(filepath, buf);
     }
 
-    pub fn load_file(&self, filepath: &path::Path) -> Rc<IndexedSource> {
-        self.cache.load_file(self.resolve_path(filepath))
+    pub fn contains_file<P: AsRef<path::Path>>(&self, path: P) -> bool {
+        let path = path.as_ref();
+        let raw = self.cache.raw_map.borrow();
+        let masked = self.cache.masked_map.borrow();
+        raw.contains_key(path) && masked.contains_key(path)
     }
 
+    /// Request that a file is loaded into the cache
+    ///
+    /// This API is unstable and should not be used outside of Racer
+    #[doc(hidden)]
+    pub fn load_file(&self, filepath: &path::Path) -> Rc<IndexedSource> {
+        self.cache.load_file(filepath)
+    }
+
+    /// Request that a file is loaded into the cache with comments masked
+    ///
+    /// This API is unstable and should not be used outside of Racer
+    #[doc(hidden)]
     pub fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Rc<IndexedSource> {
-        self.cache.load_file_and_mask_comments(self.resolve_path(filepath))
+        self.cache.load_file_and_mask_comments(filepath)
     }
 }
 
+/// Find completions for a fully qualified name like `std::io::`
+///
+/// Searchs are started relative to `path`.
+///
+/// * `query` - is the fqn to search for
+/// * `path` - the directory to start searching in
+/// * `session` - reference to a racer::Session
+///
+/// ```no_run
+/// extern crate racer;
+///
+/// let path = std::path::Path::new(".");
+/// let cache = racer::FileCache::new();
+/// let session = racer::Session::new(&cache);
+///
+/// let m = racer::complete_fully_qualified_name(
+///     "std::fs::canon",
+///     &path,
+///     &session
+/// ).next().unwrap();
+///
+/// assert_eq!(&m.matchstr[..], "canonicalize");
+/// assert_eq!(m.mtype, racer::MatchType::Function);
+/// ```
+#[inline]
+pub fn complete_fully_qualified_name<S, P>(
+    query: S,
+    path: P,
+    session: &Session
+) -> vec::IntoIter<Match>
+    where S: AsRef<str>,
+          P: AsRef<path::Path>,
+{
+    complete_fully_qualified_name_(query.as_ref(), path.as_ref(), session)
+}
 
-pub fn complete_from_file(src: &str, filepath: &path::Path,
-                          pos: usize, session: &Session) -> vec::IntoIter<Match> {
+/// Actual implementation without generic bounds
+fn complete_fully_qualified_name_(
+    query: &str,
+    path: &path::Path,
+    session: &Session
+) -> vec::IntoIter<Match> {
+    let p: Vec<&str> = query.split("::").collect();
+
+    let mut matches = Vec::new();
+
+    for m in nameres::do_file_search(p[0], path, session) {
+        if p.len() == 1 {
+            matches.push(m);
+        } else {
+            let external_search_matches = nameres::do_external_search(
+                &p[1..],
+                &m.filepath,
+                m.point,
+                SearchType::StartsWith,
+                Namespace::Both,
+                &session
+            );
+
+            for m in external_search_matches {
+                matches.push(m);
+            }
+        }
+    }
+
+    matches.into_iter()
+}
+
+
+/// Search for completion at position in a file
+///
+/// * `src` - the file contents to search in
+/// * `filepath` - path to file containing `src`
+/// * `pos` - byte offset in file with path/expr to complete
+/// * `session` - a racer::Session
+///
+/// # Examples
+///
+/// ```
+/// extern crate racer;
+///
+/// # fn main() {
+/// let src = "
+/// fn apple() {
+/// }
+///
+/// fn main() {
+///     let b = ap
+/// }";
+///
+/// println!("{:?}", src);
+///
+/// let cache = racer::FileCache::new();
+/// let session = racer::Session::new(&cache);
+///
+/// let got = racer::complete_from_file(&src, "lib.rs", 42, &session).nth(0).unwrap();
+/// assert_eq!("apple", got.matchstr);
+/// assert_eq!(got.mtype, racer::MatchType::Function);
+///
+/// # }
+/// ```
+pub fn complete_from_file<S, P>(
+    src: S,
+    filepath: P,
+    pos: usize,
+    session: &Session
+) -> vec::IntoIter<Match>
+    where S: AsRef<str>,
+          P: AsRef<path::Path>
+{
+    complete_from_file_(src.as_ref(), filepath.as_ref(), pos, session)
+}
+
+fn complete_from_file_(
+    src: &str,
+    filepath: &path::Path,
+    pos: usize,
+    session: &Session
+) -> vec::IntoIter<Match> {
+    // Ensure `src` is cached in the FileCache at `filepath`
+    session.cache_file_contents(filepath, src);
+
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = &src[start..pos];
 
@@ -680,13 +830,71 @@ fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &S
     }
 }
 
-pub fn find_definition(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> Option<Match> {
-    find_definition_(src, filepath, pos, session)
+/// Find the definition for item at given a file, source, and cursor index
+///
+/// # Examples
+///
+/// ```
+/// extern crate racer;
+/// extern crate env_logger;
+///
+/// use std::path::Path;
+///
+/// # fn main() {
+/// let _ = env_logger::init();
+/// let cache = racer::FileCache::new();
+/// let session = racer::Session::new(&cache);
+///
+/// // This is the file where we request completion from
+/// let src = stringify! {
+///    mod sub;
+///    use sub::foo;
+///    fn main() {
+///        foo();
+///    };
+/// };
+///
+/// // This is the submodule where the definition is found
+/// let sub = stringify! {
+///     pub fn foo() {}
+/// };
+///
+/// // Use the &str `sub` for `sub.rs` contents
+/// session.cache_file_contents("sub.rs", sub);
+///
+/// // Search for the definition. 45 is the byte offset
+/// // in `src` after stringify! runs. Specifically, this asks
+/// // for the definition of `foo()`.
+/// let m = racer::find_definition(src, "lib.rs", 45, &session)
+///               .expect("find definition returns a match");
+///
+/// // Should have found definition in the "sub.rs" file
+/// assert_eq!(m.filepath, Path::new("sub.rs"));
+/// // The definition should be for foo
+/// assert_eq!(&m.matchstr[..], "foo");
+/// // The definition should be a function
+/// assert_eq!(m.mtype, racer::MatchType::Function);
+/// # }
+/// ```
+pub fn find_definition<P>(
+    src: &str,
+    filepath: P,
+    pos: usize,
+    session: &Session
+) -> Option<Match>
+    where P: AsRef<path::Path>
+{
+    find_definition_(src, filepath.as_ref(), pos, session)
 }
 
 pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> Option<Match> {
+    // Make sure the src is in the file cache; there's no need to read it from disk.
+    session.cache_file_contents(filepath, src);
+
+    // Make sure `src` is in the cache
     let (start, end) = scopes::expand_search_expr(src, pos);
     let expr = &src[start..end];
+    println!("{:?}", expr);
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
     debug!("find_definition_ for |{:?}| |{:?}| {:?}", contextstr, searchstr, completetype);

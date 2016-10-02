@@ -15,6 +15,7 @@ path = "src/racer/lib.rs"
 [[bin]]
 name = "racer"
 path = "src/bin/main.rs"
+doc = false
 
 [profile.release]
 debug = true

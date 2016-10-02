@@ -1,7 +1,8 @@
 // Small functions of utility
+use std::cmp;
+use std::path;
 
 use core::SearchType::{self, ExactMatch, StartsWith};
-use std::cmp;
 
 pub fn is_pattern_char(c: char) -> bool {
     c.is_alphanumeric() || c.is_whitespace() || (c == '_') || (c == ':') || (c == '.')
@@ -86,6 +87,23 @@ fn txt_matches_matches_stuff() {
 }
 
 
+/// Given a string and index, return span of identifier
+///
+/// `pos` is coerced to be within `s`. Note that `expand_ident` only backtracks.
+/// If the provided `pos` is in the middle of an identifier, the returned
+/// `(start, end)` will have `end` = `pos`.
+///
+/// # Examples
+///
+/// ```
+/// extern crate racer;
+///
+/// let s = "let x = this_is_an_identifier;";
+/// let pos = 29;
+///
+/// let (start, end) = racer::expand_ident(s, pos);
+/// assert_eq!("this_is_an_identifier", &s[start..end]);
+/// ```
 pub fn expand_ident(s: &str, pos: usize) -> (usize, usize) {
     // TODO: Would this better be an assertion ? Why are out-of-bound values getting here ?
     // They are coming from the command-line, question is, if they should be handled beforehand
@@ -132,4 +150,147 @@ fn find_ident_end_unicode() {
 // that stabilizes
 pub fn char_at(src: &str, i: usize) -> char {
     src[i..].chars().next().unwrap()
+}
+
+/// Error type returned from [`check_rust_src_env_var()`]
+///
+/// [`check_rust_src_env_var()`]: fn.check_rust_src_env_var.html
+#[derive(Debug)]
+pub enum RustSrcPathError {
+    Missing,
+    DoesNotExist(path::PathBuf),
+    NotRustSourceTree(path::PathBuf),
+}
+
+impl ::std::error::Error for RustSrcPathError {
+    fn cause(&self) -> Option<&::std::error::Error> {
+        None
+    }
+
+    fn description(&self) -> &str {
+        match *self {
+            RustSrcPathError::Missing => "RUSTC_SRC_PATH not set or not found in sysroot",
+            RustSrcPathError::DoesNotExist(_) => "RUSTC_SRC_PATH does not exist on file system",
+            RustSrcPathError::NotRustSourceTree(_) => "RUSTC_SRC_PATH isn't a rustc source tree",
+        }
+    }
+}
+
+impl ::std::fmt::Display for RustSrcPathError {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+        match *self {
+            RustSrcPathError::Missing => {
+                write!(f, "RUST_SRC_PATH environment variable must be set to \
+                           point to the src directory of a rust checkout. \
+                           E.g. \"/home/foouser/src/rust/src\"")
+            },
+            RustSrcPathError::DoesNotExist(ref path) => {
+                write!(f, "racer can't find the directory pointed to by the \
+                           RUST_SRC_PATH variable \"{:?}\". Try using an \
+                           absolute fully qualified path and make sure it \
+                           points to the src directory of a rust checkout - \
+                           e.g. \"/home/foouser/src/rust/src\".", path)
+            },
+            RustSrcPathError::NotRustSourceTree(ref path) => {
+                write!(f, "Unable to find libstd under RUST_SRC_PATH. N.B. \
+                           RUST_SRC_PATH variable needs to point to the *src* \
+                           directory inside a rust checkout e.g. \
+                           \"/home/foouser/src/rust/src\". \
+                           Current value \"{:?}\"", path)
+            },
+        }
+    }
+}
+
+fn check_rust_sysroot() -> Option<path::PathBuf> {
+    use ::std::process::Command;
+    let mut cmd = Command::new("rustc");
+    cmd.arg("--print").arg("sysroot");
+
+    if let Ok(output) = cmd.output() {
+        if let Ok(s) = String::from_utf8(output.stdout) {
+            let sysroot = path::Path::new(s.trim());
+            let srcpath = sysroot.join("lib/rustlib/src/rust/src");
+            if srcpath.exists() {
+                return Some(srcpath);
+            }
+        }
+    }
+    None
+}
+
+/// Check for `RUST_SRC_PATH` environment variable validity and presence
+///
+/// If the environment variable is _not_ set, try and set it from the rust sys
+/// root.
+///
+/// If the rust src path is there and valid or can be set, Ok(()) is returned.
+/// Otherwise, an error with the appropriate reason is provided.
+///
+/// # Examples
+///
+/// ```
+/// extern crate racer;
+///
+/// match racer::check_rust_src_env_var() {
+///     Ok(()) => {
+///         // RUST_SRC_PATH is valid
+///     },
+///     Err(racer::RustSrcPathError::Missing) => {
+///         // path is not set or not found in sysroot
+///     },
+///     Err(racer::RustSrcPathError::DoesNotExist(_path)) => {
+///         // provided path doesnt point to valid file
+///     },
+///     Err(racer::RustSrcPathError::NotRustSourceTree(_path)) => {
+///         // provided path doesn't have rustc src
+///     }
+/// }
+/// ```
+pub fn check_rust_src_env_var() -> ::std::result::Result<(), RustSrcPathError> {
+    use std::env;
+    use nameres;
+
+    match env::var("RUST_SRC_PATH") {
+        Ok(ref srcpaths) if !srcpaths.is_empty() => {
+            // TODO implementation has the same behavior as the original
+            // (before returning an error) where only the first path in
+            // RUST_SRC_PATH is considered. This should either expect a single
+            // path to be provided, or all paths should be considered. The
+            // latter option would need to be supported in the rest of racer.
+
+            // Unwrap is ok here since split returns the original string
+            // even if it doesn't contain the split pattern.
+            let v = srcpaths.split(nameres::PATH_SEP).next().unwrap();
+            let f = path::Path::new(v);
+            if !f.exists() {
+                Err(RustSrcPathError::DoesNotExist(f.to_path_buf()))
+            } else if !f.join("libstd").exists() {
+                Err(RustSrcPathError::NotRustSourceTree(f.join("libstd")))
+            } else {
+                Ok(())
+            }
+        },
+        _ => {
+            if let Some(path) = check_rust_sysroot() {
+                env::set_var("RUST_SRC_PATH", path);
+                Ok(())
+            } else {
+                let default_paths = [
+                    "/usr/local/src/rust/src",
+                    "/usr/src/rust/src",
+                ];
+
+                for &path in &default_paths {
+                    let f = path::Path::new(path);
+                    if f.exists() {
+                        env::set_var("RUST_SRC_PATH", path);
+                        return Ok(())
+                    }
+                }
+
+                Err(RustSrcPathError::Missing)
+            }
+        }
+    }
 }

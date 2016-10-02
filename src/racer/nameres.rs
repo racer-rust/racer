@@ -551,7 +551,11 @@ fn search_fn_args(fnstart: usize, open_brace_pos: usize, msrc: &str,
     out.into_iter()
 }
 
-pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match> {
+pub fn do_file_search(
+    searchstr: &str,
+    currentdir: &Path,
+    session: &Session
+) -> vec::IntoIter<Match> {
     debug!("do_file_search {}", searchstr);
     let mut out = Vec::new();
 
@@ -570,17 +574,17 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                 };
                 if fname.starts_with(&format!("lib{}", searchstr)) {
                     let filepath = fpath_buf.join("lib.rs");
-                    if filepath.exists() {
+                    if filepath.exists() || session.contains_file(&filepath) {
                         let m = Match {
-                                       matchstr: fname[3..].to_owned(),
-                                       filepath: filepath.to_path_buf(),
-                                       point: 0,
-                                       local: false,
-                                       mtype: Module,
-                                       contextstr: fname[3..].to_owned(),
-                                       generic_args: Vec::new(),
-                                       generic_types: Vec::new(),
-                                       docs: String::new(),
+                            matchstr: fname[3..].to_owned(),
+                            filepath: filepath.to_path_buf(),
+                            point: 0,
+                            local: false,
+                            mtype: Module,
+                            contextstr: fname[3..].to_owned(),
+                            generic_args: Vec::new(),
+                            generic_types: Vec::new(),
+                            docs: String::new(),
                         };
                         out.push(m);
                     }
@@ -590,33 +594,35 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path) -> vec::IntoIter<Match
                     for name in &[&format!("{}.rs", fname)[..], "mod.rs", "lib.rs"] {
                         let filepath = fpath_buf.join(name);
 
-                        if filepath.exists() {
+                        if filepath.exists() || session.contains_file(&filepath) {
                             let m = Match {
-                                           matchstr: fname.to_owned(),
-                                           filepath: filepath.to_path_buf(),
-                                           point: 0,
-                                           local: false,
-                                           mtype: Module,
-                                           contextstr: filepath.to_str().unwrap().to_owned(),
-                                           generic_args: Vec::new(),
-                                           generic_types: Vec::new(),
-                                           docs: String::new(),
+                                matchstr: fname.to_owned(),
+                                filepath: filepath.to_path_buf(),
+                                point: 0,
+                                local: false,
+                                mtype: Module,
+                                contextstr: filepath.to_str().unwrap().to_owned(),
+                                generic_args: Vec::new(),
+                                generic_types: Vec::new(),
+                                docs: String::new(),
                             };
                             out.push(m);
                         }
                     }
                     // try just <name>.rs
-                    if fname.ends_with(".rs") && fpath_buf.exists() {
+                    if fname.ends_with(".rs")
+                        && (fpath_buf.exists() || session.contains_file(&fpath_buf))
+                    {
                         let m = Match {
-                                       matchstr: fname[..(fname.len()-3)].to_owned(),
-                                       filepath: fpath_buf.clone(),
-                                       point: 0,
-                                       local: false,
-                                       mtype: Module,
-                                       contextstr: fpath_buf.to_str().unwrap().to_owned(),
-                                       generic_args: Vec::new(),
-                                       generic_types: Vec::new(),
-                                       docs: String::new(),
+                            matchstr: fname[..(fname.len()-3)].to_owned(),
+                            filepath: fpath_buf.clone(),
+                            point: 0,
+                            local: false,
+                            mtype: Module,
+                            contextstr: fpath_buf.to_str().unwrap().to_owned(),
+                            generic_args: Vec::new(),
+                            generic_types: Vec::new(),
+                            docs: String::new(),
 
                         };
                         out.push(m);
@@ -633,7 +639,7 @@ pub fn search_crate_root(pathseg: &core::PathSegment, modfpath: &Path,
                          session: &Session) -> vec::IntoIter<Match> {
     debug!("search_crate_root |{:?}| {:?}", pathseg, modfpath.display());
 
-    let crateroots = find_possible_crate_root_modules(modfpath.parent().unwrap());
+    let crateroots = find_possible_crate_root_modules(modfpath.parent().unwrap(), session);
     let mut out = Vec::new();
     for crateroot in crateroots {
         if *modfpath == *crateroot {
@@ -651,12 +657,12 @@ pub fn search_crate_root(pathseg: &core::PathSegment, modfpath: &Path,
     out.into_iter()
 }
 
-pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<PathBuf> {
+pub fn find_possible_crate_root_modules(currentdir: &Path, session: &Session) -> Vec<PathBuf> {
     let mut res = Vec::new();
 
     for root in &["lib.rs", "main.rs"] {
         let filepath = currentdir.join(root);
-        if filepath.exists() {
+        if filepath.exists() || session.contains_file(&filepath) {
             res.push(filepath);
             return res;   // for now stop at the first match
         }
@@ -665,7 +671,7 @@ pub fn find_possible_crate_root_modules(currentdir: &Path) -> Vec<PathBuf> {
     if let Some(parentdir) = currentdir.parent() {
         if parentdir != currentdir {
             // PD: this was using the vec.push_all() api, but that is now unstable
-            res.extend(find_possible_crate_root_modules(parentdir).iter().cloned());
+            res.extend(find_possible_crate_root_modules(parentdir, session).iter().cloned());
             return res;   // for now stop at the first match
         }
     }
@@ -690,7 +696,7 @@ pub fn search_next_scope(mut startpoint: usize, pathseg: &core::PathSegment,
     search_scope(startpoint, startpoint, filesrc.as_src(), pathseg, filepath, search_type, local, namespace, session)
 }
 
-pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
+pub fn get_crate_file(name: &str, from_path: &Path, session: &Session) -> Option<PathBuf> {
     debug!("get_crate_file {}, {:?}", name, from_path);
     if let Some(p) = cargo::get_crate_file(name, from_path) {
         debug!("get_crate_file  - found the crate file! {:?}", p);
@@ -704,14 +710,14 @@ pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
             // try lib<name>/lib.rs, like in the rust source dir
             let cratelibname = format!("lib{}", name);
             let filepath = Path::new(srcpath).join(cratelibname).join("lib.rs");
-            if filepath.exists() {
+            if filepath.exists() || session.contains_file(&filepath) {
                 return Some(filepath);
             }
         }
         {
             // try <name>/lib.rs
             let filepath = Path::new(srcpath).join(name).join("lib.rs");
-            if filepath.exists() {
+            if filepath.exists() || session.contains_file(&filepath) {
                 return Some(filepath);
             }
         }
@@ -719,18 +725,18 @@ pub fn get_crate_file(name: &str, from_path: &Path) -> Option<PathBuf> {
     None
 }
 
-pub fn get_module_file(name: &str, parentdir: &Path) -> Option<PathBuf> {
+pub fn get_module_file(name: &str, parentdir: &Path, session: &Session) -> Option<PathBuf> {
     {
         // try just <name>.rs
         let filepath = parentdir.join(format!("{}.rs", name));
-        if filepath.exists() {
+        if filepath.exists() || session.contains_file(&filepath) {
             return Some(filepath);
         }
     }
     {
         // try <name>/mod.rs
         let filepath = parentdir.join(name).join("mod.rs");
-        if filepath.exists() {
+        if filepath.exists() || session.contains_file(&filepath) {
             return Some(filepath);
         }
     }
@@ -827,7 +833,7 @@ pub fn search_scope(start: usize, point: usize, src: Src,
 
         if searchstr == "core" && blob.starts_with("#![no_std]") {
             debug!("Looking for core and found #![no_std], which implicitly imports it");
-            get_crate_file("core", filepath).map(|cratepath| {
+            get_crate_file("core", filepath, session).map(|cratepath| {
                 let context = cratepath.to_str().unwrap().to_owned();
                 out.push(Match { matchstr: "core".into(),
                                   filepath: cratepath,
@@ -977,7 +983,7 @@ pub fn search_prelude_file(pathseg: &core::PathSegment, search_type: SearchType,
 
     for srcpath in v.into_iter() {
         let filepath = Path::new(srcpath).join("libstd").join("prelude").join("v1.rs");
-        if filepath.exists() {
+        if filepath.exists() || session.contains_file(&filepath) {
             let msrc = session.load_file_and_mask_comments(&filepath);
             let is_local = true;
             for m in search_scope(0, 0, msrc.as_src(), pathseg, &filepath, search_type, is_local, namespace, session) {
@@ -1027,25 +1033,11 @@ pub fn resolve_path_with_str(path: &core::Path, filepath: &Path, pos: usize,
     out.into_iter()
 }
 
-thread_local!(pub static SEARCH_STACK: Vec<Search> = Vec::new());
-
 #[derive(PartialEq,Debug)]
 pub struct Search {
     path: Vec<String>,
     filepath: String,
     pos: usize
-}
-
-pub fn is_a_repeat_search(new_search: &Search) -> bool {
-    SEARCH_STACK.with(|v| {
-        for s in v {
-            if s == new_search {
-                debug!("is a repeat search {:?} Stack: {:?}", new_search, v);
-                return true;
-            }
-        }
-        false
-    })
 }
 
 pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
@@ -1061,7 +1053,7 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
 
     if (is_exact_match && &searchstr[..] == "std") ||
        (!is_exact_match && "std".starts_with(searchstr)) {
-        get_crate_file("std", filepath).map(|cratepath| {
+        get_crate_file("std", filepath, session).map(|cratepath| {
             let context = cratepath.to_str().unwrap().to_owned();
             out.push(Match {
                         matchstr: "std".into(),
@@ -1111,7 +1103,7 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
     }
     // filesearch. Used to complete e.g. extern crate blah or mod foo
     if let StartsWith = search_type {
-        for m in do_file_search(searchstr, filepath.parent().unwrap()) {
+        for m in do_file_search(searchstr, filepath.parent().unwrap(), session) {
             out.push(m);
         }
     }
@@ -1135,7 +1127,7 @@ pub fn get_super_scope(filepath: &Path, pos: usize, session: &Session) -> Option
 
         for filename in &[ "mod.rs", "lib.rs" ] {
             let f_path = moduledir.join(&filename);
-            if f_path.exists() {
+            if f_path.exists() || session.contains_file(&f_path) {
                 return Some(core::Scope{ filepath: f_path, point: 0 })
             }
         }
@@ -1275,7 +1267,7 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
             out.push(m);
         }
 
-        get_module_file(searchstr, filepath.parent().unwrap()).map(|path| {
+        get_module_file(searchstr, filepath.parent().unwrap(), session).map(|path| {
             let context = path.to_str().unwrap().to_owned();
             out.push(Match {
                            matchstr: searchstr.to_owned(),

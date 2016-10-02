@@ -5,7 +5,7 @@ pub fn rejustify(src: &str) -> String {
     for l in s.lines() {
         let tabless = &l[4..];
         sb.push_str(tabless);
-        if tabless.len() != 0 {
+        if !tabless.is_empty() {
             sb.push_str("\n");
         }
     }
@@ -17,14 +17,4 @@ pub fn rejustify(src: &str) -> String {
 #[cfg(test)]
 pub fn slice(src: &str, (begin, end): (usize, usize)) -> &str {
     &src[begin..end]
-}
-
-#[macro_export]
-macro_rules! test_source {
-    (rejustify $e:expr) => {
-        $crate::core::new_source(rejustify($e))
-    };
-    ($e:expr) => {
-        $crate::core::new_source(String::from($e))
-    };
 }
