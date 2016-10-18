@@ -318,7 +318,7 @@ pub fn get_function_declaration(fnmatch: &Match, session: &Session) -> String {
 pub fn get_return_type_of_function(fnmatch: &Match, contextm: &Match, session: &Session) -> Option<core::Ty> {
     let src = session.load_file(&fnmatch.filepath);
     let point = scopes::find_stmt_start(src.as_src(), fnmatch.point).unwrap();
-    let mut out = src[point..].find(|c| {c == '{' || c == ';'}).and_then(|n| {
+    let out = src[point..].find(|c| {c == '{' || c == ';'}).and_then(|n| {
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut decl = String::new();
         decl.push_str("impl blah {");
@@ -334,9 +334,18 @@ pub fn get_return_type_of_function(fnmatch: &Match, contextm: &Match, session: &
         ast::parse_fn_output(decl, Scope::from_match(fnmatch))
     });
 
+    // Convert output arg of type Self to the correct type
+    if let Some(core::Ty::PathSearch(ref path, _)) = out {
+        if let Some(ref path_seg) = path.segments.get(0) {
+            if "Self" == path_seg.name {
+                return get_type_of_self_arg(fnmatch, src.as_src(), session);
+            }
+        }
+    }
+
     // Convert a generic output arg to the correct type
-    if let Some(core::Ty::PathSearch(ref mut path, _)) = out {
-        if let Some(ref mut path_seg) = path.clone().segments.get(0) {
+    if let Some(core::Ty::PathSearch(ref path, _)) = out {
+        if let Some(ref path_seg) = path.segments.get(0) {
             if path.segments.len() == 1 && path_seg.types.is_empty() {
                 for type_name in &fnmatch.generic_args {
                     if type_name == &path_seg.name {

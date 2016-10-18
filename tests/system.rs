@@ -1394,6 +1394,22 @@ fn follows_chained_method_call() {
 }
 
 #[test]
+fn follows_chained_method_call_returning_self() {
+    let src = "
+    struct Foo;
+    impl Foo {
+        fn mymethod(&self) {}
+        fn new() -> Self {}
+    }
+
+    Foo::new().~
+    ";
+
+    let got = get_only_completion(src, None);
+    assert_eq!("mymethod", got.matchstr);
+}
+
+#[test]
 fn discards_inner_fns() {
     let src = "
     struct Foo;
