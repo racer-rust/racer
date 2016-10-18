@@ -145,24 +145,46 @@ pub fn get_line(src: &str, point: usize) -> usize {
     0
 }
 
+/// search in reverse for the start of the current expression 
+/// allow . and :: to be surrounded by white chars to enable multi line call chains 
 pub fn get_start_of_search_expr(src: &str, point: usize) -> usize {
-    let mut i = point;
-    let mut levels = 0u32;
-    for &b in src.as_bytes()[..point].iter().rev() {
-        i -= 1;
-        match b {
-            b'(' => {
-                if levels == 0 { return i+1; }
-                levels -= 1;
-            },
-            b')' => { levels += 1; },
-            _ => {
-                if levels == 0 &&
-                    !util::is_search_expr_char(char_at(src, i)) ||
-                    util::is_double_dot(src,i) {
-                    return i+1;
-                }
-            }
+
+    enum State {
+        Levels(usize),
+        StartsWithDot,
+        MustEndsWithDot(usize),
+        StartsWithCol(usize),
+        None,
+        Result(usize),
+    }
+    let mut ws_ok = State::None;
+    for (i, c) in src.as_bytes()[..point].iter().enumerate().rev() {
+        ws_ok = match (*c,ws_ok) {
+            (b'(', State::None) => State::Result(i+1),
+            (b'(', State::Levels(1)) =>  State::None,
+            (b'(', State::Levels(lev)) =>  State::Levels(lev-1),
+            (b')', State::Levels(lev)) =>  State::Levels(lev+1),
+            (b')', State::None) |
+            (b')', State::StartsWithDot) =>  State::Levels(1),
+            (b'.', State::None) =>  State::StartsWithDot,
+            (b'.', State::StartsWithDot) => State::Result(i+2) ,
+            (b'.', State::MustEndsWithDot(_)) =>  State::None,
+            (b':', State::MustEndsWithDot(index)) =>  State::StartsWithCol(index),
+            (b':', State::StartsWithCol(_)) =>  State::None,
+            ( _ , State::StartsWithCol(index)) => State::Result(index) ,
+            ( _ , State::None) if char_at(src, i).is_whitespace() =>  State::MustEndsWithDot(i+1),
+            ( _ , State::MustEndsWithDot(index)) if char_at(src, i).is_whitespace() => State::MustEndsWithDot(index),
+            ( _ , State::StartsWithDot ) if char_at(src, i).is_whitespace() => State::StartsWithDot,
+            ( _ , State::MustEndsWithDot(index)) => State::Result(index) ,
+            ( _ , State::None) if !util::is_search_expr_char(char_at(src, i)) => State::Result(i+1) ,
+            ( _ , State::None) => State::None,
+            ( _ , s@State::Levels(_)) => s,
+            ( _ , State::StartsWithDot) if util::is_search_expr_char(char_at(src, i)) =>  State::None,
+            ( _ , State::StartsWithDot) => State::Result(i+1) ,
+            ( _ , State::Result(_)) => unreachable!() ,
+        };
+        if let State::Result(index) = ws_ok {
+            return index;
         }
     }
     0
@@ -222,7 +244,7 @@ fn expand_search_expr_handles_chained_calls() {
 
 #[test]
 fn expand_search_expr_handles_inline_closures() {
-    assert_eq!((0, 24), expand_search_expr("yeah::blah.foo(||{}).bar", 22))
+    assert_eq!((0, 29), expand_search_expr("yeah::blah.foo(|x:foo|{}).bar", 27))
 }
 #[test]
 fn expand_search_expr_handles_a_function_arg() {
@@ -237,6 +259,36 @@ fn expand_search_expr_handles_macros() {
 #[test]
 fn expand_search_expr_handles_pos_at_end_of_search_str() {
     assert_eq!((0, 7), expand_search_expr("foo.bar", 7))
+}
+
+#[test]
+fn expand_search_expr_handles_type_definition() {
+    assert_eq!((4, 7), expand_search_expr("x : foo", 7))
+}
+
+#[test]
+fn expand_search_expr_handles_ws_before_dot() {
+    assert_eq!((0, 8), expand_search_expr("foo .bar", 7))
+}
+
+#[test]
+fn expand_search_expr_handles_ws_after_dot() {
+    assert_eq!((0, 8), expand_search_expr("foo. bar", 7))
+}
+
+#[test]
+fn expand_search_expr_handles_ws_dot() {
+    assert_eq!((0, 13), expand_search_expr("foo. bar .foo", 12))
+}
+
+#[test]
+fn expand_search_expr_handles_let() {
+    assert_eq!((8, 11), expand_search_expr("let b = foo", 10))
+}
+
+#[test]
+fn expand_search_expr_handles_double_dot() {
+    assert_eq!((2, 5), expand_search_expr("..foo", 4))
 }
 
 pub fn mask_comments(src: Src) -> String {

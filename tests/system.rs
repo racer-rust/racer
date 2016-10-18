@@ -497,8 +497,8 @@ fn completes_trait_methods() {
 
     fn main() { // l16
         let t = sub::Foo(true);
-        sub::Foo::
-        t.t
+        sub::Foo::traitf();
+        t.traitm();
     }
     ";
     let f = TmpFile::new(src);
@@ -806,8 +806,8 @@ fn completes_trait_methods_when_at_scope_end() {
 
     fn main() { // l16
         let t = sub::Foo(true);
-        sub::Foo::
-        t.t
+        sub::Foo::traitf();
+        t.traitm();
     }
     ";
 
@@ -1612,6 +1612,27 @@ fn follows_chained_method_call_returning_self() {
     }
 
     Foo::new().~
+    ";
+
+    let got = get_only_completion(src, None);
+    assert_eq!("mymethod", got.matchstr);
+}
+
+#[test]
+fn follows_chained_method_call_on_new_line() {
+    let _lock = sync!();
+
+    let src = "
+    struct Foo;
+    impl Foo {
+        fn mymethod(&self) {}
+        fn new() -> Self {}
+    }
+
+    Foo::
+    // comment
+    new()
+    .~
     ";
 
     let got = get_only_completion(src, None);
