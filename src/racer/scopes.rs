@@ -1,7 +1,7 @@
 use {ast, typeinf, util};
 use core::{Src, CompletionType};
 #[cfg(test)]
-use core;
+use core::{self, Coordinate};
 
 use std::iter::Iterator;
 use std::path::{Path, PathBuf};
@@ -111,12 +111,12 @@ fn finds_subnested_module() {
         }
     }";
     let src = core::new_source(String::from(src));
-    let point = src.coords_to_point(4, 12).unwrap();
+    let point = src.coords_to_point(&Coordinate { line: 4, column: 12}).unwrap();
     let v = get_local_module_path(src.as_src(), point);
     assert_eq!("foo", &v[0][..]);
     assert_eq!("bar", &v[1][..]);
 
-    let point = src.coords_to_point(3, 8).unwrap();
+    let point = src.coords_to_point(&Coordinate { line: 3, column: 8}).unwrap();
     let v = get_local_module_path(src.as_src(), point);
     assert_eq!("foo", &v[0][..]);
 }
@@ -319,7 +319,7 @@ fn myfn() {
 }
 ");
     let src = core::new_source(src);
-    let point = src.coords_to_point(4, 10).unwrap();
+    let point = src.coords_to_point(&Coordinate { line: 4, column: 10}).unwrap();
     let start = scope_start(src.as_src(), point);
     assert!(start == 12);
 }
@@ -336,7 +336,7 @@ fn myfn() {
 }
 ");
     let src = core::new_source(src);
-    let point = src.coords_to_point(7, 10).unwrap();
+    let point = src.coords_to_point(&Coordinate { line: 7, column: 10}).unwrap();
     let start = scope_start(src.as_src(), point);
     assert!(start == 12);
 }
@@ -355,7 +355,7 @@ some more
     // characters at the start are the same
     assert!(src.as_bytes()[5] == r.as_bytes()[5]);
     // characters in the comments are masked
-    let commentoffset = src.coords_to_point(3, 23).unwrap();
+    let commentoffset = src.coords_to_point(&Coordinate { line: 3, column: 23}).unwrap();
     assert!(char_at(&r, commentoffset) == ' ');
     assert!(src.as_bytes()[commentoffset] != r.as_bytes()[commentoffset]);
     // characters afterwards are the same

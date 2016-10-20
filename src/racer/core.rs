@@ -65,12 +65,23 @@ pub enum CompletionType {
     Path
 }
 
+/// Line and Column position in a file
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Coordinate {
+    /// Line number, 0 based
+    pub line: usize,
+
+    /// Column number - 0 based
+    pub column: usize,
+}
+
 /// Context, source, and etc. for detected completion or definition
 #[derive(Clone)]
 pub struct Match {
     pub matchstr: String,
     pub filepath: path::PathBuf,
     pub point: usize,
+    // pub coords: Coordinate,
     pub local: bool,
     pub mtype: MatchType,
     pub contextstr: String,
@@ -340,18 +351,25 @@ impl IndexedSource {
         self.lines.borrow().get(linenum - 1).map(|&(i, l)| &self.code[i..i+l])
     }
 
-    pub fn coords_to_point(&self, linenum: usize, col: usize) -> Option<usize> {
+    pub fn coords_to_point(&self, coords: &Coordinate) -> Option<usize> {
         self.cache_lineoffsets();
-        self.lines.borrow().get(linenum - 1).and_then(|&(i, l)| {
-            if col <= l { Some(i + col) } else { None }
-        })
+        self.lines
+            .borrow()
+            .get(coords.line - 1)
+            .and_then(|&(i, l)| {
+                if coords.column <= l {
+                    Some(i + coords.column)
+                } else {
+                    None
+                }
+            })
     }
 
-    pub fn point_to_coords(&self, point: usize) -> Option<(usize, usize)> {
+    pub fn point_to_coords(&self, point: usize) -> Option<Coordinate> {
         self.cache_lineoffsets();
         for (n, &(i, l)) in self.lines.borrow().iter().enumerate() {
             if i <= point && (point - i) <= l {
-                return Some((n + 1, point - i));
+                return Some(Coordinate { line: n + 1, column: point - i });
             }
         }
         None
@@ -366,7 +384,7 @@ fn myfn() {
     print(a);
 }";
     let src = new_source(src.into());
-    assert_eq!(src.coords_to_point(3, 5), Some(18));
+    assert_eq!(src.coords_to_point(&Coordinate { line: 3, column: 5}), Some(18));
 }
 
 #[test]
@@ -383,8 +401,12 @@ fn myfn(b:usize) {
 ";
     fn round_trip_point_and_coords(src: &str, lineno: usize, charno: usize) {
         let src = new_source(src.into());
-        let (a,b) = src.point_to_coords(src.coords_to_point(lineno, charno).unwrap()).unwrap();
-        assert_eq!((a,b), (lineno,charno));
+        let point = src.coords_to_point(&Coordinate {
+            line: lineno,
+            column: charno
+        }).unwrap();
+        let coords = src.point_to_coords(point).unwrap();
+        assert_eq!(coords, Coordinate { line: lineno, column: charno });
     }
     round_trip_point_and_coords(src, 4, 5);
 }

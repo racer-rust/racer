@@ -6,14 +6,15 @@ extern crate env_logger;
 
 extern crate racer;
 
-use racer::{Match, MatchType, FileCache, Session};
+use racer::{Match, MatchType, FileCache, Session, Coordinate};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::io::{self, BufRead, Read};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 
 fn match_with_snippet_fn(m: Match, session: &Session, interface: Interface) {
-    let (linenum, charnum) = session.load_file(&m.filepath).point_to_coords(m.point).unwrap();
+    let coords = session.load_file(&m.filepath).point_to_coords(m.point).unwrap();
+    let Coordinate { line: linenum, column: charnum } = coords;
     if m.matchstr == "" {
         panic!("MATCHSTR is empty - waddup?");
     }
@@ -24,7 +25,8 @@ fn match_with_snippet_fn(m: Match, session: &Session, interface: Interface) {
 }
 
 fn match_fn(m: Match, session: &Session, interface: Interface) {
-    if let Some((linenum, charnum)) = session.load_file(&m.filepath).point_to_coords(m.point) {
+    if let Some(coords) = session.load_file(&m.filepath).point_to_coords(m.point) {
+        let Coordinate { line: linenum, column: charnum } = coords;
         interface.emit(Message::Match(m.matchstr, linenum, charnum, m.filepath.as_path(),
                                       m.mtype, m.contextstr));
     } else {
@@ -113,7 +115,7 @@ fn run_the_complete_fn(cfg: &Config, print_type: CompletePrinter) {
         let (start, pos) = racer::expand_ident(line, cfg.charnum);
         cfg.interface.emit(Message::Prefix(start, pos, &line[start..pos]));
 
-        if let Some(point) = src.coords_to_point(cfg.linenum, cfg.charnum) {
+        if let Some(point) = src.coords_to_point(&cfg.coords()) {
             for m in racer::complete_from_file(&src[..], fn_path, point, &session) {
                 match print_type {
                     CompletePrinter::Normal => match_fn(m, &session, cfg.interface),
@@ -163,7 +165,7 @@ fn find_definition(cfg: Config) {
     load_query_file(&fn_path, &substitute_file, &session);
 
     let src = session.load_file(fn_path);
-    if let Some(pos) = src.coords_to_point(cfg.linenum, cfg.charnum) {
+    if let Some(pos) = src.coords_to_point(&cfg.coords()) {
         racer::find_definition(&src, fn_path, pos, &session).map(|m| match_fn(m, &session, cfg.interface));
     }
     cfg.interface.emit(Message::End);
@@ -267,6 +269,15 @@ struct Config {
     fn_name: Option<PathBuf>,
     substitute_file: Option<PathBuf>,
     interface: Interface,
+}
+
+impl Config {
+    fn coords(&self) -> Coordinate {
+        Coordinate {
+            line: self.linenum,
+            column: self.charnum
+        }
+    }
 }
 
 impl<'a> From<&'a ArgMatches<'a>> for Config {
