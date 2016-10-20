@@ -66,12 +66,12 @@ pub enum CompletionType {
 }
 
 /// Line and Column position in a file
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub struct Coordinate {
-    /// Line number, 0 based
+    /// Line number, 1 based
     pub line: usize,
 
-    /// Column number - 0 based
+    /// Column number - 1 based
     pub column: usize,
 }
 
@@ -81,7 +81,7 @@ pub struct Match {
     pub matchstr: String,
     pub filepath: path::PathBuf,
     pub point: usize,
-    // pub coords: Coordinate,
+    pub coords: Option<Coordinate>,
     pub local: bool,
     pub mtype: MatchType,
     pub contextstr: String,
@@ -89,6 +89,33 @@ pub struct Match {
     pub generic_types: Vec<PathSearch>,  // generic types are evaluated lazily
     pub docs: String,
 }
+
+/// The cursor position used by public search methods
+#[derive(Debug, Clone, Copy)]
+pub enum Cursor {
+    /// A byte offset in the file
+    Point(usize),
+
+    /// 1-based line and column indices.
+    Coords(Coordinate),
+}
+
+/// Internal cursor methods
+pub trait CursorExt {
+    fn to_point(&self, src: &IndexedSource) -> Option<usize>;
+}
+
+impl CursorExt for Cursor {
+    fn to_point(&self, src: &IndexedSource) -> Option<usize> {
+        match *self {
+            Cursor::Point(val) => Some(val),
+            Cursor::Coords(ref coords) => {
+                src.coords_to_point(coords)
+            }
+        }
+    }
+}
+
 
 impl fmt::Debug for Match {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -376,6 +403,30 @@ impl IndexedSource {
     }
 }
 
+pub struct MatchIter<'c> {
+    session: &'c Session<'c>,
+    matches: vec::IntoIter<Match>,
+}
+
+impl<'c> Iterator for MatchIter<'c> {
+    type Item = Match;
+
+    fn next(&mut self) -> Option<Match> {
+        self.matches
+            .next()
+            .map(|mut m| {
+                if m.coords.is_none() {
+                    let point = m.point;
+                    let src = self.session.load_file(m.filepath.as_path());
+                    m.coords = src.point_to_coords(point);
+                }
+
+                m
+            })
+
+    }
+}
+
 #[test]
 fn coords_to_point_works() {
     let src = "
@@ -579,6 +630,19 @@ impl FileCache {
     }
 }
 
+/// Private methods for the Session type
+pub trait SessionExt {
+    /// Request that a file is loaded into the cache
+    ///
+    /// This API is unstable and should not be used outside of Racer
+    fn load_file(&self, &path::Path) -> Rc<IndexedSource>;
+
+    /// Request that a file is loaded into the cache with comments masked
+    ///
+    /// This API is unstable and should not be used outside of Racer
+    fn load_file_and_mask_comments(&self, &path::Path) -> Rc<IndexedSource>;
+}
+
 /// Context for a Racer operation
 pub struct Session<'c> {
     /// Cache for files
@@ -644,19 +708,14 @@ impl<'c> Session<'c> {
         raw.contains_key(path) && masked.contains_key(path)
     }
 
-    /// Request that a file is loaded into the cache
-    ///
-    /// This API is unstable and should not be used outside of Racer
-    #[doc(hidden)]
-    pub fn load_file(&self, filepath: &path::Path) -> Rc<IndexedSource> {
+}
+
+impl<'c> SessionExt for Session<'c> {
+    fn load_file(&self, filepath: &path::Path) -> Rc<IndexedSource> {
         self.cache.load_file(filepath)
     }
 
-    /// Request that a file is loaded into the cache with comments masked
-    ///
-    /// This API is unstable and should not be used outside of Racer
-    #[doc(hidden)]
-    pub fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Rc<IndexedSource> {
+    fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Rc<IndexedSource> {
         self.cache.load_file_and_mask_comments(filepath)
     }
 }
@@ -686,15 +745,19 @@ impl<'c> Session<'c> {
 /// assert_eq!(m.mtype, racer::MatchType::Function);
 /// ```
 #[inline]
-pub fn complete_fully_qualified_name<S, P>(
+pub fn complete_fully_qualified_name<'c, S, P>(
     query: S,
     path: P,
-    session: &Session
-) -> vec::IntoIter<Match>
+    session: &'c Session
+) -> MatchIter<'c>
     where S: AsRef<str>,
           P: AsRef<path::Path>,
 {
-    complete_fully_qualified_name_(query.as_ref(), path.as_ref(), session)
+    let matches = complete_fully_qualified_name_(query.as_ref(), path.as_ref(), session);
+    MatchIter {
+        matches: matches,
+        session: session
+    }
 }
 
 /// Actual implementation without generic bounds
@@ -756,32 +819,45 @@ fn complete_fully_qualified_name_(
 /// let cache = racer::FileCache::new();
 /// let session = racer::Session::new(&cache);
 ///
-/// let got = racer::complete_from_file(&src, "lib.rs", 42, &session).nth(0).unwrap();
+/// session.cache_file_contents("lib.rs", src);
+///
+/// let got = racer::complete_from_file("lib.rs", racer::Cursor::Point(42), &session)
+///     .nth(0).unwrap();
 /// assert_eq!("apple", got.matchstr);
 /// assert_eq!(got.mtype, racer::MatchType::Function);
 ///
 /// # }
 /// ```
-pub fn complete_from_file<S, P>(
-    src: S,
+pub fn complete_from_file<'c, P>(
     filepath: P,
-    pos: usize,
-    session: &Session
-) -> vec::IntoIter<Match>
-    where S: AsRef<str>,
-          P: AsRef<path::Path>
+    cursor: Cursor,
+    session: &'c Session
+) -> MatchIter<'c>
+    where P: AsRef<path::Path>
 {
-    complete_from_file_(src.as_ref(), filepath.as_ref(), pos, session)
+    let matches = complete_from_file_(filepath.as_ref(), cursor, session);
+    MatchIter {
+        session: session,
+        matches: matches,
+    }
 }
 
 fn complete_from_file_(
-    src: &str,
     filepath: &path::Path,
-    pos: usize,
+    cursor: Cursor,
     session: &Session
 ) -> vec::IntoIter<Match> {
-    // Ensure `src` is cached in the FileCache at `filepath`
-    session.cache_file_contents(filepath, src);
+    let src = session.load_file(filepath);
+    let src = &src.as_src()[..];
+
+    // TODO return result
+    let pos = match cursor.to_point(&session.load_file(filepath)) {
+        Some(pos) => pos,
+        None => {
+            debug!("Failed to convert cursor to point");
+            return Vec::new().into_iter();
+        }
+    };
 
     let start = scopes::get_start_of_search_expr(src, pos);
     let expr = &src[start..pos];
@@ -881,13 +957,14 @@ fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &S
 ///     pub fn foo() {}
 /// };
 ///
-/// // Use the &str `sub` for `sub.rs` contents
+/// // Load files into cache to prevent trying to read from disk
 /// session.cache_file_contents("sub.rs", sub);
+/// session.cache_file_contents("lib.rs", src);
 ///
 /// // Search for the definition. 45 is the byte offset
 /// // in `src` after stringify! runs. Specifically, this asks
 /// // for the definition of `foo()`.
-/// let m = racer::find_definition(src, "lib.rs", 45, &session)
+/// let m = racer::find_definition("lib.rs", racer::Cursor::Point(45), &session)
 ///               .expect("find definition returns a match");
 ///
 /// // Should have found definition in the "sub.rs" file
@@ -899,19 +976,36 @@ fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &S
 /// # }
 /// ```
 pub fn find_definition<P>(
-    src: &str,
     filepath: P,
-    pos: usize,
+    cursor: Cursor,
     session: &Session
 ) -> Option<Match>
     where P: AsRef<path::Path>
 {
-    find_definition_(src, filepath.as_ref(), pos, session)
+    find_definition_(filepath.as_ref(), cursor, session)
+        .map(|mut m| {
+            if m.coords.is_none() {
+                let point = m.point;
+                let src = session.load_file(m.filepath.as_path());
+                m.coords = src.point_to_coords(point);
+            }
+
+            m
+        })
 }
 
-pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &Session) -> Option<Match> {
-    // Make sure the src is in the file cache; there's no need to read it from disk.
-    session.cache_file_contents(filepath, src);
+pub fn find_definition_(filepath: &path::Path, cursor: Cursor, session: &Session) -> Option<Match> {
+    let src = session.load_file(filepath);
+    let src = &src.as_src()[..];
+
+    // TODO return result
+    let pos = match cursor.to_point(&session.load_file(filepath)) {
+        Some(pos) => pos,
+        None => {
+            debug!("Failed to convert cursor to point");
+            return None;
+        }
+    };
 
     // Make sure `src` is in the cache
     let (start, end) = scopes::expand_search_expr(src, pos);
@@ -953,5 +1047,41 @@ pub fn find_definition_(src: &str, filepath: &path::Path, pos: usize, session: &
                 }
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+    use super::FileCache;
+    use super::{Session, SessionExt};
+
+    #[test]
+    fn overwriting_cached_files() {
+        let src1 = "src1";
+        let src2 = "src2";
+        let src3 = "src3";
+        let src4 = "src4";
+
+        // Need session and path to cache files
+        let path = Path::new("not_on_disk");
+        let cache = FileCache::new();
+
+        // Cache contents for a file and assert that load_file and load_file_and_mask_comments return
+        // the newly cached contents.
+        macro_rules! cache_and_assert {
+            ($src:ident) => {{
+                let session = Session::new(&cache);
+                session.cache_file_contents(path, $src);
+                assert_eq!($src, &session.load_file(path).code[..]);
+                assert_eq!($src, &session.load_file_and_mask_comments(path).code[..]);
+            }}
+        }
+
+        // Check for all srcN
+        cache_and_assert!(src1);
+        cache_and_assert!(src2);
+        cache_and_assert!(src3);
+        cache_and_assert!(src4);
     }
 }

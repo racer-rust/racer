@@ -1,4 +1,4 @@
-use core::{self, Match, MatchType, Scope, Ty, Session};
+use core::{self, Match, MatchType, Scope, Ty, Session, SessionExt};
 use typeinf;
 use nameres::{self, resolve_path_with_str};
 use scopes;

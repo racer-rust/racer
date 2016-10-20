@@ -6,15 +6,14 @@ extern crate env_logger;
 
 extern crate racer;
 
-use racer::{Match, MatchType, FileCache, Session, Coordinate};
+use racer::{Match, MatchType, FileCache, Session, Coordinate, Cursor};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::io::{self, BufRead, Read};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 
 fn match_with_snippet_fn(m: Match, session: &Session, interface: Interface) {
-    let coords = session.load_file(&m.filepath).point_to_coords(m.point).unwrap();
-    let Coordinate { line: linenum, column: charnum } = coords;
+    let Coordinate { line: linenum, column: charnum } = m.coords.unwrap();
     if m.matchstr == "" {
         panic!("MATCHSTR is empty - waddup?");
     }
@@ -24,8 +23,8 @@ fn match_with_snippet_fn(m: Match, session: &Session, interface: Interface) {
                                              m.filepath.as_path(), m.mtype, m.contextstr, m.docs));
 }
 
-fn match_fn(m: Match, session: &Session, interface: Interface) {
-    if let Some(coords) = session.load_file(&m.filepath).point_to_coords(m.point) {
+fn match_fn(m: Match, interface: Interface) {
+    if let Some(coords) = m.coords {
         let Coordinate { line: linenum, column: charnum } = coords;
         interface.emit(Message::Match(m.matchstr, linenum, charnum, m.filepath.as_path(),
                                       m.mtype, m.contextstr));
@@ -110,18 +109,15 @@ fn run_the_complete_fn(cfg: &Config, print_type: CompletePrinter) {
 
     load_query_file(&fn_path, &substitute_file, &session);
 
-    let src = session.load_file(fn_path);
-    if let Some(line) = src.get_line(cfg.linenum) {
-        let (start, pos) = racer::expand_ident(line, cfg.charnum);
-        cfg.interface.emit(Message::Prefix(start, pos, &line[start..pos]));
+    let cursor = Cursor::Coords(cfg.coords());
+    if let Some(expanded) = racer::expand_ident(&fn_path, cursor, &session) {
+        cfg.interface.emit(Message::Prefix(expanded.start(), expanded.pos(), expanded.ident()));
 
-        if let Some(point) = src.coords_to_point(&cfg.coords()) {
-            for m in racer::complete_from_file(&src[..], fn_path, point, &session) {
-                match print_type {
-                    CompletePrinter::Normal => match_fn(m, &session, cfg.interface),
-                    CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session, cfg.interface),
-                };
-            }
+        for m in racer::complete_from_file(&fn_path, cursor, &session) {
+            match print_type {
+                CompletePrinter::Normal => match_fn(m, cfg.interface),
+                CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session, cfg.interface),
+            };
         }
     }
 }
@@ -134,7 +130,7 @@ fn external_complete(cfg: Config, print_type: CompletePrinter) {
 
     for m in racer::complete_fully_qualified_name(cfg.fqn.as_ref().unwrap(), &cwd, &session) {
         match print_type {
-            CompletePrinter::Normal => match_fn(m, &session, cfg.interface),
+            CompletePrinter::Normal => match_fn(m, cfg.interface),
             CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session, cfg.interface),
         }
     }
@@ -146,14 +142,13 @@ fn prefix(cfg: Config) {
     let cache = FileCache::new();
     let session = Session::new(&cache);
 
+    // Cache query file in session
     load_query_file(&fn_path, &substitute_file, &session);
 
     // print the start, end, and the identifier prefix being matched
-    let src = session.load_file(fn_path);
-    if let Some(line) = src.get_line(cfg.linenum) {
-        let (start, pos) = racer::expand_ident(line, cfg.charnum);
-        cfg.interface.emit(Message::Prefix(start, pos, &line[start..pos]));
-    }
+    let cursor = Cursor::Coords(cfg.coords());
+    let expanded = racer::expand_ident(fn_path, cursor, &session).unwrap();
+    cfg.interface.emit(Message::Prefix(expanded.start(), expanded.pos(), expanded.ident()));
 }
 
 fn find_definition(cfg: Config) {
@@ -162,12 +157,11 @@ fn find_definition(cfg: Config) {
     let cache = FileCache::new();
     let session = Session::new(&cache);
 
+    // Cache query file in session
     load_query_file(&fn_path, &substitute_file, &session);
 
-    let src = session.load_file(fn_path);
-    if let Some(pos) = src.coords_to_point(&cfg.coords()) {
-        racer::find_definition(&src, fn_path, pos, &session).map(|m| match_fn(m, &session, cfg.interface));
-    }
+    racer::find_definition(fn_path, Cursor::Coords(cfg.coords()), &session)
+        .map(|m| match_fn(m, cfg.interface));
     cfg.interface.emit(Message::End);
 }
 

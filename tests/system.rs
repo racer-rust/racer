@@ -1,7 +1,7 @@
 extern crate racer;
 extern crate rand;
 
-use racer::{complete_from_file, find_definition, Match, MatchType, Coordinate};
+use racer::{complete_from_file, find_definition, Match, MatchType, Coordinate, Cursor};
 
 use std::io::Write;
 use std::fs::{self, File};
@@ -128,7 +128,7 @@ fn get_all_completions(src: &str, dir: Option<TmpDir>) -> Vec<Match> {
     let cache = racer::FileCache::new();
     let session = racer::Session::new(&cache);
 
-    complete_from_file(&clean_src, &path, completion_point, &session).collect()
+    complete_from_file(&path, Cursor::Point(completion_point), &session).collect()
 }
 
 /// Return the first completion for the given source.
@@ -154,7 +154,7 @@ fn get_definition(src: &str, dir: Option<TmpDir>) -> Match {
     let cache = racer::FileCache::new();
     let session = racer::Session::new(&cache);
 
-    find_definition(&clean_src, &path, completion_point, &session).unwrap()
+    find_definition(&path, Cursor::Point(completion_point), &session).unwrap()
 }
 
 
@@ -221,8 +221,11 @@ fn completes_fn_with_substitute_file() {
     let cache = racer::FileCache::new();
     let real_file = Path::new("not_real.rs");
     let session = racer::Session::new(&cache);
-    let got = complete_from_file(&src, real_file, pos, &session).nth(0).unwrap();
+    session.cache_file_contents(&real_file, src);
+    let cursor = Cursor::Coords(Coordinate { line: 6, column: 18 });
+    let got = complete_from_file(real_file, cursor, &session).nth(0).unwrap();
 
+    assert_eq!(Some(Coordinate { line: 2, column: 8 }), got.coords);
     assert_eq!("apple", got.matchstr);
 }
 
@@ -256,7 +259,7 @@ fn completes_pub_fn_locally_precached() {
     let cache = racer::FileCache::new();
     let session = racer::Session::new(&cache);
     session.cache_file_contents(&path, src.clone());
-    let got = complete_from_file(&src, &path, pos, &session).nth(0).unwrap();
+    let got = complete_from_file(&path, Cursor::Point(pos), &session).nth(0).unwrap();
     assert_eq!("apple", got.matchstr);
 }
 
@@ -290,35 +293,6 @@ fn completes_pub_fn_from_local_submodule_package() {
 
     let got = get_one_completion(src, None);
     assert_eq!("bartest", got.matchstr);
-}
-
-#[test]
-fn overwriting_cached_files() {
-    let src1 = "src1";
-    let src2 = "src2";
-    let src3 = "src3";
-    let src4 = "src4";
-
-    // Need session and path to cache files
-    let path = Path::new("not_on_disk");
-    let cache = racer::FileCache::new();
-
-    // Cache contents for a file and assert that load_file and load_file_and_mask_comments return
-    // the newly cached contents.
-    macro_rules! cache_and_assert {
-        ($src:ident) => {{
-            let session = racer::Session::new(&cache);
-            session.cache_file_contents(path, $src);
-            assert_eq!($src, &session.load_file(path).code[..]);
-            assert_eq!($src, &session.load_file_and_mask_comments(path).code[..]);
-        }}
-    }
-
-    // Check for all srcN
-    cache_and_assert!(src1);
-    cache_and_assert!(src2);
-    cache_and_assert!(src3);
-    cache_and_assert!(src4);
 }
 
 #[test]
@@ -428,12 +402,12 @@ fn completes_for_vec_field_and_method() {
     let path = dir.write_file("src.rs", src);
     let cache = racer::FileCache::new();
     let session = racer::Session::new(&cache);
-    let pos1 = session.load_file(&path).coords_to_point(&Coordinate { line: 22, column: 18}).unwrap();
-    let got1 = complete_from_file(src, &path, pos1, &session).nth(0).unwrap();
+    let cursor1 = Cursor::Coords(Coordinate { line: 22, column: 18 });
+    let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
     println!("{:?}", got1);
     assert_eq!("stfield", got1.matchstr);
-    let pos2 = session.load_file(&path).coords_to_point(&Coordinate { line: 23, column: 18}).unwrap();
-    let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
+    let cursor2 = Cursor::Coords(Coordinate { line: 23, column: 18 });
+    let got2 = complete_from_file(&path, cursor2, &session).nth(0).unwrap();
     println!("{:?}", got2);
     assert_eq!("stmethod", got2.matchstr);
 }
@@ -465,12 +439,12 @@ fn completes_trait_methods() {
     let path = f.path();
     let cache1 = racer::FileCache::new();
     let session1 = racer::Session::new(&cache1);
-    let pos1 = session1.load_file(path).coords_to_point(&Coordinate { line: 18, column: 18}).unwrap(); // sub::Foo::
-    let got1 = complete_from_file(src, &path, pos1, &session1).nth(0).unwrap();
+    let cursor1 = Cursor::Coords(Coordinate { line: 18, column: 18});
+    let got1 = complete_from_file(&path, cursor1, &session1).nth(0).unwrap();
     let cache2 = racer::FileCache::new();
     let session2 = racer::Session::new(&cache2);
-    let pos2 = session2.load_file(path).coords_to_point(&Coordinate { line: 19, column: 11}).unwrap(); // t.t
-    let got2 = complete_from_file(src, &path, pos2, &session2).nth(0).unwrap();
+    let cursor2 = Cursor::Coords(Coordinate { line: 19, column: 11});
+    let got2 = complete_from_file(&path, cursor2, &session2).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
     assert_eq!(got1.matchstr, "traitf");
@@ -507,12 +481,12 @@ fn completes_trait_bounded_methods() {
     let path = f.path();
     let cache1 = racer::FileCache::new();
     let session1 = racer::Session::new(&cache1);
-    let pos1 = session1.load_file(path).coords_to_point(&Coordinate { line: 20, column: 16}).unwrap(); // sub::Foo::
-    let got1 = complete_from_file(src, &path, pos1, &session1).nth(0).unwrap();
+    let cursor1 = Cursor::Coords(Coordinate { line: 20, column: 16 });
+    let got1 = complete_from_file(&path, cursor1, &session1).nth(0).unwrap();
     let cache2 = racer::FileCache::new();
     let session2 = racer::Session::new(&cache2);
-    let pos2 = session2.load_file(path).coords_to_point(&Coordinate { line: 21, column: 12}).unwrap(); // t.t
-    let got2 = complete_from_file(src, &path, pos2, &session2).nth(0).unwrap();
+    let cursor2 = Cursor::Coords(Coordinate { line: 21, column: 12 });
+    let got2 = complete_from_file(&path, cursor2, &session2).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
     assert_eq!(got1.matchstr, "traitf");
@@ -554,10 +528,10 @@ fn completes_trait_bounded_methods_generic_return() {
     let path = f.path();
     let cache = racer::FileCache::new();
     let session = racer::Session::new(&cache);
-    let pos1 = session.load_file(path).coords_to_point(&Coordinate { line: 24, column: 24}).unwrap();  // struc
-    let pos2 = session.load_file(path).coords_to_point(&Coordinate { line: 25, column: 25}).unwrap();  // traitf
-    let got1 = complete_from_file(src, &path, pos1, &session).nth(0).unwrap();
-    let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
+    let cursor1 = Cursor::Coords(Coordinate { line: 24, column: 24 });
+    let cursor2 = Cursor::Coords(Coordinate { line: 25, column: 25 });
+    let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
+    let got2 = complete_from_file(&path, cursor2, &session).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
     assert_eq!(got1.matchstr, "structfn");
@@ -727,12 +701,12 @@ fn completes_for_vec_iter_field_and_method() {
     let path = dir.write_file("src.rs", src);
     let cache = racer::FileCache::new();
     let session = racer::Session::new(&cache);
-    let pos1 = session.load_file(&path).coords_to_point(&Coordinate { line: 22, column: 18}).unwrap();
-    let got1 = complete_from_file(src, &path, pos1, &session).nth(0).unwrap();
+    let cursor1 = Cursor::Coords(Coordinate { line: 22, column: 18 });
+    let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
     println!("{:?}", got1);
     assert_eq!("stfield", got1.matchstr);
-    let pos2 = session.load_file(&path).coords_to_point(&Coordinate { line: 23, column: 18}).unwrap();
-    let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
+    let cursor2 = Cursor::Coords(Coordinate { line: 23, column: 18 });
+    let got2 = complete_from_file(&path, cursor2, &session).nth(0).unwrap();
     println!("{:?}", got2);
     assert_eq!("stmethod", got2.matchstr);
 }
@@ -765,10 +739,10 @@ fn completes_trait_methods_when_at_scope_end() {
     let path = f.path();
     let cache = racer::FileCache::new();
     let session = racer::Session::new(&cache);
-    let pos1 = session.load_file(path).coords_to_point(&Coordinate { line: 18, column: 18}).unwrap();  // sub::Foo::
-    let got1 = complete_from_file(src, &path, pos1, &session).nth(0).unwrap();
-    let pos2 = session.load_file(path).coords_to_point(&Coordinate { line: 19, column: 11}).unwrap();   // t.t
-    let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
+    let cursor1 = Cursor::Coords(Coordinate { line: 18, column: 18 });
+    let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
+    let cursor2 = Cursor::Coords(Coordinate { line: 19, column: 11 });
+    let got2 = complete_from_file(&path, cursor2, &session).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
     assert_eq!(got1.matchstr, "traitf");
@@ -2121,13 +2095,13 @@ fn completes_trait_methods_in_trait_impl() {
     let path = f.path();
     let cache = racer::FileCache::new();
     let session = racer::Session::new(&cache);
-    let pos = session.load_file(path).coords_to_point(&Coordinate { line: 11, column: 21}).unwrap();  // fn trait
-    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    let cursor = Cursor::Coords(Coordinate { line: 11, column: 21 });
+    let got = complete_from_file(&path, cursor, &session).nth(0).unwrap();
     assert_eq!(got.matchstr, "traitf");
     assert_eq!(got.contextstr, "fn traitf() -> bool");
 
-    let pos = session.load_file(path).coords_to_point(&Coordinate { line: 12, column: 21}).unwrap();  // fn trait
-    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    let cursor = Cursor::Coords(Coordinate { line: 12, column: 21 });
+    let got = complete_from_file(&path, cursor, &session).nth(0).unwrap();
     assert_eq!(got.matchstr, "traitm");
     assert_eq!(got.contextstr, "fn traitm(&self) -> bool");
 }

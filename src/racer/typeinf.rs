@@ -1,6 +1,6 @@
 // Type inference
 
-use core::{Match, Src, Scope, Session};
+use core::{Match, Src, Scope, Session, SessionExt};
 use nameres::resolve_path_with_str;
 use core::Namespace;
 use core;
@@ -96,6 +96,7 @@ fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<core:
                            matchstr: name,
                            filepath: m.filepath.clone(),
                            point: start,
+                           coords: None,
                            local: m.local,
                            mtype: core::MatchType::Trait,
                            contextstr: matchers::first_line(&msrc[start..]),

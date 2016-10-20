@@ -1,6 +1,9 @@
 // Small functions of utility
 use std::cmp;
 use std::path;
+use std::rc::Rc;
+
+use core::{IndexedSource, Session, SessionExt, Cursor, CursorExt};
 
 use core::SearchType::{self, ExactMatch, StartsWith};
 
@@ -98,28 +101,75 @@ fn txt_matches_matches_stuff() {
 /// ```
 /// extern crate racer;
 ///
-/// let s = "let x = this_is_an_identifier;";
-/// let pos = 29;
+/// let src = "let x = this_is_an_identifier;";
+/// let pos = racer::Cursor::Point(29);
+/// let path = "lib.rs";
 ///
-/// let (start, end) = racer::expand_ident(s, pos);
-/// assert_eq!("this_is_an_identifier", &s[start..end]);
+/// let cache = racer::FileCache::new();
+/// let session = racer::Session::new(&cache);
+///
+/// session.cache_file_contents(path, src);
+///
+/// let expanded = racer::expand_ident(path, pos, &session).unwrap();
+/// assert_eq!("this_is_an_identifier", expanded.ident());
 /// ```
-pub fn expand_ident(s: &str, pos: usize) -> (usize, usize) {
-    // TODO: Would this better be an assertion ? Why are out-of-bound values getting here ?
-    // They are coming from the command-line, question is, if they should be handled beforehand
-    // clamp pos into allowed range
-    let pos = cmp::min(s.len(), pos);
-    let sb = &s[..pos];
-    let mut start = pos;
+pub fn expand_ident<P>(filepath: P, cursor: Cursor, session: &Session) -> Option<ExpandedIdent>
+    where P: AsRef<::std::path::Path>
+{
+    let indexed_source = session.load_file(filepath.as_ref());
+    let (start, pos) = {
+        let s = &indexed_source.code[..];
+        let pos = match cursor.to_point(&indexed_source) {
+            Some(pos) => pos,
+            None => {
+                debug!("Failed to convert cursor to point");
+                return None;
+            }
+        };
 
-    // backtrack to find start of word
-    for (i, c) in sb.char_indices().rev() {
-        if !is_ident_char(c) {
-            break;
+        // TODO: Would this better be an assertion ? Why are out-of-bound values getting here ?
+        // They are coming from the command-line, question is, if they should be handled beforehand
+        // clamp pos into allowed range
+        let pos = cmp::min(s.len(), pos);
+        let sb = &s[..pos];
+        let mut start = pos;
+
+        // backtrack to find start of word
+        for (i, c) in sb.char_indices().rev() {
+            if !is_ident_char(c) {
+                break;
+            }
+            start = i;
         }
-        start = i;
+
+        (start, pos)
+    };
+
+    Some(ExpandedIdent {
+        src: indexed_source,
+        start: start,
+        pos: pos,
+    })
+}
+
+pub struct ExpandedIdent {
+    src: Rc<IndexedSource>,
+    start: usize,
+    pos: usize,
+}
+
+impl ExpandedIdent {
+    pub fn ident(&self) -> &str {
+        &self.src.code[self.start..self.pos]
     }
-    (start, pos)
+
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    pub fn pos(&self) -> usize {
+        self.pos
+    }
 }
 
 pub fn find_ident_end(s: &str, pos: usize) -> usize {
