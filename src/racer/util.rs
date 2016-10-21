@@ -105,7 +105,7 @@ fn txt_matches_matches_stuff() {
 /// let pos = racer::Cursor::Point(29);
 /// let path = "lib.rs";
 ///
-/// let cache = racer::FileCache::new();
+/// let cache = racer::FileCache::default();
 /// let session = racer::Session::new(&cache);
 ///
 /// session.cache_file_contents(path, src);

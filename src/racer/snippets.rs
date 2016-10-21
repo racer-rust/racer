@@ -18,7 +18,7 @@ use syntex_syntax::ast::ImplItemKind;
 /// use std::path::Path;
 ///
 /// let path = Path::new(".");
-/// let cache = racer::FileCache::new();
+/// let cache = racer::FileCache::default();
 /// let session = racer::Session::new(&cache);
 ///
 /// let m = racer::complete_fully_qualified_name(

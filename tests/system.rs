@@ -125,7 +125,7 @@ fn get_all_completions(src: &str, dir: Option<TmpDir>) -> Vec<Match> {
     let dir = dir.unwrap_or_else(|| TmpDir::new());
     let (completion_point, clean_src) = get_pos_and_source(src);
     let path = dir.write_file("src.rs", &clean_src);
-    let cache = racer::FileCache::new();
+    let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
 
     complete_from_file(&path, Cursor::Point(completion_point), &session).collect()
@@ -151,7 +151,7 @@ fn get_definition(src: &str, dir: Option<TmpDir>) -> Match {
     let dir = dir.unwrap_or_else(|| TmpDir::new());
     let (completion_point, clean_src) = get_pos_and_source(src);
     let path = dir.write_file("src.rs", &clean_src);
-    let cache = racer::FileCache::new();
+    let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
 
     find_definition(&path, Cursor::Point(completion_point), &session).unwrap()
@@ -217,8 +217,8 @@ fn completes_fn_with_substitute_file() {
         let b = ap~
     }";
 
-    let (pos, src) = get_pos_and_source(src);
-    let cache = racer::FileCache::new();
+    let (_pos, src) = get_pos_and_source(src);
+    let cache = racer::FileCache::default();
     let real_file = Path::new("not_real.rs");
     let session = racer::Session::new(&cache);
     session.cache_file_contents(&real_file, src);
@@ -256,7 +256,7 @@ fn completes_pub_fn_locally_precached() {
     let (pos, src) = get_pos_and_source(src);
     let f = TmpFile::new(&src);
     let path = f.path();
-    let cache = racer::FileCache::new();
+    let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
     session.cache_file_contents(&path, src.clone());
     let got = complete_from_file(&path, Cursor::Point(pos), &session).nth(0).unwrap();
@@ -400,7 +400,7 @@ fn completes_for_vec_field_and_method() {
     let dir = TmpDir::new();
     dir.write_file("mymod.rs", modsrc);
     let path = dir.write_file("src.rs", src);
-    let cache = racer::FileCache::new();
+    let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
     let cursor1 = Cursor::Coords(Coordinate { line: 22, column: 18 });
     let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
@@ -437,11 +437,11 @@ fn completes_trait_methods() {
     ";
     let f = TmpFile::new(src);
     let path = f.path();
-    let cache1 = racer::FileCache::new();
+    let cache1 = racer::FileCache::default();
     let session1 = racer::Session::new(&cache1);
     let cursor1 = Cursor::Coords(Coordinate { line: 18, column: 18});
     let got1 = complete_from_file(&path, cursor1, &session1).nth(0).unwrap();
-    let cache2 = racer::FileCache::new();
+    let cache2 = racer::FileCache::default();
     let session2 = racer::Session::new(&cache2);
     let cursor2 = Cursor::Coords(Coordinate { line: 19, column: 11});
     let got2 = complete_from_file(&path, cursor2, &session2).nth(0).unwrap();
@@ -479,11 +479,11 @@ fn completes_trait_bounded_methods() {
     }";
     let f = TmpFile::new(src);
     let path = f.path();
-    let cache1 = racer::FileCache::new();
+    let cache1 = racer::FileCache::default();
     let session1 = racer::Session::new(&cache1);
     let cursor1 = Cursor::Coords(Coordinate { line: 20, column: 16 });
     let got1 = complete_from_file(&path, cursor1, &session1).nth(0).unwrap();
-    let cache2 = racer::FileCache::new();
+    let cache2 = racer::FileCache::default();
     let session2 = racer::Session::new(&cache2);
     let cursor2 = Cursor::Coords(Coordinate { line: 21, column: 12 });
     let got2 = complete_from_file(&path, cursor2, &session2).nth(0).unwrap();
@@ -526,7 +526,7 @@ fn completes_trait_bounded_methods_generic_return() {
 
     let f = TmpFile::new(src);
     let path = f.path();
-    let cache = racer::FileCache::new();
+    let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
     let cursor1 = Cursor::Coords(Coordinate { line: 24, column: 24 });
     let cursor2 = Cursor::Coords(Coordinate { line: 25, column: 25 });
@@ -699,7 +699,7 @@ fn completes_for_vec_iter_field_and_method() {
     let dir = TmpDir::new();
     dir.write_file("mymod.rs", modsrc);
     let path = dir.write_file("src.rs", src);
-    let cache = racer::FileCache::new();
+    let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
     let cursor1 = Cursor::Coords(Coordinate { line: 22, column: 18 });
     let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
@@ -737,7 +737,7 @@ fn completes_trait_methods_when_at_scope_end() {
 
     let f = TmpFile::new(src);
     let path = f.path();
-    let cache = racer::FileCache::new();
+    let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
     let cursor1 = Cursor::Coords(Coordinate { line: 18, column: 18 });
     let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
@@ -2093,7 +2093,7 @@ fn completes_trait_methods_in_trait_impl() {
 
     let f = TmpFile::new(src);
     let path = f.path();
-    let cache = racer::FileCache::new();
+    let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
     let cursor = Cursor::Coords(Coordinate { line: 11, column: 21 });
     let got = complete_from_file(&path, cursor, &session).nth(0).unwrap();

@@ -104,7 +104,7 @@ fn run_the_complete_fn(cfg: &Config, print_type: CompletePrinter) {
     let fn_path = cfg.fn_name.as_ref().unwrap();
     let substitute_file = cfg.substitute_file.as_ref().unwrap_or(fn_path);
 
-    let cache = FileCache::new();
+    let cache = FileCache::default();
     let session = Session::new(&cache);
 
     load_query_file(&fn_path, &substitute_file, &session);
@@ -125,7 +125,7 @@ fn run_the_complete_fn(cfg: &Config, print_type: CompletePrinter) {
 /// Completes a fully qualified name specified on command line
 fn external_complete(cfg: Config, print_type: CompletePrinter) {
     let cwd = Path::new(".");
-    let cache = FileCache::new();
+    let cache = FileCache::default();
     let session = Session::new(&cache);
 
     for m in racer::complete_fully_qualified_name(cfg.fqn.as_ref().unwrap(), &cwd, &session) {
@@ -139,7 +139,7 @@ fn external_complete(cfg: Config, print_type: CompletePrinter) {
 fn prefix(cfg: Config) {
     let fn_path = cfg.fn_name.as_ref().unwrap();
     let substitute_file = cfg.substitute_file.as_ref().unwrap_or(fn_path);
-    let cache = FileCache::new();
+    let cache = FileCache::default();
     let session = Session::new(&cache);
 
     // Cache query file in session
@@ -154,7 +154,7 @@ fn prefix(cfg: Config) {
 fn find_definition(cfg: Config) {
     let fn_path = cfg.fn_name.as_ref().unwrap();
     let substitute_file = cfg.substitute_file.as_ref().unwrap_or(fn_path);
-    let cache = FileCache::new();
+    let cache = FileCache::default();
     let session = Session::new(&cache);
 
     // Cache query file in session

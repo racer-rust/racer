@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::Read;
 use std::{vec, fmt};
-use std::path;
+use std::{str, path};
 use std::io;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -373,11 +373,6 @@ impl IndexedSource {
         }
     }
 
-    pub fn get_line(&self, linenum: usize) -> Option<&str> {
-        self.cache_lineoffsets();
-        self.lines.borrow().get(linenum - 1).map(|&(i, l)| &self.code[i..i+l])
-    }
-
     pub fn coords_to_point(&self, coords: &Coordinate) -> Option<usize> {
         self.cache_lineoffsets();
         self.lines
@@ -559,6 +554,47 @@ pub struct FileCache {
     /// a version with comments and strings replaced by spaces, so that they
     /// aren't found when scanning the source for signatures.
     masked_map: RefCell<HashMap<path::PathBuf, Rc<IndexedSource>>>,
+
+    /// The file loader
+    loader: Box<FileLoader>,
+}
+
+/// Used by the FileCache for loading files
+///
+/// Implement one of these and pass it to `FileCache::new()` to override Racer's
+/// file loading behavior.
+pub trait FileLoader {
+    /// Load a single file
+    fn load_file(&self, path: &path::Path) -> io::Result<String>;
+}
+
+/// The default file loader
+///
+/// Private since this shouldn't be needed outside of racer
+struct DefaultFileLoader;
+
+impl FileLoader for DefaultFileLoader {
+    fn load_file(&self, path: &path::Path) -> io::Result<String> {
+        let mut rawbytes = Vec::new();
+        let mut f = try!(File::open(path));
+        try!(f.read_to_end(&mut rawbytes));
+
+        // skip BOM bytes, if present
+        if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
+            str::from_utf8(&rawbytes[3..])
+                .map(|s| s.to_owned())
+                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+        } else {
+            String::from_utf8(rawbytes)
+                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+        }
+    }
+}
+
+impl Default for FileCache {
+    fn default() -> FileCache {
+        FileCache::new(DefaultFileLoader)
+    }
 }
 
 impl FileCache {
@@ -568,11 +604,22 @@ impl FileCache {
     /// [`Session::cache_file_contents()`]
     ///
     /// [`Session::cache_file_contents()`]: struct.Session.html#method.cache_file_contents
-    pub fn new() -> FileCache {
+    pub fn new<L: FileLoader + 'static>(loader: L) -> FileCache {
         FileCache {
             raw_map: RefCell::new(HashMap::new()),
             masked_map: RefCell::new(HashMap::new()),
+            loader: Box::new(loader),
         }
+    }
+
+    /// Remove specific files from the cache
+    ///
+    /// Returns true if a file was removed
+    pub fn remove_file<P: AsRef<path::Path>>(&self, path: &P) -> bool {
+        let path = path.as_ref();
+        let mut raw = self.raw_map.borrow_mut();
+        let mut masked = self.masked_map.borrow_mut();
+        raw.remove(path).is_some() || masked.remove(path).is_some()
     }
 
     /// Add/Replace a file in both versions.
@@ -587,31 +634,15 @@ impl FileCache {
         self.masked_map.borrow_mut().insert(pathbuf, Rc::new(masked_src));
     }
 
-    fn open_file(&self, path: &path::Path) -> io::Result<File> {
-        File::open(path)
-    }
-
-    fn read_file(&self, path: &path::Path) -> Vec<u8> {
-        let mut rawbytes = Vec::new();
-        let mut f = self.open_file(path).unwrap();
-        f.read_to_end(&mut rawbytes).unwrap();
-        // skip BOM bytes, if present
-        if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
-            let mut it = rawbytes.into_iter();
-            it.next(); it.next(); it.next();
-            it.collect()
-        } else {
-            rawbytes
-        }
-    }
 
     fn load_file(&self, filepath: &path::Path) -> Rc<IndexedSource> {
         if let Some(src) = self.raw_map.borrow().get(filepath) {
             return src.clone();
         }
+
         // nothing found, insert into cache
-        let rawbytes = self.read_file(filepath);
-        let res = String::from_utf8(rawbytes).unwrap();
+        // Ugh, really need handle results on all these methods :(
+        let res = self.loader.load_file(filepath).expect("load file successfully");
         let src = Rc::new(IndexedSource::new(res));
         self.raw_map.borrow_mut().insert(filepath.to_path_buf(), src.clone());
         src
@@ -669,7 +700,7 @@ impl<'c> Session<'c> {
     /// ```
     /// extern crate racer;
     ///
-    /// let cache = racer::FileCache::new();
+    /// let cache = racer::FileCache::default();
     /// let session = racer::Session::new(&cache);
     /// ```
     ///
@@ -689,7 +720,7 @@ impl<'c> Session<'c> {
     /// ```
     /// extern crate racer;
     ///
-    /// let cache = racer::FileCache::new();
+    /// let cache = racer::FileCache::default();
     /// let session = racer::Session::new(&cache);
     ///
     /// session.cache_file_contents("foo.rs", "pub struct Foo;\\n");
@@ -732,7 +763,7 @@ impl<'c> SessionExt for Session<'c> {
 /// extern crate racer;
 ///
 /// let path = std::path::Path::new(".");
-/// let cache = racer::FileCache::new();
+/// let cache = racer::FileCache::default();
 /// let session = racer::Session::new(&cache);
 ///
 /// let m = racer::complete_fully_qualified_name(
@@ -816,7 +847,7 @@ fn complete_fully_qualified_name_(
 ///
 /// println!("{:?}", src);
 ///
-/// let cache = racer::FileCache::new();
+/// let cache = racer::FileCache::default();
 /// let session = racer::Session::new(&cache);
 ///
 /// session.cache_file_contents("lib.rs", src);
@@ -940,7 +971,7 @@ fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &S
 ///
 /// # fn main() {
 /// let _ = env_logger::init();
-/// let cache = racer::FileCache::new();
+/// let cache = racer::FileCache::default();
 /// let session = racer::Session::new(&cache);
 ///
 /// // This is the file where we request completion from
@@ -1065,7 +1096,7 @@ mod tests {
 
         // Need session and path to cache files
         let path = Path::new("not_on_disk");
-        let cache = FileCache::new();
+        let cache = FileCache::default();
 
         // Cache contents for a file and assert that load_file and load_file_and_mask_comments return
         // the newly cached contents.
