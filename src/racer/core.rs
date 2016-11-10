@@ -92,7 +92,7 @@ pub struct Match {
 
 /// The cursor position used by public search methods
 #[derive(Debug, Clone, Copy)]
-pub enum Cursor {
+pub enum Location {
     /// A byte offset in the file
     Point(usize),
 
@@ -100,28 +100,28 @@ pub enum Cursor {
     Coords(Coordinate),
 }
 
-impl From<usize> for Cursor {
-    fn from(val: usize) -> Cursor {
-        Cursor::Point(val)
+impl From<usize> for Location {
+    fn from(val: usize) -> Location {
+        Location::Point(val)
     }
 }
 
-impl From<Coordinate> for Cursor {
-    fn from(val: Coordinate) -> Cursor {
-        Cursor::Coords(val)
+impl From<Coordinate> for Location {
+    fn from(val: Coordinate) -> Location {
+        Location::Coords(val)
     }
 }
 
 /// Internal cursor methods
-pub trait CursorExt {
+pub trait LocationExt {
     fn to_point(&self, src: &IndexedSource) -> Option<usize>;
 }
 
-impl CursorExt for Cursor {
+impl LocationExt for Location {
     fn to_point(&self, src: &IndexedSource) -> Option<usize> {
         match *self {
-            Cursor::Point(val) => Some(val),
-            Cursor::Coords(ref coords) => {
+            Location::Point(val) => Some(val),
+            Location::Coords(ref coords) => {
                 src.coords_to_point(coords)
             }
         }
@@ -864,7 +864,7 @@ fn complete_fully_qualified_name_(
 ///
 /// session.cache_file_contents("lib.rs", src);
 ///
-/// let got = racer::complete_from_file("lib.rs", racer::Cursor::Point(42), &session)
+/// let got = racer::complete_from_file("lib.rs", racer::Location::Point(42), &session)
 ///     .nth(0).unwrap();
 /// assert_eq!("apple", got.matchstr);
 /// assert_eq!(got.mtype, racer::MatchType::Function);
@@ -877,7 +877,7 @@ pub fn complete_from_file<'c, P, C>(
     session: &'c Session
 ) -> MatchIter<'c>
     where P: AsRef<path::Path>,
-          C: Into<Cursor>
+          C: Into<Location>
 {
     let matches = complete_from_file_(filepath.as_ref(), cursor.into(), session);
     MatchIter {
@@ -888,7 +888,7 @@ pub fn complete_from_file<'c, P, C>(
 
 fn complete_from_file_(
     filepath: &path::Path,
-    cursor: Cursor,
+    cursor: Location,
     session: &Session
 ) -> vec::IntoIter<Match> {
     let src = session.load_file(filepath);
@@ -1008,7 +1008,7 @@ fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &S
 /// // Search for the definition. 45 is the byte offset
 /// // in `src` after stringify! runs. Specifically, this asks
 /// // for the definition of `foo()`.
-/// let m = racer::find_definition("lib.rs", racer::Cursor::Point(45), &session)
+/// let m = racer::find_definition("lib.rs", racer::Location::Point(45), &session)
 ///               .expect("find definition returns a match");
 ///
 /// // Should have found definition in the "sub.rs" file
@@ -1025,7 +1025,7 @@ pub fn find_definition<P, C>(
     session: &Session
 ) -> Option<Match>
     where P: AsRef<path::Path>,
-          C: Into<Cursor>
+          C: Into<Location>
 {
     find_definition_(filepath.as_ref(), cursor.into(), session)
         .map(|mut m| {
@@ -1039,7 +1039,7 @@ pub fn find_definition<P, C>(
         })
 }
 
-pub fn find_definition_(filepath: &path::Path, cursor: Cursor, session: &Session) -> Option<Match> {
+pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Session) -> Option<Match> {
     let src = session.load_file(filepath);
     let src = &src.as_src()[..];
 

@@ -3,7 +3,7 @@ use std::cmp;
 use std::path;
 use std::rc::Rc;
 
-use core::{IndexedSource, Session, SessionExt, Cursor, CursorExt};
+use core::{IndexedSource, Session, SessionExt, Location, LocationExt};
 
 use core::SearchType::{self, ExactMatch, StartsWith};
 
@@ -102,7 +102,7 @@ fn txt_matches_matches_stuff() {
 /// extern crate racer;
 ///
 /// let src = "let x = this_is_an_identifier;";
-/// let pos = racer::Cursor::Point(29);
+/// let pos = racer::Location::Point(29);
 /// let path = "lib.rs";
 ///
 /// let cache = racer::FileCache::default();
@@ -119,7 +119,7 @@ pub fn expand_ident<P, C>(
     session: &Session
 ) -> Option<ExpandedIdent>
     where P: AsRef<::std::path::Path>,
-          C: Into<Cursor>
+          C: Into<Location>
 {
     let cursor = cursor.into();
     let indexed_source = session.load_file(filepath.as_ref());
