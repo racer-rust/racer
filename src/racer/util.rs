@@ -113,9 +113,15 @@ fn txt_matches_matches_stuff() {
 /// let expanded = racer::expand_ident(path, pos, &session).unwrap();
 /// assert_eq!("this_is_an_identifier", expanded.ident());
 /// ```
-pub fn expand_ident<P>(filepath: P, cursor: Cursor, session: &Session) -> Option<ExpandedIdent>
-    where P: AsRef<::std::path::Path>
+pub fn expand_ident<P, C>(
+    filepath: P,
+    cursor: C,
+    session: &Session
+) -> Option<ExpandedIdent>
+    where P: AsRef<::std::path::Path>,
+          C: Into<Cursor>
 {
+    let cursor = cursor.into();
     let indexed_source = session.load_file(filepath.as_ref());
     let (start, pos) = {
         let s = &indexed_source.code[..];

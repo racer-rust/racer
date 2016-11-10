@@ -6,7 +6,7 @@ extern crate env_logger;
 
 extern crate racer;
 
-use racer::{Match, MatchType, FileCache, Session, Coordinate, Cursor};
+use racer::{Match, MatchType, FileCache, Session, Coordinate};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::io::{self, BufRead, Read};
@@ -109,11 +109,10 @@ fn run_the_complete_fn(cfg: &Config, print_type: CompletePrinter) {
 
     load_query_file(&fn_path, &substitute_file, &session);
 
-    let cursor = Cursor::Coords(cfg.coords());
-    if let Some(expanded) = racer::expand_ident(&fn_path, cursor, &session) {
+    if let Some(expanded) = racer::expand_ident(&fn_path, cfg.coords(), &session) {
         cfg.interface.emit(Message::Prefix(expanded.start(), expanded.pos(), expanded.ident()));
 
-        for m in racer::complete_from_file(&fn_path, cursor, &session) {
+        for m in racer::complete_from_file(&fn_path, cfg.coords(), &session) {
             match print_type {
                 CompletePrinter::Normal => match_fn(m, cfg.interface),
                 CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session, cfg.interface),
@@ -146,8 +145,7 @@ fn prefix(cfg: Config) {
     load_query_file(&fn_path, &substitute_file, &session);
 
     // print the start, end, and the identifier prefix being matched
-    let cursor = Cursor::Coords(cfg.coords());
-    let expanded = racer::expand_ident(fn_path, cursor, &session).unwrap();
+    let expanded = racer::expand_ident(fn_path, cfg.coords(), &session).unwrap();
     cfg.interface.emit(Message::Prefix(expanded.start(), expanded.pos(), expanded.ident()));
 }
 
@@ -160,7 +158,7 @@ fn find_definition(cfg: Config) {
     // Cache query file in session
     load_query_file(&fn_path, &substitute_file, &session);
 
-    racer::find_definition(fn_path, Cursor::Coords(cfg.coords()), &session)
+    racer::find_definition(fn_path, cfg.coords(), &session)
         .map(|m| match_fn(m, cfg.interface));
     cfg.interface.emit(Message::End);
 }

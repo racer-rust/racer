@@ -100,6 +100,18 @@ pub enum Cursor {
     Coords(Coordinate),
 }
 
+impl From<usize> for Cursor {
+    fn from(val: usize) -> Cursor {
+        Cursor::Point(val)
+    }
+}
+
+impl From<Coordinate> for Cursor {
+    fn from(val: Coordinate) -> Cursor {
+        Cursor::Coords(val)
+    }
+}
+
 /// Internal cursor methods
 pub trait CursorExt {
     fn to_point(&self, src: &IndexedSource) -> Option<usize>;
@@ -859,14 +871,15 @@ fn complete_fully_qualified_name_(
 ///
 /// # }
 /// ```
-pub fn complete_from_file<'c, P>(
+pub fn complete_from_file<'c, P, C>(
     filepath: P,
-    cursor: Cursor,
+    cursor: C,
     session: &'c Session
 ) -> MatchIter<'c>
-    where P: AsRef<path::Path>
+    where P: AsRef<path::Path>,
+          C: Into<Cursor>
 {
-    let matches = complete_from_file_(filepath.as_ref(), cursor, session);
+    let matches = complete_from_file_(filepath.as_ref(), cursor.into(), session);
     MatchIter {
         session: session,
         matches: matches,
@@ -1006,14 +1019,15 @@ fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &S
 /// assert_eq!(m.mtype, racer::MatchType::Function);
 /// # }
 /// ```
-pub fn find_definition<P>(
+pub fn find_definition<P, C>(
     filepath: P,
-    cursor: Cursor,
+    cursor: C,
     session: &Session
 ) -> Option<Match>
-    where P: AsRef<path::Path>
+    where P: AsRef<path::Path>,
+          C: Into<Cursor>
 {
-    find_definition_(filepath.as_ref(), cursor, session)
+    find_definition_(filepath.as_ref(), cursor.into(), session)
         .map(|mut m| {
             if m.coords.is_none() {
                 let point = m.point;
