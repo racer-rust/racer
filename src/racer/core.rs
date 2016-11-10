@@ -580,6 +580,13 @@ pub trait FileLoader {
     fn load_file(&self, path: &path::Path) -> io::Result<String>;
 }
 
+/// Provide a blanket impl for Arc<T> since Rls uses that
+impl<T: FileLoader> FileLoader for ::std::sync::Arc<T> {
+    fn load_file(&self, path: &path::Path) -> io::Result<String> {
+        (&self as &T).load_file(path)
+    }
+}
+
 /// The default file loader
 ///
 /// Private since this shouldn't be needed outside of racer
