@@ -185,7 +185,7 @@ fn check_rust_sysroot() -> Option<PathBuf> {
 fn check_rust_src_env_var() {
     match std::env::var("RUST_SRC_PATH") {
         Ok(ref srcpaths) if !srcpaths.is_empty() => {
-            let v = srcpaths.split(PATH_SEP).collect::<Vec<_>>();
+            let v = srcpaths.trim_right_matches('/').split(PATH_SEP).collect::<Vec<_>>();
             if !v.is_empty() {
                 let f = Path::new(v[0]);
                 if !f.exists() {
