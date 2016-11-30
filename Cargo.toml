@@ -1,7 +1,7 @@
 [package]
 
 name = "racer"
-version = "1.2.10"
+version = "2.0.0"
 license = "MIT"
 description = "Code completion for Rust"
 authors = ["Phil Dawes <phil@phildawes.net>"]
@@ -15,6 +15,7 @@ path = "src/racer/lib.rs"
 [[bin]]
 name = "racer"
 path = "src/bin/main.rs"
+doc = false
 
 [profile.release]
 debug = true

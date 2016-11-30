@@ -1,11 +1,7 @@
-#![deny(warnings)]
 extern crate racer;
 extern crate rand;
 
-use racer::core::complete_from_file;
-use racer::core::find_definition;
-use racer::core::MatchType;
-use racer::core;
+use racer::{complete_from_file, find_definition, Match, MatchType, Coordinate};
 
 use std::io::Write;
 use std::fs::{self, File};
@@ -125,24 +121,24 @@ fn get_pos_and_source(src: &str) -> (usize, String) {
 /// Return the completions for the given source.
 ///
 /// The point to find completions at must be marked with '~'.
-fn get_all_completions(src: &str, dir: Option<TmpDir>) -> Vec<core::Match> {
+fn get_all_completions(src: &str, dir: Option<TmpDir>) -> Vec<Match> {
     let dir = dir.unwrap_or_else(|| TmpDir::new());
     let (completion_point, clean_src) = get_pos_and_source(src);
     let path = dir.write_file("src.rs", &clean_src);
-    let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
+    let cache = racer::FileCache::default();
+    let session = racer::Session::new(&cache);
 
-    complete_from_file(&clean_src, &path, completion_point, &session).collect()
+    complete_from_file(&path, completion_point, &session).collect()
 }
 
 /// Return the first completion for the given source.
-fn get_one_completion(src: &str, dir: Option<TmpDir>) -> core::Match {
+fn get_one_completion(src: &str, dir: Option<TmpDir>) -> Match {
     get_all_completions(src, dir).swap_remove(0)
 }
 
 /// Return the first completion for the given source, which must be
 /// the only one.
-fn get_only_completion(src: &str, dir: Option<TmpDir>) -> core::Match {
+fn get_only_completion(src: &str, dir: Option<TmpDir>) -> Match {
     let mut all = get_all_completions(src, dir);
     assert_eq!(all.len(), 1);
     all.pop().unwrap()
@@ -151,14 +147,14 @@ fn get_only_completion(src: &str, dir: Option<TmpDir>) -> core::Match {
 /// Return the definition for the given source.
 ///
 /// The point to find the definition at must be marked with '~'.
-fn get_definition(src: &str, dir: Option<TmpDir>) -> core::Match {
+fn get_definition(src: &str, dir: Option<TmpDir>) -> Match {
     let dir = dir.unwrap_or_else(|| TmpDir::new());
     let (completion_point, clean_src) = get_pos_and_source(src);
     let path = dir.write_file("src.rs", &clean_src);
-    let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
+    let cache = racer::FileCache::default();
+    let session = racer::Session::new(&cache);
 
-    find_definition(&clean_src, &path, completion_point, &session).unwrap()
+    find_definition(&path, completion_point, &session).unwrap()
 }
 
 
@@ -221,13 +217,15 @@ fn completes_fn_with_substitute_file() {
         let b = ap~
     }";
 
-    let (pos, src) = get_pos_and_source(src);
-    let substitute_file = TmpFile::new(&src);
-    let cache = core::FileCache::new();
+    let (_pos, src) = get_pos_and_source(src);
+    let cache = racer::FileCache::default();
     let real_file = Path::new("not_real.rs");
-    let session = core::Session::from_path(&cache, real_file, substitute_file.path());
-    let got = complete_from_file(&src, real_file, pos, &session).nth(0).unwrap();
+    let session = racer::Session::new(&cache);
+    session.cache_file_contents(&real_file, src);
+    let cursor = Coordinate { line: 6, column: 18 };
+    let got = complete_from_file(real_file, cursor, &session).nth(0).unwrap();
 
+    assert_eq!(Some(Coordinate { line: 2, column: 8 }), got.coords);
     assert_eq!("apple", got.matchstr);
 }
 
@@ -258,10 +256,10 @@ fn completes_pub_fn_locally_precached() {
     let (pos, src) = get_pos_and_source(src);
     let f = TmpFile::new(&src);
     let path = f.path();
-    let cache = core::FileCache::new();
-    cache.cache_file_contents(&path, src.clone());
-    let session = core::Session::from_path(&cache, &path, &path);
-    let got = complete_from_file(&src, &path, pos, &session).nth(0).unwrap();
+    let cache = racer::FileCache::default();
+    let session = racer::Session::new(&cache);
+    session.cache_file_contents(&path, src.clone());
+    let got = complete_from_file(&path, pos, &session).nth(0).unwrap();
     assert_eq!("apple", got.matchstr);
 }
 
@@ -295,35 +293,6 @@ fn completes_pub_fn_from_local_submodule_package() {
 
     let got = get_one_completion(src, None);
     assert_eq!("bartest", got.matchstr);
-}
-
-#[test]
-fn overwriting_cached_files() {
-    let src1 = "src1";
-    let src2 = "src2";
-    let src3 = "src3";
-    let src4 = "src4";
-
-    // Need session and path to cache files
-    let path = Path::new("not_on_disk");
-    let cache = core::FileCache::new();
-
-    // Cache contents for a file and assert that load_file and load_file_and_mask_comments return
-    // the newly cached contents.
-    macro_rules! cache_and_assert {
-        ($src:ident) => {{
-            cache.cache_file_contents(path, $src);
-            let session = core::Session::from_path(&cache, path, path);
-            assert_eq!($src, &session.load_file(path).code[..]);
-            assert_eq!($src, &session.load_file_and_mask_comments(path).code[..]);
-        }}
-    }
-
-    // Check for all srcN
-    cache_and_assert!(src1);
-    cache_and_assert!(src2);
-    cache_and_assert!(src3);
-    cache_and_assert!(src4);
 }
 
 #[test]
@@ -431,14 +400,14 @@ fn completes_for_vec_field_and_method() {
     let dir = TmpDir::new();
     dir.write_file("mymod.rs", modsrc);
     let path = dir.write_file("src.rs", src);
-    let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let pos1 = session.load_file(&path).coords_to_point(22, 18).unwrap();
-    let got1 = complete_from_file(src, &path, pos1, &session).nth(0).unwrap();
+    let cache = racer::FileCache::default();
+    let session = racer::Session::new(&cache);
+    let cursor1 = Coordinate { line: 22, column: 18 };
+    let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
     println!("{:?}", got1);
     assert_eq!("stfield", got1.matchstr);
-    let pos2 = session.load_file(&path).coords_to_point(23, 18).unwrap();
-    let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
+    let cursor2 = Coordinate { line: 23, column: 18 };
+    let got2 = complete_from_file(&path, cursor2, &session).nth(0).unwrap();
     println!("{:?}", got2);
     assert_eq!("stmethod", got2.matchstr);
 }
@@ -468,14 +437,14 @@ fn completes_trait_methods() {
     ";
     let f = TmpFile::new(src);
     let path = f.path();
-    let cache1 = core::FileCache::new();
-    let session1 = core::Session::from_path(&cache1, &path, &path);
-    let pos1 = session1.load_file(path).coords_to_point(18, 18).unwrap(); // sub::Foo::
-    let got1 = complete_from_file(src, &path, pos1, &session1).nth(0).unwrap();
-    let cache2 = core::FileCache::new();
-    let session2 = core::Session::from_path(&cache2, &path, &path);
-    let pos2 = session2.load_file(path).coords_to_point(19, 11).unwrap(); // t.t
-    let got2 = complete_from_file(src, &path, pos2, &session2).nth(0).unwrap();
+    let cache1 = racer::FileCache::default();
+    let session1 = racer::Session::new(&cache1);
+    let cursor1 = Coordinate { line: 18, column: 18};
+    let got1 = complete_from_file(&path, cursor1, &session1).nth(0).unwrap();
+    let cache2 = racer::FileCache::default();
+    let session2 = racer::Session::new(&cache2);
+    let cursor2 = Coordinate { line: 19, column: 11};
+    let got2 = complete_from_file(&path, cursor2, &session2).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
     assert_eq!(got1.matchstr, "traitf");
@@ -510,14 +479,14 @@ fn completes_trait_bounded_methods() {
     }";
     let f = TmpFile::new(src);
     let path = f.path();
-    let cache1 = core::FileCache::new();
-    let session1 = core::Session::from_path(&cache1, &path, &path);
-    let pos1 = session1.load_file(path).coords_to_point(20, 16).unwrap(); // sub::Foo::
-    let got1 = complete_from_file(src, &path, pos1, &session1).nth(0).unwrap();
-    let cache2 = core::FileCache::new();
-    let session2 = core::Session::from_path(&cache2, &path, &path);
-    let pos2 = session2.load_file(path).coords_to_point(21, 12).unwrap(); // t.t
-    let got2 = complete_from_file(src, &path, pos2, &session2).nth(0).unwrap();
+    let cache1 = racer::FileCache::default();
+    let session1 = racer::Session::new(&cache1);
+    let cursor1 = Coordinate { line: 20, column: 16 };
+    let got1 = complete_from_file(&path, cursor1, &session1).nth(0).unwrap();
+    let cache2 = racer::FileCache::default();
+    let session2 = racer::Session::new(&cache2);
+    let cursor2 = Coordinate { line: 21, column: 12 };
+    let got2 = complete_from_file(&path, cursor2, &session2).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
     assert_eq!(got1.matchstr, "traitf");
@@ -557,12 +526,12 @@ fn completes_trait_bounded_methods_generic_return() {
 
     let f = TmpFile::new(src);
     let path = f.path();
-    let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let pos1 = session.load_file(path).coords_to_point(24, 24).unwrap();  // struc
-    let pos2 = session.load_file(path).coords_to_point(25, 25).unwrap();  // traitf
-    let got1 = complete_from_file(src, &path, pos1, &session).nth(0).unwrap();
-    let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
+    let cache = racer::FileCache::default();
+    let session = racer::Session::new(&cache);
+    let cursor1 = Coordinate { line: 24, column: 24 };
+    let cursor2 = Coordinate { line: 25, column: 25 };
+    let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
+    let got2 = complete_from_file(&path, cursor2, &session).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
     assert_eq!(got1.matchstr, "structfn");
@@ -730,14 +699,14 @@ fn completes_for_vec_iter_field_and_method() {
     let dir = TmpDir::new();
     dir.write_file("mymod.rs", modsrc);
     let path = dir.write_file("src.rs", src);
-    let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let pos1 = session.load_file(&path).coords_to_point(22, 18).unwrap();
-    let got1 = complete_from_file(src, &path, pos1, &session).nth(0).unwrap();
+    let cache = racer::FileCache::default();
+    let session = racer::Session::new(&cache);
+    let cursor1 = Coordinate { line: 22, column: 18 };
+    let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
     println!("{:?}", got1);
     assert_eq!("stfield", got1.matchstr);
-    let pos2 = session.load_file(&path).coords_to_point(23, 18).unwrap();
-    let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
+    let cursor2 = Coordinate { line: 23, column: 18 };
+    let got2 = complete_from_file(&path, cursor2, &session).nth(0).unwrap();
     println!("{:?}", got2);
     assert_eq!("stmethod", got2.matchstr);
 }
@@ -768,12 +737,12 @@ fn completes_trait_methods_when_at_scope_end() {
 
     let f = TmpFile::new(src);
     let path = f.path();
-    let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let pos1 = session.load_file(path).coords_to_point(18, 18).unwrap();  // sub::Foo::
-    let got1 = complete_from_file(src, &path, pos1, &session).nth(0).unwrap();
-    let pos2 = session.load_file(path).coords_to_point(19, 11).unwrap();   // t.t
-    let got2 = complete_from_file(src, &path, pos2, &session).nth(0).unwrap();
+    let cache = racer::FileCache::default();
+    let session = racer::Session::new(&cache);
+    let cursor1 = Coordinate { line: 18, column: 18 };
+    let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
+    let cursor2 = Coordinate { line: 19, column: 11 };
+    let got2 = complete_from_file(&path, cursor2, &session).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
     assert_eq!(got1.matchstr, "traitf");
@@ -2124,15 +2093,15 @@ fn completes_trait_methods_in_trait_impl() {
 
     let f = TmpFile::new(src);
     let path = f.path();
-    let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, &path, &path);
-    let pos = session.load_file(path).coords_to_point(11, 21).unwrap();  // fn trait
-    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    let cache = racer::FileCache::default();
+    let session = racer::Session::new(&cache);
+    let cursor = Coordinate { line: 11, column: 21 };
+    let got = complete_from_file(&path, cursor, &session).nth(0).unwrap();
     assert_eq!(got.matchstr, "traitf");
     assert_eq!(got.contextstr, "fn traitf() -> bool");
 
-    let pos = session.load_file(path).coords_to_point(12, 21).unwrap();  // fn trait
-    let got = complete_from_file(src, &path, pos, &session).nth(0).unwrap();
+    let cursor = Coordinate { line: 12, column: 21 };
+    let got = complete_from_file(&path, cursor, &session).nth(0).unwrap();
     assert_eq!(got.matchstr, "traitm");
     assert_eq!(got.contextstr, "fn traitm(&self) -> bool");
 }

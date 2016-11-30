@@ -1,4 +1,4 @@
-use core::{self, Match, MatchType, Scope, Ty, Session};
+use core::{self, Match, MatchType, Scope, Ty, Session, SessionExt};
 use typeinf;
 use nameres::{self, resolve_path_with_str};
 use scopes;
@@ -386,7 +386,7 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &Sessio
                    }
                });
 
-    res.and_then(|m| {
+    res.and_then(|mut m| {
         // add generic types to match (if any)
         let types: Vec<core::PathSearch> = path.generic_types()
             .map(|typepath|
@@ -399,7 +399,8 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &Sessio
         if types.is_empty() {
             Some(Ty::Match(m))
         } else {
-            Some(Ty::Match(m.with_generic_types(types)))
+            m.generic_types = types;
+            Some(Ty::Match(m))
         }
     })
 }
@@ -806,26 +807,6 @@ impl visit::Visitor for GenericsVisitor {
     }
 }
 
-pub struct StructDefVisitor {
-    pub name: Option<(String,usize)>,
-    pub generic_args: Vec<String>
-}
-
-impl visit::Visitor for StructDefVisitor {
-    fn visit_generics(&mut self, g: &ast::Generics) {
-        for ty in g.ty_params.iter() {
-            self.generic_args.push(ty.ident.name.to_string());
-        }
-    }
-
-    fn visit_ident(&mut self, sp: codemap::Span, ident: ast::Ident) {
-        /*! Visit the idents */
-        let codemap::BytePos(point) = sp.lo;
-        let name = ident.name.to_string();
-        self.name = Some((name,point as usize));
-    }
-}
-
 pub struct EnumVisitor {
     pub name: String,
     pub values: Vec<(String, usize)>
@@ -884,14 +865,6 @@ pub fn parse_impl(s: String) -> ImplVisitor {
 
 pub fn parse_trait(s: String) -> TraitVisitor {
     let mut v = TraitVisitor { name: None };
-    if let Some(stmt) = string_to_stmt(s) {
-        visit::walk_stmt(&mut v, &stmt);
-    }
-    v
-}
-
-pub fn parse_struct_def(s: String) -> StructDefVisitor {
-    let mut v = StructDefVisitor { name: None, generic_args: Vec::new() };
     if let Some(stmt) = string_to_stmt(s) {
         visit::walk_stmt(&mut v, &stmt);
     }

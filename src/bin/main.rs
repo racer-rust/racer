@@ -6,28 +6,26 @@ extern crate env_logger;
 
 extern crate racer;
 
-use racer::core;
-use racer::util;
-use racer::core::Match;
-use racer::nameres::{do_file_search, do_external_search, PATH_SEP};
+use racer::{Match, MatchType, FileCache, Session, Coordinate};
+use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::io::{self, BufRead};
+use std::io::{self, BufRead, Read};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
-use std::process::Command;
 
-fn match_with_snippet_fn(m: Match, session: &core::Session, interface: Interface) {
-    let (linenum, charnum) = session.load_file(&m.filepath).point_to_coords(m.point).unwrap();
+fn match_with_snippet_fn(m: Match, session: &Session, interface: Interface) {
+    let Coordinate { line: linenum, column: charnum } = m.coords.unwrap();
     if m.matchstr == "" {
         panic!("MATCHSTR is empty - waddup?");
     }
 
-    let snippet = racer::snippets::snippet_for_match(&m, session);
+    let snippet = racer::snippet_for_match(&m, session);
     interface.emit(Message::MatchWithSnippet(m.matchstr, snippet, linenum, charnum,
                                              m.filepath.as_path(), m.mtype, m.contextstr, m.docs));
 }
 
-fn match_fn(m: Match, session: &core::Session, interface: Interface) {
-    if let Some((linenum, charnum)) = session.load_file(&m.filepath).point_to_coords(m.point) {
+fn match_fn(m: Match, interface: Interface) {
+    if let Some(coords) = m.coords {
+        let Coordinate { line: linenum, column: charnum } = coords;
         interface.emit(Message::Match(m.matchstr, linenum, charnum, m.filepath.as_path(),
                                       m.mtype, m.contextstr));
     } else {
@@ -67,66 +65,72 @@ enum CompletePrinter {
     WithSnippets
 }
 
-fn cache_file_contents_from_stdin(file: &PathBuf, cache: &core::FileCache) {
-    let stdin = io::stdin();
-
+fn read_file_from_stdin() -> String {
     let mut rawbytes = Vec::new();
-    stdin.lock().read_until(0x04, &mut rawbytes).unwrap();
 
-    let buf = String::from_utf8(rawbytes).unwrap();
-    cache.cache_file_contents(file, buf);
+    let stdin = io::stdin();
+    stdin.lock().read_until(0x04, &mut rawbytes).expect("read until EOT");
+
+    String::from_utf8(rawbytes).expect("utf8 from stdin")
+}
+
+fn read_file<P>(path: P) -> io::Result<String>
+    where P: AsRef<Path>
+{
+    let mut res = String::new();
+    let mut f = try!(File::open(path));
+
+    try!(f.read_to_string(&mut res));
+    Ok(res)
+}
+
+fn load_query_file<P, S>(path: P, sub: S, session: &Session)
+    where P: Into<PathBuf>,
+          S: AsRef<Path>
+{
+    let path = path.into();
+    let sub = sub.as_ref();
+
+    if sub.to_str() == Some("-") {
+        let contents = read_file_from_stdin();
+        session.cache_file_contents(path, contents);
+    } else if sub != path {
+        let contents = read_file(sub).unwrap();
+        session.cache_file_contents(path, contents);
+    }
 }
 
 fn run_the_complete_fn(cfg: &Config, print_type: CompletePrinter) {
     let fn_path = cfg.fn_name.as_ref().unwrap();
     let substitute_file = cfg.substitute_file.as_ref().unwrap_or(fn_path);
 
-    let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, fn_path, substitute_file);
+    let cache = FileCache::default();
+    let session = Session::new(&cache);
 
-    if substitute_file.to_str() == Some("-") {
-        cache_file_contents_from_stdin(substitute_file, &cache);
-    }
+    load_query_file(&fn_path, &substitute_file, &session);
 
-    let src = session.load_file(fn_path);
-    if let Some(line) = src.get_line(cfg.linenum) {
-        let (start, pos) = util::expand_ident(line, cfg.charnum);
-        cfg.interface.emit(Message::Prefix(start, pos, &line[start..pos]));
+    if let Some(expanded) = racer::expand_ident(&fn_path, cfg.coords(), &session) {
+        cfg.interface.emit(Message::Prefix(expanded.start(), expanded.pos(), expanded.ident()));
 
-        if let Some(point) = src.coords_to_point(cfg.linenum, cfg.charnum) {
-            for m in core::complete_from_file(&src, fn_path, point, &session) {
-                match print_type {
-                    CompletePrinter::Normal => match_fn(m, &session, cfg.interface),
-                    CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session, cfg.interface),
-                };
-            }
+        for m in racer::complete_from_file(&fn_path, cfg.coords(), &session) {
+            match print_type {
+                CompletePrinter::Normal => match_fn(m, cfg.interface),
+                CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session, cfg.interface),
+            };
         }
     }
 }
 
-
+/// Completes a fully qualified name specified on command line
 fn external_complete(cfg: Config, print_type: CompletePrinter) {
-    // input: a command line string passed in
-    let p: Vec<&str> = cfg.fqn.as_ref().unwrap().split("::").collect();
     let cwd = Path::new(".");
-    let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, cwd, cwd);
+    let cache = FileCache::default();
+    let session = Session::new(&cache);
 
-    for m in do_file_search(p[0], cwd) {
-        if p.len() == 1 {
-            match print_type {
-                CompletePrinter::Normal => match_fn(m, &session, cfg.interface),
-                CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session, cfg.interface),
-            }
-        } else {
-            for m in do_external_search(&p[1..], &m.filepath, m.point,
-                                        core::SearchType::StartsWith,
-                                        core::Namespace::Both, &session) {
-                match print_type {
-                    CompletePrinter::Normal => match_fn(m, &session, cfg.interface),
-                    CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session, cfg.interface),
-                }
-            }
+    for m in racer::complete_fully_qualified_name(cfg.fqn.as_ref().unwrap(), &cwd, &session) {
+        match print_type {
+            CompletePrinter::Normal => match_fn(m, cfg.interface),
+            CompletePrinter::WithSnippets => match_with_snippet_fn(m, &session, cfg.interface),
         }
     }
 }
@@ -134,91 +138,40 @@ fn external_complete(cfg: Config, print_type: CompletePrinter) {
 fn prefix(cfg: Config) {
     let fn_path = cfg.fn_name.as_ref().unwrap();
     let substitute_file = cfg.substitute_file.as_ref().unwrap_or(fn_path);
-    let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, fn_path, substitute_file);
+    let cache = FileCache::default();
+    let session = Session::new(&cache);
 
-    if substitute_file.to_str() == Some("-") {
-        cache_file_contents_from_stdin(substitute_file, &cache);
-    }
+    // Cache query file in session
+    load_query_file(&fn_path, &substitute_file, &session);
 
     // print the start, end, and the identifier prefix being matched
-    let src = session.load_file(fn_path);
-    if let Some(line) = src.get_line(cfg.linenum) {
-        let (start, pos) = util::expand_ident(line, cfg.charnum);
-        cfg.interface.emit(Message::Prefix(start, pos, &line[start..pos]));
-    }
+    let expanded = racer::expand_ident(fn_path, cfg.coords(), &session).unwrap();
+    cfg.interface.emit(Message::Prefix(expanded.start(), expanded.pos(), expanded.ident()));
 }
 
 fn find_definition(cfg: Config) {
     let fn_path = cfg.fn_name.as_ref().unwrap();
     let substitute_file = cfg.substitute_file.as_ref().unwrap_or(fn_path);
-    let cache = core::FileCache::new();
-    let session = core::Session::from_path(&cache, fn_path, substitute_file);
+    let cache = FileCache::default();
+    let session = Session::new(&cache);
 
-    if substitute_file.to_str() == Some("-") {
-        cache_file_contents_from_stdin(substitute_file, &cache);
-    }
+    // Cache query file in session
+    load_query_file(&fn_path, &substitute_file, &session);
 
-    let src = session.load_file(fn_path);
-    if let Some(pos) = src.coords_to_point(cfg.linenum, cfg.charnum) {
-        core::find_definition(&src, fn_path, pos, &session).map(|m| match_fn(m, &session, cfg.interface));
-    }
+    racer::find_definition(fn_path, cfg.coords(), &session)
+        .map(|m| match_fn(m, cfg.interface));
     cfg.interface.emit(Message::End);
 }
 
-fn check_rust_sysroot() -> Option<PathBuf> {
-    let mut cmd = Command::new("rustc");
-    cmd.arg("--print").arg("sysroot");
-
-    if let Ok(output) = cmd.output() {
-        if let Ok(s) = String::from_utf8(output.stdout) {
-            let sysroot = Path::new(s.trim());
-            let srcpath = sysroot.join("lib/rustlib/src/rust/src");
-            if srcpath.exists() {
-                return Some(srcpath);
-            }
-        }
-    }
-    None
-}
-
-fn check_rust_src_env_var() {
-    match std::env::var("RUST_SRC_PATH") {
-        Ok(ref srcpaths) if !srcpaths.is_empty() => {
-            let v = srcpaths.split(PATH_SEP).collect::<Vec<_>>();
-            if !v.is_empty() {
-                let f = Path::new(v[0]);
-                if !f.exists() {
-                    println!("racer can't find the directory pointed to by the RUST_SRC_PATH variable \"{}\". Try using an absolute fully qualified path and make sure it points to the src directory of a rust checkout - e.g. \"/home/foouser/src/rust/src\".", srcpaths);
-                    std::process::exit(1);
-                } else if !f.join("libstd").exists() {
-                    println!("Unable to find libstd under RUST_SRC_PATH. N.B. RUST_SRC_PATH variable needs to point to the *src* directory inside a rust checkout e.g. \"/home/foouser/src/rust/src\". Current value \"{}\"", srcpaths);
-                    std::process::exit(1);
-                }
-            }
+fn validate_rust_src_path_env_var() {
+    match racer::check_rust_src_env_var() {
+        Ok(_) => (),
+        Err(err) => {
+            println!("{}", err);
+            std::process::exit(1);
         },
-        _ => {
-            if let Some(path) = check_rust_sysroot() {
-                std::env::set_var("RUST_SRC_PATH", path);
-                return;
-            } else {
-                let default_paths = [
-                    "/usr/local/src/rust/src",
-                    "/usr/src/rust/src",
-                ];
-                for &path in &default_paths {
-                    let f = Path::new(path);
-                    if f.exists() {
-                        std::env::set_var("RUST_SRC_PATH", path);
-                        return;
-                    }
-                }
-
-                println!("RUST_SRC_PATH environment variable must be set to point to the src directory of a rust checkout. E.g. \"/home/foouser/src/rust/src\"");
-                std::process::exit(1);
-            }
-        }
     }
+
 }
 
 fn daemon(cfg: Config) {
@@ -244,8 +197,8 @@ fn daemon(cfg: Config) {
 enum Message<'a> {
     End,
     Prefix(usize, usize, &'a str),
-    Match(String, usize, usize, &'a Path, core::MatchType, String),
-    MatchWithSnippet(String, String, usize, usize, &'a Path, core::MatchType, String, String),
+    Match(String, usize, usize, &'a Path, MatchType, String),
+    MatchWithSnippet(String, String, usize, usize, &'a Path, MatchType, String, String),
 }
 
 #[derive(Copy, Clone)]
@@ -308,6 +261,15 @@ struct Config {
     fn_name: Option<PathBuf>,
     substitute_file: Option<PathBuf>,
     interface: Interface,
+}
+
+impl Config {
+    fn coords(&self) -> Coordinate {
+        Coordinate {
+            line: self.linenum,
+            column: self.charnum
+        }
+    }
 }
 
 impl<'a> From<&'a ArgMatches<'a>> for Config {
@@ -423,7 +385,7 @@ fn build_cli<'a, 'b>() -> App<'a, 'b> {
 
 fn main() {
     env_logger::init().unwrap();
-    check_rust_src_env_var();
+    validate_rust_src_path_env_var();
 
     let matches = build_cli().get_matches();
     let interface = match matches.value_of("interface") {
