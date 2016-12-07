@@ -1,7 +1,15 @@
 language: rust
 
+rust:
+  - nightly-2016-11-25
+  - stable
+
 cache: cargo
 
-rust:
-  - nightly
-  - stable
+before_script:
+  - pip install 'travis-cargo<0.2' --user
+  - export PATH=$HOME/.local/bin:$PATH
+
+script:
+  - travis-cargo --skip nightly-2016-11-25 test
+  - travis-cargo --only nightly-2016-11-25 test -- --features clippy

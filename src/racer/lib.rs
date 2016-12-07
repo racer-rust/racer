@@ -1,3 +1,9 @@
+#![cfg_attr(feature = "clippy", feature(plugin))]
+#![cfg_attr(feature = "clippy", plugin(clippy))]
+
+#![cfg_attr(feature = "clippy", allow(clippy))]
+#![cfg_attr(all(feature = "clippy", not(test)), deny(print_stdout))]
+
 #[macro_use] extern crate log;
 
 extern crate syntex_syntax;
