@@ -550,7 +550,7 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
             }
 
             _ => {
-                println!("- Could not match expr node type: {:?}",expr.node);
+                debug!("- Could not match expr node type: {:?}",expr.node);
             }
         }
     }
