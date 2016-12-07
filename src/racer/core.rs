@@ -1062,7 +1062,6 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
     // Make sure `src` is in the cache
     let (start, end) = scopes::expand_search_expr(src, pos);
     let expr = &src[start..end];
-    println!("{:?}", expr);
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
     debug!("find_definition_ for |{:?}| |{:?}| {:?}", contextstr, searchstr, completetype);
