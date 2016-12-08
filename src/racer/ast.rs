@@ -19,7 +19,7 @@ use syntex_syntax::visit::{self};
 pub fn string_to_parser(ps: &ParseSess, source_str: String) -> Option<Parser> {
     let fm = ps.codemap().new_filemap("bogofile".into(), None, source_str);
     let srdr = lexer::StringReader::new(&ps.span_diagnostic, fm);
-    let p = Parser::new(ps, Vec::new(), Box::new(srdr));
+    let p = Parser::new(ps, Box::new(srdr));
     Some(p)
 }
 
@@ -171,12 +171,12 @@ fn to_racer_ty(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
         TyKind::Path(_, ref path) => {
             Some(Ty::PathSearch(to_racer_path(path), scope.clone()))
         }
-        TyKind::FixedLengthVec(ref ty, ref expr) => {
+        TyKind::Array(ref ty, ref expr) => {
             to_racer_ty(ty, scope).map(|racer_ty| {
                 Ty::FixedLengthVec(Box::new(racer_ty), pprust::expr_to_string(expr))
             })
         }
-        TyKind::Vec(ref ty) => {
+        TyKind::Slice(ref ty) => {
             to_racer_ty(ty, scope).map(|ref_ty| Ty::Vec(Box::new(ref_ty)) )
         }
         TyKind::Never => {
@@ -991,7 +991,7 @@ pub struct FnOutputVisitor {
 }
 
 impl visit::Visitor for FnOutputVisitor {
-    fn visit_fn(&mut self,  _: visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId) {
+    fn visit_fn(&mut self,  _: visit::FnKind, fd: &ast::FnDecl, _: codemap::Span, _: ast::NodeId) {
         self.result = match fd.output {
             FunctionRetTy::Ty(ref ty) => to_racer_ty(ty, &self.scope),
             FunctionRetTy::Default(_) => None
@@ -1007,7 +1007,7 @@ pub struct FnArgTypeVisitor<'c: 's, 's> {
 }
 
 impl<'c, 's> visit::Visitor for FnArgTypeVisitor<'c, 's> {
-    fn visit_fn(&mut self, _: visit::FnKind, fd: &ast::FnDecl, _: &ast::Block, _: codemap::Span, _: ast::NodeId) {
+    fn visit_fn(&mut self, _: visit::FnKind, fd: &ast::FnDecl, _: codemap::Span, _: ast::NodeId) {
         for arg in &fd.inputs {
             let codemap::BytePos(lo) = arg.pat.span.lo;
             let codemap::BytePos(hi) = arg.pat.span.hi;
