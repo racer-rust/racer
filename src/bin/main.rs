@@ -385,13 +385,15 @@ fn build_cli<'a, 'b>() -> App<'a, 'b> {
 
 fn main() {
     env_logger::init().unwrap();
-    validate_rust_src_path_env_var();
 
     let matches = build_cli().get_matches();
     let interface = match matches.value_of("interface") {
             Some("tab-text") => Interface::TabText,
             Some("text") | _ => Interface::Text
         };
+    
+    validate_rust_src_path_env_var();
+    
     run(matches, interface);
 }
 
