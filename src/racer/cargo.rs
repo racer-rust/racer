@@ -46,6 +46,37 @@ fn get_branch_from_source(source: &str) -> Option<&str> {
     }
 }
 
+/// Gets the repository_name from a git source string if one is present.
+fn get_repository_name_from_source(source: &str) -> Option<&str> {
+    debug!("get_repository_name_from_source - Finding repository name from {:?}", source);
+    match source.rfind("/") {
+        Some(idx) => {
+            let (_, mut repository_name) = source.split_at(idx + 1);
+            let mut idx =  repository_name.find("?").unwrap_or_else(|| {
+                repository_name.find("#").unwrap_or(0)
+            });
+            if idx == 0 {
+                return None;
+            }
+            repository_name = &repository_name[0..idx];
+            idx = repository_name.find(".git").unwrap_or(0);
+            if idx == 0 {
+                return Some(repository_name);
+            }
+            repository_name = &repository_name[0..idx];
+            Some(repository_name)
+        },
+        None => None
+    }
+}
+
+#[test]
+fn gets_repository_name_from_source() {
+    let source = "git+https://github.com/phildawes/racer.git?branch=dev#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1";
+    let repository_name = get_repository_name_from_source(source);
+    assert_eq!(repository_name, Some("racer"));
+}
+
 #[test]
 fn gets_branch_from_git_source_with_hash() {
     let source = "git+https://github.com/phildawes/racer.git?branch=dev#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1";
@@ -146,12 +177,10 @@ fn get_cargo_packages(cargofile: &Path) -> Option<Vec<PackageInfo>> {
                         d.push("git");
                         d.push("checkouts");
 
-                        //use repository name instead of package name
-                        let left = package_source.rfind('/').unwrap_or(0);
-                        let right = package_source.rfind(".git#").unwrap_or(package_source.rfind('#').unwrap_or(0));
-                        let dir = &package_source[left + 1 .. right];
-                        if !dir.is_empty() {
-                            d = unwrap_or_continue!(find_git_src_dir(d, dir, &sha1, branch));
+                        //use repository name instead of package name                        
+                        let repository_name = get_repository_name_from_source(&package_source);
+                        if repository_name.is_some() {
+                            d = unwrap_or_continue!(find_git_src_dir(d, repository_name.unwrap(), &sha1, branch));
                         } else {
                             d = unwrap_or_continue!(find_git_src_dir(d, package_name, &sha1, branch));
                         }
