@@ -714,7 +714,7 @@ pub fn get_crate_file(name: &str, from_path: &Path, session: &Session) -> Option
         return Some(p);
     }
 
-    let srcpaths = std::env::var("RUST_SRC_PATH").unwrap();
+    let srcpaths = std::env::var("RUST_SRC_PATH").expect("RUST_SRC_PATH is set");
     let v = srcpaths.split(PATH_SEP).collect::<Vec<_>>();
     for srcpath in v.into_iter() {
         {

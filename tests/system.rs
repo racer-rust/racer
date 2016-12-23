@@ -1,12 +1,48 @@
 extern crate racer;
 extern crate rand;
 
+#[macro_use]
+extern crate lazy_static;
+
+use std::fs::{self, File};
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::thread;
+
 use racer::{complete_from_file, find_definition, Match, MatchType, Coordinate};
 
-use std::io::Write;
-use std::fs::{self, File};
-use std::path::{Path, PathBuf};
-use std::thread;
+lazy_static! {
+    static ref SYNC: Mutex<u8> = { Mutex::new(0) };
+}
+
+macro_rules! sync {
+    () => {
+        SYNC.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
+
+/// Runs a function with the current directory set to the test project.
+fn within_test_project<F, T>(func: F) -> T
+    where F: FnOnce() -> T
+{
+    use std::env;
+    use std::panic::{self, AssertUnwindSafe};
+
+    let start = env::current_dir().unwrap();
+    let mut test_project_path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src");
+    test_project_path.push("test_project");
+
+    env::set_current_dir(&test_project_path).unwrap();
+    let res = panic::catch_unwind(AssertUnwindSafe(|| func()));
+    env::set_current_dir(&start).unwrap();
+
+    match res {
+        Err(err) => panic::resume_unwind(err),
+        Ok(val) => val
+    }
+}
 
 /// A temporary file that is removed on drop
 ///
@@ -160,6 +196,8 @@ fn get_definition(src: &str, dir: Option<TmpDir>) -> Match {
 
 #[test]
 fn completes_fn() {
+    let _lock = sync!();
+
     let src = "
     fn  apple() {
     }
@@ -175,6 +213,8 @@ fn completes_fn() {
 
 #[test]
 fn finds_fn_docs() {
+    let _lock = sync!();
+
     let src = "
     /// Orange
     /// juice
@@ -192,6 +232,8 @@ fn finds_fn_docs() {
 
 #[test]
 fn finds_struct_docs() {
+    let _lock = sync!();
+
     let src = "
     /// Orange
     /// juice
@@ -209,6 +251,8 @@ fn finds_struct_docs() {
 
 #[test]
 fn completes_fn_with_substitute_file() {
+    let _lock = sync!();
+
     let src = "
     fn  apple() {
     }
@@ -231,6 +275,8 @@ fn completes_fn_with_substitute_file() {
 
 #[test]
 fn completes_pub_fn_locally() {
+    let _lock = sync!();
+
     let src = "
     pub fn apple() {
     }
@@ -245,6 +291,8 @@ fn completes_pub_fn_locally() {
 
 #[test]
 fn completes_pub_fn_locally_precached() {
+    let _lock = sync!();
+
     let src = "
     pub fn apple() {
     }
@@ -265,6 +313,8 @@ fn completes_pub_fn_locally_precached() {
 
 #[test]
 fn completes_pub_fn_from_local_package() {
+    let _lock = sync!();
+
     let src = "
     extern crate fixtures;
 
@@ -275,12 +325,16 @@ fn completes_pub_fn_from_local_package() {
     }
     ";
 
-    let got = get_one_completion(src, None);
-    assert_eq!("test", got.matchstr);
+    within_test_project(|| {
+        let got = get_one_completion(src, None);
+        assert_eq!("test", got.matchstr);
+    })
 }
 
 #[test]
 fn completes_pub_fn_from_local_submodule_package() {
+    let _lock = sync!();
+
     let src = "
     extern crate fixtures;
 
@@ -291,12 +345,16 @@ fn completes_pub_fn_from_local_submodule_package() {
     }
     ";
 
-    let got = get_one_completion(src, None);
-    assert_eq!("bartest", got.matchstr);
+    within_test_project(|| {
+        let got = get_one_completion(src, None);
+        assert_eq!("bartest", got.matchstr);
+    })
 }
 
 #[test]
 fn completes_pub_const_fn_locally() {
+    let _lock = sync!();
+
     let src = "
     pub const fn apple() {
     }
@@ -311,6 +369,8 @@ fn completes_pub_const_fn_locally() {
 
 #[test]
 fn completes_local_scope_let() {
+    let _lock = sync!();
+
     let src = "
     fn main() {
         let apple = 35;
@@ -324,6 +384,8 @@ fn completes_local_scope_let() {
 
 #[test]
 fn completes_via_parent_scope_let() {
+    let _lock = sync!();
+
     let src = "
     fn main() {
         let mut apple = 35;
@@ -339,6 +401,8 @@ fn completes_via_parent_scope_let() {
 
 #[test]
 fn completes_for_vec_field_and_method() {
+    let _lock = sync!();
+
     let modsrc = "
     pub trait IntoIterator {
         type Item;
@@ -414,6 +478,8 @@ fn completes_for_vec_field_and_method() {
 
 #[test]
 fn completes_trait_methods() {
+    let _lock = sync!();
+
     let src = "
     mod sub {
         pub trait Trait {
@@ -455,6 +521,8 @@ fn completes_trait_methods() {
 
 #[test]
 fn completes_trait_bounded_methods() {
+    let _lock = sync!();
+
     let src = "
     pub trait Trait1 {}
 
@@ -497,6 +565,8 @@ fn completes_trait_bounded_methods() {
 
 #[test]
 fn completes_trait_bounded_methods_generic_return() {
+    let _lock = sync!();
+
     let src = "
     pub trait Trait1 {
         fn traitfn(&self) -> u32 { 2 }
@@ -540,6 +610,8 @@ fn completes_trait_bounded_methods_generic_return() {
 
 #[test]
 fn completes_iter_variable_methods() {
+    let _lock = sync!();
+
     let modsrc = "
     pub trait Iterator {
         type Item;
@@ -623,6 +695,8 @@ fn completes_iter_variable_methods() {
 
 #[test]
 fn completes_for_vec_iter_field_and_method() {
+    let _lock = sync!();
+
     let modsrc = "
     pub trait Iterator {
         type Item;
@@ -713,6 +787,8 @@ fn completes_for_vec_iter_field_and_method() {
 
 #[test]
 fn completes_trait_methods_when_at_scope_end() {
+    let _lock = sync!();
+
     let src = "
     mod sub {
         pub trait Trait {
@@ -753,6 +829,8 @@ fn completes_trait_methods_when_at_scope_end() {
 
 #[test]
 fn completes_for_type_alias() {
+    let _lock = sync!();
+
 
     let src = "
     mod inner {
@@ -778,6 +856,8 @@ fn completes_for_type_alias() {
 
 #[test]
 fn follows_use() {
+    let _lock = sync!();
+
     let src1 = "
     pub fn myfn() {}
     pub fn foo() {}
@@ -799,6 +879,8 @@ fn follows_use() {
 
 #[test]
 fn follows_use_as() {
+    let _lock = sync!();
+
     let src2 = "
     pub fn myfn() {}
     pub fn foo() {}
@@ -819,6 +901,8 @@ fn follows_use_as() {
 
 #[test]
 fn follows_use_glob() {
+    let _lock = sync!();
+
     let src3 = "
     pub fn myfn() {}
     pub fn foo() {}
@@ -838,6 +922,8 @@ fn follows_use_glob() {
 
 #[test]
 fn follows_multiple_use_globs() {
+    let _lock = sync!();
+
     let src1 = "
     pub fn src1fn() {}
     ";
@@ -869,6 +955,8 @@ fn follows_multiple_use_globs() {
 
 #[test]
 fn follows_use_self() {
+    let _lock = sync!();
+
     let src ="
     mod foo {
         pub mod use_self_test {
@@ -887,6 +975,8 @@ fn follows_use_self() {
 
 #[test]
 fn finds_external_mod_docs() {
+    let _lock = sync!();
+
     let src1 = "// Copyright notice
 
 //! The mods multiline
@@ -910,6 +1000,8 @@ fn finds_external_mod_docs() {
 
 #[test]
 fn finds_external_struct_docs() {
+    let _lock = sync!();
+
     let src1 = "
     /// Orange
     /// juice
@@ -933,6 +1025,8 @@ fn finds_external_struct_docs() {
 
 #[test]
 fn finds_external_fn_docs() {
+    let _lock = sync!();
+
     let src1 = "
     /// Orange
     /// juice
@@ -956,18 +1050,24 @@ fn finds_external_fn_docs() {
 
 #[test]
 fn follows_use_local_package() {
+    let _lock = sync!();
+
     let src = "
     extern crate fixtures;
 
     use fixtures::~
     ";
 
-    let got = get_one_completion(src, None);
-    assert_eq!(got.matchstr, "foo");
+    within_test_project(|| {
+        let got = get_one_completion(src, None);
+        assert_eq!(got.matchstr, "foo");
+    })
 }
 
 #[test]
 fn completes_struct_field_via_assignment() {
+    let _lock = sync!();
+
     let src = "
     struct Point {
         first: f64,
@@ -984,6 +1084,8 @@ fn completes_struct_field_via_assignment() {
 
 #[test]
 fn finds_defn_of_struct_field() {
+    let _lock = sync!();
+
     let src = "
     struct Point {
         first: f64,
@@ -1000,6 +1102,8 @@ fn finds_defn_of_struct_field() {
 
 #[test]
 fn finds_impl_fn() {
+    let _lock = sync!();
+
     let src = "
     struct Foo;
     impl Foo {
@@ -1015,6 +1119,8 @@ fn finds_impl_fn() {
 
 #[test]
 fn follows_use_to_inline_mod() {
+    let _lock = sync!();
+
     let src = "
     use foo::myfn;
     mod foo {
@@ -1032,6 +1138,8 @@ fn follows_use_to_inline_mod() {
 
 #[test]
 fn struct_field_scalar_primitive_types() {
+    let _lock = sync!();
+
     let src = "
     struct Foo<'a> {
         reference: &'a u8,
@@ -1062,6 +1170,8 @@ fn struct_field_scalar_primitive_types() {
 
 #[test]
 fn finds_enum() {
+    let _lock = sync!();
+
     let src = "
     enum MyEnum {
         One, Two
@@ -1076,6 +1186,8 @@ fn finds_enum() {
 
 #[test]
 fn finds_type() {
+    let _lock = sync!();
+
     let src = "
     type SpannedIdent = Spanned<Ident>
     S~pannedIdent;
@@ -1087,6 +1199,8 @@ fn finds_type() {
 
 #[test]
 fn finds_trait() {
+    let _lock = sync!();
+
     let src = "
     pub trait MyTrait<E: Clone> {}
     M~yTrait
@@ -1099,6 +1213,8 @@ fn finds_trait() {
 
 #[test]
 fn finds_macro() {
+    let _lock = sync!();
+
     let src = "
     macro_rules! my_macro {
         () => {}
@@ -1112,17 +1228,23 @@ fn finds_macro() {
 
 #[test]
 fn finds_extern_crate() {
+    let _lock = sync!();
+
     let src = "
     extern crate fixtures;
     f~ixtures
     ";
 
-    let got = get_definition(src, None);
-    assert_eq!(got.matchstr, "fixtures");
+    within_test_project(|| {
+        let got = get_definition(src, None);
+        assert_eq!(got.matchstr, "fixtures");
+    })
 }
 
 #[test]
 fn finds_fn_arg() {
+    let _lock = sync!();
+
     let src = "
     fn myfn(myarg: &str) {
          my~arg
@@ -1135,6 +1257,8 @@ fn finds_fn_arg() {
 
 #[test]
 fn finds_fn_arg_in_incomplete_fn() {
+    let _lock = sync!();
+
     let src = "
     fn myfn(myarg: &str) {
          my~arg
@@ -1146,6 +1270,8 @@ fn finds_fn_arg_in_incomplete_fn() {
 
 #[test]
 fn finds_inline_fn() {
+    let _lock = sync!();
+
     let src = "
     #[inline]
     fn contains<'a>(&needle: &'a str)
@@ -1162,6 +1288,8 @@ fn finds_inline_fn() {
 
 #[test]
 fn follows_self_use() {
+    let _lock = sync!();
+
     let modsrc = "
     pub use self::src4::{Foo,myfn};
     pub mod src4;
@@ -1191,6 +1319,8 @@ fn follows_self_use() {
 
 #[test]
 fn finds_nested_submodule_file() {
+    let _lock = sync!();
+
     let sub3src = "
     pub fn myfn() {}
     ";
@@ -1214,6 +1344,8 @@ fn finds_nested_submodule_file() {
 
 #[test]
 fn follows_super_in_sub_module() {
+    let _lock = sync!();
+
     let src = "
     pub fn iamhere() { }
     mod inner { pub use super::ia~mhere; }
@@ -1225,6 +1357,8 @@ fn follows_super_in_sub_module() {
 
 #[test]
 fn follows_super_in_local_sub_module() {
+    let _lock = sync!();
+
     let src = "
     mod inner {
       pub fn iamhere() { }
@@ -1238,6 +1372,8 @@ fn follows_super_in_local_sub_module() {
 
 #[test]
 fn follows_use_to_impl() {
+    let _lock = sync!();
+
     let modsrc = "
     pub struct Foo;
     impl Foo {       // impl doesn't need to be 'pub'
@@ -1264,6 +1400,8 @@ fn follows_use_to_impl() {
 
 #[test]
 fn finds_templated_impl_fn() {
+    let _lock = sync!();
+
     let src = "
     struct Foo<T>;
     impl<T> Foo<T> {
@@ -1279,6 +1417,8 @@ fn finds_templated_impl_fn() {
 
 #[test]
 fn follows_fn_to_method() {
+    let _lock = sync!();
+
     let src = "
     struct Foo<T>;
     impl<T> Foo<T> {
@@ -1298,6 +1438,8 @@ fn follows_fn_to_method() {
 
 #[test]
 fn simple_struct_contextstr() {
+    let _lock = sync!();
+
     let src = "
     struct Foo<T>;
 
@@ -1312,6 +1454,8 @@ fn simple_struct_contextstr() {
 
 #[test]
 fn struct_contextstr() {
+    let _lock = sync!();
+
     let src = "
     struct
         Foo<T> {
@@ -1329,6 +1473,8 @@ fn struct_contextstr() {
 
 #[test]
 fn follows_arg_to_method() {
+    let _lock = sync!();
+
     let src = "
     struct Foo<T>;
     impl<T> Foo<T> {
@@ -1346,6 +1492,8 @@ fn follows_arg_to_method() {
 
 #[test]
 fn follows_arg_to_enum_method() {
+    let _lock = sync!();
+
     let src = "
     enum Foo<T> {
        EnumVal
@@ -1365,6 +1513,8 @@ fn follows_arg_to_enum_method() {
 
 #[test]
 fn follows_let_method_call() {
+    let _lock = sync!();
+
     let src = "
     struct Foo;
     struct Bar;
@@ -1387,6 +1537,8 @@ fn follows_let_method_call() {
 
 #[test]
 fn follows_chained_method_call() {
+    let _lock = sync!();
+
     let src = "
     struct Foo;
     struct Bar;
@@ -1408,6 +1560,8 @@ fn follows_chained_method_call() {
 
 #[test]
 fn follows_chained_method_call_returning_self() {
+    let _lock = sync!();
+
     let src = "
     struct Foo;
     impl Foo {
@@ -1424,6 +1578,8 @@ fn follows_chained_method_call_returning_self() {
 
 #[test]
 fn discards_inner_fns() {
+    let _lock = sync!();
+
     let src = "
     struct Foo;
     impl<T> Foo<T> {
@@ -1444,6 +1600,8 @@ fn discards_inner_fns() {
 
 #[test]
 fn differentiates_type_and_value_namespaces() {
+    let _lock = sync!();
+
     let src = "
     enum MyEnum{ Foo }
     struct Foo;
@@ -1459,6 +1617,8 @@ fn differentiates_type_and_value_namespaces() {
 
 #[test]
 fn follows_self_to_method() {
+    let _lock = sync!();
+
     let src = "
     struct Foo;
     impl Bar for Foo {
@@ -1477,6 +1637,8 @@ fn follows_self_to_method() {
 #[test]
 #[ignore]
 fn follows_self_to_method_when_call_on_new_line() {
+    let _lock = sync!();
+
     let src = "
     struct Foo;
     impl Bar for Foo {
@@ -1495,6 +1657,8 @@ fn follows_self_to_method_when_call_on_new_line() {
 
 #[test]
 fn follows_self_to_trait_method() {
+    let _lock = sync!();
+
     let src = "
     trait Bar {
         pub fn method(self) {
@@ -1510,6 +1674,8 @@ fn follows_self_to_trait_method() {
 
 #[test]
 fn finds_trait_method() {
+    let _lock = sync!();
+
     let src = "
     pub trait MyTrait {
         fn op(self);
@@ -1529,6 +1695,8 @@ fn finds_trait_method() {
 
 #[test]
 fn finds_field_type() {
+    let _lock = sync!();
+
     let src = "
     pub struct Blah { subfield: uint }
 
@@ -1546,6 +1714,8 @@ fn finds_field_type() {
 
 #[test]
 fn finds_a_generic_retval_from_a_function() {
+    let _lock = sync!();
+
     let src = "
     pub struct Blah { subfield: uint }
     pub struct Foo<T> {
@@ -1561,6 +1731,8 @@ fn finds_a_generic_retval_from_a_function() {
 
 #[test]
 fn handles_an_enum_option_style_return_type() {
+    let _lock = sync!();
+
     let src = "
     pub struct Blah { subfield: uint }
     pub enum MyOption<T> {
@@ -1581,6 +1753,8 @@ fn handles_an_enum_option_style_return_type() {
 
 #[test]
 fn finds_definition_of_const() {
+    let _lock = sync!();
+
     let src = "
     pub const MYCONST:uint = 3;
     MYC~ONST
@@ -1592,6 +1766,8 @@ fn finds_definition_of_const() {
 
 #[test]
 fn finds_definition_of_static() {
+    let _lock = sync!();
+
     let src = "
     pub static MYSTATIC:uint = 3;
     MYS~TATIC
@@ -1603,6 +1779,8 @@ fn finds_definition_of_static() {
 
 #[test]
 fn handles_dotdot_before_searchstr() {
+    let _lock = sync!();
+
     let src = "
     static MYLEN:uint = 30;
     let f = [0i32, ..M~YLEN];
@@ -1615,6 +1793,8 @@ fn handles_dotdot_before_searchstr() {
 #[test]
 #[ignore]
 fn finds_definition_of_lambda_argument() {
+    let _lock = sync!();
+
     let src = "
     fn myfn(&|int|) {}
     myfn(|a|~a+3);
@@ -1626,6 +1806,8 @@ fn finds_definition_of_lambda_argument() {
 
 #[test]
 fn finds_definition_of_let_tuple() {
+    let _lock = sync!();
+
     let src = "
     let (a, b) = (2,3);
     ~a
@@ -1637,6 +1819,8 @@ fn finds_definition_of_let_tuple() {
 
 #[test]
 fn finds_type_of_tuple_member_via_let_type() {
+    let _lock = sync!();
+
     let src = "
     pub struct Blah { subfield: uint }
     let (a, b): (uint, Blah);
@@ -1649,6 +1833,8 @@ fn finds_type_of_tuple_member_via_let_type() {
 
 #[test]
 fn finds_type_of_tuple_member_via_let_expr() {
+    let _lock = sync!();
+
     let src = "
     pub struct Blah { subfield: uint }
     let (a, b) = (3, Blah{subfield:3});
@@ -1661,6 +1847,8 @@ fn finds_type_of_tuple_member_via_let_expr() {
 
 #[test]
 fn finds_type_of_tuple_member_via_fn_retval() {
+    let _lock = sync!();
+
     let src = "
     pub struct Blah { subfield: uint }
     fn myfn() -> (uint, Blah) {}
@@ -1674,6 +1862,8 @@ fn finds_type_of_tuple_member_via_fn_retval() {
 
 #[test]
 fn finds_type_of_tuple_member_in_fn_arg() {
+    let _lock = sync!();
+
     let src = "
     pub struct Blah { subfield: uint }
     fn myfn(a: uint, (b, c): (uint, Blah)) {
@@ -1687,6 +1877,8 @@ fn finds_type_of_tuple_member_in_fn_arg() {
 
 #[test]
 fn finds_namespaced_enum_variant() {
+    let _lock = sync!();
+
     let src = "
     pub enum Blah { MyVariant }
     Blah::MyVa~riant
@@ -1698,6 +1890,8 @@ fn finds_namespaced_enum_variant() {
 
 #[test]
 fn finds_glob_imported_enum_variant() {
+    let _lock = sync!();
+
     let src = "
     use self::Blah::*;
     pub enum Blah { MyVariant, MyVariant2 }
@@ -1711,6 +1905,8 @@ fn finds_glob_imported_enum_variant() {
 #[test]
 #[ignore]
 fn uses_generic_arg_to_resolve_trait_method() {
+    let _lock = sync!();
+
     let src = "
     pub trait MyTrait {
         fn trait_method(self){}
@@ -1726,6 +1922,8 @@ fn uses_generic_arg_to_resolve_trait_method() {
 
 #[test]
 fn destructures_a_tuplestruct() {
+    let _lock = sync!();
+
     let src = "
     pub struct Blah { subfield: uint }
     pub struct TupleStruct(Blah);
@@ -1739,6 +1937,8 @@ fn destructures_a_tuplestruct() {
 
 #[test]
 fn destructures_a_tuplestruct_with_generic_arg() {
+    let _lock = sync!();
+
     let src = "
     pub struct Blah { subfield: uint }
     pub struct TupleStruct<T>(T);
@@ -1753,6 +1953,8 @@ fn destructures_a_tuplestruct_with_generic_arg() {
 
 #[test]
 fn finds_if_let_ident_defn() {
+    let _lock = sync!();
+
     let src = "
     if let MyOption(myvar) = myvar {
         myvar~
@@ -1765,6 +1967,8 @@ fn finds_if_let_ident_defn() {
 
 #[test]
 fn doesnt_find_if_let_if_not_in_the_subscope() {
+    let _lock = sync!();
+
     let src = "
     let myvar = 3u32;
     if let MyOption(myvar) = myvar {
@@ -1780,6 +1984,8 @@ fn doesnt_find_if_let_if_not_in_the_subscope() {
 
 #[test]
 fn finds_rebound_var_in_iflet() {
+    let _lock = sync!();
+
     let src = "
     let o: MyOption<Blah>;
     if let MyOption::MySome(o) = o {
@@ -1793,6 +1999,8 @@ fn finds_rebound_var_in_iflet() {
 
 #[test]
 fn handles_if_let() {
+    let _lock = sync!();
+
     let src = "
     pub struct Blah { subfield: uint }
     pub enum MyOption<T> {
@@ -1811,6 +2019,8 @@ fn handles_if_let() {
 
 #[test]
 fn handles_if_let_as_expression() {
+    let _lock = sync!();
+
     let src = "
     pub struct Blah { subfield: uint }
     pub enum MyOption<T> {
@@ -1829,6 +2039,8 @@ fn handles_if_let_as_expression() {
 
 #[test]
 fn finds_match_arm_var() {
+    let _lock = sync!();
+
     let src = "
     match foo {
        Some(a) => ~a
@@ -1840,6 +2052,8 @@ fn finds_match_arm_var() {
 
 #[test]
 fn finds_match_arm_var_in_scope() {
+    let _lock = sync!();
+
     let src = "
     match foo {
        Some(a) => { ~a }
@@ -1851,6 +2065,8 @@ fn finds_match_arm_var_in_scope() {
 
 #[test]
 fn finds_match_arm_enum() {
+    let _lock = sync!();
+
     let src = "
     enum MyEnum {
         Foo,
@@ -1867,6 +2083,8 @@ fn finds_match_arm_enum() {
 
 #[test]
 fn finds_match_arm_var_with_nested_match() {
+    let _lock = sync!();
+
     let src = "
     match foo {
        bar => {something}
@@ -1884,6 +2102,8 @@ fn finds_match_arm_var_with_nested_match() {
 
 #[test]
 fn gets_type_via_match_arm() {
+    let _lock = sync!();
+
     let src = "
     pub struct Blah { subfield: uint }
     pub enum MyOption<T> {
@@ -1901,6 +2121,8 @@ fn gets_type_via_match_arm() {
 
 #[test]
 fn handles_default_arm() {
+    let _lock = sync!();
+
     let src = "
     let o: MyOption<Blah>;
     match o {
@@ -1916,6 +2138,8 @@ fn handles_default_arm() {
 
 #[test]
 fn doesnt_match_rhs_of_let_in_same_stmt() {
+    let _lock = sync!();
+
     let src = "
     let a = 3;      // <--- should match this 'a'
     let a = ~a + 2;  // not this one
@@ -1928,6 +2152,8 @@ fn doesnt_match_rhs_of_let_in_same_stmt() {
 
 #[test]
 fn finds_unsafe_fn() {
+    let _lock = sync!();
+
     let src = "
     unsafe fn foo() {}
 
@@ -1943,6 +2169,8 @@ fn finds_unsafe_fn() {
 
 #[test]
 fn completes_methods_on_deref_type() {
+    let _lock = sync!();
+
     let modsrc = "
     pub trait Deref {
         type Target: ?Sized;
@@ -1987,6 +2215,8 @@ fn completes_methods_on_deref_type() {
 
 #[test]
 fn finds_self_param_when_fn_has_generic_closure_arg() {
+    let _lock = sync!();
+
     // issue #508
     let src = "
     struct MyOption;
@@ -2007,6 +2237,8 @@ fn finds_self_param_when_fn_has_generic_closure_arg() {
 
 #[test]
 fn completes_methods_on_deref_generic_type() {
+    let _lock = sync!();
+
     let modsrc = "
     pub trait Deref {
         type Target: ?Sized;
@@ -2051,6 +2283,8 @@ fn completes_methods_on_deref_generic_type() {
 
 #[test]
 fn completes_multiple_use_bracket() {
+    let _lock = sync!();
+
     // issue # 96
     // wo: without bracket, wi: with bracket
     let modfile = "
@@ -2084,6 +2318,8 @@ fn completes_multiple_use_bracket() {
 
 #[test]
 fn completes_multiple_use_comma() {
+    let _lock = sync!();
+
     // issue # 96
     // wo: without comma, wi: with comma
     let modfile = "
@@ -2118,6 +2354,8 @@ fn completes_multiple_use_comma() {
 
 #[test]
 fn completes_trait_methods_in_trait_impl() {
+    let _lock = sync!();
+
     let src = "
     mod sub {
         pub trait Trait {
@@ -2151,6 +2389,8 @@ fn completes_trait_methods_in_trait_impl() {
 
 #[test]
 fn finds_field_with_same_name_as_method() {
+    let _lock = sync!();
+
     let src = "
     struct Foo { same_name: uint }
     impl Foo { fn same_name(&self){} }
@@ -2165,6 +2405,8 @@ fn finds_field_with_same_name_as_method() {
 
 #[test]
 fn finds_method_with_same_name_as_field() {
+    let _lock = sync!();
+
     let src = "
     struct Foo { same_name: uint }
     impl Foo { fn same_name(&self){}}
