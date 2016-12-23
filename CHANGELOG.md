@@ -4,6 +4,10 @@ Change Log
 All notable changes to this project will be documented in this file. This
 project adheres to [Semantic Versioning](http://semver.org/).
 
+## 2.0.2
+
+- Internal fixes so we can publish on crates.io
+
 ## 2.0.1
 
 - Syntex 0.52 #643
