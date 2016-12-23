@@ -1,24 +1,52 @@
-# Change Log
-All notable changes to this project will be documented in this file.
-This project adheres to [Semantic Versioning](http://semver.org/).
+Change Log
+==========
 
-## [Unreleased][unreleased]
-### Changed
- 
- - Added basic 'daemon' mode, racer process can be kept running between invocations
+All notable changes to this project will be documented in this file. This
+project adheres to [Semantic Versioning](http://semver.org/).
 
- - now uses clap to parse command line options
+## 2.0.1
 
- - Adds caching of file source and code indices
+- Syntex 0.52 #643
 
- - Adds an alternative 'tabbed' mode where inputs and outputs can be tab separated for easier parsing
+- Fix `racer --help` bug from 2.0 refactor #662
 
- - emacs and vim support split out into their own git projects at https://github.com/racer-rust/emacs-racer https://github.com/racer-rust/vim-racer
+- Support short revision identifiers for git checkout paths #664
 
- - Fix issue resolving some std::* modules in latest rust source: (rust std lib implicitly imports core with #![no_std])
+- Handle self resolution when using `use mymod::{self, Thing}` #665
 
- - Searches multirust overrides when locating cargo src directories
+- Fix type alias resolution #666
 
-## [1.0.0] 2015-07-29
+## 2.0
+
+- Rework public API to hide many implementation details and allow the project to
+  move forward without breaking changes.
+
+- Many fixes that didn't make it into the changelog, but we're going to work on
+  that in the future!
+
+## 1.2
+
+- Added basic 'daemon' mode, racer process can be kept running between
+  invocations
+
+- now uses clap to parse command line options
+
+- Adds caching of file source and code indices
+
+- Adds an alternative 'tabbed' mode where inputs and outputs can be tab
+  separated for easier parsing
+
+- emacs and vim support split out into their own git projects [emacs-racer] and
+  [vim-racer], respectively.
+
+- Fix issue resolving some `std::*` modules in latest rust source: (rust std lib
+  implicitly imports core with `#![no_std]`)
+
+- Searches multirust overrides when locating cargo src directories
+
+## 1.0.0 2015-07-29
 
 - First release
+
+[vim-racer]: https://github.com/racer-rust/vim-racer
+[emacs-racer]: https://github.com/racer-rust/emacs-racer
