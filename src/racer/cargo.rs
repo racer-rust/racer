@@ -465,6 +465,11 @@ fn find_git_src_dir(d: PathBuf, name: &str, sha1: &str, branch: Option<&str>) ->
                     // dirname can be the sha1 or master.
                     d.push(sha1);
 
+                    if !d.is_dir() {
+                        d.pop();
+                        d.push(&sha1[0..7]);
+                    }
+
                     if !d.is_dir() && branch.is_some() {
                         d.pop();
                         d.push(branch.unwrap());
