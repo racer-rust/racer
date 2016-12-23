@@ -752,6 +752,31 @@ fn completes_trait_methods_when_at_scope_end() {
 }
 
 #[test]
+fn completes_for_type_alias() {
+
+    let src = "
+    mod inner {
+        pub type Alias = MyType;
+        pub struct MyType;
+        impl MyType {
+            pub fn method(&self) {}
+        }
+    }
+
+    fn foo() -> inner::Alias {
+        inner::MyType
+    }
+
+    fn main() {
+        foo().~
+    }
+    ";
+
+
+    assert_eq!(get_all_completions(src, None)[0].matchstr, "method");
+}
+
+#[test]
 fn follows_use() {
     let src1 = "
     pub fn myfn() {}
