@@ -598,15 +598,25 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                     // is an exact match of a single use stmt.
                     // Do nothing because this will be picked up by the module
                     // search in a bit.
-                } else if symbol_matches(search_type, searchstr,
-                                         &path.segments.last().unwrap().name) {
-                    // last path segment matches the path. find it!
-                    for m in resolve_path(&path, filepath, blobstart, ExactMatch, Namespace::Both, session) {
-                        out.push(m);
-                        if let ExactMatch = search_type  {
-                            return out;
-                        } else {
-                            break;
+                } else {
+                    let path = if &path.segments.last().unwrap().name == "self" {
+                        // `use foo::bar::self` -> `use foo::bar`
+                        let mut path = path;
+                        path.segments.pop();
+                        path
+                    } else {
+                        path
+                    };
+
+                    if symbol_matches(search_type, searchstr, &path.segments.last().unwrap().name) {
+                        // last path segment matches the path. find it!
+                        for m in resolve_path(&path, filepath, blobstart, ExactMatch, Namespace::Both, session) {
+                            out.push(m);
+                            if let ExactMatch = search_type  {
+                                return out;
+                            } else {
+                                break;
+                            }
                         }
                     }
                 }
