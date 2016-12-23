@@ -843,6 +843,24 @@ fn follows_multiple_use_globs() {
 }
 
 #[test]
+fn follows_use_self() {
+    let src ="
+    mod foo {
+        pub mod use_self_test {
+            pub fn bar() {}
+        }
+    }
+
+    use foo::use_self_test::{self, bar};
+
+    use_s~
+    ";
+
+    let completions = get_all_completions(src, None);
+    assert!(completions.into_iter().any(|m| m.matchstr == "use_self_test"));
+}
+
+#[test]
 fn finds_external_mod_docs() {
     let src1 = "// Copyright notice
 
