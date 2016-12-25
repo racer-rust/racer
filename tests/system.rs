@@ -971,6 +971,20 @@ fn follows_use_self() {
 
     let completions = get_all_completions(src, None);
     assert!(completions.into_iter().any(|m| m.matchstr == "use_self_test"));
+
+    let src ="
+    mod foo {
+        pub mod use_self_test {
+        }
+    }
+
+    use foo::use_self_test::self;
+
+    use_s~
+    ";
+
+    let completions = get_all_completions(src, None);
+    assert!(completions.into_iter().any(|m| m.matchstr == "use_self_test"));
 }
 
 #[test]

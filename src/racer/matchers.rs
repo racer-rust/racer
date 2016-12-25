@@ -591,7 +591,9 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                         }
                     }
                 }
-            } else if ident == "" {   // i.e. no 'as'. e.g. 'use foo::{bar, baz}'
+            } else if ident == "" || ident == "self" {   // i.e. no 'as'. e.g. 'use foo::{bar, baz}'
+                // `use foo::bar::self;` is parsed as path = foo::bar, ident = self
+
                 // if searching for a symbol and the last path segment
                 // matches the symbol then find the fqn
                 if len == 1 && path.segments[0].name == searchstr {
