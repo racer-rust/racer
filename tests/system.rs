@@ -958,13 +958,13 @@ fn follows_use_self() {
     let _lock = sync!();
 
     let src ="
+    use foo::use_self_test::{self, bar};
+
     mod foo {
         pub mod use_self_test {
             pub fn bar() {}
         }
     }
-
-    use foo::use_self_test::{self, bar};
 
     use_s~
     ";
@@ -973,12 +973,10 @@ fn follows_use_self() {
     assert!(completions.into_iter().any(|m| m.matchstr == "use_self_test"));
 
     let src ="
-    mod foo {
-        pub mod use_self_test {
-        }
-    }
+    use use_self_test::self;
 
-    use foo::use_self_test::self;
+    mod use_self_test {
+    }
 
     use_s~
     ";

@@ -610,14 +610,17 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                         path
                     };
 
-                    if symbol_matches(search_type, searchstr, &path.segments.last().unwrap().name) {
-                        // last path segment matches the path. find it!
-                        for m in resolve_path(&path, filepath, blobstart, ExactMatch, Namespace::Both, session) {
-                            out.push(m);
-                            if let ExactMatch = search_type  {
-                                return out;
-                            } else {
-                                break;
+                    if path.segments.len() > 1 {
+                        if symbol_matches(search_type, searchstr, &path.segments.last().unwrap().name) {
+                            // last path segment matches the path. find it!
+                            for m in resolve_path(&path, filepath, blobstart,
+                                                  ExactMatch, Namespace::Both, session) {
+                                out.push(m);
+                                if let ExactMatch = search_type  {
+                                    return out;
+                                } else {
+                                    break;
+                                }
                             }
                         }
                     }
