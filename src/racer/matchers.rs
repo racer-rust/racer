@@ -591,7 +591,9 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                         }
                     }
                 }
-            } else if ident == "" {   // i.e. no 'as'. e.g. 'use foo::{bar, baz}'
+            } else if ident == "" || ident == "self" {   // i.e. no 'as'. e.g. 'use foo::{bar, baz}'
+                // `use foo::bar::self;` is parsed as path = foo::bar, ident = self
+
                 // if searching for a symbol and the last path segment
                 // matches the symbol then find the fqn
                 if len == 1 && path.segments[0].name == searchstr {
@@ -608,14 +610,17 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                         path
                     };
 
-                    if symbol_matches(search_type, searchstr, &path.segments.last().unwrap().name) {
-                        // last path segment matches the path. find it!
-                        for m in resolve_path(&path, filepath, blobstart, ExactMatch, Namespace::Both, session) {
-                            out.push(m);
-                            if let ExactMatch = search_type  {
-                                return out;
-                            } else {
-                                break;
+                    if path.segments.len() > 1 {
+                        if symbol_matches(search_type, searchstr, &path.segments.last().unwrap().name) {
+                            // last path segment matches the path. find it!
+                            for m in resolve_path(&path, filepath, blobstart,
+                                                  ExactMatch, Namespace::Both, session) {
+                                out.push(m);
+                                if let ExactMatch = search_type  {
+                                    return out;
+                                } else {
+                                    break;
+                                }
                             }
                         }
                     }
