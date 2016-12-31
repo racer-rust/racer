@@ -141,7 +141,7 @@ fn search_scope_for_methods(point: usize, src: Src, searchstr: &str, filepath: &
                            contextstr: signature.to_owned(),
                            generic_args: Vec::new(),
                            generic_types: Vec::new(),
-                           docs: find_doc(&scopesrc, blobstart),
+                           docs: find_doc(&scopesrc, blobstart + start),
                 };
                 out.push(m);
             }
@@ -179,7 +179,7 @@ fn search_generic_impl_scope_for_methods(point: usize, src: Src, searchstr: &str
                            contextstr: signature.to_owned(),
                            generic_args: contextm.generic_args.clone(),  // Attach impl generic args
                            generic_types: contextm.generic_types.clone(), // Attach impl generic types
-                           docs: find_doc(&scopesrc, blobstart),
+                           docs: find_doc(&scopesrc, blobstart + start),
                 };
                 out.push(m);
             }
@@ -217,7 +217,7 @@ fn search_scope_for_method_declarations(point: usize, src: Src, searchstr: &str,
                            contextstr: signature.to_owned(),
                            generic_args: Vec::new(),
                            generic_types: Vec::new(),
-                           docs: find_doc(&scopesrc, blobstart),
+                           docs: find_doc(&scopesrc, blobstart + start),
                 };
                 out.push(m);
             }

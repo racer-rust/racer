@@ -391,7 +391,7 @@ pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize,
             contextstr: get_context(blob, "{"),
             generic_args: generics.generic_args.into_iter().map(|arg| {arg.name}).collect(),
             generic_types: Vec::new(),
-            docs: find_doc(msrc, blobstart),
+            docs: find_doc(msrc, blobstart + start),
         })
     } else {
         None
@@ -418,7 +418,7 @@ pub fn match_type(msrc: &str, blobstart: usize, blobend: usize,
             contextstr: first_line(blob),
             generic_args: Vec::new(),
             generic_types: Vec::new(),
-            docs: find_doc(msrc, blobstart),
+            docs: find_doc(msrc, blobstart + start),
         })
     } else {
         None
@@ -445,7 +445,7 @@ pub fn match_trait(msrc: &str, blobstart: usize, blobend: usize,
             contextstr: get_context(blob, "{"),
             generic_args: Vec::new(),
             generic_types: Vec::new(),
-            docs: find_doc(msrc, blobstart),
+            docs: find_doc(msrc, blobstart + start),
         })
     } else {
         None
@@ -474,7 +474,7 @@ pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize,
                     contextstr: first_line(&blob[offset..]),
                     generic_args: Vec::new(),
                     generic_types: Vec::new(),
-                    docs: find_doc(msrc, blobstart),
+                    docs: find_doc(msrc, blobstart + offset),
                 };
                 out.push(m);
             }
@@ -508,7 +508,7 @@ pub fn match_enum(msrc: &str, blobstart: usize, blobend: usize,
             contextstr: first_line(blob),
             generic_args: generics.generic_args.into_iter().map(|arg| {arg.name}).collect(),
             generic_types: Vec::new(),
-            docs: find_doc(msrc, blobstart),
+            docs: find_doc(msrc, blobstart + start),
         })
     } else {
         None
@@ -656,7 +656,7 @@ pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize,
                 contextstr: get_context(blob, "{"),
                 generic_args: Vec::new(),
                 generic_types: Vec::new(),
-                docs: find_doc(msrc, blobstart),
+                docs: find_doc(msrc, blobstart + start),
             })
         } else {
             None
@@ -696,15 +696,15 @@ pub fn match_macro(msrc: &str, blobstart: usize, blobend: usize,
     }
 }
 
-pub fn find_doc(msrc: &str, blobend: usize) -> String {
-    let blob = &msrc[0..blobend];
+pub fn find_doc(msrc: &str, match_point: usize) -> String {
+    let blob = &msrc[0..match_point];
 
     blob.lines()
         .rev()
-        .skip(1)
+        .skip(1) // skip the line that the match is on
         .map(|line| line.trim())
-        .take_while(|line| line.starts_with("///") || line.starts_with("#["))
-        .filter(|line| !line.trim().starts_with("#["))  // remove the #[flags]
+        .take_while(|line| line.starts_with("///") || line.starts_with("#[") || line.is_empty())
+        .filter(|line| !(line.trim().starts_with("#[") || line.is_empty() ))  // remove the #[flags]
         .collect::<Vec<_>>()  // These are needed because
         .iter()               // you cannot `rev`an `iter` that
         .rev()                // has already been `rev`ed.

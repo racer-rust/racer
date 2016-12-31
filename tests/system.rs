@@ -1042,6 +1042,7 @@ fn finds_external_fn_docs() {
     let src1 = "
     /// Orange
     /// juice
+    
     pub fn apple() {
         let x = 1;
     }";
@@ -1058,6 +1059,35 @@ fn finds_external_fn_docs() {
     let got = get_one_completion(src, Some(dir));
     assert_eq!("apple", got.matchstr);
     assert_eq!("Orange\njuice", got.docs);
+}
+
+#[test]
+fn issue_618() {
+    let _lock = sync!();
+
+    let src = "
+/// Orange
+/// juice
+pub fn appl~e() {
+}";
+
+    let got = get_only_completion(src, None);
+    assert_eq!("apple", got.matchstr);
+    assert_eq!("Orange\njuice", got.docs);
+}
+
+#[test]
+fn issue_594() {
+    let _lock = sync!();
+
+    let src = "
+/// Hello world
+/// (quux)
+pub fn fo~o() {}";
+
+    let got = get_only_completion(src, None);
+    assert_eq!("foo", got.matchstr);
+    assert_eq!("Hello world\n(quux)", got.docs);
 }
 
 #[test]
