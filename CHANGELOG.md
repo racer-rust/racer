@@ -4,6 +4,10 @@ Change Log
 All notable changes to this project will be documented in this file. This
 project adheres to [Semantic Versioning](http://semver.org/).
 
+## 2.0.5
+
+- Chained completions on separate lines now work #686
+
 ## 2.0.4
 
 - Fix for find-doc not always returning full doc string #675

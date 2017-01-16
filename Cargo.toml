@@ -1,7 +1,7 @@
 [package]
 
 name = "racer"
-version = "2.0.4"
+version = "2.0.5"
 license = "MIT"
 description = "Code completion for Rust"
 authors = ["Phil Dawes <phil@phildawes.net>"]
