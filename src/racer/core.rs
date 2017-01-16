@@ -898,7 +898,7 @@ fn complete_from_file_(
     cursor: Location,
     session: &Session
 ) -> vec::IntoIter<Match> {
-    let src = session.load_file(filepath);
+    let src = session.load_file_and_mask_comments(filepath);
     let src = &src.as_src()[..];
 
     // TODO return result
@@ -1047,7 +1047,7 @@ pub fn find_definition<P, C>(
 }
 
 pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Session) -> Option<Match> {
-    let src = session.load_file(filepath);
+    let src = session.load_file_and_mask_comments(filepath);
     let src = &src.as_src()[..];
 
     // TODO return result
