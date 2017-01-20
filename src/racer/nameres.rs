@@ -1278,7 +1278,13 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
     debug!("do_external_search path {:?} {:?}", path, filepath.display());
     let mut out = Vec::new();
     if path.len() == 1 {
-        let searchstr = path[0];
+        let mut searchstr = path[0];
+        if let Some(i) = searchstr.rfind(',') {
+            searchstr = &searchstr[i+1..].trim();
+        }
+        if searchstr.chars().next() == Some('{') {
+            searchstr = &searchstr[1..];
+        }
         // hack for now
         let pathseg = core::PathSegment{name: searchstr.to_owned(),
                                          types: Vec::new()};
@@ -1306,16 +1312,22 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
         let parent_path = &path[..(path.len()-1)];
         let context = do_external_search(parent_path, filepath, pos, ExactMatch, Namespace::Type, session).nth(0);
         context.map(|m| {
+            // process searchstr:
+            // In case there is comma inside, we use rightmost part as searchstr
+            // In case there is leading bracket, we ignore it
+            // so "foo::{bar" will be same as "foo::bar"
+            let mut searchstr = path[path.len()-1];
+            if let Some(i) = searchstr.rfind(',') {
+                searchstr = &searchstr[i+1..].trim();
+            }
+            if searchstr.chars().next() == Some('{') {
+                searchstr = &searchstr[1..];
+            }
+            let pathseg = core::PathSegment{name: searchstr.to_owned(),
+                                 types: Vec::new()};
             match m.mtype {
                 Module => {
                     debug!("found an external module {}", m.matchstr);
-                    // deal with started with "{", so that "foo::{bar" will be same as "foo::bar"
-                    let searchstr = match path[path.len()-1].chars().next() {
-                        Some('{') => &path[path.len()-1][1..],
-                        _ => path[path.len()-1]
-                    };
-                    let pathseg = core::PathSegment{name: searchstr.to_owned(),
-                                         types: Vec::new()};
                     for m in search_next_scope(m.point, &pathseg, &m.filepath, search_type, false, namespace, session) {
                         out.push(m);
                     }
@@ -1325,13 +1337,6 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: usize, search_typ
                     debug!("found a pub struct. Now need to look for impl");
                     for m in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, false, session) {
                         debug!("found  impl2!! {}", m.matchstr);
-                        // deal with started with "{", so that "foo::{bar" will be same as "foo::bar"
-                        let searchstr = match path[path.len()-1].chars().next() {
-                            Some('{') => &path[path.len()-1][1..],
-                            _ => path[path.len()-1]
-                        };
-                        let pathseg = core::PathSegment{name: searchstr.to_owned(),
-                                         types: Vec::new()};
                         debug!("about to search impl scope...");
                         for m in search_next_scope(m.point, &pathseg, &m.filepath, search_type, m.local, namespace, session) {
                             out.push(m);
