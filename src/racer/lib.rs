@@ -11,6 +11,7 @@ extern crate syntex_errors;
 extern crate toml;
 extern crate env_logger;
 extern crate typed_arena;
+extern crate parking_lot;
 
 #[macro_use]
 mod testutils;

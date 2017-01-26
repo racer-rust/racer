@@ -10,7 +10,7 @@ use std::slice;
 use std::cmp::{min, max};
 use std::iter::{Fuse, Iterator};
 use std::sync::Arc;
-use std::sync::RwLock;
+use parking_lot::RwLock;
 use codeiter::StmtIndicesIter;
 
 use scopes;
@@ -375,14 +375,14 @@ impl IndexedSource {
     }
 
     fn cache_lineoffsets(&self) {
-        if self.lines.read().unwrap().len() == 0 {
+        if self.lines.read().len() == 0 {
             let mut result = Vec::new();
             let mut point = 0;
             for line in self.code.split('\n') {
                 result.push((point, line.len() + 1));
                 point += line.len() + 1;
             }
-            *self.lines.write().unwrap() = result;
+            *self.lines.write() = result;
         }
     }
 
@@ -390,7 +390,6 @@ impl IndexedSource {
         self.cache_lineoffsets();
         self.lines
             .read()
-            .unwrap()
             .get(coords.line - 1)
             .and_then(|&(i, l)| {
                 if coords.column <= l {
@@ -403,7 +402,7 @@ impl IndexedSource {
 
     pub fn point_to_coords(&self, point: usize) -> Option<Coordinate> {
         self.cache_lineoffsets();
-        for (n, &(i, l)) in self.lines.read().unwrap().iter().enumerate() {
+        for (n, &(i, l)) in self.lines.read().iter().enumerate() {
             if i <= point && (point - i) <= l {
                 return Some(Coordinate { line: n + 1, column: point - i });
             }
