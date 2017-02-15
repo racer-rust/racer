@@ -2639,3 +2639,319 @@ fn finds_self_referenced_functions() {
     let got = get_definition(src, None);
     assert_eq!("myfunction", got.matchstr);
 }
+
+#[test]
+fn closure_bracket_scope() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(| x | { x~ } );
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("x", got.matchstr);
+    assert_eq!("| x |", got.contextstr);
+}
+
+#[test]
+fn closure_bracket_scope_multiple_args() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(| x,y,z,u | { x~ } );
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("x", got.matchstr);
+    assert_eq!("| x,y,z,u |", got.contextstr);
+}
+
+#[test]
+fn closure_bracket_scope_multiple_args_different_definition() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(| x,y,z,u | { z~ } );
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("z", got.matchstr);
+    assert_eq!("| x,y,z,u |", got.contextstr);
+}
+
+#[test]
+fn closure_bracket_scope_overwrite() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(| x, y | { y~ } );
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("y", got.matchstr);
+    assert_eq!("| x, y |", got.contextstr);
+}
+
+#[test]
+fn closure_bracket_scope_with_types() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(| x: i32, y: String | { y~ } );
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("y", got.matchstr);
+    assert_eq!("| x: i32, y: String |", got.contextstr);
+}
+
+#[test]
+fn closure_bracket_scope_find_outside() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(| x: i32 | { y~ } );
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("y", got.matchstr);
+    assert_eq!("let y = Some(5);", got.contextstr);
+}
+
+#[test]
+fn closure_scope() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(| x | x~ );
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("x", got.matchstr);
+    assert_eq!("| x |", got.contextstr);
+}
+
+#[test]
+fn closure_scope_multiple_args() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(| x,y,z,u | x~ );
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("x", got.matchstr);
+    assert_eq!("| x,y,z,u |", got.contextstr);
+}
+
+#[test]
+fn closure_scope_multiple_args_different_definition() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(| x,y,z,u | z~ );
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("z", got.matchstr);
+    assert_eq!("| x,y,z,u |", got.contextstr);
+}
+
+#[test]
+fn closure_scope_overwrite() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(| x, y | y~ );
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("y", got.matchstr);
+    assert_eq!("| x, y |", got.contextstr);
+}
+
+#[test]
+fn closure_scope_with_types() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(| x: i32, y: String | y~ );
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("y", got.matchstr);
+    assert_eq!("| x: i32, y: String |", got.contextstr);
+}
+
+#[test]
+fn closure_scope_find_outside() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(| x: i32 | y~ );
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("y", got.matchstr);
+    assert_eq!("let y = Some(5);", got.contextstr);
+}
+
+#[test]
+fn closure_scope_with_newlines() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(|
+
+
+x: i32
+
+
+
+| x~ );
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("x", got.matchstr);
+    assert_eq!("|
+
+
+x: i32
+
+
+
+|", got.contextstr);
+}
+
+#[test]
+fn closure_bracket_scope_with_newlines() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(|
+
+
+x: i32
+
+
+
+| {x~} );
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("x", got.matchstr);
+    assert_eq!("|
+
+
+x: i32
+
+
+
+|", got.contextstr);
+}
+
+#[test]
+fn closure_scope_nested() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(| x: i32 | y.map(|z| z~) );
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("z", got.matchstr);
+    assert_eq!("|z|", got.contextstr);
+}
+
+#[test]
+fn closure_bracket_scope_nested() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(| x: i32 | { y.map(|z| { z~ }) });
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("z", got.matchstr);
+    assert_eq!("|z|", got.contextstr);
+}
+
+#[test]
+fn closure_scope_nested_math_outside() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(| x: i32 | y.map(|z| x~) );
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("x", got.matchstr);
+    assert_eq!("| x: i32 |", got.contextstr);
+}
+
+#[test]
+fn closure_bracket_scope_nested_match_outside() {
+    let _lock = sync!();
+
+    let src = "
+    fn main() {
+        let y = Some(5);
+        y.map(| x: i32 | { y.map(|z| { x~ }) });
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("x", got.matchstr);
+    assert_eq!("| x: i32 |", got.contextstr);
+}
