@@ -767,7 +767,8 @@ pub fn search_scope(start: usize, point: usize, src: Src,
 
     let scopesrc = src.from(start);
     let mut skip_next_block = false;
-    let mut delayed_use_globs = Vec::new();
+    let mut delayed_single_imports = Vec::new();
+    let mut delayed_glob_imports = Vec::new();
     let mut codeit = scopesrc.iter_stmts();
     let mut v = Vec::new();
 
@@ -833,12 +834,31 @@ pub fn search_scope(start: usize, point: usize, src: Src,
             continue;
         }
 
-        let is_a_use_glob = (blob.starts_with("use") || blob.starts_with("pub use"))
-              && blob.find("::*").is_some();
+        let is_an_import = blob.starts_with("use") || blob.starts_with("pub use");
 
-        if is_a_use_glob {
-            // globs are *really* expensive to process. delay them until later
-            delayed_use_globs.push((blobstart, blobend));
+        if is_an_import {
+            // A `use` item can import a value
+            // with the same name as a "type" (type/module/etc.) in the same scope.
+            // However, that type might appear after the `use`,
+            // so we need to process the type first and the `use` later (if necessary).
+            // If we didn't delay imports,
+            // we'd try to resolve such a `use` item by recursing onto itself.
+
+            // Optimisation: if the search string is not in the blob and it is not
+            // a glob import, this cannot match so fail fast!
+            let is_glob_import = blob.contains("::*");
+            if !is_glob_import {
+                if !blob.contains(searchstr.trim_right_matches('!')) {
+                    continue;
+                }
+            }
+
+            if is_glob_import {
+                delayed_glob_imports.push((blobstart, blobend));
+            } else {
+                delayed_single_imports.push((blobstart, blobend));
+            }
+
             continue;
         }
 
@@ -861,9 +881,9 @@ pub fn search_scope(start: usize, point: usize, src: Src,
             });
         }
 
-        // Optimisation: if the search string is not in the blob and it is not
-        // a 'use glob', this cannot match so fail fast!
-        if blob.find(searchstr.trim_right_matches('!')).is_none() {
+        // Optimisation: if the search string is not in the blob,
+        // this cannot match so fail fast!
+        if !blob.contains(searchstr.trim_right_matches('!')) {
             continue;
         }
 
@@ -878,8 +898,9 @@ pub fn search_scope(start: usize, point: usize, src: Src,
         }
     }
 
-    // finally process any use-globs that we skipped before
-    for (blobstart, blobend) in delayed_use_globs {
+    // Finally, process the imports that we skipped before.
+    // Process single imports first, because they shadow glob imports.
+    for (blobstart, blobend) in delayed_single_imports.into_iter().chain(delayed_glob_imports) {
         // There's a good chance of a match. Run the matchers
         for m in run_matchers_on_blob(src, start+blobstart, start+blobend,
                                       searchstr, filepath, search_type,

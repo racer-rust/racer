@@ -954,6 +954,33 @@ fn follows_multiple_use_globs() {
 }
 
 #[test]
+fn single_import_shadows_glob_import() {
+    let _lock = sync!();
+
+    let src = "
+    use shadowed::*;
+    use shadower::Foo;
+
+    mod shadowed {
+        pub struct Foo;
+    }
+
+    mod shadower {
+        pub struct Foo;
+    }
+
+    fn main() {
+        Foo~;
+    }
+    ";
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "Foo");
+    println!("{}", got.filepath.display());
+    println!("{}", got.point);
+    assert_eq!(got.coords, Some(Coordinate { line: 10, column: 19 }));
+}
+
+#[test]
 fn follows_use_self() {
     let _lock = sync!();
 
@@ -983,6 +1010,34 @@ fn follows_use_self() {
 
     let completions = get_all_completions(src, None);
     assert!(completions.into_iter().any(|m| m.matchstr == "use_self_test"));
+}
+
+#[test]
+fn completes_out_of_order_mod_use_with_same_fn_name_as_mod() {
+    let _lock = sync!();
+
+    let src = "
+    use foo::foo;
+
+    mod foo {
+        pub fn foo() {}
+    }
+
+    fn main() {
+        f~
+    }";
+
+    let mut has_module = false;
+    let mut has_function = false;
+    let completions = get_all_completions(src, None);
+    for m in completions {
+        match (&*m.matchstr, m.mtype) {
+            ("foo", MatchType::Module) => has_module = true,
+            ("foo", MatchType::Function) => has_function = true,
+            _ => (),
+        }
+    }
+    assert!(has_module && has_function);
 }
 
 #[test]
