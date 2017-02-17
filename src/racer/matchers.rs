@@ -1,14 +1,24 @@
 use {scopes, typeinf, ast};
 use core::{Match, PathSegment, Src, Session, Coordinate, SessionExt};
-use util::{symbol_matches, txt_matches, find_ident_end, is_ident_char, char_at};
+use util::{StackLinkedListNode, symbol_matches, txt_matches, find_ident_end, is_ident_char, char_at};
 use nameres::{get_module_file, get_crate_file, resolve_path};
 use core::SearchType::{self, StartsWith, ExactMatch};
 use core::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant,
                       Const, Static, IfLet, WhileLet, For, Macro};
 use core::Namespace;
-use std::cell::Cell;
 use std::path::Path;
 use std::{iter, option, str, vec};
+
+/// The location of an import (`use` item) currently being resolved.
+#[derive(PartialEq, Eq)]
+pub struct PendingImport<'fp> {
+    filepath: &'fp Path,
+    blobstart: usize,
+    blobend: usize,
+}
+
+/// A stack of imports (`use` items) currently being resolved.
+pub type PendingImports<'stack, 'fp> = StackLinkedListNode<'stack, PendingImport<'fp>>;
 
 pub type MIter = option::IntoIter<Match>;
 pub type MChain<T> = iter::Chain<T, MIter>;
@@ -17,14 +27,15 @@ pub type MChain<T> = iter::Chain<T, MIter>;
 pub fn match_types(src: Src, blobstart: usize, blobend: usize,
                    searchstr: &str, filepath: &Path,
                    search_type: SearchType,
-                   local: bool, session: &Session) -> iter::Chain<MChain<MChain<MChain<MChain<MChain<MIter>>>>>, vec::IntoIter<Match>> {
+                   local: bool, session: &Session,
+                   pending_imports: &PendingImports) -> iter::Chain<MChain<MChain<MChain<MChain<MChain<MIter>>>>>, vec::IntoIter<Match>> {
     let it = match_extern_crate(&src, blobstart, blobend, searchstr, filepath, search_type, session).into_iter();
     let it = it.chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local, session).into_iter());
     let it = it.chain(match_struct(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_type(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_trait(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_enum(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    it.chain(match_use(&src, blobstart, blobend, searchstr, filepath, search_type, local, session).into_iter())
+    it.chain(match_use(&src, blobstart, blobend, searchstr, filepath, search_type, local, session, pending_imports).into_iter())
 }
 
 pub fn match_values(src: Src, blobstart: usize, blobend: usize,
@@ -515,17 +526,29 @@ pub fn match_enum(msrc: &str, blobstart: usize, blobend: usize,
     }
 }
 
-// HACK: recursion protection. With 'use glob' statements it's easy to
-// get into a recursive loop and exchaust the stack. Currently we
-// avoid this by not following a glob if we're already searching
-// through one.
-thread_local!(static ALREADY_GLOBBING: Cell<Option<bool>> = Cell::new(None));
-
 pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                  searchstr: &str, filepath: &Path, search_type: SearchType,
-                 local: bool, session: &Session) -> Vec<Match> {
-    let mut out = Vec::new();
+                 local: bool, session: &Session,
+                 pending_imports: &PendingImports) -> Vec<Match> {
+    let import = PendingImport {
+        filepath: &filepath,
+        blobstart: blobstart,
+        blobend: blobend,
+    };
+
     let blob = &msrc[blobstart..blobend];
+
+    // If we're trying to resolve the same import recursively,
+    // do not return any matches this time.
+    if pending_imports.contains(&import) {
+        debug!("import {} involved in a cycle; ignoring", blob);
+        return Vec::new();
+    }
+
+    // Push this import on the stack of pending imports.
+    let pending_imports = &pending_imports.push(import);
+
+    let mut out = Vec::new();
 
     if find_keyword(blob, "use", "", StartsWith, local).is_none() { return out; }
 
@@ -536,36 +559,17 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
 
         if use_item.is_glob {
             let basepath = use_item.paths.into_iter().nth(0).unwrap();
-            let mut follow_glob = true;
-            {
-                // don't follow glob if we are already following one otherwise
-                // otherwise we get a recursive mess
-                follow_glob &= ALREADY_GLOBBING.with(|c| { c.get().is_none() });
-
-                // don't follow the glob if the path base is the searchstr
-                follow_glob &= !(basepath.segments[0].name == searchstr ||
-                    (basepath.segments[0].name == "self" && basepath.segments[1].name == searchstr));
+            let seg = PathSegment{ name: searchstr.to_owned(), types: Vec::new() };
+            let mut path = basepath.clone();
+            path.segments.push(seg);
+            debug!("found a glob: now searching for {:?}", path);
+            let iter_path = resolve_path(&path, filepath, blobstart, search_type, Namespace::Both, session, pending_imports);
+            if let StartsWith = search_type {
+                return iter_path.collect();
             }
-
-            if follow_glob {
-                ALREADY_GLOBBING.with(|c| { c.set(Some(true)) });
-
-                let seg = PathSegment{ name: searchstr.to_owned(), types: Vec::new() };
-                let mut path = basepath.clone();
-                path.segments.push(seg);
-                debug!("found a glob: now searching for {:?}", path);
-                let iter_path = resolve_path(&path, filepath, blobstart, search_type, Namespace::Both, session);
-                if let StartsWith = search_type {
-                	ALREADY_GLOBBING.with(|c| { c.set(None) });
-                    return iter_path.collect();
-                }
-                for m in iter_path {
-                    out.push(m);
-                    break;
-                }
-                ALREADY_GLOBBING.with(|c| { c.set(None) });
-            } else {
-                debug!("not following glob");
+            for m in iter_path {
+                out.push(m);
+                break;
             }
         }
     } else if txt_matches(search_type, searchstr, blob) {
@@ -582,7 +586,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                     // Do nothing because this will be picked up by the module
                     // search in a bit.
                 } else {
-                    for m in resolve_path(&path, filepath, blobstart, ExactMatch, Namespace::Both, session) {
+                    for m in resolve_path(&path, filepath, blobstart, ExactMatch, Namespace::Both, session, pending_imports) {
                         out.push(m);
                         if let ExactMatch = search_type  {
                             return out;
@@ -614,7 +618,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                         if symbol_matches(search_type, searchstr, &path.segments.last().unwrap().name) {
                             // last path segment matches the path. find it!
                             for m in resolve_path(&path, filepath, blobstart,
-                                                  ExactMatch, Namespace::Both, session) {
+                                                  ExactMatch, Namespace::Both, session, pending_imports) {
                                 out.push(m);
                                 if let ExactMatch = search_type  {
                                     return out;

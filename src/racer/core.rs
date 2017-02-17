@@ -11,6 +11,7 @@ use std::cmp::{min, max};
 use std::iter::{Fuse, Iterator};
 use std::rc::Rc;
 use codeiter::StmtIndicesIter;
+use matchers::PendingImports;
 
 use scopes;
 use nameres;
@@ -947,8 +948,8 @@ fn complete_from_file_(
 
             let path = Path::from_vec(is_global, v);
             for m in nameres::resolve_path(&path, filepath, pos,
-                                         SearchType::StartsWith, Namespace::Both,
-                                         session) {
+                                           SearchType::StartsWith, Namespace::Both,
+                                           session, &PendingImports::empty()) {
                 out.push(m);
             }
         },
@@ -1082,7 +1083,7 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
 
             nameres::resolve_path(&path, filepath, pos,
                                   SearchType::ExactMatch, Namespace::Both,
-                                  session).nth(0)
+                                  session, &PendingImports::empty()).nth(0)
         },
         CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);

@@ -346,3 +346,50 @@ pub fn check_rust_src_env_var() -> ::std::result::Result<(), RustSrcPathError> {
         }
     }
 }
+
+/// An immutable stack implemented as a linked list backed by a thread's stack.
+pub struct StackLinkedListNode<'stack, T>(Option<StackLinkedListNodeData<'stack, T>>)
+    where T: 'stack;
+
+struct StackLinkedListNodeData<'stack, T>
+    where T: 'stack
+{
+    item: T,
+    previous: &'stack StackLinkedListNode<'stack, T>,
+}
+
+impl<'stack, T> StackLinkedListNode<'stack, T>
+    where T: 'stack
+{
+    /// Returns an empty node.
+    pub fn empty() -> Self {
+        StackLinkedListNode(None)
+    }
+
+    /// Pushes a new node on the stack. Returns the new node.
+    pub fn push(&'stack self, item: T) -> Self {
+        StackLinkedListNode(Some(StackLinkedListNodeData {
+            item: item,
+            previous: self,
+        }))
+    }
+}
+
+impl<'stack, T> StackLinkedListNode<'stack, T>
+    where T: 'stack + PartialEq
+{
+    /// Check if the stack contains the specified item.
+    /// Returns `true` if the item is found, or `false` if it's not found.
+    pub fn contains(&self, item: &T) -> bool {
+        let mut current = self;
+        while let &StackLinkedListNode(Some(StackLinkedListNodeData { item: ref current_item, previous })) = current {
+            if current_item == item {
+                return true;
+            }
+
+            current = previous;
+        }
+
+        false
+    }
+}
