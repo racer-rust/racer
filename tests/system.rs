@@ -2071,6 +2071,24 @@ fn finds_glob_imported_enum_variant() {
 }
 
 #[test]
+fn finds_enum_variant_through_recursive_glob_imports() {
+    let _lock = sync!();
+
+    let src = "
+    use foo::*;
+    use Bar::*;
+
+    mod foo {
+        pub enum Bar { MyVariant, MyVariant2 }
+    }
+    MyVa~riant
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("MyVariant", got.matchstr);
+}
+
+#[test]
 #[ignore]
 fn uses_generic_arg_to_resolve_trait_method() {
     let _lock = sync!();

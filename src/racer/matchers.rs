@@ -6,7 +6,6 @@ use core::SearchType::{self, StartsWith, ExactMatch};
 use core::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant,
                       Const, Static, IfLet, WhileLet, For, Macro};
 use core::Namespace;
-use std::cell::Cell;
 use std::path::Path;
 use std::{iter, option, str, vec};
 
@@ -527,12 +526,6 @@ pub fn match_enum(msrc: &str, blobstart: usize, blobend: usize,
     }
 }
 
-// HACK: recursion protection. With 'use glob' statements it's easy to
-// get into a recursive loop and exchaust the stack. Currently we
-// avoid this by not following a glob if we're already searching
-// through one.
-thread_local!(static ALREADY_GLOBBING: Cell<Option<bool>> = Cell::new(None));
-
 pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
                  searchstr: &str, filepath: &Path, search_type: SearchType,
                  local: bool, session: &Session,
@@ -566,36 +559,17 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
 
         if use_item.is_glob {
             let basepath = use_item.paths.into_iter().nth(0).unwrap();
-            let mut follow_glob = true;
-            {
-                // don't follow glob if we are already following one otherwise
-                // otherwise we get a recursive mess
-                follow_glob &= ALREADY_GLOBBING.with(|c| { c.get().is_none() });
-
-                // don't follow the glob if the path base is the searchstr
-                follow_glob &= !(basepath.segments[0].name == searchstr ||
-                    (basepath.segments[0].name == "self" && basepath.segments[1].name == searchstr));
+            let seg = PathSegment{ name: searchstr.to_owned(), types: Vec::new() };
+            let mut path = basepath.clone();
+            path.segments.push(seg);
+            debug!("found a glob: now searching for {:?}", path);
+            let iter_path = resolve_path(&path, filepath, blobstart, search_type, Namespace::Both, session, pending_imports);
+            if let StartsWith = search_type {
+                return iter_path.collect();
             }
-
-            if follow_glob {
-                ALREADY_GLOBBING.with(|c| { c.set(Some(true)) });
-
-                let seg = PathSegment{ name: searchstr.to_owned(), types: Vec::new() };
-                let mut path = basepath.clone();
-                path.segments.push(seg);
-                debug!("found a glob: now searching for {:?}", path);
-                let iter_path = resolve_path(&path, filepath, blobstart, search_type, Namespace::Both, session, pending_imports);
-                if let StartsWith = search_type {
-                	ALREADY_GLOBBING.with(|c| { c.set(None) });
-                    return iter_path.collect();
-                }
-                for m in iter_path {
-                    out.push(m);
-                    break;
-                }
-                ALREADY_GLOBBING.with(|c| { c.set(None) });
-            } else {
-                debug!("not following glob");
+            for m in iter_path {
+                out.push(m);
+                break;
             }
         }
     } else if txt_matches(search_type, searchstr, blob) {
