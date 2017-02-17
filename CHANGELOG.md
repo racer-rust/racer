@@ -4,6 +4,11 @@ Change Log
 All notable changes to this project will be documented in this file. This
 project adheres to [Semantic Versioning](http://semver.org/).
 
+## 2.0.6
+
+- resolve Self (e.g. in-impl function calls like Self::myfunction())
+- Fix stack overflow issue on unresolvable imports :tada: #698
+
 ## 2.0.5
 
 - Chained completions on separate lines now work #686
