@@ -1041,6 +1041,56 @@ fn completes_out_of_order_mod_use_with_same_fn_name_as_mod() {
 }
 
 #[test]
+fn ignores_self_referential_unresolved_import() {
+    let _lock = sync!();
+
+    let src = "use foo::foo;f~";
+
+    let completions = get_all_completions(src, None);
+    assert!(!completions.iter().any(|m| m.matchstr == "foo"));
+}
+
+#[test]
+fn ignores_self_referential_unresolved_import_long() {
+    let _lock = sync!();
+
+    let src = "use foo::bar::foo;f~";
+
+    let completions = get_all_completions(src, None);
+    assert!(!completions.iter().any(|m| m.matchstr == "foo"));
+}
+
+#[test]
+fn ignores_self_referential_unresolved_imports() {
+    let _lock = sync!();
+
+    let src = "
+    use foo::bar;
+    use bar::baz;
+    use baz::foo;
+    f~";
+
+    let completions = get_all_completions(src, None);
+    assert!(!completions.iter().any(|m| m.matchstr == "foo"));
+}
+
+#[test]
+fn ignores_self_referential_unresolved_imports_across_modules() {
+    let _lock = sync!();
+
+    let src = "
+    use foo::bar;
+
+    mod foo {
+        pub use super::bar;
+    }
+    b~";
+
+    let completions = get_all_completions(src, None);
+    assert!(!completions.iter().any(|m| m.matchstr == "bar"));
+}
+
+#[test]
 fn finds_external_mod_docs() {
     let _lock = sync!();
 
