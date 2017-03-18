@@ -80,4 +80,4 @@ You can find more info about Visual Studio Code extension [here](https://github.
 
 ### Atom integration 
 
-You can find the racer package for Atom [here](https://atom.io/packages/racer)
+You can find the racer package for Atom [here](https://atom.io/packages/autocomplete-racer)
