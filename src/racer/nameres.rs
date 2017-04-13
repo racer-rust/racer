@@ -239,7 +239,8 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
     for (start, end) in src.iter_stmts() {
         let blob = &src[start..end];
 
-        if blob.starts_with("impl") {
+        if blob.starts_with("impl")
+            && !blob.contains('!') {
             blob.find('{').map(|n| {
                 let mut decl = blob[..n+1].to_owned();
                 decl.push_str("}");
