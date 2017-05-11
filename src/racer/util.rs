@@ -1,7 +1,7 @@
 // Small functions of utility
 use std::cmp;
 use std::path;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use core::{IndexedSource, Session, SessionExt, Location, LocationExt};
 
@@ -155,7 +155,7 @@ pub fn expand_ident<P, C>(
 }
 
 pub struct ExpandedIdent {
-    src: Rc<IndexedSource>,
+    src: Arc<IndexedSource>,
     start: usize,
     pos: usize,
 }
