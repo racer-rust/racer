@@ -30,9 +30,9 @@ As mentioned in the command output, don't forget to add the installation directo
 
 1. Fetch the Rust sourcecode
 
- a) automatically via [rustup](https://www.rustup.rs/) and run `rustup component add rust-src` in order to install the source to `~/.multirust/toolchains/[your-toolchain]/lib/rustlib/src/rust/src`. Rustup will keep the sources in sync with the toolchain if you run `rustup update`.
- 
- b) manually from git, or download from https://www.rust-lang.org/install.html (the 'rustc' source download behind the 'source' link is the right one).
+    1. automatically via [rustup](https://www.rustup.rs/) and run `rustup component add rust-src` in order to install the source to `~/.multirust/toolchains/[your-toolchain]/lib/rustlib/src/rust/src`. Rustup will keep the sources in sync with the toolchain if you run `rustup update`.
+
+    2. manually from git, or download from https://www.rust-lang.org/install.html (the 'rustc' source download behind the 'source' link is the right one).
 
 2. Set the ```RUST_SRC_PATH``` environment variable to point to the 'src' dir in the Rust source installation
 
@@ -80,7 +80,7 @@ You can find more info about Visual Studio Code extension [here](https://github.
 
 ### Atom integration 
 
-You can find the racer package for Atom [here](https://atom.io/packages/racer)
+You can find the racer package for Atom [here](https://atom.io/packages/autocomplete-racer)
 
 ### Kakoune integration 
 
