@@ -2817,6 +2817,42 @@ fn closure_scope_with_types() {
 }
 
 #[test]
+fn finds_impl_with_bang() {
+    let _lock = sync!();
+
+    let src = "
+    struct Foo;
+    impl Foo {
+        fn invert(&self, b: bool) -> bool { !b }
+
+        fn tst(&self) -> bool {
+            self.inv~ert(false)
+        }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("invert", got.matchstr);
+}
+
+#[test]
+fn ignores_impl_macro() {
+    let _lock = sync!();
+
+    let src = "
+    struct Foo;
+    impl!(Foo);
+
+    impl Foo {
+        fn tst(&self) -> bool {
+            self.ts~t()
+        }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("tst", got.matchstr);
+}
+
+#[test]
 fn closure_scope_find_outside() {
     let _lock = sync!();
 
