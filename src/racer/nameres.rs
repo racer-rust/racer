@@ -11,6 +11,7 @@ use cargo;
 use std::path::{Path, PathBuf};
 use std::{self, vec};
 use matchers::PendingImports;
+use regex::Regex;
 
 #[cfg(unix)]
 pub const PATH_SEP: char = ':';
@@ -369,6 +370,7 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: Src, searchstr: &
                         filepath: &Path, search_type: SearchType, session: &Session,
                         pending_imports: &PendingImports) -> vec::IntoIter<Match> {
     debug!("search_scope_headers for |{}| pt: {}", searchstr, scopestart);
+
     if let Some(stmtstart) = scopes::find_stmt_start(msrc, scopestart) {
         let preblock = &msrc[stmtstart..scopestart];
         debug!("search_scope_headers preblock is |{}|", preblock);
@@ -502,6 +504,10 @@ fn search_scope_headers(point: usize, scopestart: usize, msrc: Src, searchstr: &
                 }
 
             }
+        } else if let Some(mat) = try_to_match_closure_definition(searchstr, preblock, stmtstart, filepath) {
+            let mut out = Vec::new();
+            out.push(mat);
+            return out.into_iter();
         }
     }
 
@@ -916,8 +922,41 @@ pub fn search_scope(start: usize, point: usize, src: Src,
         }
     }
 
+    if let Some(mat) = try_to_match_closure_definition(searchstr, &scopesrc[0..], start, filepath) {
+        out.push(mat);
+
+        if let ExactMatch = search_type {
+            return out.into_iter();
+        }
+    }
+
     debug!("search_scope found matches {:?} {:?}", search_type, out);
     out.into_iter()
+}
+
+fn try_to_match_closure_definition(searchstr: &str, scope_src: &str, scope_src_pos: usize, filepath: &Path) -> Option<Match> {
+    if searchstr.is_empty() {
+        return None;
+    }
+
+    if let Some(cap) = Regex::new(format!(r"(?:\|)(?:(?s).*,[^a-zA-Z0-9]*|[^a-zA-Z0-9]*)?(?P<definition>{})(?:[^a-zA-Z0-9\|]+[^\|]*)?(?:\|)",
+                                          searchstr).as_str()).unwrap().captures(scope_src) {
+        let def = cap.name("definition").unwrap();
+        Some(Match {
+            matchstr: searchstr.to_owned(),
+            filepath: filepath.to_path_buf(),
+            point: def.start() + scope_src_pos,
+            coords: None,
+            local: true,
+            mtype: FnArg,
+            contextstr: cap.get(0).unwrap().as_str().to_owned(),
+            generic_args: Vec::new(),
+            generic_types: Vec::new(),
+            docs: String::new(),
+        })
+    } else {
+        None
+    }
 }
 
 fn run_matchers_on_blob(src: Src, start: usize, end: usize, searchstr: &str,

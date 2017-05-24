@@ -7,6 +7,7 @@ use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 use util::char_at;
+use regex::Regex;
 
 fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<usize> where A: Iterator<Item=&'a u8> {
     let mut levels = 0u32;
@@ -25,10 +26,36 @@ pub fn find_closing_paren(src: &str, pos: usize) -> usize {
     .map_or(src.len(), |count| pos + count)
 }
 
+pub fn find_closure_scope_start(src: Src, point: usize, parentheses_open_pos: usize) -> Option<usize> {
+    let masked_src = mask_comments(src.from(point));
+
+    let closing_paren_pos = find_closing_paren(masked_src.as_str(), 0) + point;
+
+    let src_between_parent = mask_comments(src.from_to(parentheses_open_pos, closing_paren_pos));
+
+    if Regex::new(r"\|[^\|]+\|").unwrap().find(src_between_parent.as_str()).is_some() {
+        Some(parentheses_open_pos)
+    } else {
+        None
+    }
+}
+
 pub fn scope_start(src: Src, point: usize) -> usize {
     let masked_src = mask_comments(src.to(point));
-    find_close(masked_src.as_bytes().iter().rev(), b'}', b'{', 0)
-    .map_or(0, |count| point - count)
+
+    let curly_parent_open_pos = find_close(masked_src.as_bytes().iter().rev(), b'}', b'{', 0)
+        .map_or(0, |count| point - count);
+
+    let parent_open_pos = find_close(masked_src.as_bytes().iter().rev(), b')', b'(', 0)
+        .map_or(0, |count| point - count);
+
+    if curly_parent_open_pos > parent_open_pos {
+        curly_parent_open_pos
+    } else if let Some(scope_pos) = find_closure_scope_start(src, point, parent_open_pos) {
+        scope_pos
+    } else {
+        curly_parent_open_pos
+    }
 }
 
 pub fn find_stmt_start(msrc: Src, point: usize) -> Option<usize> {
