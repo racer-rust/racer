@@ -634,6 +634,13 @@ fn find_type_match_including_generics(fieldtype: &core::Ty,
     assert_eq!(&structm.filepath, filepath);
     let fieldtypepath = match *fieldtype {
         Ty::PathSearch(ref path, _) => path,
+        Ty::RefPtr(ref ty) => match *ty.as_ref() {
+            Ty::PathSearch(ref path, _) => path,
+            _ => {
+                debug!("EXPECTING A PATH!! Cannot handle other types yet. {:?}", fieldtype);
+                return None
+            }
+        },
         _ => {
             debug!("EXPECTING A PATH!! Cannot handle other types yet. {:?}", fieldtype);
             return None
