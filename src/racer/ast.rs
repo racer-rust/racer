@@ -565,6 +565,26 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
                 self.result = Some(Ty::Unsupported);
             }
 
+            ExprKind::TupField(ref subexpression, ref spanned_index) => {
+                let fieldnum = spanned_index.node;
+                debug!("tupfield {:?}", fieldnum);
+                self.visit_expr(subexpression);
+                self.result = self.result.as_ref().and_then(|ty| {
+                    match *ty {
+                        Ty::Match(ref structm) => {
+                            typeinf::get_tuplestruct_field_type(fieldnum, structm, &self.session)
+                                .and_then(|fieldtypepath|
+                                    find_type_match_including_generics(&fieldtypepath, 
+                                                                       &structm.filepath, 
+                                                                       structm.point, 
+                                                                       structm, 
+                                                                       self.session))
+                        }
+                        _ => None
+                    }
+                });
+            }
+
             _ => {
                 debug!("- Could not match expr node type: {:?}",expr.node);
             }

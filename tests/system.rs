@@ -1881,6 +1881,25 @@ fn finds_field_type() {
 }
 
 #[test]
+fn finds_tuple_struct_field_type() {
+    let _lock = sync!();
+
+    let src = "
+    pub struct Blah(Foo);
+
+    pub struct Foo {
+        bar: usize,
+    }
+
+    let f = Blah(Foo { bar: 3 });
+    f.0.b~ar
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("bar", got.matchstr);
+}
+
+#[test]
 fn finds_a_generic_retval_from_a_function() {
     let _lock = sync!();
 
