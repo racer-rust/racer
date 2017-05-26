@@ -679,7 +679,7 @@ fn completes_iter_variable_methods() {
         let it = St {
             text: StItem { field: 22 },
             used: false
-        }
+        };
 
         for item in it {
             item.fie~
