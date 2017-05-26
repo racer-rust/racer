@@ -66,6 +66,32 @@ pub fn find_stmt_start(msrc: Src, point: usize) -> Option<usize> {
         .map(|(start, _)| scopestart + start)
 }
 
+/// Finds the start of a `let` statement; includes handling of struct pattern matches in the
+/// statement.
+pub fn find_let_start(msrc: Src, point: usize) -> Option<usize> {
+    let mut scopestart = scope_start(msrc, point);
+    let mut let_start = None;
+
+    // To avoid infinite loops, we cap the number of times we'll 
+    // expand the search in an attempt to find statements.
+    for step in 1..6 {
+        let_start = msrc.from(scopestart).iter_stmts()
+            .find(|&(_, end)| scopestart + end > point);
+
+        if let_start.is_some() {
+            break;
+        } else {
+            debug!("find_let_start failed to find start on attempt {}: Restarting search from {} ({:?})",
+                step,
+                scopestart - 1,
+                msrc.src.point_to_coords(scopestart - 1));
+            scopestart = scope_start(msrc, scopestart - 1);
+        }
+    }
+
+    let_start.map(|(start, _)| scopestart + start)
+}
+
 pub fn get_local_module_path(msrc: Src, point: usize) -> Vec<String> {
     let mut v = Vec::new();
     get_local_module_path_(msrc, point, &mut v);

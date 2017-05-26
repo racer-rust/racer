@@ -137,7 +137,7 @@ fn get_type_of_fnarg(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty
 
 fn get_type_of_let_expr(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty> {
     // ASSUMPTION: this is being called on a let decl
-    let point = scopes::find_stmt_start(msrc, m.point).unwrap();
+    let point = scopes::find_let_start(msrc, m.point).unwrap();
     let src = msrc.from(point);
 
     if let Some((start, end)) = src.iter_stmts().next() {

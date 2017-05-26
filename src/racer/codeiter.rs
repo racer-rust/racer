@@ -67,10 +67,10 @@ impl<'a,I> Iterator for StmtIndicesIter<'a,I>
                     b'(' => { parenlevel += 1; },
                     b')' => { parenlevel -= 1; },
                     b'{' => {
-                        // if we are top level and stmt is not a 'use' then
+                        // if we are top level and stmt is not a 'use' or 'let' then
                         // closebrace finishes the stmt
                         if bracelevel == 0 && parenlevel == 0
-                            && !is_a_use_stmt(src_bytes, start, pos) {
+                            && !(is_a_use_stmt(src_bytes, start, pos) || is_a_let_stmt(src_bytes, start, pos)) {
                             enddelim = b'}';
                         }
                         bracelevel += 1;
@@ -114,6 +114,11 @@ fn is_a_use_stmt(src_bytes: &[u8], start: usize, pos: usize) -> bool {
      whitespace.contains(&src_bytes[start+3])) ||
     (pos > 7 && &src_bytes[start..(start+7)] == b"pub use" &&
      whitespace.contains(&src_bytes[start+7]))
+}
+
+fn is_a_let_stmt(src_bytes: &[u8], start: usize, pos: usize) -> bool {
+    let whitespace = b" {\t\r\n";
+    pos > 3 && &src_bytes[start..start+3] == b"let" && whitespace.contains(&src_bytes[start+3])
 }
 
 impl<'a, I> StmtIndicesIter<'a,I>
