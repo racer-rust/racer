@@ -255,6 +255,32 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
                 None
             }
         }
+        PatKind::Struct(ref path, ref children, _) => {
+            let m = resolve_ast_path(path, &scope.filepath, scope.point, session);
+            let contextty = path_to_match(ty.clone(), session);
+            if let Some(m) = m {
+                let mut res = None;
+
+                for child in children {
+                    if point_is_in_span(point as u32, &child.span) {
+                        res = typeinf::get_struct_field_type(&child.node.ident.name.as_str(), &m, session)
+                            .and_then(|ty|
+                                if let Some(Ty::Match(ref contextmatch)) = contextty {
+                                    path_to_match_including_generics(ty, contextmatch, session)
+                                } else {
+                                    path_to_match(ty, session)
+                                })
+                            .and_then(|ty| destructure_pattern_to_ty(&child.node.pat, point, &ty, scope, session));
+
+                        break;
+                    }
+                }
+
+                res
+            } else {
+                None
+            }
+        }
         _ => {
             debug!("Could not destructure pattern {:?}", pat);
             None
