@@ -78,15 +78,19 @@ pub fn find_let_start(msrc: Src, point: usize) -> Option<usize> {
         let_start = msrc.from(scopestart).iter_stmts()
             .find(|&(_, end)| scopestart + end > point);
 
-        if let_start.is_some() {
-            break;
-        } else {
-            debug!("find_let_start failed to find start on attempt {}: Restarting search from {} ({:?})",
-                step,
-                scopestart - 1,
-                msrc.src.point_to_coords(scopestart - 1));
-            scopestart = scope_start(msrc, scopestart - 1);
+        if let Some((ref start, ref end)) = let_start {
+            // Check if we've actually reached the start of the "let" stmt.
+            let stmt = &msrc.src.code[(scopestart+start)..(scopestart+end)];
+            if stmt.starts_with("let") {
+                break;
+            }
         }
+        
+        debug!("find_let_start failed to find start on attempt {}: Restarting search from {} ({:?})",
+            step,
+            scopestart - 1,
+            msrc.src.point_to_coords(scopestart - 1));
+        scopestart = scope_start(msrc, scopestart - 1);
     }
 
     let_start.map(|(start, _)| scopestart + start)

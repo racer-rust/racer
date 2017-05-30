@@ -2014,6 +2014,22 @@ fn finds_type_of_tuple_member_via_let_expr() {
 }
 
 #[test]
+fn finds_type_of_struct_member_via_let_expr() {
+    let _lock = sync!();
+
+    let src = "
+    pub struct Blah { subfield: uint }
+    pub struct Foo { field: Blah }
+
+    let Foo { ref field } = Foo { field: Blah { subfield: 1 }};
+    field.subfi~eld
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("subfield", got.matchstr);
+}
+
+#[test]
 fn finds_type_of_tuple_member_via_fn_retval() {
     let _lock = sync!();
 
