@@ -2400,6 +2400,26 @@ fn completes_methods_on_deref_type() {
 }
 
 #[test]
+fn finds_type_of_struct_field_reference() {
+    let _lock = sync!();
+
+    let src = "
+    struct Dolor { sit: u8 }
+
+    struct Lorem<'a> { ipsum: &'a Dolor }
+
+    impl<'a> Lorem<'a> {
+        fn sit(&self) {
+            let _ = self.ipsum.s~it;
+        }
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("sit", got.matchstr);
+}
+
+#[test]
 fn finds_self_param_when_fn_has_generic_closure_arg() {
     let _lock = sync!();
 
