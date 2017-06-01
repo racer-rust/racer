@@ -611,6 +611,12 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
                 });
             }
 
+            ExprKind::Try(ref expr) => {                
+                debug!("try expr");
+                self.visit_expr(&expr);
+                debug!("{:?}", self.result);
+            }
+
             _ => {
                 debug!("- Could not match expr node type: {:?}",expr.node);
             }
