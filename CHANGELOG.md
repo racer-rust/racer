@@ -4,6 +4,19 @@ Change Log
 All notable changes to this project will be documented in this file. This
 project adheres to [Semantic Versioning](http://semver.org/).
 
+## 2.0.8
+
+- Fix bug finding definitions where impl contains bang #717
+- Find definition for closures #697
+- Resolve types for tuple struct fields #722
+- Resolve types for let patterns #724
+- Fix completions for reference fields #723
+
+## 2.0.7
+
+- Fix panic with macros called `impl*` #701
+- Relax semver specs
+
 ## 2.0.6
 
 - resolve Self (e.g. in-impl function calls like Self::myfunction())
