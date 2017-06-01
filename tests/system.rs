@@ -679,7 +679,7 @@ fn completes_iter_variable_methods() {
         let it = St {
             text: StItem { field: 22 },
             used: false
-        }
+        };
 
         for item in it {
             item.fie~
@@ -2026,6 +2026,22 @@ fn finds_type_of_tuple_member_via_let_expr() {
     pub struct Blah { subfield: uint }
     let (a, b) = (3, Blah{subfield:3});
     b.subfi~eld
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("subfield", got.matchstr);
+}
+
+#[test]
+fn finds_type_of_struct_member_via_let_expr() {
+    let _lock = sync!();
+
+    let src = "
+    pub struct Blah { subfield: uint }
+    pub struct Foo { field: Blah }
+
+    let Foo { ref field } = Foo { field: Blah { subfield: 1 }};
+    field.subfi~eld
     ";
 
     let got = get_definition(src, None);
