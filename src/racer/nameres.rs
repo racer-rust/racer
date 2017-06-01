@@ -240,10 +240,15 @@ pub fn search_for_impls(pos: usize, searchstr: &str, filepath: &Path, local: boo
     for (start, end) in src.iter_stmts() {
         let blob = &src[start..end];
 
-        if blob.starts_with("impl")
-            && !blob.contains('!') {
+        if blob.starts_with("impl") {
             blob.find('{').map(|n| {
-                let mut decl = blob[..n+1].to_owned();
+                let ref decl = blob[..n+1];
+                if decl.contains('!') {
+                    // Guard against macros
+                    debug!("impl was probably a macro: {} {}", filepath.display(), start);
+                    return;
+                }
+                let mut decl = decl.to_owned();
                 decl.push_str("}");
                 if txt_matches(ExactMatch, searchstr, &decl) {
                     debug!("impl decl {}", decl);
@@ -318,10 +323,15 @@ pub fn search_for_generic_impls(pos: usize, searchstr: &str, contextm: &Match, f
     for (start, end) in src.iter_stmts() {
         let blob = &src[start..end];
 
-        if blob.starts_with("impl")
-            && !blob.contains('!') { // Guard against macros
+        if blob.starts_with("impl") {
             blob.find('{').map(|n| {
-                let mut decl = blob[..n+1].to_owned();
+                let ref decl = blob[..n+1];
+                if decl.contains('!') {
+                    // Guard against macros
+                    debug!("impl was probably a macro: {} {}", filepath.display(), start);
+                    return;
+                }
+                let mut decl = decl.to_owned();
                 decl.push_str("}");
                 let generics = ast::parse_generics(decl.clone());
                 let implres = ast::parse_impl(decl.clone());
