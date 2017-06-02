@@ -12,9 +12,13 @@
 
 ### With `cargo install`
 
-This method requires Rust 1.5. Simply run:
+This method requires Rust 1.5. To install from crates.io and get the latest stable version, simply run:
 
 ```cargo install racer```
+
+Or to install from github and get the bleeding edge run
+
+```cargo install --git https://github.com/phildawes/racer.git```
 
 As mentioned in the command output, don't forget to add the installation directory to your `PATH`.
 
