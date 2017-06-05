@@ -8,7 +8,7 @@ use std::rc::Rc;
 
 use syntex_errors::Handler;
 use syntex_errors::emitter::ColorConfig;
-use syntex_syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, PatKind, TyKind, TyParamBound};
+use syntex_syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, LitKind, PatKind, TyKind, TyParamBound};
 use syntex_syntax::codemap;
 use syntex_syntax::parse::parser::Parser;
 use syntex_syntax::parse::{lexer, ParseSess};
