@@ -3046,3 +3046,16 @@ fn closure_bracket_scope_nested_match_outside() {
     assert_eq!("x", got.matchstr);
     assert_eq!("| x: i32 |", got.contextstr);
 }
+
+#[test]
+fn literal_string_method() {
+    let _lock = sync!();
+    let src = r#"
+        fn check() {
+            "hello".st~arts_with("he");
+        }
+    "#;
+
+    let got = get_definition(src, None);
+    assert_eq!("starts_with", got.matchstr);
+}

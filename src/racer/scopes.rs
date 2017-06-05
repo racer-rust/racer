@@ -208,6 +208,7 @@ pub fn get_start_of_search_expr(src: &str, point: usize) -> usize {
 
     enum State {
         Levels(usize),
+        StringLiteral,
         StartsWithDot,
         MustEndsWithDot(usize),
         StartsWithCol(usize),
@@ -228,6 +229,10 @@ pub fn get_start_of_search_expr(src: &str, point: usize) -> usize {
             (b'.', State::MustEndsWithDot(_)) =>  State::None,
             (b':', State::MustEndsWithDot(index)) =>  State::StartsWithCol(index),
             (b':', State::StartsWithCol(_)) =>  State::None,
+            (b'"', State::None) |
+            (b'"', State::StartsWithDot) => State::StringLiteral,
+            (b'"', State::StringLiteral) => State::None,
+            (_ , State::StringLiteral) => State::StringLiteral,
             ( _ , State::StartsWithCol(index)) => State::Result(index) ,
             ( _ , State::None) if char_at(src, i).is_whitespace() =>  State::MustEndsWithDot(i+1),
             ( _ , State::MustEndsWithDot(index)) if char_at(src, i).is_whitespace() => State::MustEndsWithDot(index),
