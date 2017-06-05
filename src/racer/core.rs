@@ -317,7 +317,7 @@ pub struct PathSegment {
 impl From<String> for PathSegment {
     fn from(name: String) -> Self {
         PathSegment {
-            name,
+            name: name,
             types: Vec::new(),
         }
     }
