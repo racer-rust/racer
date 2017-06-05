@@ -66,6 +66,12 @@ pub enum CompletionType {
     Path
 }
 
+/// A byte offset in a file.
+pub type Point = usize;
+
+/// A range of text between two positions.
+pub type SourceRange = (Point, Point);
+
 /// Line and Column position in a file
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
 pub struct Coordinate {
@@ -81,7 +87,7 @@ pub struct Coordinate {
 pub struct Match {
     pub matchstr: String,
     pub filepath: path::PathBuf,
-    pub point: usize,
+    pub point: Point,
     pub coords: Option<Coordinate>,
     pub local: bool,
     pub mtype: MatchType,
@@ -95,14 +101,14 @@ pub struct Match {
 #[derive(Debug, Clone, Copy)]
 pub enum Location {
     /// A byte offset in the file
-    Point(usize),
+    Point(Point),
 
     /// 1-based line and column indices.
     Coords(Coordinate),
 }
 
-impl From<usize> for Location {
-    fn from(val: usize) -> Location {
+impl From<Point> for Location {
+    fn from(val: Point) -> Location {
         Location::Point(val)
     }
 }
@@ -115,11 +121,11 @@ impl From<Coordinate> for Location {
 
 /// Internal cursor methods
 pub trait LocationExt {
-    fn to_point(&self, src: &IndexedSource) -> Option<usize>;
+    fn to_point(&self, src: &IndexedSource) -> Option<Point>;
 }
 
 impl LocationExt for Location {
-    fn to_point(&self, src: &IndexedSource) -> Option<usize> {
+    fn to_point(&self, src: &IndexedSource) -> Option<Point> {
         match *self {
             Location::Point(val) => Some(val),
             Location::Coords(ref coords) => {
@@ -147,7 +153,7 @@ impl fmt::Debug for Match {
 #[derive(Clone)]
 pub struct Scope {
     pub filepath: path::PathBuf,
-    pub point: usize
+    pub point: Point
 }
 
 impl Scope {
@@ -319,7 +325,7 @@ pub struct PathSegment {
 pub struct PathSearch {
     pub path: Path,
     pub filepath: path::PathBuf,
-    pub point: usize
+    pub point: Point
 }
 
 impl fmt::Debug for PathSearch {
@@ -333,15 +339,15 @@ impl fmt::Debug for PathSearch {
 
 pub struct IndexedSource {
     pub code: String,
-    pub idx: Vec<(usize, usize)>,
-    pub lines: RefCell<Vec<(usize, usize)>>
+    pub idx: Vec<SourceRange>,
+    pub lines: RefCell<Vec<SourceRange>>
 }
 
 #[derive(Clone,Copy)]
 pub struct Src<'c> {
     pub src: &'c IndexedSource,
-    pub from: usize,
-    pub to: usize
+    pub from: Point,
+    pub to: Point
 }
 
 impl IndexedSource {
@@ -366,7 +372,7 @@ impl IndexedSource {
         self.from(0)
     }
 
-    pub fn from(&self, from: usize) -> Src {
+    pub fn from(&self, from: Point) -> Src {
         Src {
             src: self,
             from: from,
@@ -386,7 +392,7 @@ impl IndexedSource {
         }
     }
 
-    pub fn coords_to_point(&self, coords: &Coordinate) -> Option<usize> {
+    pub fn coords_to_point(&self, coords: &Coordinate) -> Option<Point> {
         self.cache_lineoffsets();
         self.lines
             .borrow()
@@ -400,7 +406,7 @@ impl IndexedSource {
             })
     }
 
-    pub fn point_to_coords(&self, point: usize) -> Option<Coordinate> {
+    pub fn point_to_coords(&self, point: Point) -> Option<Coordinate> {
         self.cache_lineoffsets();
         for (n, &(i, l)) in self.lines.borrow().iter().enumerate() {
             if i <= point && (point - i) <= l {
@@ -476,7 +482,7 @@ impl<'c> Src<'c> {
         StmtIndicesIter::from_parts(self, self.chunk_indices())
     }
 
-    pub fn from(&self, from: usize) -> Src<'c> {
+    pub fn from(&self, from: Point) -> Src<'c> {
         Src {
             src: self.src,
             from: self.from + from,
@@ -484,7 +490,7 @@ impl<'c> Src<'c> {
         }
     }
 
-    pub fn to(&self, to: usize) -> Src<'c> {
+    pub fn to(&self, to: Point) -> Src<'c> {
         Src {
             src: self.src,
             from: self.from,
@@ -492,7 +498,7 @@ impl<'c> Src<'c> {
         }
     }
 
-    pub fn from_to(&self, from: usize, to: usize) -> Src<'c> {
+    pub fn from_to(&self, from: Point, to: Point) -> Src<'c> {
         Src {
             src: self.src,
             from: self.from + from,
@@ -509,13 +515,13 @@ impl<'c> Src<'c> {
 // N.b. src can be a substr, so iteration skips chunks that aren't part of the substr
 pub struct CodeChunkIter<'c> {
     src: Src<'c>,
-    iter: slice::Iter<'c, (usize, usize)>
+    iter: slice::Iter<'c, SourceRange>
 }
 
 impl<'c> Iterator for CodeChunkIter<'c> {
-    type Item = (usize, usize);
+    type Item = SourceRange;
 
-    fn next(&mut self) -> Option<(usize, usize)> {
+    fn next(&mut self) -> Option<SourceRange> {
         loop {
             match self.iter.next() {
                 None => return None,

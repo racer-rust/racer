@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::thread;
 
-use racer::{complete_from_file, find_definition, Match, MatchType, Coordinate};
+use racer::{complete_from_file, find_definition, Match, MatchType, Coordinate, Point};
 
 lazy_static! {
     static ref SYNC: Mutex<u8> = { Mutex::new(0) };
@@ -149,7 +149,7 @@ impl Drop for TmpDir {
     }
 }
 
-fn get_pos_and_source(src: &str) -> (usize, String) {
+fn get_pos_and_source(src: &str) -> (Point, String) {
     let point = src.find('~').unwrap();
     (point, src.replace('~', ""))
 }

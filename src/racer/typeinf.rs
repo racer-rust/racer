@@ -1,6 +1,6 @@
 // Type inference
 
-use core::{Match, Src, Scope, Session, SessionExt};
+use core::{Match, Src, Scope, Session, SessionExt, Point};
 use nameres::resolve_path_with_str;
 use core::Namespace;
 use core;
@@ -11,7 +11,7 @@ use core::SearchType::ExactMatch;
 use util::txt_matches;
 use std::path::Path;
 
-fn find_start_of_function_body(src: &str) -> usize {
+fn find_start_of_function_body(src: &str) -> Point {
     // TODO: this should ignore anything inside parens so as to skip the arg list
     src.find('{').unwrap()
 }
@@ -82,7 +82,7 @@ fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<core:
     get_type_of_self(m.point, &m.filepath, m.local, msrc, session)
 }
 
-pub fn get_type_of_self(point: usize, filepath: &Path, local: bool, msrc: Src, session: &Session) -> Option<core::Ty> {
+pub fn get_type_of_self(point: Point, filepath: &Path, local: bool, msrc: Src, session: &Session) -> Option<core::Ty> {
     scopes::find_impl_start(msrc, point, 0).and_then(|start| {
         let decl = generate_skeleton_for_parsing(&msrc.from(start));
         debug!("get_type_of_self_arg impl skeleton |{}|", decl);
