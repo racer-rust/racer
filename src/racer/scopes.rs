@@ -207,7 +207,9 @@ pub fn get_line(src: &str, point: usize) -> usize {
 pub fn get_start_of_search_expr(src: &str, point: usize) -> usize {
 
     enum State {
+        /// In parentheses; the value inside identifies depth.
         Levels(usize),
+        /// In a string
         StringLiteral,
         StartsWithDot,
         MustEndsWithDot(usize),
