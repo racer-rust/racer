@@ -2908,6 +2908,61 @@ fn ignores_impl_macro() {
 }
 
 #[test]
+fn try_operator() {
+    let _lock = sync!();
+
+    let src = "
+        pub struct Foo(u16);
+
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct OddError;
+
+        fn be_even(val: Foo) -> Result<Foo, OddError> {
+            if val.0 % 2 == 1 {
+                Err(OddError)
+            } else {
+                Ok(val)
+            }
+        }
+
+        pub fn half(val: Foo) -> Result<Foo, OddError> {
+            Ok(Foo(be_even(val)?.~0 / 2))
+        }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("0", got.matchstr);
+}
+
+#[test]
+fn let_try() {
+    let _lock = sync!();
+
+    let src = "
+    pub struct Foo(u16);
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct OddError;
+
+    fn be_even(val: Foo) -> Result<Foo, OddError> {
+        if val.0 % 2 == 1 {
+            Err(OddError)
+        } else {
+            Ok(val)
+        }
+    }
+
+    pub fn half(val: Foo) -> Result<Foo, OddError> {
+        let foo = be_even(val)?;
+        Ok(Foo(foo.~0 / 2))
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("0", got.matchstr);
+}
+
+#[test]
 fn closure_scope_find_outside() {
     let _lock = sync!();
 

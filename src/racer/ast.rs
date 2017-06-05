@@ -614,7 +614,23 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
             ExprKind::Try(ref expr) => {                
                 debug!("try expr");
                 self.visit_expr(&expr);
-                debug!("{:?}", self.result);
+                self.result = if let Some(&Ty::Match(ref m)) = self.result.as_ref() {
+                    // HACK: Try to break open the result and find it's "Ok" type.
+                    // Once the 'Try' operator trait stabilizes, it'd be better to
+                    // find the type through the trait.
+                    if m.matchstr == "Result" && m.generic_types.len() == 2 {
+                        let ok_var = &m.generic_types[0];
+                        find_type_match(&ok_var.path, 
+                                        &ok_var.filepath, 
+                                        ok_var.point, 
+                                        self.session)
+                    } else {
+                        debug!("Unable to desugar Try expression; type was {}", m.matchstr);
+                        None
+                    }
+                } else {
+                    None
+                };
             }
 
             _ => {
