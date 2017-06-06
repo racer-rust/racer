@@ -9,6 +9,8 @@ cache: cargo
 before_script:
   - pip install 'travis-cargo<0.2' --user
   - export PATH=$HOME/.local/bin:$PATH
+  - rustup component add rust-src
+  - export RUST_SRC_PATH=`rustc --print sysroot`/lib/rustlib/src/rust/src
 
 script:
   - travis-cargo --skip nightly-2016-11-25 test
