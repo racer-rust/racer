@@ -59,6 +59,10 @@ fn complete_by_line_coords(cfg: Config,
     interface.emit(Message::End);
 }
 
+fn get_type(cfg: Config) {
+    run_get_type(&cfg);
+}
+
 #[derive(Debug)]
 enum CompletePrinter {
     Normal,
@@ -119,6 +123,18 @@ fn run_the_complete_fn(cfg: &Config, print_type: CompletePrinter) {
             };
         }
     }
+}
+
+fn run_get_type(cfg: &Config) {
+    let fn_path = cfg.fn_name.as_ref().unwrap();
+    let substitute_file = cfg.substitute_file.as_ref().unwrap_or(fn_path);
+
+    let cache = FileCache::default();
+    let session = Session::new(&cache);
+
+    load_query_file(&fn_path, &substitute_file, &session);
+    racer::get_type(&fn_path, cfg.coords(), &session).map(|m| match_fn(m, cfg.interface));
+    cfg.interface.emit(Message::End);
 }
 
 /// Completes a fully qualified name specified on command line
@@ -380,6 +396,19 @@ fn build_cli<'a, 'b>() -> App<'a, 'b> {
                 .help("An optional substitute file"))
             .arg(Arg::with_name("linenum")
                 .help("The line number at which to find the match")))
+        .subcommand(SubCommand::with_name("get-type")
+            .about("finds the type of the specified value")
+            .usage("racer get-type <linenum> <charnum> <path>")
+            .setting(AppSettings::ArgRequiredElseHelp)
+            .arg(Arg::with_name("linenum")
+                .help("The line number at which to find the match")
+                .required(true))
+            .arg(Arg::with_name("charnum")
+                .help("The char number at which to find the match")
+                .required(true))
+            .arg(Arg::with_name("path")
+                .help("The path to search for name to match")
+                .required(true)))
         .after_help("For more information about a specific command try 'racer <command> --help'")
 }
 
@@ -409,6 +438,7 @@ fn run(m: ArgMatches, interface: Interface) {
             "complete"              => complete(cfg, Normal),
             "complete-with-snippet" => complete(cfg, WithSnippets),
             "find-definition"       => find_definition(cfg),
+            "get-type"              => get_type(cfg),
             _                       => unreachable!()
         }
     }
