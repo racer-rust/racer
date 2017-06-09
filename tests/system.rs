@@ -1659,6 +1659,31 @@ fn follows_arg_to_enum_method() {
 }
 
 #[test]
+fn finds_enum_static_method() {
+    let _lock = sync!();
+    let src = "
+    enum Foo {
+        Bar,
+        Baz
+    }
+
+    impl Foo {
+        pub fn make_baz() -> Self {
+            Foo::Baz
+        }
+    }
+
+    fn myfn() -> Foo {
+        Foo::ma~ke_baz()
+    }
+    ";
+
+    let got = get_only_completion(src, None);
+    assert_eq!("make_baz", got.matchstr);
+    assert_eq!(MatchType::Function, got.mtype);
+}
+
+#[test]
 fn follows_let_method_call() {
     let _lock = sync!();
 
