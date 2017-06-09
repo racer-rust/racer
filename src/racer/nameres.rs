@@ -956,11 +956,13 @@ fn try_to_match_closure_definition(searchstr: &str, scope_src: &str, scope_src_p
     /// prevents bad matches on type annotations.
     ///
     /// TODO: properly look for closures by requiring it not be after an expression.
-    let closure_decl = Regex::new(r"\|[^;]*?\|").unwrap();
+    lazy_static! {
+        static ref CLOSURE_DECL: Regex = Regex::new(r"\|[^;]*?\|").unwrap();
+    }
 
     trace!("Closure definition match is looking for `{}` in {} characters", searchstr, scope_src.len());
 
-    if let Some(cap) = closure_decl.captures(scope_src) {
+    if let Some(cap) = CLOSURE_DECL.captures(scope_src) {
         /// This regex looks for the passed-in ident surrounded by non-ident characters
         /// on the left side of a colon (if one is present). It takes as input the declaration
         /// of a closure's arguments.
