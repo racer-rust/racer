@@ -21,8 +21,8 @@ pub const PATH_SEP: char = ';';
 fn search_struct_fields(searchstr: &str, structmatch: &Match,
                         search_type: SearchType, session: &Session) -> vec::IntoIter<Match> {
     let src = session.load_file(&structmatch.filepath);
-    let opoint = scopes::find_stmt_start(src.as_src(), structmatch.point);
-    let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
+    let opoint = scopes::expect_stmt_start(src.as_src(), structmatch.point);
+    let structsrc = scopes::end_of_next_scope(&src[opoint..]);
 
     let fields = ast::parse_struct_fields(structsrc.to_owned(),
                                           core::Scope::from_match(structmatch));
@@ -38,7 +38,7 @@ fn search_struct_fields(searchstr: &str, structmatch: &Match,
             };
             out.push(Match { matchstr: field,
                                 filepath: structmatch.filepath.clone(),
-                                point: fpos + opoint.unwrap(),
+                                point: fpos + opoint,
                                 coords: None,
                                 local: structmatch.local,
                                 mtype: StructField,

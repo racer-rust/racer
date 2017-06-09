@@ -66,6 +66,11 @@ pub fn find_stmt_start(msrc: Src, point: usize) -> Option<usize> {
         .map(|(start, _)| scopestart + start)
 }
 
+/// Finds a statement start or panics.
+pub fn expect_stmt_start(msrc: Src, point: usize) -> usize {
+    find_stmt_start(msrc, point).expect("Statement has a beginning")
+}
+
 /// Finds the start of a `let` statement; includes handling of struct pattern matches in the
 /// statement.
 pub fn find_let_start(msrc: Src, point: usize) -> Option<usize> {
