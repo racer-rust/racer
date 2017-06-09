@@ -13,7 +13,7 @@ use std::path::Path;
 
 fn find_start_of_function_body(src: &str) -> usize {
     // TODO: this should ignore anything inside parens so as to skip the arg list
-    src.find('{').unwrap()
+    src.find('{').expect("Function body should have a beginning")
 }
 
 // Removes the body of the statement (anything in the braces {...}), leaving just
@@ -21,7 +21,7 @@ fn find_start_of_function_body(src: &str) -> usize {
 // TODO: this should skip parens (e.g. function arguments)
 pub fn generate_skeleton_for_parsing(src: &str) -> String {
     let mut s = String::new();
-    let n = src.find('{').unwrap();
+    let n = find_start_of_function_body(src);
     s.push_str(&src[..n+1]);
     s.push_str("};");
     s
@@ -119,7 +119,7 @@ fn get_type_of_fnarg(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty
         return get_type_of_self_arg(m, msrc, session);
     }
 
-    let stmtstart = scopes::find_stmt_start(msrc, m.point).unwrap();
+    let stmtstart = scopes::expect_stmt_start(msrc, m.point);
     let block = msrc.from(stmtstart);
     if let Some((start, end)) = block.iter_stmts().next() {
         let blob = &msrc[(stmtstart+start)..(stmtstart+end)];
@@ -137,7 +137,7 @@ fn get_type_of_fnarg(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty
 
 fn get_type_of_let_expr(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty> {
     // ASSUMPTION: this is being called on a let decl
-    let point = scopes::find_let_start(msrc, m.point).unwrap();
+    let point = scopes::find_let_start(msrc, m.point).expect("`let` should have a beginning");
     let src = msrc.from(point);
 
     if let Some((start, end)) = src.iter_stmts().next() {
@@ -154,9 +154,9 @@ fn get_type_of_let_expr(m: &Match, msrc: Src, session: &Session) -> Option<core:
 
 fn get_type_of_let_block_expr(m: &Match, msrc: Src, session: &Session, prefix: &str) -> Option<core::Ty> {
     // ASSUMPTION: this is being called on an if let or while let decl
-    let stmtstart = scopes::find_stmt_start(msrc, m.point).unwrap();
+    let stmtstart = scopes::find_stmt_start(msrc, m.point).expect("`let` should have a beginning");
     let stmt = msrc.from(stmtstart);
-    let point = stmt.find(prefix).unwrap();
+    let point = stmt.find(prefix).expect("`prefix` should appear in statement");
     let src = core::new_source(generate_skeleton_for_parsing(&stmt[point..]));
 
     if let Some((start, end)) = src.as_src().iter_stmts().next() {
@@ -172,12 +172,12 @@ fn get_type_of_let_block_expr(m: &Match, msrc: Src, session: &Session, prefix: &
 }
 
 fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty> {
-    let stmtstart = scopes::find_stmt_start(msrc, m.point).unwrap();
+    let stmtstart = scopes::expect_stmt_start(msrc, m.point);
     let stmt = msrc.from(stmtstart);
-    let forpos = stmt.find("for ").unwrap();
-    let inpos = stmt.find(" in ").unwrap();
+    let forpos = stmt.find("for ").expect("`for` should appear in for .. in loop");
+    let inpos = stmt.find(" in ").expect("`in` should appear in for .. in loop");
     // XXX: this need not be the correct brace, see generate_skeleton_for_parsing
-    let bracepos = stmt.find('{').unwrap();
+    let bracepos = stmt.find('{').expect("for-loop should have an opening brace");
     let mut src = stmt[..forpos].to_owned();
     src.push_str("if let Some(");
     src.push_str(&stmt[forpos+4..inpos]);
@@ -213,8 +213,8 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match, session: &Ses
 
     let src = session.load_file(&structmatch.filepath);
 
-    let opoint = scopes::find_stmt_start(src.as_src(), structmatch.point);
-    let structsrc = scopes::end_of_next_scope(&src[opoint.unwrap()..]);
+    let opoint = scopes::expect_stmt_start(src.as_src(), structmatch.point);
+    let structsrc = scopes::end_of_next_scope(&src[opoint..]);
 
     let fields = ast::parse_struct_fields(structsrc.to_owned(), Scope::from_match(structmatch));
     for (field, _, ty) in fields.into_iter() {
@@ -232,12 +232,12 @@ pub fn get_tuplestruct_field_type(fieldnum: usize, structmatch: &Match, session:
         // decorate the enum variant src to make it look like a tuple struct
         let to = src[structmatch.point..].find('(')
             .map(|n| scopes::find_closing_paren(&src, structmatch.point + n+1))
-            .unwrap();
+            .expect("Tuple enum variant should have `(` in definition");
         "struct ".to_owned() + &src[structmatch.point..(to+1)] + ";"
     } else {
         assert!(structmatch.mtype == core::MatchType::Struct);
-        let opoint = scopes::find_stmt_start(src.as_src(), structmatch.point);
-        (*get_first_stmt(src.as_src().from(opoint.unwrap()))).to_owned()
+        let opoint = scopes::expect_stmt_start(src.as_src(), structmatch.point);
+        (*get_first_stmt(src.as_src().from(opoint))).to_owned()
     };
 
     debug!("get_tuplestruct_field_type structsrc=|{}|", structsrc);
@@ -315,15 +315,15 @@ pub fn get_type_from_match_arm(m: &Match, msrc: Src, session: &Session) -> Optio
 
 pub fn get_function_declaration(fnmatch: &Match, session: &Session) -> String {
     let src = session.load_file(&fnmatch.filepath);
-    let start = scopes::find_stmt_start(src.as_src(), fnmatch.point).unwrap();
+    let start = scopes::expect_stmt_start(src.as_src(), fnmatch.point);
     let def_end: &[_] = &['{', ';'];
-    let end = src[start..].find(def_end).unwrap();
+    let end = src[start..].find(def_end).expect("Definition should have an end (`{` or `;`)");
     src[start..end+start].to_owned()
 }
 
 pub fn get_return_type_of_function(fnmatch: &Match, contextm: &Match, session: &Session) -> Option<core::Ty> {
     let src = session.load_file(&fnmatch.filepath);
-    let point = scopes::find_stmt_start(src.as_src(), fnmatch.point).unwrap();
+    let point = scopes::expect_stmt_start(src.as_src(), fnmatch.point);
     let out = src[point..].find(|c| {c == '{' || c == ';'}).and_then(|n| {
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut decl = String::new();
