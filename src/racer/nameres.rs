@@ -1310,6 +1310,33 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: usize,
                             out.push(m);
                         }
                     });
+
+                    // TODO remove code duplication with the struct branch below. The two implementations are identical.
+
+                    for m_impl in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, true, session, pending_imports) {
+                        debug!("found impl!! {:?}", m_impl);
+                        let pathseg = &path.segments[len-1];
+                        let src = session.load_file(&m_impl.filepath);
+                        // find the opening brace and skip to it.
+                        src[m_impl.point..].find('{').map(|n| {
+                            let point = m_impl.point + n + 1;
+                            for m_impl in search_scope(point, point, src.as_src(), pathseg, &m_impl.filepath, search_type, m_impl.local, namespace, session, pending_imports) {
+                                out.push(m_impl);
+                            }
+                        });
+                        for m_gen in search_for_generic_impls(m_impl.point, &m_impl.matchstr, &m, &m_impl.filepath, session) {
+                            debug!("found generic impl!! {:?}", m_gen);
+                            let pathseg = &path.segments[len-1];
+                            let src = session.load_file(&m_gen.filepath);
+                            // find the opening brace and skip to it.
+                            src[m_gen.point..].find('{').map(|n| {
+                                let point = m_gen.point + n + 1;
+                                for m_gen in search_scope(point, point, src.as_src(), pathseg, &m_gen.filepath, search_type, m_gen.local, namespace, session, pending_imports) {
+                                    out.push(m_gen);
+                                }
+                            });
+                        }
+                    };
                 }
                 Struct => {
                     debug!("found a struct. Now need to look for impl");
