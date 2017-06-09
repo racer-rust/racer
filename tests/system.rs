@@ -2935,6 +2935,67 @@ fn try_operator() {
 }
 
 #[test]
+fn try_operator_struct() {
+    let _lock = sync!();
+    let src = "
+    struct Foo {
+        pub bar: String,
+        pub baz: bool,
+    }
+
+    struct LongError;
+
+    fn validate(s: String) -> Result<Foo, LongError> {
+        if s.chars().count() < 10 {
+            Ok(Foo { bar: s, baz: true })
+        } else {
+            Err(())
+        }
+    }
+
+    fn process(s: String) -> Result<bool, LongError> {
+        Ok(validate(s)?.b~az)
+    }
+    ";
+
+    let got = get_all_completions(src, None);
+    assert_eq!(2, got.len());
+    assert_eq!("bar", got[0].matchstr);
+    assert_eq!("baz", got[1].matchstr);
+}
+
+#[test]
+fn let_then_try_with_struct() {
+    let _lock = sync!();
+    let src = "
+    struct Foo {
+        pub bar: String,
+        pub baz: bool,
+    }
+
+    struct LongError;
+
+    fn validate(s: String) -> Result<Foo, LongError> {
+        if s.chars().count() < 10 {
+            Ok(Foo { bar: s, baz: true })
+        } else {
+            Err(())
+        }
+    }
+
+    fn process(s: String) -> Result<bool, LongError> {
+        let foo = validate(s);
+        Ok(foo?.b~az)
+    }
+    ";
+
+    let got = get_all_completions(src, None);
+    assert_eq!(2, got.len());
+    assert_eq!("bar", got[0].matchstr);
+    assert_eq!("baz", got[1].matchstr);
+}
+
+#[test]
 fn let_try() {
     let _lock = sync!();
 

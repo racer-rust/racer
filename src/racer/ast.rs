@@ -624,8 +624,14 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
                                         &ok_var.filepath, 
                                         ok_var.point, 
                                         self.session)
+                    } else if m.matchstr == "Result" && (m.generic_types.len() != m.generic_args.len()) {
+                        debug!("Unable to desugar Try expression; either `T` or `E` was `()`.");
+                        None
                     } else {
-                        debug!("Unable to desugar Try expression; type was {}", m.matchstr);
+                        debug!("Unable to desugar Try expression; type was {} with arity {} of {}", 
+                            m.matchstr, 
+                            m.generic_types.len(),
+                            m.generic_args.len());
                         None
                     }
                 } else {
