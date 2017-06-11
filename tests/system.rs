@@ -1167,6 +1167,33 @@ fn finds_external_fn_docs() {
 }
 
 #[test]
+fn keeps_newlines_in_external_mod_doc() {
+    let _lock = sync!();
+
+    // issue 683: do not remove newlines inside of mod-doc
+    let src1 = "// Copyright notice
+
+//! The mods multiline documentation
+//!
+//! with an empty line
+    ";
+    let src = "
+    mod external_mod;
+    use external_mod;
+
+    fn main() {
+        external_mod~
+    }
+    ";
+
+    let dir = TmpDir::new();
+    dir.write_file("external_mod.rs", src1);
+    let got = get_one_completion(src, Some(dir));
+    assert_eq!("external_mod", got.matchstr);
+    assert_eq!("The mods multiline documentation\n\nwith an empty line", got.docs);
+}
+
+#[test]
 fn issue_618() {
     let _lock = sync!();
 
