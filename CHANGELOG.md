@@ -7,7 +7,7 @@ project adheres to [Semantic Versioning](http://semver.org/).
 ## Unreleased
 - Find static methods on enums #737
 - Find methods on cooked string literals #728
-- Find doc comments on named and indexed struct fields
+- Find doc comments on named and indexed struct fields #739
 
 ## 2.0.8
 
