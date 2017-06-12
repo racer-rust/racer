@@ -173,7 +173,7 @@ fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
                                    contextstr: first_line(blob),
                                    generic_args: Vec::new(),
                                    generic_types: Vec::new(),
-                                   docs: String::new(),
+                                   docs: find_doc(msrc, blobstart),
                          });
                 if let ExactMatch = search_type {
                     break;
@@ -700,6 +700,9 @@ pub fn match_macro(msrc: &str, blobstart: usize, blobend: usize,
     }
 }
 
+/// Finds outer doc comments on an object.
+/// 
+/// TODO: Support desugared #[doc=""] attributes.
 pub fn find_doc(msrc: &str, match_point: usize) -> String {
     let blob = &msrc[0..match_point];
 

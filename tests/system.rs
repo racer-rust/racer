@@ -416,13 +416,15 @@ fn completes_local_scope_let() {
 
     let src = "
     fn main() {
+        /// An apple's size
         let apple = 35;
         let b = ap~
     }";
 
     let got = get_one_completion(src, None);
     assert_eq!("apple", got.matchstr);
-    assert_eq!(29, got.point);
+    assert_eq!(57, got.point);
+    assert_eq!("An apple's size", got.docs);
 }
 
 #[test]
@@ -440,6 +442,7 @@ fn completes_via_parent_scope_let() {
     let got = get_one_completion(src, None);
     assert_eq!("apple", got.matchstr);
     assert_eq!(33, got.point);
+    assert_eq!("", got.docs);
 }
 
 #[test]
