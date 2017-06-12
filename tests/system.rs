@@ -3227,3 +3227,18 @@ fn literal_string_method() {
     let got = get_definition(src, None);
     assert_eq!("starts_with", got.matchstr);
 }
+
+#[test]
+fn literal_string_completes() {
+    let _lock = sync!();
+    let src = r#"
+    fn in_let() {
+        let foo = "hello";
+        foo.end~s_with("lo");
+    }
+    "#;
+
+    let got = get_all_completions(src, None);
+    assert_eq!(1, got.len());
+    assert_eq!("ends_with", got[0].matchstr);
+}

@@ -6,6 +6,7 @@ project adheres to [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 - Find static methods on enums #737
+- Find methods on cooked string literals #728
 
 ## 2.0.8
 
