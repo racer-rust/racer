@@ -1111,6 +1111,57 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
     }
 }
 
+/// Gets the type of a variable or field identified by position in the input file.
+///
+/// When the cursor is placed anywhere inside a fully-typed identifier, this function
+/// will attempt to determine the concrete type of that value.
+pub fn get_type<P, C>(
+    filepath: P,
+    cursor: C,
+    session: &Session
+) -> Option<Match> where P: AsRef<path::Path>, C: Into<Location> 
+{
+    let fpath = filepath.as_ref();
+    let cursor = cursor.into();
+    let src = session.load_file_and_mask_comments(fpath);
+    let src = &src.as_src()[..];
+
+    // TODO return result
+    let pos = match cursor.to_point(&session.load_file(fpath)) {
+        Some(pos) => pos,
+        None => {
+            debug!("Failed to convert cursor to point");
+            return None;
+        }
+    };
+
+    /// Backtrack to find the start of the expression, like completion does. This should
+    /// enable get-type to work with field accesses as well as local variables.
+    let start = scopes::get_start_of_search_expr(src, pos);
+
+    /// Unlike `complete`, we are doing an exact match, so we also need to search forward
+    /// to find the end of the identifier. We deliberately don't look for the end of the
+    /// expression, as we aren't trying to find the whole expression's type.
+    let end = scopes::get_end_of_ident(src, pos);
+
+
+    let expr = &src[start..end];
+
+    ast::get_type_of(expr.to_owned(), fpath, pos, session).and_then(|ty| {
+        if let Ty::Match(mut m) = ty {
+            if m.coords.is_none() {
+                let point = m.point;
+                let src = session.load_file(m.filepath.as_path());
+                m.coords = src.point_to_coords(point);
+            }
+
+            Some(m)
+        } else {
+            None
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;

@@ -150,7 +150,7 @@ impl Drop for TmpDir {
 }
 
 fn get_pos_and_source(src: &str) -> (usize, String) {
-    let point = src.find('~').unwrap();
+    let point = src.find('~').expect("Test input must contain a `~` character to represent cursor location");
     (point, src.replace('~', ""))
 }
 
@@ -190,7 +190,17 @@ fn get_definition(src: &str, dir: Option<TmpDir>) -> Match {
     let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
 
-    find_definition(&path, completion_point, &session).unwrap()
+    find_definition(&path, completion_point, &session).expect("find-definition must produce a definition")
+}
+
+fn get_type(src: &str, dir: Option<TmpDir>) -> Match {
+    let dir = dir.unwrap_or_else(|| TmpDir::new());
+    let (search_point, clean_src) = get_pos_and_source(src);
+    let path = dir.write_file("src.rs", &clean_src);
+    let cache = racer::FileCache::default();
+    let session = racer::Session::new(&cache);
+
+    racer::get_type(&path, search_point, &session).expect("get-type must produce a type")
 }
 
 
@@ -3240,6 +3250,153 @@ fn closure_bracket_scope_nested_match_outside() {
     let got = get_definition(src, None);
     assert_eq!("x", got.matchstr);
     assert_eq!("| x: i32 |", got.contextstr);
+}
+
+#[test]
+fn get_type_finds_explicit_local_var() {
+    let _lock = sync!();
+    let src = "
+    fn main() {
+        let value: Option<u16> = Some(5);
+        if val~ue.is_some() {
+            // do nothing
+        }
+    }
+    ";
+
+    let got = get_type(src, None);
+    assert_eq!("Option", got.matchstr);
+}
+
+#[test]
+fn get_type_finds_fn_arg() {
+    let _lock = sync!();
+    let src = r#"
+    fn say_hello(name: &str) {
+        if nam~e != "teddriggs" {
+            // do nothing
+        }
+    }
+    "#;
+
+    let got = get_type(src, None);
+    assert_eq!("str", got.matchstr);
+}
+
+#[test]
+fn get_type_finds_tuple_field() {
+    let _lock = sync!();
+    let src = "
+    struct Bar;
+    struct Foo(Bar);
+
+    fn do_things(foo: Foo) -> Bar {
+        foo.0~
+    }
+    ";
+
+    let got = get_type(src, None);
+    assert_eq!("Bar", got.matchstr);
+}
+
+#[test]
+fn get_type_finds_struct_field() {
+    let _lock = sync!();
+    let src = "
+    struct Bar;
+    struct Foo { value: Bar }
+
+    fn do_things(foo: Foo) -> Bar {
+        foo.va~lue
+    }
+    ";
+
+    let got = get_type(src, None);
+    assert_eq!("Bar", got.matchstr);
+}
+
+#[test]
+fn get_type_finds_destructured() {
+    let _lock = sync!();
+    let src = "
+    struct Bar;
+    struct Foo { value: Bar }
+
+    fn do_things(foo: Foo) -> Bar {
+        let Foo { value: value } = foo;
+        valu~e
+    }
+    ";
+
+    let got = get_type(src, None);
+    assert_eq!("Bar", got.matchstr);
+}
+
+#[test]
+fn get_type_finds_single_character_var_at_end() {
+    let _lock = sync!();
+    let src = "
+    struct Bar;
+    fn do_things(y: Bar) -> Bar {
+        y~
+    }
+    ";
+
+    let got = get_type(src, None);
+    assert_eq!("Bar", got.matchstr);
+}
+
+#[test]
+fn get_type_finds_single_character_var_at_start() {
+    let _lock = sync!();
+    let src = "
+    struct Bar;
+    fn do_things(y: Bar) -> Bar {
+        ~y
+    }
+    ";
+
+    let got = get_type(src, None);
+    assert_eq!("Bar", got.matchstr);
+}
+
+#[test]
+fn get_type_finds_function_return() {
+    let _lock = sync!();
+    let src = r#"
+    struct Bar;
+    fn do_things(y: Bar) -> Bar {
+        y
+    }
+
+    fn main() {
+        let z = do_things();
+        println!("{:?}", ~z);
+    }
+    "#;
+
+    let got = get_type(src, None);
+    assert_eq!("Bar", got.matchstr);
+}
+
+#[test]
+fn get_type_finds_function() {
+    let _lock = sync!();
+    let src = r#"
+    struct Bar;
+    
+    fn do_things(y: Bar) -> Bar {
+        y
+    }
+
+    fn main() {
+        let z = do_th~ings();
+        println!("{:?}", ~z);
+    }
+    "#;
+
+    let got = get_type(src, None);
+    assert_eq!("do_things", got.matchstr);
 }
 
 #[test]

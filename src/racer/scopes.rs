@@ -207,6 +207,18 @@ pub fn get_line(src: &str, point: usize) -> usize {
     0
 }
 
+/// Search forward to the end of the current ident.
+/// Used by `get-type` to ensure that it is searching for the full ident rather than a prefix match.
+pub fn get_end_of_ident(src: &str, point: usize) -> usize {
+    for (i, _) in src.as_bytes()[point..].iter().enumerate() {
+        if !util::is_ident_char(char_at(src, point + i)) {
+            return point + i;
+        }
+    }
+
+    return point + src.as_bytes()[point..].len();
+}
+
 /// search in reverse for the start of the current expression 
 /// allow . and :: to be surrounded by white chars to enable multi line call chains 
 pub fn get_start_of_search_expr(src: &str, point: usize) -> usize {
