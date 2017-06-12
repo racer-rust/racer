@@ -5,4 +5,4 @@ src/scopes
 *.racertmp
 target/
 *.py[cod]
-.vscode
+.vscode/**

@@ -1,10 +1,14 @@
 language: rust
 
 rust:
-  - nightly-2016-11-25
+  - nightly
+  - beta
   - stable
 
 cache: cargo
+
+env:
+  - TRAVIS_CARGO_NIGHTLY_FEATURE=""
 
 before_script:
   - pip install 'travis-cargo<0.2' --user
@@ -13,5 +17,4 @@ before_script:
   - export RUST_SRC_PATH=`rustc --print sysroot`/lib/rustlib/src/rust/src
 
 script:
-  - travis-cargo --skip nightly-2016-11-25 test
-  - travis-cargo --only nightly-2016-11-25 test -- --features clippy
+  - travis-cargo test

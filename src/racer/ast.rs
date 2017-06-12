@@ -8,7 +8,7 @@ use std::rc::Rc;
 
 use syntex_errors::Handler;
 use syntex_errors::emitter::ColorConfig;
-use syntex_syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, PatKind, TyKind, TyParamBound};
+use syntex_syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, LitKind, PatKind, TyKind, TyParamBound};
 use syntex_syntax::codemap;
 use syntex_syntax::parse::parser::Parser;
 use syntex_syntax::parse::{lexer, ParseSess};
@@ -587,8 +587,23 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
                 self.result = Some(Ty::Tuple(v));
             }
 
-            ExprKind::Lit(_) => {
-                self.result = Some(Ty::Unsupported);
+            ExprKind::Lit(ref lit) => {
+                let ty_path = match lit.node {
+                    LitKind::Str(_, _) => {
+                        Some(core::Path::from_vec(false, vec!["str"]))
+                    },
+                    // See https://github.com/phildawes/racer/issues/727 for 
+                    // information on why other literals aren't supported.
+                    _ => None,
+                };
+
+                self.result = if let Some(lit_path) = ty_path {
+                    find_type_match(&lit_path, &self.scope.filepath,
+                                              self.scope.point,
+                                              self.session)
+                } else {
+                    Some(Ty::Unsupported)
+                };
             }
 
             ExprKind::TupField(ref subexpression, ref spanned_index) => {
@@ -609,6 +624,34 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
                         _ => None
                     }
                 });
+            }
+
+            ExprKind::Try(ref expr) => {                
+                debug!("try expr");
+                self.visit_expr(&expr);
+                self.result = if let Some(&Ty::Match(ref m)) = self.result.as_ref() {
+                    // HACK: Try to break open the result and find it's "Ok" type.
+                    // Once the 'Try' operator trait stabilizes, it'd be better to
+                    // find the type through the trait.
+                    if m.matchstr == "Result" && m.generic_types.len() == 2 {
+                        let ok_var = &m.generic_types[0];
+                        find_type_match(&ok_var.path, 
+                                        &ok_var.filepath, 
+                                        ok_var.point, 
+                                        self.session)
+                    } else if m.matchstr == "Result" && (m.generic_types.len() != m.generic_args.len()) {
+                        debug!("Unable to desugar Try expression; either `T` or `E` was `()`.");
+                        None
+                    } else {
+                        debug!("Unable to desugar Try expression; type was {} with arity {} of {}", 
+                            m.matchstr, 
+                            m.generic_types.len(),
+                            m.generic_args.len());
+                        None
+                    }
+                } else {
+                    None
+                };
             }
 
             _ => {

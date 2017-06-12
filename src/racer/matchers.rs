@@ -727,7 +727,7 @@ fn find_mod_doc(msrc: &str, blobstart: usize) -> String {
         // Skip over the copyright notice and empty lines until you find
         // the module's documentation (it will go until the end of the
         // file if the module doesn't have any docs).
-        .filter(|line| line.starts_with("//! "))
+        .filter(|line| line.starts_with("//!"))
         .peekable();
 
     // Use a loop to avoid unnecessary collect and String allocation
