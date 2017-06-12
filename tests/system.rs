@@ -250,6 +250,49 @@ fn finds_struct_docs() {
 }
 
 #[test]
+fn finds_struct_field_docs() {
+    let _lock = sync!();
+
+    let src = "
+    struct Foo {
+        /// Hello docs
+        ///
+        /// How are you?
+        #[allow(dead_code)]
+        hello: String,
+    }
+
+    fn do_things(f: Foo) -> String {
+        f.h~ello.clone()
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("hello", got.matchstr);
+    assert_eq!("Hello docs\n\nHow are you?", got.docs);
+}
+
+#[test]
+fn finds_tuple_struct_field_docs() {
+    let _lock = sync!();
+
+    let src = "
+    struct Bar(
+        /// Hello docs
+        String
+    );
+
+    fn do_things(b: Bar) -> String {
+        b.~0.clone()
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("0", got.matchstr);
+    assert_eq!("Hello docs", got.docs);
+}
+
+#[test]
 fn completes_fn_with_substitute_file() {
     let _lock = sync!();
 
@@ -373,13 +416,15 @@ fn completes_local_scope_let() {
 
     let src = "
     fn main() {
+        /// An apple's size
         let apple = 35;
         let b = ap~
     }";
 
     let got = get_one_completion(src, None);
     assert_eq!("apple", got.matchstr);
-    assert_eq!(29, got.point);
+    assert_eq!(57, got.point);
+    assert_eq!("An apple's size", got.docs);
 }
 
 #[test]
@@ -397,6 +442,7 @@ fn completes_via_parent_scope_let() {
     let got = get_one_completion(src, None);
     assert_eq!("apple", got.matchstr);
     assert_eq!(33, got.point);
+    assert_eq!("", got.docs);
 }
 
 #[test]
@@ -1244,6 +1290,7 @@ fn completes_struct_field_via_assignment() {
 
     let src = "
     struct Point {
+        /// The first item.
         first: f64,
         second: f64
     }
@@ -1254,6 +1301,7 @@ fn completes_struct_field_via_assignment() {
 
     let got = get_one_completion(src, None);
     assert_eq!(got.matchstr, "first");
+    assert_eq!("The first item.", got.docs);
 }
 
 #[test]
@@ -1262,6 +1310,7 @@ fn finds_defn_of_struct_field() {
 
     let src = "
     struct Point {
+        /// The first item.
         first: f64,
         second: f64
     }
@@ -1272,6 +1321,7 @@ fn finds_defn_of_struct_field() {
 
     let got = get_definition(src, None);
     assert_eq!(got.matchstr, "first");
+    assert_eq!("The first item.", got.docs);
 }
 
 #[test]
