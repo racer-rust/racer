@@ -3,7 +3,7 @@ use std::cmp;
 use std::path;
 use std::rc::Rc;
 
-use core::{IndexedSource, Session, SessionExt, Location, LocationExt};
+use core::{IndexedSource, Session, SessionExt, Location, LocationExt, Point};
 
 use core::SearchType::{self, ExactMatch, StartsWith};
 
@@ -156,8 +156,8 @@ pub fn expand_ident<P, C>(
 
 pub struct ExpandedIdent {
     src: Rc<IndexedSource>,
-    start: usize,
-    pos: usize,
+    start: Point,
+    pos: Point,
 }
 
 impl ExpandedIdent {
@@ -165,16 +165,16 @@ impl ExpandedIdent {
         &self.src.code[self.start..self.pos]
     }
 
-    pub fn start(&self) -> usize {
+    pub fn start(&self) -> Point {
         self.start
     }
 
-    pub fn pos(&self) -> usize {
+    pub fn pos(&self) -> Point {
         self.pos
     }
 }
 
-pub fn find_ident_end(s: &str, pos: usize) -> usize {
+pub fn find_ident_end(s: &str, pos: Point) -> Point {
     // find end of word
     let sa = &s[pos..];
     for (i, c) in sa.char_indices() {

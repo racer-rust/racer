@@ -1,4 +1,4 @@
-use core::{self, Match, MatchType, Scope, Ty, Session, SessionExt};
+use core::{self, Match, MatchType, Scope, Ty, Session, SessionExt, Point, SourceByteRange};
 use typeinf;
 use nameres::{self, resolve_path_with_str};
 use scopes;
@@ -100,7 +100,7 @@ impl visit::Visitor for UseVisitor {
 }
 
 pub struct PatBindVisitor {
-    ident_points: Vec<(usize, usize)>
+    ident_points: Vec<SourceByteRange>
 }
 
 impl visit::Visitor for PatBindVisitor {
@@ -137,7 +137,7 @@ impl visit::Visitor for PatBindVisitor {
 }
 
 pub struct PatVisitor {
-    ident_points: Vec<(usize, usize)>
+    ident_points: Vec<SourceByteRange>
 }
 
 impl visit::Visitor for PatVisitor {
@@ -197,7 +197,7 @@ fn point_is_in_span(point: u32, span: &codemap::Span) -> bool {
 
 // The point must point to an ident within the pattern.
 fn destructure_pattern_to_ty(pat: &ast::Pat,
-                             point: usize,
+                             point: Point,
                              ty: &Ty,
                              scope: &Scope,
                              session: &Session) -> Option<Ty> {
@@ -292,7 +292,7 @@ struct LetTypeVisitor<'c: 's, 's> {
     scope: Scope,
     session: &'s Session<'c>,
     srctxt: String,
-    pos: usize,        // pos is relative to the srctxt, scope is global
+    pos: Point,        // pos is relative to the srctxt, scope is global
     result: Option<Ty>
 }
 
@@ -341,7 +341,7 @@ impl<'c, 's> visit::Visitor for LetTypeVisitor<'c, 's> {
 struct MatchTypeVisitor<'c: 's, 's> {
     scope: Scope,
     session: &'s Session<'c>,
-    pos: usize,        // pos is relative to the srctxt, scope is global
+    pos: Point,        // pos is relative to the srctxt, scope is global
     result: Option<Ty>
 }
 
@@ -370,7 +370,7 @@ impl<'c, 's> visit::Visitor for MatchTypeVisitor<'c, 's> {
     }
 }
 
-fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: usize, session: &Session) -> Option<Match> {
+fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: Point, session: &Session) -> Option<Match> {
     debug!("resolve_ast_path {:?}", to_racer_path(path));
     nameres::resolve_path_with_str(&to_racer_path(path), filepath, pos, core::SearchType::ExactMatch,
                                    core::Namespace::Both, session).nth(0)
@@ -402,7 +402,7 @@ fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
     }
 }
 
-fn find_type_match(path: &core::Path, fpath: &Path, pos: usize, session: &Session) -> Option<Ty> {
+fn find_type_match(path: &core::Path, fpath: &Path, pos: Point, session: &Session) -> Option<Ty> {
     debug!("find_type_match {:?}, {:?}", path, fpath);
     let res = resolve_path_with_str(path, fpath, pos, core::SearchType::ExactMatch,
                core::Namespace::Type, session).nth(0).and_then(|m| {
@@ -717,7 +717,7 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
 
 fn find_type_match_including_generics(fieldtype: &core::Ty,
                                       filepath: &Path,
-                                      pos: usize,
+                                      pos: Point,
                                       structm: &Match,
                                       session: &Session) -> Option<Ty>{
     assert_eq!(&structm.filepath, filepath);
@@ -758,7 +758,7 @@ fn find_type_match_including_generics(fieldtype: &core::Ty,
 
 struct StructVisitor {
     pub scope: Scope,
-    pub fields: Vec<(String, usize, Option<core::Ty>)>
+    pub fields: Vec<(String, Point, Option<core::Ty>)>
 }
 
 impl visit::Visitor for StructVisitor {
@@ -921,7 +921,7 @@ impl visit::Visitor for GenericsVisitor {
 
 pub struct EnumVisitor {
     pub name: String,
-    pub values: Vec<(String, usize)>
+    pub values: Vec<(String, Point)>
 }
 
 impl visit::Visitor for EnumVisitor {
@@ -951,7 +951,7 @@ pub fn parse_use(s: String) -> UseVisitor {
     v
 }
 
-pub fn parse_pat_bind_stmt(s: String) -> Vec<(usize, usize)> {
+pub fn parse_pat_bind_stmt(s: String) -> Vec<SourceByteRange> {
     let mut v = PatBindVisitor{ ident_points: Vec::new() };
     if let Some(stmt) = string_to_stmt(s) {
         visit::walk_stmt(&mut v, &stmt);
@@ -959,7 +959,7 @@ pub fn parse_pat_bind_stmt(s: String) -> Vec<(usize, usize)> {
     v.ident_points
 }
 
-pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, usize, Option<core::Ty>)> {
+pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, Point, Option<core::Ty>)> {
     let mut v = StructVisitor{ scope: scope, fields: Vec::new() };
     if let Some(stmt) = string_to_stmt(s) {
         visit::walk_stmt(&mut v, &stmt);
@@ -999,11 +999,11 @@ pub fn parse_type(s: String) -> TypeVisitor {
     v
 }
 
-pub fn parse_fn_args(s: String) -> Vec<(usize, usize)> {
+pub fn parse_fn_args(s: String) -> Vec<SourceByteRange> {
     parse_pat_idents(s)
 }
 
-pub fn parse_pat_idents(s: String) -> Vec<(usize, usize)> {
+pub fn parse_pat_idents(s: String) -> Vec<SourceByteRange> {
     let mut v = PatVisitor{ ident_points: Vec::new() };
     if let Some(stmt) = string_to_stmt(s) {
         debug!("parse_pat_idents stmt is {:?}", stmt);
@@ -1022,7 +1022,7 @@ pub fn parse_fn_output(s: String, scope: Scope) -> Option<core::Ty> {
     v.result
 }
 
-pub fn parse_fn_arg_type(s: String, argpos: usize, scope: Scope, session: &Session) -> Option<core::Ty> {
+pub fn parse_fn_arg_type(s: String, argpos: Point, scope: Scope, session: &Session) -> Option<core::Ty> {
     debug!("parse_fn_arg {} |{}|", argpos, s);
     let mut v = FnArgTypeVisitor { argpos: argpos, scope: scope, result: None,
                                    session: session };
@@ -1056,7 +1056,7 @@ pub fn parse_enum(s: String) -> EnumVisitor {
     v
 }
 
-pub fn get_type_of(exprstr: String, fpath: &Path, pos: usize, session: &Session) -> Option<Ty> {
+pub fn get_type_of(exprstr: String, fpath: &Path, pos: Point, session: &Session) -> Option<Ty> {
     let startscope = Scope {
         filepath: fpath.to_path_buf(),
         point: pos
@@ -1071,7 +1071,7 @@ pub fn get_type_of(exprstr: String, fpath: &Path, pos: usize, session: &Session)
 }
 
 // pos points to an ident in the lhs of the stmtstr
-pub fn get_let_type(stmtstr: String, pos: usize, scope: Scope, session: &Session) -> Option<Ty> {
+pub fn get_let_type(stmtstr: String, pos: Point, scope: Scope, session: &Session) -> Option<Ty> {
     let mut v = LetTypeVisitor {
         scope: scope,
         session: session,
@@ -1084,7 +1084,7 @@ pub fn get_let_type(stmtstr: String, pos: usize, scope: Scope, session: &Session
     v.result
 }
 
-pub fn get_match_arm_type(stmtstr: String, pos: usize, scope: Scope, session: &Session) -> Option<Ty> {
+pub fn get_match_arm_type(stmtstr: String, pos: Point, scope: Scope, session: &Session) -> Option<Ty> {
     let mut v = MatchTypeVisitor {
         scope: scope,
         session: session,
@@ -1112,7 +1112,7 @@ impl visit::Visitor for FnOutputVisitor {
 }
 
 pub struct FnArgTypeVisitor<'c: 's, 's> {
-    argpos: usize,
+    argpos: Point,
     scope: Scope,
     session: &'s Session<'c>,
     pub result: Option<Ty>
@@ -1157,7 +1157,7 @@ fn ast_sandbox() {
 
     // let src = "(myvar, foo) = (3,4);";
 
-    // let src = "fn myfn((a,b) : (usize, usize)) {}";
+    // let src = "fn myfn((a,b) : SourceByteRange) {}";
     // //let src = "impl blah {pub fn another_method() {}}";
 
     // let stmt = string_to_stmt(String::from_str(src));

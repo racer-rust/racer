@@ -6,7 +6,7 @@ extern crate env_logger;
 
 extern crate racer;
 
-use racer::{Match, MatchType, FileCache, Session, Coordinate};
+use racer::{Match, MatchType, FileCache, Session, Coordinate, Point};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::io::{self, BufRead, Read};
@@ -196,9 +196,9 @@ fn daemon(cfg: Config) {
 
 enum Message<'a> {
     End,
-    Prefix(usize, usize, &'a str),
-    Match(String, usize, usize, &'a Path, MatchType, String),
-    MatchWithSnippet(String, String, usize, usize, &'a Path, MatchType, String, String),
+    Prefix(Point, Point, &'a str),
+    Match(String, Point, Point, &'a Path, MatchType, String),
+    MatchWithSnippet(String, String, Point, Point, &'a Path, MatchType, String, String),
 }
 
 #[derive(Copy, Clone)]

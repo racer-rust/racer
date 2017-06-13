@@ -1,3 +1,5 @@
+use core::{Point, SourceByteRange};
+
 #[derive(Clone,Copy)]
 enum State {
     Code,
@@ -11,15 +13,15 @@ enum State {
 #[derive(Clone,Copy)]
 pub struct CodeIndicesIter<'a> {
     src: &'a str,
-    pos: usize,
+    pos: Point,
     state: State
 }
 
 impl<'a> Iterator for CodeIndicesIter<'a> {
-    type Item = (usize, usize);
+    type Item = SourceByteRange;
 
     #[inline]
-    fn next(&mut self) -> Option<(usize, usize)> {
+    fn next(&mut self) -> Option<SourceByteRange> {
         match self.state {
             State::Code => Some(self.code()),
             State::Comment => Some(self.comment()),
@@ -32,7 +34,7 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
 }
 
 impl<'a> CodeIndicesIter<'a> {
-    fn code(&mut self) -> (usize, usize) {
+    fn code(&mut self) -> SourceByteRange {
         let mut pos = self.pos;
         let start = match self.state {
             State::String |
@@ -81,7 +83,7 @@ impl<'a> CodeIndicesIter<'a> {
         (start, self.src.len())
     }
 
-    fn comment(&mut self) -> (usize, usize) {
+    fn comment(&mut self) -> SourceByteRange {
         let mut pos = self.pos;
         let src_bytes = self.src.as_bytes();
         for &b in &src_bytes[pos..] {
@@ -97,7 +99,7 @@ impl<'a> CodeIndicesIter<'a> {
         self.code()
     }
 
-    fn comment_block(&mut self) -> (usize, usize) {
+    fn comment_block(&mut self) -> SourceByteRange {
         let mut nesting_level = 0usize;
         let mut prev = b' ';
         let mut pos = self.pos;
@@ -121,7 +123,7 @@ impl<'a> CodeIndicesIter<'a> {
         self.code()
     }
 
-    fn string(&mut self) -> (usize, usize) {
+    fn string(&mut self) -> SourceByteRange {
         let src_bytes = self.src.as_bytes();
         let mut pos = self.pos;
         if pos > 1 && src_bytes[pos-2] == b'r' {
@@ -145,7 +147,7 @@ impl<'a> CodeIndicesIter<'a> {
         self.code()
     }
 
-    fn char(&mut self) -> (usize, usize) {
+    fn char(&mut self) -> SourceByteRange {
         let mut is_not_escaped = true;
         let mut pos = self.pos;
         for &b in &self.src.as_bytes()[pos..] {
