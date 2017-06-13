@@ -67,7 +67,7 @@ pub fn find_stmt_start(msrc: Src, point: Point) -> Option<Point> {
 }
 
 /// Finds a statement start or panics.
-pub fn expect_stmt_start(msrc: Src, point: usize) -> usize {
+pub fn expect_stmt_start(msrc: Src, point: Point) -> Point {
     find_stmt_start(msrc, point).expect("Statement has a beginning")
 }
 
