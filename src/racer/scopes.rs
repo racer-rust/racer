@@ -1,5 +1,5 @@
 use {ast, typeinf, util};
-use core::{Src, CompletionType};
+use core::{Src, CompletionType, Point, SourceByteRange};
 #[cfg(test)]
 use core::{self, Coordinate};
 
@@ -9,7 +9,7 @@ use std::str::from_utf8;
 use util::char_at;
 use regex::Regex;
 
-fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<usize> where A: Iterator<Item=&'a u8> {
+fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<Point> where A: Iterator<Item=&'a u8> {
     let mut levels = 0u32;
     for (count, &b) in iter.enumerate() {
         if b == close {
@@ -21,12 +21,12 @@ fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<usi
     None
 }
 
-pub fn find_closing_paren(src: &str, pos: usize) -> usize {
+pub fn find_closing_paren(src: &str, pos: Point) -> Point {
     find_close(src.as_bytes()[pos..].iter(), b'(', b')', 0)
     .map_or(src.len(), |count| pos + count)
 }
 
-pub fn find_closure_scope_start(src: Src, point: usize, parentheses_open_pos: usize) -> Option<usize> {
+pub fn find_closure_scope_start(src: Src, point: Point, parentheses_open_pos: Point) -> Option<Point> {
     let masked_src = mask_comments(src.from(point));
 
     let closing_paren_pos = find_closing_paren(masked_src.as_str(), 0) + point;
@@ -40,7 +40,7 @@ pub fn find_closure_scope_start(src: Src, point: usize, parentheses_open_pos: us
     }
 }
 
-pub fn scope_start(src: Src, point: usize) -> usize {
+pub fn scope_start(src: Src, point: Point) -> Point {
     let masked_src = mask_comments(src.to(point));
 
     let curly_parent_open_pos = find_close(masked_src.as_bytes().iter().rev(), b'}', b'{', 0)
@@ -58,7 +58,7 @@ pub fn scope_start(src: Src, point: usize) -> usize {
     }
 }
 
-pub fn find_stmt_start(msrc: Src, point: usize) -> Option<usize> {
+pub fn find_stmt_start(msrc: Src, point: Point) -> Option<Point> {
     // iterate the scope to find the start of the statement
     let scopestart = scope_start(msrc, point);
     msrc.from(scopestart).iter_stmts()
@@ -66,9 +66,14 @@ pub fn find_stmt_start(msrc: Src, point: usize) -> Option<usize> {
         .map(|(start, _)| scopestart + start)
 }
 
+/// Finds a statement start or panics.
+pub fn expect_stmt_start(msrc: Src, point: Point) -> Point {
+    find_stmt_start(msrc, point).expect("Statement has a beginning")
+}
+
 /// Finds the start of a `let` statement; includes handling of struct pattern matches in the
 /// statement.
-pub fn find_let_start(msrc: Src, point: usize) -> Option<usize> {
+pub fn find_let_start(msrc: Src, point: Point) -> Option<Point> {
     let mut scopestart = scope_start(msrc, point);
     let mut let_start = None;
 
@@ -96,13 +101,13 @@ pub fn find_let_start(msrc: Src, point: usize) -> Option<usize> {
     let_start.map(|(start, _)| scopestart + start)
 }
 
-pub fn get_local_module_path(msrc: Src, point: usize) -> Vec<String> {
+pub fn get_local_module_path(msrc: Src, point: Point) -> Vec<String> {
     let mut v = Vec::new();
     get_local_module_path_(msrc, point, &mut v);
     v
 }
 
-fn get_local_module_path_(msrc: Src, point: usize, out: &mut Vec<String>) {
+fn get_local_module_path_(msrc: Src, point: Point, out: &mut Vec<String>) {
     for (start, end) in msrc.iter_stmts() {
         if start < point && end > point {
             let blob = msrc.from_to(start, end);
@@ -119,7 +124,7 @@ fn get_local_module_path_(msrc: Src, point: usize, out: &mut Vec<String>) {
     }
 }
 
-pub fn get_module_file_from_path(msrc: Src, point: usize, parentdir: &Path) -> Option<PathBuf> {
+pub fn get_module_file_from_path(msrc: Src, point: Point, parentdir: &Path) -> Option<PathBuf> {
     let mut iter = msrc.iter_stmts();
     while let Some((start, end)) = iter.next() {
         let blob = msrc.from_to(start, end);
@@ -142,7 +147,7 @@ pub fn get_module_file_from_path(msrc: Src, point: usize, parentdir: &Path) -> O
     None
 }
 
-pub fn find_impl_start(msrc: Src, point: usize, scopestart: usize) -> Option<usize> {
+pub fn find_impl_start(msrc: Src, point: Point, scopestart: Point) -> Option<Point> {
     let len = point-scopestart;
     match msrc.from(scopestart).iter_stmts().find(|&(_, end)| end > len) {
         Some((start, _)) => {
@@ -191,7 +196,7 @@ pub fn split_into_context_and_completion(s: &str) -> (&str, &str, CompletionType
     }
 }
 
-pub fn get_line(src: &str, point: usize) -> usize {
+pub fn get_line(src: &str, point: Point) -> Point {
     let mut i = point;
     for &b in src.as_bytes()[..point].iter().rev() {
         i-=1;
@@ -204,15 +209,18 @@ pub fn get_line(src: &str, point: usize) -> usize {
 
 /// search in reverse for the start of the current expression 
 /// allow . and :: to be surrounded by white chars to enable multi line call chains 
-pub fn get_start_of_search_expr(src: &str, point: usize) -> usize {
+pub fn get_start_of_search_expr(src: &str, point: Point) -> Point {
 
     enum State {
+        /// In parentheses; the value inside identifies depth.
         Levels(usize),
+        /// In a string
+        StringLiteral,
         StartsWithDot,
         MustEndsWithDot(usize),
         StartsWithCol(usize),
         None,
-        Result(usize),
+        Result(Point),
     }
     let mut ws_ok = State::None;
     for (i, c) in src.as_bytes()[..point].iter().enumerate().rev() {
@@ -228,6 +236,11 @@ pub fn get_start_of_search_expr(src: &str, point: usize) -> usize {
             (b'.', State::MustEndsWithDot(_)) =>  State::None,
             (b':', State::MustEndsWithDot(index)) =>  State::StartsWithCol(index),
             (b':', State::StartsWithCol(_)) =>  State::None,
+            (b'"', State::None) |
+            (b'"', State::StartsWithDot) => State::StringLiteral,
+            (b'"', State::StringLiteral) => State::None,
+            (b'?', State::StartsWithDot) => State::None,
+            (_ , State::StringLiteral) => State::StringLiteral,
             ( _ , State::StartsWithCol(index)) => State::Result(index) ,
             ( _ , State::None) if char_at(src, i).is_whitespace() =>  State::MustEndsWithDot(i+1),
             ( _ , State::MustEndsWithDot(index)) if char_at(src, i).is_whitespace() => State::MustEndsWithDot(index),
@@ -247,7 +260,7 @@ pub fn get_start_of_search_expr(src: &str, point: usize) -> usize {
     0
 }
 
-pub fn get_start_of_pattern(src: &str, point: usize) -> usize {
+pub fn get_start_of_pattern(src: &str, point: Point) -> Point {
     let mut i = point-1;
     let mut levels = 0u32;
     for &b in src.as_bytes()[..point].iter().rev() {
@@ -279,7 +292,7 @@ fn get_start_of_pattern_handles_variant2() {
     assert_eq!(4, get_start_of_pattern("bla, ast::PatTup(ref tuple_elements) => {",36));
 }
 
-pub fn expand_search_expr(msrc: &str, point: usize) -> (usize, usize) {
+pub fn expand_search_expr(msrc: &str, point: Point) -> SourceByteRange {
     let start = get_start_of_search_expr(msrc, point);
     (start, util::find_ident_end(msrc, point))
 }

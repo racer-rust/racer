@@ -1,5 +1,5 @@
 use {scopes, typeinf, ast};
-use core::{Match, PathSegment, Src, Session, Coordinate, SessionExt};
+use core::{Match, PathSegment, Src, Session, Coordinate, SessionExt, Point};
 use util::{StackLinkedListNode, symbol_matches, txt_matches, find_ident_end, is_ident_char, char_at};
 use nameres::{get_module_file, get_crate_file, resolve_path};
 use core::SearchType::{self, StartsWith, ExactMatch};
@@ -13,8 +13,8 @@ use std::{iter, option, str, vec};
 #[derive(PartialEq, Eq)]
 pub struct PendingImport<'fp> {
     filepath: &'fp Path,
-    blobstart: usize,
-    blobend: usize,
+    blobstart: Point,
+    blobend: Point,
 }
 
 /// A stack of imports (`use` items) currently being resolved.
@@ -24,7 +24,7 @@ pub type MIter = option::IntoIter<Match>;
 pub type MChain<T> = iter::Chain<T, MIter>;
 
 // Should I return a boxed trait object to make this signature nicer?
-pub fn match_types(src: Src, blobstart: usize, blobend: usize,
+pub fn match_types(src: Src, blobstart: Point, blobend: Point,
                    searchstr: &str, filepath: &Path,
                    search_type: SearchType,
                    local: bool, session: &Session,
@@ -38,7 +38,7 @@ pub fn match_types(src: Src, blobstart: usize, blobend: usize,
     it.chain(match_use(&src, blobstart, blobend, searchstr, filepath, search_type, local, session, pending_imports).into_iter())
 }
 
-pub fn match_values(src: Src, blobstart: usize, blobend: usize,
+pub fn match_values(src: Src, blobstart: Point, blobend: Point,
                     searchstr: &str, filepath: &Path, search_type: SearchType,
                     local: bool) -> MChain<MChain<MChain<MIter>>> {
     let it = match_const(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
@@ -48,7 +48,7 @@ pub fn match_values(src: Src, blobstart: usize, blobend: usize,
 }
 
 fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType, local: bool)
--> Option<usize> {
+-> Option<Point> {
     // search for "^(pub\s+)?(unsafe\s+)?pattern\s+search"
 
     // if not local must start with pub
@@ -105,11 +105,11 @@ fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType,
     }
 }
 
-fn is_const_fn(src: &str, blobstart: usize, blobend: usize) -> bool {
+fn is_const_fn(src: &str, blobstart: Point, blobend: Point) -> bool {
     src[blobstart..blobend].contains("const fn")
 }
 
-fn match_pattern_start(src: &str, blobstart: usize, blobend: usize,
+fn match_pattern_start(src: &str, blobstart: Point, blobend: Point,
                        searchstr: &str, filepath: &Path, search_type: SearchType,
                        local: bool, pattern: &str, mtype: MatchType) -> Option<Match> {
     // ast currently doesn't contain the ident coords, so match them with a hacky
@@ -136,7 +136,7 @@ fn match_pattern_start(src: &str, blobstart: usize, blobend: usize,
     None
 }
 
-pub fn match_const(msrc: &str, blobstart: usize, blobend: usize,
+pub fn match_const(msrc: &str, blobstart: Point, blobend: Point,
                    searchstr: &str, filepath: &Path, search_type: SearchType,
                    local: bool) -> Option<Match> {
     if is_const_fn(msrc, blobstart, blobend) {
@@ -146,14 +146,14 @@ pub fn match_const(msrc: &str, blobstart: usize, blobend: usize,
                         search_type, local, "const", Const)
 }
 
-pub fn match_static(msrc: &str, blobstart: usize, blobend: usize,
+pub fn match_static(msrc: &str, blobstart: Point, blobend: Point,
                     searchstr: &str, filepath: &Path, search_type: SearchType,
                     local: bool) -> Option<Match> {
     match_pattern_start(msrc, blobstart, blobend, searchstr, filepath,
                         search_type, local, "static", Static)
 }
 
-fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
+fn match_pattern_let(msrc: &str, blobstart: Point, blobend: Point,
                      searchstr: &str, filepath: &Path, search_type: SearchType,
                      local: bool, pattern: &str, mtype: MatchType) -> Vec<Match> {
     let mut out = Vec::new();
@@ -184,28 +184,28 @@ fn match_pattern_let(msrc: &str, blobstart: usize, blobend: usize,
     out
 }
 
-pub fn match_if_let(msrc: &str, blobstart: usize, blobend: usize,
+pub fn match_if_let(msrc: &str, blobstart: Point, blobend: Point,
                     searchstr: &str, filepath: &Path, search_type: SearchType,
                     local: bool) -> Vec<Match> {
     match_pattern_let(msrc, blobstart, blobend, searchstr, filepath,
                       search_type, local, "if let ", IfLet)
 }
 
-pub fn match_while_let(msrc: &str, blobstart: usize, blobend: usize,
+pub fn match_while_let(msrc: &str, blobstart: Point, blobend: Point,
                  searchstr: &str, filepath: &Path, search_type: SearchType,
                  local: bool) -> Vec<Match> {
     match_pattern_let(msrc, blobstart, blobend, searchstr, filepath,
                       search_type, local, "while let ", WhileLet)
 }
 
-pub fn match_let(msrc: &str, blobstart: usize, blobend: usize,
+pub fn match_let(msrc: &str, blobstart: Point, blobend: Point,
                  searchstr: &str, filepath: &Path, search_type: SearchType,
                  local: bool) -> Vec<Match> {
     match_pattern_let(msrc, blobstart, blobend, searchstr, filepath,
                       search_type, local, "let ", Let)
 }
 
-pub fn match_for(msrc: &str, blobstart: usize, blobend: usize,
+pub fn match_for(msrc: &str, blobstart: Point, blobend: Point,
                  searchstr: &str, filepath: &Path, search_type: SearchType,
                  local: bool) -> Vec<Match> {
     let mut out = Vec::new();
@@ -246,7 +246,7 @@ pub fn get_context(blob: &str, context_end: &str) -> String {
         .join(" ")
 }
 
-pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
+pub fn match_extern_crate(msrc: &str, blobstart: Point, blobend: Point,
                           searchstr: &str, filepath: &Path, search_type: SearchType,
                           session: &Session) -> Option<Match> {
     let mut res = None;
@@ -294,7 +294,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: usize, blobend: usize,
     res
 }
 
-pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
+pub fn match_mod(msrc: Src, blobstart: Point, blobend: Point,
                  searchstr: &str, filepath: &Path, search_type: SearchType,
                  local: bool, session: &Session) -> Option<Match> {
     let blob = &msrc[blobstart..blobend];
@@ -369,7 +369,7 @@ pub fn match_mod(msrc: Src, blobstart: usize, blobend: usize,
     None
 }
 
-pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize,
+pub fn match_struct(msrc: &str, blobstart: Point, blobend: Point,
                     searchstr: &str, filepath: &Path, search_type: SearchType,
                     local: bool) -> Option<Match> {
     let blob = &msrc[blobstart..blobend];
@@ -409,7 +409,7 @@ pub fn match_struct(msrc: &str, blobstart: usize, blobend: usize,
     }
 }
 
-pub fn match_type(msrc: &str, blobstart: usize, blobend: usize,
+pub fn match_type(msrc: &str, blobstart: Point, blobend: Point,
                   searchstr: &str, filepath: &Path, search_type: SearchType,
                   local: bool) -> Option<Match> {
     let blob = &msrc[blobstart..blobend];
@@ -436,7 +436,7 @@ pub fn match_type(msrc: &str, blobstart: usize, blobend: usize,
     }
 }
 
-pub fn match_trait(msrc: &str, blobstart: usize, blobend: usize,
+pub fn match_trait(msrc: &str, blobstart: Point, blobend: Point,
                    searchstr: &str, filepath: &Path, search_type: SearchType,
                    local: bool) -> Option<Match> {
     let blob = &msrc[blobstart..blobend];
@@ -463,7 +463,7 @@ pub fn match_trait(msrc: &str, blobstart: usize, blobend: usize,
     }
 }
 
-pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize,
+pub fn match_enum_variants(msrc: &str, blobstart: Point, blobend: Point,
                            searchstr: &str, filepath: &Path, search_type: SearchType,
                            local: bool) -> vec::IntoIter<Match> {
     let blob = &msrc[blobstart..blobend];
@@ -494,7 +494,7 @@ pub fn match_enum_variants(msrc: &str, blobstart: usize, blobend: usize,
     out.into_iter()
 }
 
-pub fn match_enum(msrc: &str, blobstart: usize, blobend: usize,
+pub fn match_enum(msrc: &str, blobstart: Point, blobend: Point,
                   searchstr: &str, filepath: &Path, search_type: SearchType,
                   local: bool) -> Option<Match> {
     let blob = &msrc[blobstart..blobend];
@@ -526,7 +526,7 @@ pub fn match_enum(msrc: &str, blobstart: usize, blobend: usize,
     }
 }
 
-pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
+pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
                  searchstr: &str, filepath: &Path, search_type: SearchType,
                  local: bool, session: &Session,
                  pending_imports: &PendingImports) -> Vec<Match> {
@@ -635,7 +635,7 @@ pub fn match_use(msrc: &str, blobstart: usize, blobend: usize,
     out
 }
 
-pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize,
+pub fn match_fn(msrc: &str, blobstart: Point, blobend: Point,
                 searchstr: &str, filepath: &Path, search_type: SearchType,
                 local: bool) -> Option<Match> {
 
@@ -670,7 +670,7 @@ pub fn match_fn(msrc: &str, blobstart: usize, blobend: usize,
     }
 }
 
-pub fn match_macro(msrc: &str, blobstart: usize, blobend: usize,
+pub fn match_macro(msrc: &str, blobstart: Point, blobend: Point,
                    searchstr: &str, filepath: &Path, search_type: SearchType,
                    local: bool) -> Option<Match> {
     let blob = &msrc[blobstart..blobend];
@@ -700,7 +700,7 @@ pub fn match_macro(msrc: &str, blobstart: usize, blobend: usize,
     }
 }
 
-pub fn find_doc(msrc: &str, match_point: usize) -> String {
+pub fn find_doc(msrc: &str, match_point: Point) -> String {
     let blob = &msrc[0..match_point];
 
     blob.lines()
@@ -717,7 +717,7 @@ pub fn find_doc(msrc: &str, match_point: usize) -> String {
         .join("\n")
 }
 
-fn find_mod_doc(msrc: &str, blobstart: usize) -> String {
+fn find_mod_doc(msrc: &str, blobstart: Point) -> String {
     let blob = &msrc[blobstart..];
     let mut doc = String::new();
 
@@ -727,7 +727,7 @@ fn find_mod_doc(msrc: &str, blobstart: usize) -> String {
         // Skip over the copyright notice and empty lines until you find
         // the module's documentation (it will go until the end of the
         // file if the module doesn't have any docs).
-        .filter(|line| line.starts_with("//! "))
+        .filter(|line| line.starts_with("//!"))
         .peekable();
 
     // Use a loop to avoid unnecessary collect and String allocation

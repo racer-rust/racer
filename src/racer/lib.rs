@@ -32,7 +32,7 @@ mod cargo;
 pub use core::{find_definition, complete_from_file, complete_fully_qualified_name};
 pub use snippets::snippet_for_match;
 pub use core::{Match, MatchType, PathSearch};
-pub use core::{FileCache, Session, Coordinate, Location, FileLoader};
+pub use core::{FileCache, Session, Coordinate, Location, FileLoader, Point, SourceByteRange};
 pub use util::expand_ident;
 
 pub use util::{RustSrcPathError, check_rust_src_env_var};

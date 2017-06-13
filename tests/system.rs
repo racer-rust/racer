@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::thread;
 
-use racer::{complete_from_file, find_definition, Match, MatchType, Coordinate};
+use racer::{complete_from_file, find_definition, Match, MatchType, Coordinate, Point};
 
 lazy_static! {
     static ref SYNC: Mutex<u8> = { Mutex::new(0) };
@@ -149,7 +149,7 @@ impl Drop for TmpDir {
     }
 }
 
-fn get_pos_and_source(src: &str) -> (usize, String) {
+fn get_pos_and_source(src: &str) -> (Point, String) {
     let point = src.find('~').unwrap();
     (point, src.replace('~', ""))
 }
@@ -1167,6 +1167,33 @@ fn finds_external_fn_docs() {
 }
 
 #[test]
+fn keeps_newlines_in_external_mod_doc() {
+    let _lock = sync!();
+
+    // issue 683: do not remove newlines inside of mod-doc
+    let src1 = "// Copyright notice
+
+//! The mods multiline documentation
+//!
+//! with an empty line
+    ";
+    let src = "
+    mod external_mod;
+    use external_mod;
+
+    fn main() {
+        external_mod~
+    }
+    ";
+
+    let dir = TmpDir::new();
+    dir.write_file("external_mod.rs", src1);
+    let got = get_one_completion(src, Some(dir));
+    assert_eq!("external_mod", got.matchstr);
+    assert_eq!("The mods multiline documentation\n\nwith an empty line", got.docs);
+}
+
+#[test]
 fn issue_618() {
     let _lock = sync!();
 
@@ -1656,6 +1683,58 @@ fn follows_arg_to_enum_method() {
 
     let got = get_one_completion(src, None);
     assert_eq!("mymethod", got.matchstr);
+}
+
+#[test]
+fn finds_enum_static_method() {
+    let _lock = sync!();
+    let src = "
+    enum Foo {
+        Bar,
+        Baz
+    }
+
+    impl Foo {
+        pub fn make_baz() -> Self {
+            Foo::Baz
+        }
+    }
+
+    fn myfn() -> Foo {
+        Foo::ma~ke_baz()
+    }
+    ";
+
+    let got = get_only_completion(src, None);
+    assert_eq!("make_baz", got.matchstr);
+    assert_eq!(MatchType::Function, got.mtype);
+}
+
+#[test]
+fn finds_enum_variants_first() {
+    let _lock = sync!();
+    let src = "
+    enum Foo {
+        Bar,
+        Baz
+    }
+
+    impl Foo {
+        pub fn amazing() -> Self {
+            Foo::Baz
+        }
+    }
+
+    fn myfn() -> Foo {
+        Foo::~Bar
+    }
+    ";
+
+    let got = get_all_completions(src, None);
+    assert_eq!(3, got.len());
+    assert_eq!("Bar", got[0].matchstr);
+    assert_eq!("Baz", got[1].matchstr);
+    assert_eq!("amazing", got[2].matchstr);
 }
 
 #[test]
@@ -2948,6 +3027,122 @@ fn closure_scope_dont_match_bitwise_or() {
 }
 
 #[test]
+fn try_operator() {
+    let _lock = sync!();
+
+    let src = "
+        pub struct Foo(u16);
+
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct OddError;
+
+        fn be_even(val: Foo) -> Result<Foo, OddError> {
+            if val.0 % 2 == 1 {
+                Err(OddError)
+            } else {
+                Ok(val)
+            }
+        }
+
+        pub fn half(val: Foo) -> Result<Foo, OddError> {
+            Ok(Foo(be_even(val)?.~0 / 2))
+        }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("0", got.matchstr);
+}
+
+#[test]
+fn try_operator_struct() {
+    let _lock = sync!();
+    let src = "
+    struct Foo {
+        pub bar: String,
+        pub baz: bool,
+    }
+
+    struct LongError;
+
+    fn validate(s: String) -> Result<Foo, LongError> {
+        if s.chars().count() < 10 {
+            Ok(Foo { bar: s, baz: true })
+        } else {
+            Err(())
+        }
+    }
+
+    fn process(s: String) -> Result<bool, LongError> {
+        Ok(validate(s)?.b~az)
+    }
+    ";
+
+    let got = get_all_completions(src, None);
+    assert_eq!(2, got.len());
+    assert_eq!("bar", got[0].matchstr);
+    assert_eq!("baz", got[1].matchstr);
+}
+
+#[test]
+fn let_then_try_with_struct() {
+    let _lock = sync!();
+    let src = "
+    struct Foo {
+        pub bar: String,
+        pub baz: bool,
+    }
+
+    struct LongError;
+
+    fn validate(s: String) -> Result<Foo, LongError> {
+        if s.chars().count() < 10 {
+            Ok(Foo { bar: s, baz: true })
+        } else {
+            Err(())
+        }
+    }
+
+    fn process(s: String) -> Result<bool, LongError> {
+        let foo = validate(s);
+        Ok(foo?.b~az)
+    }
+    ";
+
+    let got = get_all_completions(src, None);
+    assert_eq!(2, got.len());
+    assert_eq!("bar", got[0].matchstr);
+    assert_eq!("baz", got[1].matchstr);
+}
+
+#[test]
+fn let_try() {
+    let _lock = sync!();
+
+    let src = "
+    pub struct Foo(u16);
+
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct OddError;
+
+    fn be_even(val: Foo) -> Result<Foo, OddError> {
+        if val.0 % 2 == 1 {
+            Err(OddError)
+        } else {
+            Ok(val)
+        }
+    }
+
+    pub fn half(val: Foo) -> Result<Foo, OddError> {
+        let foo = be_even(val)?;
+        Ok(Foo(foo.~0 / 2))
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("0", got.matchstr);
+}
+
+#[test]
 fn closure_scope_find_outside() {
     let _lock = sync!();
 
@@ -3085,4 +3280,32 @@ fn closure_bracket_scope_nested_match_outside() {
     let got = get_definition(src, None);
     assert_eq!("x", got.matchstr);
     assert_eq!("| x: i32 |", got.contextstr);
+}
+
+#[test]
+fn literal_string_method() {
+    let _lock = sync!();
+    let src = r#"
+        fn check() {
+            "hello".st~arts_with("he");
+        }
+    "#;
+
+    let got = get_definition(src, None);
+    assert_eq!("starts_with", got.matchstr);
+}
+
+#[test]
+fn literal_string_completes() {
+    let _lock = sync!();
+    let src = r#"
+    fn in_let() {
+        let foo = "hello";
+        foo.end~s_with("lo");
+    }
+    "#;
+
+    let got = get_all_completions(src, None);
+    assert_eq!(1, got.len());
+    assert_eq!("ends_with", got[0].matchstr);
 }

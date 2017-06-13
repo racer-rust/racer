@@ -4,6 +4,11 @@ Change Log
 All notable changes to this project will be documented in this file. This
 project adheres to [Semantic Versioning](http://semver.org/).
 
+## Unreleased
+- Find static methods on enums #737
+- Support completion after using try operator `?` #726
+- Find methods on cooked string literals #728
+
 ## 2.0.8
 
 - Fix bug finding definitions where impl contains bang #717
