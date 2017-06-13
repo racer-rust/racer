@@ -70,7 +70,7 @@ pub enum CompletionType {
 pub type Point = usize;
 
 /// A range of text between two positions.
-pub type SourceRange = (Point, Point);
+pub type SourceByteRange = (Point, Point);
 
 /// Line and Column position in a file
 #[derive(Clone, Debug, PartialEq, Eq, Copy)]
@@ -348,8 +348,8 @@ impl fmt::Debug for PathSearch {
 
 pub struct IndexedSource {
     pub code: String,
-    pub idx: Vec<SourceRange>,
-    pub lines: RefCell<Vec<SourceRange>>
+    pub idx: Vec<SourceByteRange>,
+    pub lines: RefCell<Vec<SourceByteRange>>
 }
 
 #[derive(Clone,Copy)]
@@ -524,13 +524,13 @@ impl<'c> Src<'c> {
 // N.b. src can be a substr, so iteration skips chunks that aren't part of the substr
 pub struct CodeChunkIter<'c> {
     src: Src<'c>,
-    iter: slice::Iter<'c, SourceRange>
+    iter: slice::Iter<'c, SourceByteRange>
 }
 
 impl<'c> Iterator for CodeChunkIter<'c> {
-    type Item = SourceRange;
+    type Item = SourceByteRange;
 
-    fn next(&mut self) -> Option<SourceRange> {
+    fn next(&mut self) -> Option<SourceByteRange> {
         loop {
             match self.iter.next() {
                 None => return None,

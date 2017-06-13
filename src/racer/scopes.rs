@@ -1,5 +1,5 @@
 use {ast, typeinf, util};
-use core::{Src, CompletionType, Point, SourceRange};
+use core::{Src, CompletionType, Point, SourceByteRange};
 #[cfg(test)]
 use core::{self, Coordinate};
 
@@ -292,7 +292,7 @@ fn get_start_of_pattern_handles_variant2() {
     assert_eq!(4, get_start_of_pattern("bla, ast::PatTup(ref tuple_elements) => {",36));
 }
 
-pub fn expand_search_expr(msrc: &str, point: Point) -> SourceRange {
+pub fn expand_search_expr(msrc: &str, point: Point) -> SourceByteRange {
     let start = get_start_of_search_expr(msrc, point);
     (start, util::find_ident_end(msrc, point))
 }

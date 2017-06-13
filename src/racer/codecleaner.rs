@@ -1,4 +1,4 @@
-use core::{Point, SourceRange};
+use core::{Point, SourceByteRange};
 
 #[derive(Clone,Copy)]
 enum State {
@@ -18,10 +18,10 @@ pub struct CodeIndicesIter<'a> {
 }
 
 impl<'a> Iterator for CodeIndicesIter<'a> {
-    type Item = SourceRange;
+    type Item = SourceByteRange;
 
     #[inline]
-    fn next(&mut self) -> Option<SourceRange> {
+    fn next(&mut self) -> Option<SourceByteRange> {
         match self.state {
             State::Code => Some(self.code()),
             State::Comment => Some(self.comment()),
@@ -34,7 +34,7 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
 }
 
 impl<'a> CodeIndicesIter<'a> {
-    fn code(&mut self) -> SourceRange {
+    fn code(&mut self) -> SourceByteRange {
         let mut pos = self.pos;
         let start = match self.state {
             State::String |
@@ -83,7 +83,7 @@ impl<'a> CodeIndicesIter<'a> {
         (start, self.src.len())
     }
 
-    fn comment(&mut self) -> SourceRange {
+    fn comment(&mut self) -> SourceByteRange {
         let mut pos = self.pos;
         let src_bytes = self.src.as_bytes();
         for &b in &src_bytes[pos..] {
@@ -99,7 +99,7 @@ impl<'a> CodeIndicesIter<'a> {
         self.code()
     }
 
-    fn comment_block(&mut self) -> SourceRange {
+    fn comment_block(&mut self) -> SourceByteRange {
         let mut nesting_level = 0usize;
         let mut prev = b' ';
         let mut pos = self.pos;
@@ -123,7 +123,7 @@ impl<'a> CodeIndicesIter<'a> {
         self.code()
     }
 
-    fn string(&mut self) -> SourceRange {
+    fn string(&mut self) -> SourceByteRange {
         let src_bytes = self.src.as_bytes();
         let mut pos = self.pos;
         if pos > 1 && src_bytes[pos-2] == b'r' {
@@ -147,7 +147,7 @@ impl<'a> CodeIndicesIter<'a> {
         self.code()
     }
 
-    fn char(&mut self) -> SourceRange {
+    fn char(&mut self) -> SourceByteRange {
         let mut is_not_escaped = true;
         let mut pos = self.pos;
         for &b in &self.src.as_bytes()[pos..] {

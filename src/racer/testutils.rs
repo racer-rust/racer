@@ -1,5 +1,5 @@
 #[cfg(test)]
-use core::SourceRange;
+use core::SourceByteRange;
 
 #[cfg(test)]
 pub fn rejustify(src: &str) -> String {
@@ -18,6 +18,6 @@ pub fn rejustify(src: &str) -> String {
 }
 
 #[cfg(test)]
-pub fn slice(src: &str, (begin, end): SourceRange) -> &str {
+pub fn slice(src: &str, (begin, end): SourceByteRange) -> &str {
     &src[begin..end]
 }

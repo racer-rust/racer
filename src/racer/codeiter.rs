@@ -1,9 +1,9 @@
 use std::iter::{Fuse, Iterator};
 
-use core::{Point, SourceRange};
+use core::{Point, SourceByteRange};
 
 pub struct StmtIndicesIter<'a,I>
-    where I: Iterator<Item=SourceRange>
+    where I: Iterator<Item=SourceByteRange>
 {
     src: &'a str,
     it: I,
@@ -12,12 +12,12 @@ pub struct StmtIndicesIter<'a,I>
 }
 
 impl<'a,I> Iterator for StmtIndicesIter<'a,I>
-    where I: Iterator<Item=SourceRange>
+    where I: Iterator<Item=SourceByteRange>
 {
-    type Item = SourceRange;
+    type Item = SourceByteRange;
 
     #[inline]
-    fn next(&mut self) -> Option<SourceRange> {
+    fn next(&mut self) -> Option<SourceByteRange> {
         let src_bytes = self.src.as_bytes();
         let mut enddelim = b';';
         let mut bracelevel = 0isize;
@@ -124,7 +124,7 @@ fn is_a_let_stmt(src_bytes: &[u8], start: Point, pos: Point) -> bool {
 }
 
 impl<'a, I> StmtIndicesIter<'a,I>
-    where I: Iterator<Item=SourceRange>
+    where I: Iterator<Item=SourceByteRange>
 {
     pub fn from_parts(src: &str, it: I) -> Fuse<StmtIndicesIter<I>> {
         StmtIndicesIter{ src: src, it: it, pos: 0, end: 0 }.fuse()

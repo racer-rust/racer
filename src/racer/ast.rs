@@ -1,4 +1,4 @@
-use core::{self, Match, MatchType, Scope, Ty, Session, SessionExt, Point, SourceRange};
+use core::{self, Match, MatchType, Scope, Ty, Session, SessionExt, Point, SourceByteRange};
 use typeinf;
 use nameres::{self, resolve_path_with_str};
 use scopes;
@@ -100,7 +100,7 @@ impl visit::Visitor for UseVisitor {
 }
 
 pub struct PatBindVisitor {
-    ident_points: Vec<SourceRange>
+    ident_points: Vec<SourceByteRange>
 }
 
 impl visit::Visitor for PatBindVisitor {
@@ -137,7 +137,7 @@ impl visit::Visitor for PatBindVisitor {
 }
 
 pub struct PatVisitor {
-    ident_points: Vec<SourceRange>
+    ident_points: Vec<SourceByteRange>
 }
 
 impl visit::Visitor for PatVisitor {
@@ -951,7 +951,7 @@ pub fn parse_use(s: String) -> UseVisitor {
     v
 }
 
-pub fn parse_pat_bind_stmt(s: String) -> Vec<SourceRange> {
+pub fn parse_pat_bind_stmt(s: String) -> Vec<SourceByteRange> {
     let mut v = PatBindVisitor{ ident_points: Vec::new() };
     if let Some(stmt) = string_to_stmt(s) {
         visit::walk_stmt(&mut v, &stmt);
@@ -999,11 +999,11 @@ pub fn parse_type(s: String) -> TypeVisitor {
     v
 }
 
-pub fn parse_fn_args(s: String) -> Vec<SourceRange> {
+pub fn parse_fn_args(s: String) -> Vec<SourceByteRange> {
     parse_pat_idents(s)
 }
 
-pub fn parse_pat_idents(s: String) -> Vec<SourceRange> {
+pub fn parse_pat_idents(s: String) -> Vec<SourceByteRange> {
     let mut v = PatVisitor{ ident_points: Vec::new() };
     if let Some(stmt) = string_to_stmt(s) {
         debug!("parse_pat_idents stmt is {:?}", stmt);
@@ -1157,7 +1157,7 @@ fn ast_sandbox() {
 
     // let src = "(myvar, foo) = (3,4);";
 
-    // let src = "fn myfn((a,b) : SourceRange) {}";
+    // let src = "fn myfn((a,b) : SourceByteRange) {}";
     // //let src = "impl blah {pub fn another_method() {}}";
 
     // let stmt = string_to_stmt(String::from_str(src));
