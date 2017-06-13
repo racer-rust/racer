@@ -66,6 +66,11 @@ pub fn find_stmt_start(msrc: Src, point: Point) -> Option<Point> {
         .map(|(start, _)| scopestart + start)
 }
 
+/// Finds a statement start or panics.
+pub fn expect_stmt_start(msrc: Src, point: usize) -> usize {
+    find_stmt_start(msrc, point).expect("Statement has a beginning")
+}
+
 /// Finds the start of a `let` statement; includes handling of struct pattern matches in the
 /// statement.
 pub fn find_let_start(msrc: Src, point: Point) -> Option<Point> {
@@ -207,7 +212,10 @@ pub fn get_line(src: &str, point: Point) -> Point {
 pub fn get_start_of_search_expr(src: &str, point: Point) -> Point {
 
     enum State {
+        /// In parentheses; the value inside identifies depth.
         Levels(usize),
+        /// In a string
+        StringLiteral,
         StartsWithDot,
         MustEndsWithDot(usize),
         StartsWithCol(usize),
@@ -228,6 +236,11 @@ pub fn get_start_of_search_expr(src: &str, point: Point) -> Point {
             (b'.', State::MustEndsWithDot(_)) =>  State::None,
             (b':', State::MustEndsWithDot(index)) =>  State::StartsWithCol(index),
             (b':', State::StartsWithCol(_)) =>  State::None,
+            (b'"', State::None) |
+            (b'"', State::StartsWithDot) => State::StringLiteral,
+            (b'"', State::StringLiteral) => State::None,
+            (b'?', State::StartsWithDot) => State::None,
+            (_ , State::StringLiteral) => State::StringLiteral,
             ( _ , State::StartsWithCol(index)) => State::Result(index) ,
             ( _ , State::None) if char_at(src, i).is_whitespace() =>  State::MustEndsWithDot(i+1),
             ( _ , State::MustEndsWithDot(index)) if char_at(src, i).is_whitespace() => State::MustEndsWithDot(index),

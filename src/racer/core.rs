@@ -249,7 +249,7 @@ impl Path {
     pub fn from_svec(global: bool, v: Vec<String>) -> Path {
         let segs = v
             .into_iter()
-            .map(|x| PathSegment{ name: x, types: Vec::new() })
+            .map(PathSegment::from)
             .collect::<Vec<_>>();
         Path{ global: global, segments: segs }
     }
@@ -318,6 +318,15 @@ impl fmt::Display for Path {
 pub struct PathSegment {
     pub name: String,
     pub types: Vec<Path>
+}
+
+impl From<String> for PathSegment {
+    fn from(name: String) -> Self {
+        PathSegment {
+            name: name,
+            types: Vec::new(),
+        }
+    }
 }
 
 /// Information about generic types in a match
