@@ -76,7 +76,7 @@ Vim integration has been moved to a separate project: [vim-racer](https://github
 
 ### Visual Studio Code extension
 
-You can find more info about Visual Studio Code extension [here](https://github.com/saviorisdead/RustyCode).
+You can find more info about Visual Studio Code extension [here](https://github.com/editor-rs/vscode-rust).
 
 ### Atom integration 
 
