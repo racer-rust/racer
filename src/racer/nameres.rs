@@ -21,31 +21,32 @@ pub const PATH_SEP: char = ';';
 fn search_struct_fields(searchstr: &str, structmatch: &Match,
                         search_type: SearchType, session: &Session) -> vec::IntoIter<Match> {
     let src = session.load_file(&structmatch.filepath);
-    let opoint = scopes::expect_stmt_start(src.as_src(), structmatch.point);
-    let structsrc = scopes::end_of_next_scope(&src[opoint..]);
+    let struct_start = scopes::expect_stmt_start(src.as_src(), structmatch.point);
+    let structsrc = scopes::end_of_next_scope(&src[struct_start..]);
 
     let fields = ast::parse_struct_fields(structsrc.to_owned(),
                                           core::Scope::from_match(structmatch));
 
     let mut out = Vec::new();
 
-    for (field, fpos, ty) in fields.into_iter() {
+    for (field, field_point, ty) in fields.into_iter() {
         if symbol_matches(search_type, searchstr, &field) {
             let contextstr = if let Some(t) = ty {
                 t.to_string()
             } else {
                 field.clone()
             };
+
             out.push(Match { matchstr: field,
                                 filepath: structmatch.filepath.clone(),
-                                point: fpos + opoint,
+                                point: field_point + struct_start,
                                 coords: None,
                                 local: structmatch.local,
                                 mtype: StructField,
                                 contextstr: contextstr,
                                 generic_args: Vec::new(),
                                 generic_types: Vec::new(),
-                                docs: String::new(),
+                                docs: find_doc(structsrc, field_point),
             });
         }
     }
