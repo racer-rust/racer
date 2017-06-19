@@ -59,12 +59,28 @@ fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType,
     // optional (pub\s+)?(unsafe\s+)?
     for pat in ["pub", "unsafe"].into_iter() {
         if src[start..].starts_with(pat) {
-            // remove whitespaces ... must have one at least
+            /// Rust added support for `pub(in codegen)`; we need to consume the visibility 
+            /// specifier for the rest of the code to keep working.
+            let allow_scope = pat == &"pub";
+            let mut levels = 0;
+
+            // remove whitespaces ... must have one at least AFTER the visibility restriction
             start += pat.len();
             let oldstart = start;
             for &b in src[start..].as_bytes() {
                 match b {
-                    b' '|b'\r'|b'\n'|b'\t' => start += 1,
+                    b'(' if allow_scope => {
+                        levels += 1;
+                        start += 1;
+                    }
+                    b')' if levels >= 1 => {
+                        levels -= 1;
+                        start += 1;
+                    }
+                    _ if levels >= 1 => { 
+                        start += 1;
+                    }
+                    b' ' | b'\r' | b'\n' | b'\t' => start += 1,
                     _ => break
                 }
             }

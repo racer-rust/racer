@@ -9,6 +9,7 @@ project adheres to [Semantic Versioning](http://semver.org/).
 - Support completion after using try operator `?` #726
 - Find methods on cooked string literals #728
 - Find doc comments on named and indexed struct fields #739
+- Find `pub(restricted)` items #748
 
 ## 2.0.8
 

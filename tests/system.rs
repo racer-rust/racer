@@ -3356,3 +3356,184 @@ fn literal_string_completes() {
     assert_eq!(1, got.len());
     assert_eq!("ends_with", got[0].matchstr);
 }
+
+#[test]
+fn crate_restricted_fn_completes() {
+    let _lock = sync!();
+    let src = r#"
+    pub(crate) fn do_stuff() {
+        println!("Hello");
+    }
+
+    fn more_stuff() {
+        do_~stuff();
+    }
+    "#;
+
+    let got = get_all_completions(src, None);
+    assert_eq!(1, got.len());
+    assert_eq!("do_stuff", got[0].matchstr);
+}
+
+#[test]
+fn mod_restricted_fn_completes() {
+    let _lock = sync!();
+    let src = r#"
+    pub(in some::place_where) fn do_stuff() {
+        println!("Hello");
+    }
+
+    fn more_stuff() {
+        do_~stuff();
+    }
+    "#;
+
+    let got = get_all_completions(src, None);
+    assert_eq!(1, got.len());
+    assert_eq!("do_stuff", got[0].matchstr);
+}
+
+#[test]
+fn finds_definition_of_super_restricted_fn() {
+    let _lock = sync!();
+    let src = r#"
+    pub(super) fn do_stuff() {
+        println!("Hello");
+    }
+
+    fn more_stuff() {
+        do_~stuff();
+    }
+    "#;
+
+    let got = get_definition(src, None);
+    assert_eq!("do_stuff", got.matchstr);
+}
+
+#[test]
+fn crate_restricted_struct_completes() {
+    let _lock = sync!();
+    let src = r#"
+    mod codegen { 
+        pub(crate) struct Foo {
+            pub bar: String,
+        }
+
+        fn stuff(f: Foo) -> String {
+            f.b~ar
+        }
+    }
+    "#;
+
+    let got = get_all_completions(src, None);
+    assert_eq!(1, got.len());
+    assert_eq!("bar", got[0].matchstr);
+}
+
+#[test]
+fn crate_restricted_named_struct_field_completes() {
+    let _lock = sync!();
+    let src = r#"
+    mod codegen { 
+        pub struct Foo {
+            pub(crate) bar: String,
+        }
+
+        fn stuff(f: Foo) -> String {
+            f.b~ar
+        }
+    }
+    "#;
+
+    let got = get_all_completions(src, None);
+    assert_eq!(1, got.len());
+    assert_eq!("bar", got[0].matchstr);
+}
+
+#[test]
+fn crate_restricted_static_method_completes() {
+    let _lock = sync!();
+    let src = r#"
+    mod codegen { 
+        pub struct Foo {
+            pub bar: String,
+        }
+
+        impl Foo {
+            pub(crate) fn with_bar(b: String) -> Self {
+                Foo { bar: b }
+            }
+        }
+
+        fn stuff() -> String {
+            Foo::wi~th_bar("Hello".to_string()).bar
+        }
+    }
+    "#;
+
+    let got = get_all_completions(src, None);
+    assert_eq!(1, got.len());
+    assert_eq!("with_bar", got[0].matchstr);
+}
+
+#[test]
+fn crate_restricted_impl_method_completes() {
+    let _lock = sync!();
+    let src = r#"
+    mod codegen { 
+        pub struct Foo {
+            bar: String,
+        }
+
+        impl Foo {
+            pub(crate) fn get_bar(&self) -> &str {
+                &self.bar
+            }
+        }
+
+        fn stuff(f: Foo) -> String {
+            f.ge~t_bar().clone()
+        }
+    }
+    "#;
+
+    let got = get_all_completions(src, None);
+    assert_eq!(1, got.len());
+    assert_eq!("get_bar", got[0].matchstr);
+}
+
+/// This test _should_ pass, but the bogofile produces errors:
+///
+/// ```ignore
+/// error: expected identifier, found keyword `in`
+///  --> bogofile:1:5
+///   |
+/// 1 | pub(in codegen) struct Foo {
+///   |     ^^
+/// 
+/// error: expected one of `)` or `::`, found `codegen`
+///  --> bogofile:1:8
+///   |
+/// 1 | pub(in codegen) struct Foo {
+///   |        ^^^^^^^
+/// ```
+#[test]
+#[ignore]
+fn mod_restricted_struct_completes() {
+    let _lock = sync!();
+    let src = r#"
+    mod codegen { 
+        pub(in codegen) struct Foo {
+            pub bar: String,
+        }
+
+        fn stuff(f: Foo) -> String {
+            f.b~ar
+        }
+    }
+    "#;
+
+    let got = get_all_completions(src, None);
+    assert_eq!(1, got.len());
+    assert_eq!("bar", got[0].matchstr);
+}
