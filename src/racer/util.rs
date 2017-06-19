@@ -19,6 +19,9 @@ pub fn is_ident_char(c: char) -> bool {
     c.is_alphanumeric() || (c == '_') || (c == '!')
 }
 
+/// Searches for `needle` as a standalone identifier in `haystack`. To be considered a match,
+/// the `needle` must occur either at the beginning of `haystack` or after a non-identifier
+/// character.
 pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
     match stype {
         ExactMatch => {
@@ -83,6 +86,14 @@ fn txt_matches_matches_stuff() {
     assert_eq!(true, txt_matches(StartsWith, "Vec","use Vector"));
     assert_eq!(false, txt_matches(StartsWith, "Vec","use aVector"));
     assert_eq!(true, txt_matches(ExactMatch, "Vec","use Vec"));
+}
+
+#[test]
+fn txt_matches_matches_methods() {
+    assert_eq!(true, txt_matches(StartsWith, "do_st", "fn do_stuff"));
+    assert_eq!(true, txt_matches(StartsWith, "do_st", "pub fn do_stuff"));
+    assert_eq!(true, txt_matches(StartsWith, "do_st", "pub(crate) fn do_stuff"));
+    assert_eq!(true, txt_matches(StartsWith, "do_st", "pub(in codegen) fn do_stuff"));
 }
 
 
