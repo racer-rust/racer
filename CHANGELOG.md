@@ -4,10 +4,16 @@ Change Log
 All notable changes to this project will be documented in this file. This
 project adheres to [Semantic Versioning](http://semver.org/).
 
-## Unreleased
-- Find static methods on enums #737
+## HEAD
+
+- No changes, yet.
+
+## 2.0.9
+
 - Support completion after using try operator `?` #726
 - Find methods on cooked string literals #728
+- Fix bug caused by closure completions feature #734
+- Find static methods on enums #737
 - Find doc comments on named and indexed struct fields #739
 - Find `pub(restricted)` items #748
 

@@ -1,6 +1,6 @@
 [root]
 name = "racer"
-version = "2.0.8"
+version = "2.0.9"
 dependencies = [
  "clap 2.24.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "clippy 0.0.103 (registry+https://github.com/rust-lang/crates.io-index)",
