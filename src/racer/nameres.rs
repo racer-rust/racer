@@ -834,7 +834,8 @@ pub fn search_scope(start: Point, point: Point, src: Src,
             }
         }
     }
-    // now search from top of scope for items etc..
+
+    // since we didn't find a `let` binding, now search from top of scope for items etc..
     let mut codeit = v.into_iter().chain(codeit);
     for (blobstart, blobend) in &mut codeit {
         // sometimes we need to skip blocks of code if the preceeding attribute disables it
@@ -949,21 +950,60 @@ fn try_to_match_closure_definition(searchstr: &str, scope_src: &str, scope_src_p
         return None;
     }
 
-    if let Some(cap) = Regex::new(format!(r"(?:\|)(?:(?s).*,[^a-zA-Z0-9]*|[^a-zA-Z0-9]*)?(?P<definition>{})(?:[^a-zA-Z0-9\|]+[^\|]*)?(?:\|)",
-                                          searchstr).as_str()).unwrap().captures(scope_src) {
-        let def = cap.name("definition").unwrap();
-        Some(Match {
-            matchstr: searchstr.to_owned(),
-            filepath: filepath.to_path_buf(),
-            point: def.start() + scope_src_pos,
-            coords: None,
-            local: true,
-            mtype: FnArg,
-            contextstr: cap.get(0).unwrap().as_str().to_owned(),
-            generic_args: Vec::new(),
-            generic_types: Vec::new(),
-            docs: String::new(),
-        })
+    /// Search for a closure declaration (defined here as "stuff bracketed by | characters").
+    ///
+    /// The pipe characters are preserved by the capture as their presence for some reason
+    /// prevents bad matches on type annotations.
+    ///
+    /// TODO: properly look for closures by requiring it not be after an expression.
+    lazy_static! {
+        static ref CLOSURE_DECL: Regex = Regex::new(r"\|[^;]*?\|").unwrap();
+    }
+
+    trace!("Closure definition match is looking for `{}` in {} characters", searchstr, scope_src.len());
+
+    if let Some(cap) = CLOSURE_DECL.captures(scope_src) {
+        /// This regex looks for the passed-in ident surrounded by non-ident characters
+        /// on the left side of a colon (if one is present). It takes as input the declaration
+        /// of a closure's arguments.
+        let ident_in_closure = Regex::new(&format!(r"(?x:
+            \|
+            (?:(?s).*,[^a-zA-Z0-9]*|[^a-zA-Z0-9]*)? # discard things before the identifier
+            (?P<definition>{})
+            (?:[^a-zA-Z0-9\|]+[^\|;]*)?
+            \|
+        )", searchstr)).unwrap();
+
+        let decl = cap.get(0).unwrap();
+
+        trace!("Found a closure declaration {}..{}, about to search for `{}` in {}", 
+            decl.start(), 
+            decl.end(), 
+            searchstr, 
+            decl.as_str().trim()
+        );
+
+        if let Some(ident_match) = ident_in_closure.captures(decl.as_str()) {
+
+            let def = ident_match.name("definition").unwrap();
+    
+            trace!("Closure definition matched by {}..{}: {:?}", def.start(), def.end(), &cap[0]);
+
+            Some(Match {
+                matchstr: searchstr.to_owned(),
+                filepath: filepath.to_path_buf(),
+                point: def.start() + scope_src_pos,
+                coords: None,
+                local: true,
+                mtype: FnArg,
+                contextstr: cap.get(0).unwrap().as_str().to_owned(),
+                generic_args: Vec::new(),
+                generic_types: Vec::new(),
+                docs: String::new(),
+            })
+        } else {
+            None
+        }
     } else {
         None
     }

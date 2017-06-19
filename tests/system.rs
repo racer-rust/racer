@@ -2987,6 +2987,46 @@ fn ignores_impl_macro() {
 }
 
 #[test]
+fn closure_scope_dont_match_type_annotations() {
+    let _lock = sync!();
+    let src = "
+    struct Foo;
+    fn main() {
+        let y = Some(Foo);
+        y.map(|x: Foo| Fo~o);
+    }
+    ";
+
+    let got = get_definition(src, None);
+    println!("{:?}", got);
+    assert_eq!(MatchType::Struct, got.mtype);
+    assert_eq!(2, got.coords.unwrap().line);
+}
+
+/// The variable `i` doesn't exist in `foo`, so trying to get the definition should
+/// fail.
+#[test]
+#[should_panic]
+fn closure_scope_dont_match_bitwise_or() {
+    let _lock = sync!();
+    let src = "
+    fn foo() {
+        i~
+    }
+    fn bar() {
+        let i = 0;
+        let x = 0 | i;
+    }
+    fn baz() {
+        // 1 || 2;
+    }
+    ";
+
+    let got = get_definition(src, None);
+    println!("Unexpectedly found definition: {:?}", got);
+}
+
+#[test]
 fn try_operator() {
     let _lock = sync!();
 

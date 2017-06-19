@@ -21,6 +21,7 @@ doc = false
 debug = true
 
 [dependencies]
+lazy_static = "0.2"
 log = "0.3.6"
 syntex_syntax = "0.52.0"
 syntex_errors = "0.52.0"
@@ -36,7 +37,6 @@ optional = true
 
 [dev-dependencies]
 rand = "0.3"
-lazy_static = "0.2"
 
 [features]
 nightly = []
