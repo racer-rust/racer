@@ -3458,6 +3458,82 @@ fn closure_bracket_scope_nested_match_outside() {
     assert_eq!("| x: i32 |", got.contextstr);
 }
 
+// Issue: https://github.com/racer-rust/racer/issues/754
+#[test]
+fn closure_dont_detect_normal_pipes() {
+    let _lock = sync!();
+
+    let src = "
+    enum Fruit {
+        Apple = 1,
+    }
+
+    fn foo(ty: Fruit) -> bool {
+        (1 as u8 | Fruit~::Apple as u8) == Fruit::Apple as u8
+    }
+
+    fn bar(ty: Fruit) -> bool {
+        match ty {
+            Fruit::Apple |
+            Fruit::Apple => {
+                false
+            }
+        }
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("Fruit", got.matchstr);
+    assert_eq!(got.mtype, MatchType::Enum);
+}
+
+#[test]
+fn closure_test_curly_brackets_in_args() {
+    let _lock = sync!();
+    
+    let src ="
+    struct Foo {
+        bar: u16
+    }
+
+    fn example() -> Result<Foo, ()> {
+        Ok(Foo { bar: 10 })
+    }
+
+    fn main() {
+        example().and_then(|Foo { bar }| { println!(\"{}\", bar~); Ok(()) });
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("bar", got.matchstr);
+    assert_eq!("|Foo { bar }|", got.contextstr);
+}
+
+#[test]
+fn closure_test_multiple_curly_brackets_in_args() {
+    let _lock = sync!();
+    
+    let src ="
+    struct Foo {
+        bar: u16
+    }
+
+    fn example() -> Result<Foo, ()> {
+        Ok(Foo { bar: 10 })
+    }
+
+    fn main() {
+        example().and_then(|Foo { bar }, Foo { ex }, Foo { b }| { println!(\"{}\", bar~); Ok(()) });
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("bar", got.matchstr);
+    assert_eq!("|Foo { bar }, Foo { ex }, Foo { b }|", got.contextstr);
+}
+
+
 #[test]
 fn literal_string_method() {
     let _lock = sync!();
