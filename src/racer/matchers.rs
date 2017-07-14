@@ -595,9 +595,6 @@ pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
         let ident = use_item.ident.unwrap_or("".into());
         for path in use_item.paths.into_iter() {
             let len = path.path.segments.len();
-
-            debug!("Looking for {:?} in {:?}", searchstr, path);
-
             if symbol_matches(search_type, searchstr, &path.ident) { // i.e. 'use foo::bar as searchstr'
                 if len == 1 && path.path.segments[0].name == searchstr {
                     // is an exact match of a single use stmt.

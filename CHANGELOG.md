@@ -6,7 +6,7 @@ project adheres to [Semantic Versioning](http://semver.org/).
 
 ## HEAD
 
-- No changes, yet.
+- Support resolving `use as` aliases declared in multi-element `use` statements #753
 
 ## 2.0.9
 
