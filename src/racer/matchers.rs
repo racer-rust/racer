@@ -574,7 +574,7 @@ pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
         debug!("found a glob!! {:?}", use_item);
 
         if use_item.is_glob {
-            let basepath = use_item.paths.into_iter().nth(0).unwrap();
+            let basepath = use_item.paths.into_iter().nth(0).unwrap().path;
             let seg = PathSegment{ name: searchstr.to_owned(), types: Vec::new() };
             let mut path = basepath.clone();
             path.segments.push(seg);
@@ -594,15 +594,17 @@ pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
 
         let ident = use_item.ident.unwrap_or("".into());
         for path in use_item.paths.into_iter() {
-            let len = path.segments.len();
+            let len = path.path.segments.len();
 
-            if symbol_matches(search_type, searchstr, &ident) { // i.e. 'use foo::bar as searchstr'
-                if len == 1 && path.segments[0].name == searchstr {
+            debug!("Looking for {:?} in {:?}", searchstr, path);
+
+            if symbol_matches(search_type, searchstr, &path.ident) { // i.e. 'use foo::bar as searchstr'
+                if len == 1 && path.path.segments[0].name == searchstr {
                     // is an exact match of a single use stmt.
                     // Do nothing because this will be picked up by the module
                     // search in a bit.
                 } else {
-                    for m in resolve_path(&path, filepath, blobstart, ExactMatch, Namespace::Both, session, pending_imports) {
+                    for m in resolve_path(path.as_ref(), filepath, blobstart, ExactMatch, Namespace::Both, session, pending_imports) {
                         out.push(m);
                         if let ExactMatch = search_type  {
                             return out;
@@ -616,24 +618,24 @@ pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
 
                 // if searching for a symbol and the last path segment
                 // matches the symbol then find the fqn
-                if len == 1 && path.segments[0].name == searchstr {
+                if len == 1 && path.path.segments[0].name == searchstr {
                     // is an exact match of a single use stmt.
                     // Do nothing because this will be picked up by the module
                     // search in a bit.
                 } else {
-                    let path = if &path.segments.last().unwrap().name == "self" {
+                    let path = if &path.path.segments.last().unwrap().name == "self" {
                         // `use foo::bar::self` -> `use foo::bar`
                         let mut path = path;
-                        path.segments.pop();
+                        path.path.segments.pop();
                         path
                     } else {
                         path
                     };
 
-                    if path.segments.len() > 1 {
-                        if symbol_matches(search_type, searchstr, &path.segments.last().unwrap().name) {
+                    if path.path.segments.len() > 1 {
+                        if symbol_matches(search_type, searchstr, &path.path.segments.last().unwrap().name) {
                             // last path segment matches the path. find it!
-                            for m in resolve_path(&path, filepath, blobstart,
+                            for m in resolve_path(path.as_ref(), filepath, blobstart,
                                                   ExactMatch, Namespace::Both, session, pending_imports) {
                                 out.push(m);
                                 if let ExactMatch = search_type  {
