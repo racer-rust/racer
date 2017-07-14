@@ -942,6 +942,32 @@ fn follows_use_as() {
     assert_eq!(got.matchstr, "myfn");
 }
 
+/// Verifies fix for https://github.com/racer-rust/racer/issues/753
+#[test]
+fn follows_use_as_in_braces() {
+    let _lock = sync!();
+
+    let src = "
+        mod m {
+        pub struct Wrapper {
+            pub x: i32,
+        }
+
+        pub struct Second {
+            pub y: i32,
+        }
+    }
+
+    fn main() {
+        use m::{Wrapper as Wpr, Second};
+        let _ = W~pr { x: 1 };
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "Wrapper");
+}
+
 #[test]
 fn follows_use_glob() {
     let _lock = sync!();
