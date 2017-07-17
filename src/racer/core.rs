@@ -915,7 +915,7 @@ fn complete_from_file_(
     session: &Session
 ) -> vec::IntoIter<Match> {
     let src = session.load_file_and_mask_comments(filepath);
-    let src = &src.as_src()[..];
+    let src_text = &src.as_src()[..];
 
     // TODO return result
     let pos = match cursor.to_point(&session.load_file(filepath)) {
@@ -926,8 +926,8 @@ fn complete_from_file_(
         }
     };
 
-    let start = scopes::get_start_of_search_expr(src, pos);
-    let expr = &src[start..pos];
+    let start = scopes::get_start_of_search_expr(src_text, pos);
+    let expr = &src_text[start..pos];
 
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
@@ -942,11 +942,11 @@ fn complete_from_file_(
             // 1. The line is use contextstr::{A, B, C, searchstr
             // 2. The line started with contextstr or ::
             // 3. FIXME(may not correct): Neither above case, then expr parsed above is corrected
-            let linestart = scopes::get_line(src, pos);
+            let linestart = scopes::find_stmt_start(src.as_src(), pos).unwrap_or_else(|| scopes::get_line(src_text, pos));
 
             // step 1, get full line, take the rightmost part split by semicolon
             //   prevent the case that someone write multiple line in one line
-            let mut line = src[linestart..pos].trim().rsplit(';').nth(0).unwrap();
+            let mut line = src_text[linestart..pos].trim().rsplit(';').nth(0).unwrap();
             debug!("Complete path with line: {:?}", line);
 
             let is_global = line.starts_with("::");

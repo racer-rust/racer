@@ -921,6 +921,29 @@ fn follows_use() {
 }
 
 #[test]
+fn follows_use_in_braces() {
+    let _lock = sync!();
+    let src = "
+    mod foo {
+        pub fn myfn() {}
+        pub fn second() {}
+    }
+
+    fn main() {
+        use foo::{
+            myfn, 
+            second
+        };
+        
+        my~fn();
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "myfn");
+}
+
+#[test]
 fn follows_use_as() {
     let _lock = sync!();
 
@@ -2742,6 +2765,32 @@ fn completes_multiple_use_comma() {
     for (wo, wi) in gotwo.into_iter().zip(gotwi) {
         assert_eq!(wo.matchstr, wi.matchstr);
     }
+}
+
+#[test]
+fn completes_multiple_use_newline() {
+    let _lock = sync!();
+
+    let src = "
+    mod foo {
+        pub struct Bar;
+
+        pub fn myfn() {}
+    }
+
+    fn main() {
+        use foo::{
+            Bar,
+            my~fn
+        };
+
+        myfn();
+    }
+    ";
+
+    let got = get_all_completions(src, None);
+    assert_eq!(got.len(), 1);
+    assert_eq!(got[0].matchstr, "myfn");
 }
 
 
