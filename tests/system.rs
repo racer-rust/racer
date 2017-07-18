@@ -3563,3 +3563,48 @@ fn mod_restricted_struct_completes() {
     assert_eq!(1, got.len());
     assert_eq!("bar", got[0].matchstr);
 }
+
+#[test]
+fn completes_for_global_path_in_fn_return() {
+    let _lock = sync!();
+
+    let src = "
+    mod bar {
+        pub struct Foo;
+    }
+
+    mod baz {
+        fn foo() -> ::bar::F~oo {
+            Foo
+        }
+    }
+
+    fn main() {}
+    ";
+
+    let got = get_one_completion(src, None);
+    assert_eq!(got.matchstr, "Foo");
+}
+
+#[test]
+fn completes_for_global_path_in_trait_impl_decl() {
+    let _lock = sync!();
+
+    let src = "
+    mod foo {
+        pub trait Bar {}
+    }
+
+    mod baz {
+        pub struct Test;
+
+        impl ::foo::~Bar for Test {}
+    }
+
+    fn main() {}
+    ";
+
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "Bar");
+    assert_eq!(got.mtype, MatchType::Trait);
+}
