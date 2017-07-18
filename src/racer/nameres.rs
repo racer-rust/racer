@@ -5,7 +5,8 @@ use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{Match, Src, Session, Coordinate, SessionExt, Ty, Point};
 use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, TraitImpl, MatchArm, Builtin};
 use core::Namespace;
-use util::{closure_valid_arg_scope, symbol_matches, txt_matches, find_ident_end};
+
+use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches, find_ident_end};
 use matchers::find_doc;
 use cargo;
 use std::path::{Path, PathBuf};
@@ -385,7 +386,7 @@ fn search_scope_headers(point: Point, scopestart: Point, msrc: Src, searchstr: &
         let preblock = &msrc[stmtstart..scopestart];
         debug!("search_scope_headers preblock is |{}|", preblock);
 
-        if preblock.starts_with("fn") || preblock.starts_with("pub fn") || preblock.starts_with("pub const fn") {
+        if preblock_is_fn(preblock) {
             return search_fn_args(stmtstart, scopestart, &msrc, searchstr, filepath, search_type, true);
 
         // 'if let' can be an expression, so might not be at the start of the stmt
@@ -520,6 +521,34 @@ fn search_scope_headers(point: Point, scopestart: Point, msrc: Src, searchstr: &
     }
 
     Vec::new().into_iter()
+}
+
+/// Checks if a scope preblock is a function declaration.
+///
+/// TODO: Handle `extern` functions
+fn preblock_is_fn(preblock: &str) -> bool {
+    // Perform simple checks
+    if preblock.starts_with("fn") || preblock.starts_with("pub fn") || preblock.starts_with("const fn") {
+        return true;
+    }
+
+    /// Remove visibility declarations, such as restricted visibility
+    let trimmed = if preblock.starts_with("pub") {
+        util::trim_visibility(preblock)
+    } else {
+        preblock
+    };
+
+    trimmed.starts_with("fn") || trimmed.starts_with("const fn")
+}
+
+#[test]
+fn is_fn() {
+    assert!(preblock_is_fn("pub fn bar()"));
+    assert!(preblock_is_fn("fn foo()"));
+    assert!(preblock_is_fn("const fn baz()"));
+    assert!(preblock_is_fn("pub(crate) fn bar()"));
+    assert!(preblock_is_fn("pub(in foo::bar) fn bar()"));
 }
 
 fn mask_matchstmt(matchstmt_src: &str, innerscope_start: Point) -> String {
@@ -915,6 +944,12 @@ pub fn search_scope(start: Point, point: Point, src: Src,
                 return out.into_iter();
             }
         }
+    }
+
+    let delayed_import_len =  delayed_single_imports.len() + delayed_glob_imports.len();
+
+    if delayed_import_len > 0 {
+        trace!("Searching {} delayed imports for `{}`", delayed_import_len, searchstr);
     }
 
     // Finally, process the imports that we skipped before.
