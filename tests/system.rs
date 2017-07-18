@@ -3469,6 +3469,48 @@ fn mod_restricted_fn_completes() {
 }
 
 #[test]
+fn finds_definition_of_fn_arg() {
+    let _lock = sync!();
+    let src = r#"
+    pub fn say_hello(name: String) {
+        println!("{}", nam~e);
+    }
+    "#;
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "name");
+}
+
+#[test]
+fn finds_definition_of_crate_restricted_fn_arg() {
+    let _lock = sync!();
+    let src = r#"
+    pub(crate) fn say_hello(name: String) {
+        println!("{}", nam~e);
+    }
+    "#;
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "name");
+}
+
+/// This test should work, but may be failing because there is no `mod foo`
+/// in the generated code we parse to get the signature.
+#[test]
+#[ignore]
+fn finds_definition_of_mod_restricted_fn_arg() {
+    let _lock = sync!();
+    let src = r#"
+    pub(in foo) fn say_hello(name: String) {
+        println!("{}", nam~e);
+    }
+    "#;
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "name");
+}
+
+#[test]
 fn finds_definition_of_super_restricted_fn() {
     let _lock = sync!();
     let src = r#"

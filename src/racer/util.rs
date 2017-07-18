@@ -404,3 +404,37 @@ impl<'stack, T> StackLinkedListNode<'stack, T>
         false
     }
 }
+
+/// Removes `pub(...)` from the start of a blob so that other code
+/// can assess the struct/trait/fn without worrying about restricted
+/// visibility.
+pub fn trim_visibility(blob: &str) -> &str {
+    if !blob.trim_left().starts_with("pub") {
+        return blob
+    }
+    
+    let mut level = 0;
+    let mut skip_restricted = 0;
+    for (i, c) in blob[3..].char_indices() {
+        match c {
+            '(' => level += 1,
+            ')' => level -= 1,
+            _ if level >= 1 => (),
+            // stop on the first thing that isn't whitespace
+            _ if is_ident_char(c) => {
+                skip_restricted = i + 3;
+                break;
+            },
+            _ => continue,
+        }
+    }
+
+    &blob[skip_restricted..]
+}
+
+#[test]
+fn test_trim_visibility() {
+    assert_eq!(trim_visibility("pub fn"), "fn");
+    assert_eq!(trim_visibility("pub(crate)   struct"), "struct");
+    assert_eq!(trim_visibility("pub (in super)  const fn"), "const fn");
+}
