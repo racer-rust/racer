@@ -5,8 +5,12 @@ use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{Match, Src, Session, Coordinate, SessionExt, Ty, Point};
 use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, TraitImpl, MatchArm, Builtin};
 use core::Namespace;
+<<<<<<< HEAD
 
 use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches, find_ident_end};
+=======
+use util::{self, symbol_matches, txt_matches, find_ident_end};
+>>>>>>> Search fn args for pub(restricted) fns
 use matchers::find_doc;
 use cargo;
 use std::path::{Path, PathBuf};
