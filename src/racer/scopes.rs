@@ -43,8 +43,19 @@ pub fn find_closure_scope_start(src: Src, point: Point, parentheses_open_pos: Po
 pub fn scope_start(src: Src, point: Point) -> Point {
     let masked_src = mask_comments(src.to(point));
 
-    let curly_parent_open_pos = find_close(masked_src.as_bytes().iter().rev(), b'}', b'{', 0)
+    let mut curly_parent_open_pos = find_close(masked_src.as_bytes().iter().rev(), b'}', b'{', 0)
         .map_or(0, |count| point - count);
+
+    // We've found a multi-use statement, such as `use foo::{bar, baz};`, so we shouldn't consider
+    // the brace to be the start of the scope.
+    if curly_parent_open_pos > 0 && masked_src[..curly_parent_open_pos].ends_with("::{") {
+        trace!("scope_start landed in a use statement for {}; broadening search", point);
+        curly_parent_open_pos = find_close(
+            mask_comments(src.to(curly_parent_open_pos - 1)).as_bytes().iter().rev(), 
+            b'}', 
+            b'{', 
+            0).map_or(0, |count| point - count);
+    }
 
     let parent_open_pos = find_close(masked_src.as_bytes().iter().rev(), b')', b'(', 0)
         .map_or(0, |count| point - count);
