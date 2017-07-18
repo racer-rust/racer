@@ -946,20 +946,24 @@ fn complete_from_file_(
 
             // step 1, get full line, take the rightmost part split by semicolon
             //   prevent the case that someone write multiple line in one line
-            let mut line = src[linestart..pos].trim().rsplit(';').nth(0).unwrap();
+            let line = src[linestart..pos].trim().rsplit(';').nth(0).unwrap();
             debug!("Complete path with line: {:?}", line);
 
-            let is_global = line.starts_with("::");
+            /// Test if the **path expression** starts with `::`, in which case the path
+            /// should be checked against the global namespace rather than the items currently
+            /// in scope.
+            let is_global = expr.starts_with("::");
             let is_use = line.starts_with("use ");
 
-            let v = if is_use || is_global {
-                if is_use { line = &line[4..]; }
-                if is_global { line = &line[2..]; }
-
-                line.split("::").collect::<Vec<_>>()
+            let v = (if is_use {
+                // trim the `use ` statement
+                &line[4..]
+            } else if is_global {
+                // trim the leading semi-colon
+                &expr[2..]
             } else {
-                expr.split("::").collect::<Vec<_>>()
-            };
+                expr
+            }).split("::").collect::<Vec<_>>();
 
             let path = Path::from_vec(is_global, v);
             for m in nameres::resolve_path(&path, filepath, pos,
