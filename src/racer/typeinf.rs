@@ -31,30 +31,10 @@ pub fn first_param_is_self(blob: &str) -> bool {
     /// Restricted visibility introduces the possibility of `pub(in ...)` at the start
     /// of a method declaration. To counteract this, we restrict the search to only
     /// look at text _after_ the visibility declaration.
-    let skip_restricted = if blob.trim_left().starts_with("pub") {
-        let mut level = 0;
-        let mut skip_restricted = 0;
-        for (i, c) in blob[3..].char_indices() {
-            match c {
-                '(' => level += 1,
-                ')' => level -= 1,
-                _ if level >= 1 => (),
-                _ if util::is_ident_char(c) => {
-                    skip_restricted = i + 3;
-                    break;
-                },
-                _ => continue,
-            }
-        }
-
-        skip_restricted
-    } else {
-        0
-    };
-
+    ///
     /// Having found the end of the visibility declaration, we now start the search
     /// for method parameters.
-    let blob = &blob[skip_restricted..];
+    let blob = util::trim_visibility(blob);
 
     // skip generic arg
     // consider 'pub fn map<U, F: FnOnce(T) -> U>(self, f: F)'
