@@ -68,7 +68,7 @@ pub fn first_param_is_self(blob: &str) -> bool {
             while let Some(start) = blob[skip_generic..].find('(') {
                 let end = scopes::find_closing_paren(blob, start + 1);
                 let is_self = txt_matches(ExactMatch, "self", &blob[(start + 1)..end]);
-                debug!("searching fn args: |{}| {}",
+                trace!("searching fn args for self: |{}| {}",
                        &blob[(start + 1)..end],
                        is_self);
                 return is_self;
