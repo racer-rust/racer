@@ -478,7 +478,6 @@ fn test_trim_visibility() {
     assert_eq!(trim_visibility("pub fn"), "fn");
     assert_eq!(trim_visibility("pub(crate)   struct"), "struct");
     assert_eq!(trim_visibility("pub (in super)  const fn"), "const fn");
-<<<<<<< HEAD
 }
 
 /// Checks if the completion point is in a function declaration by looking
@@ -512,6 +511,4 @@ fn test_in_fn_name() {
     assert!(in_fn_name("fn "));
     assert!(!in_fn_name("fn foo(b"));
     assert!(!in_fn_name("fn"));
-=======
->>>>>>> Search fn args for pub(restricted) fns
 }
