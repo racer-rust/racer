@@ -511,6 +511,13 @@ fn search_scope_headers(point: Point, scopestart: Point, msrc: Src, searchstr: &
                             out.push(m);
                         }
                     });
+
+                    trace!(
+                        "Found {} methods matching `{}` for trait `{}`", 
+                        out.len(), 
+                        searchstr, 
+                        m.matchstr);
+
                     return out.into_iter();
                 }
 
