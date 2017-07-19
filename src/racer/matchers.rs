@@ -601,7 +601,15 @@ pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
                     // Do nothing because this will be picked up by the module
                     // search in a bit.
                 } else {
-                    for m in resolve_path(path.as_ref(), filepath, blobstart, ExactMatch, Namespace::Both, session, pending_imports) {
+                    for mut m in resolve_path(path.as_ref(), filepath, blobstart, ExactMatch, Namespace::Both, session, pending_imports) {
+                        
+                        // If the match was imported by a `use as` statement, racer
+                        // should return the alias so that completions will produce
+                        // valid code.
+                        if m.matchstr != path.ident {
+                            m.matchstr = path.ident.clone();
+                        }
+
                         out.push(m);
                         if let ExactMatch = search_type  {
                             return out;
