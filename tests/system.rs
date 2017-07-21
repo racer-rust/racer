@@ -2992,6 +2992,63 @@ fn finds_mod_with_same_name_as_trait_method_in_body() {
     assert_eq!(got.matchstr, "Formatter");
 }
 
+/// Addresses https://github.com/racer-rust/racer/issues/680. In this case,
+/// `sub` should not be interpreted as a method name; it didn't appear after
+/// `fn` and therefore would need `Self::`, `self.` or another qualified name
+/// to be syntactically valid.
+#[test]
+fn finds_mod_with_same_name_as_trait_method_in_sig() {
+    let _lock = sync!();
+
+    let src = "
+    mod sub {
+        pub struct Formatter;
+
+        pub trait Fmt {
+            fn sub(&self, f: &Formatter);
+        }
+    }
+
+    struct Sample;
+
+    impl sub::Fmt for Sample {
+        fn sub(&self, f: &sub::Fo~rmatter) {
+
+        }
+    }
+    ";
+
+    let got = get_one_completion(src, None);
+    assert_eq!(got.matchstr, "Formatter");
+}
+
+/// Also addresses issue #680.
+#[test]
+fn finds_mod_with_same_name_as_trait_method_in_body() {
+    let _lock = sync!();
+
+    let src = "
+    mod sub {
+        pub struct Formatter;
+
+        pub trait Fmt {
+            fn sub(&self) -> sub::Formatter;
+        }
+    }
+
+    struct Sample;
+
+    impl sub::Fmt for Sample {
+        fn sub(&self) -> sub::Formatter {
+            sub::Fo~rmatter
+        }
+    }
+    ";
+
+    let got = get_one_completion(src, None);
+    assert_eq!(got.matchstr, "Formatter");
+}
+
 #[test]
 fn finds_field_with_same_name_as_method() {
     let _lock = sync!();
