@@ -1262,14 +1262,16 @@ fn keeps_newlines_in_external_mod_doc() {
     assert_eq!("The mods multiline documentation\n\nwith an empty line", got.docs);
 }
 
+/// Addresses https://github.com/racer-rust/racer/issues/618
 #[test]
-fn issue_618() {
+fn always_get_all_doc_lines() {
     let _lock = sync!();
 
     let src = "
 /// Orange
 /// juice
-pub fn appl~e() {
+pub fn apple() {
+    app~le()
 }";
 
     let got = get_only_completion(src, None);
@@ -1277,14 +1279,20 @@ pub fn appl~e() {
     assert_eq!("Orange\njuice", got.docs);
 }
 
+/// Addresses https://github.com/racer-rust/racer/issues/594
 #[test]
-fn issue_594() {
+fn find_complete_docs_with_parentheses_on_last_line() {
     let _lock = sync!();
 
     let src = "
 /// Hello world
 /// (quux)
-pub fn fo~o() {}";
+pub fn foo() {}
+
+pub fn bar() {
+    fo~o()
+}
+";
 
     let got = get_only_completion(src, None);
     assert_eq!("foo", got.matchstr);
