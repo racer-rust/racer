@@ -3537,3 +3537,32 @@ fn mod_restricted_struct_completes() {
     assert_eq!(1, got.len());
     assert_eq!("bar", got[0].matchstr);
 }
+
+#[test]
+fn completes_super_impl_fn() {
+    let _lock = sync!();
+
+    let src = r#"
+    pub struct A { }
+
+    pub mod a {
+        impl super::A {
+            pub fn return_number(&self) -> u8 {
+                42
+            }
+        }
+
+    }
+
+    fn main() {
+        let some_struct = A { };
+        some_struct.~
+    }
+    "#;
+
+    within_test_project(|| {
+        let got = get_one_completion(src, None);
+        assert_eq!("return_number", got.matchstr);
+    })
+}
+
