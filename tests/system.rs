@@ -921,6 +921,29 @@ fn follows_use() {
 }
 
 #[test]
+fn follows_use_in_braces() {
+    let _lock = sync!();
+    let src = "
+    mod foo {
+        pub fn myfn() {}
+        pub fn second() {}
+    }
+
+    fn main() {
+        use foo::{
+            myfn, 
+            second
+        };
+        
+        my~fn();
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "myfn");
+}
+
+#[test]
 fn follows_use_as() {
     let _lock = sync!();
 
@@ -940,6 +963,32 @@ fn follows_use_as() {
     dir.write_file("src2.rs", src2);
     let got = get_definition(src, Some(dir));
     assert_eq!(got.matchstr, "myfn");
+}
+
+/// Verifies fix for https://github.com/racer-rust/racer/issues/753
+#[test]
+fn follows_use_as_in_braces() {
+    let _lock = sync!();
+
+    let src = "
+        mod m {
+        pub struct Wrapper {
+            pub x: i32,
+        }
+
+        pub struct Second {
+            pub y: i32,
+        }
+    }
+
+    fn main() {
+        use m::{Wrapper as Wpr, Second};
+        let _ = W~pr { x: 1 };
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "Wrapper");
 }
 
 #[test]
@@ -2718,6 +2767,32 @@ fn completes_multiple_use_comma() {
     }
 }
 
+#[test]
+fn completes_multiple_use_newline() {
+    let _lock = sync!();
+
+    let src = "
+    mod foo {
+        pub struct Bar;
+
+        pub fn myfn() {}
+    }
+
+    fn main() {
+        use foo::{
+            Bar,
+            my~fn
+        };
+
+        myfn();
+    }
+    ";
+
+    let got = get_all_completions(src, None);
+    assert_eq!(got.len(), 1);
+    assert_eq!(got[0].matchstr, "myfn");
+}
+
 
 #[test]
 fn completes_trait_methods_in_trait_impl() {
@@ -3566,3 +3641,47 @@ fn completes_super_impl_fn() {
     })
 }
 
+#[test]
+fn completes_for_global_path_in_fn_return() {
+    let _lock = sync!();
+
+    let src = "
+    mod bar {
+        pub struct Foo;
+    }
+
+    mod baz {
+        fn foo() -> ::bar::F~oo {
+            Foo
+        }
+    }
+
+    fn main() {}
+    ";
+
+    let got = get_one_completion(src, None);
+    assert_eq!(got.matchstr, "Foo");
+}
+
+#[test]
+fn completes_for_global_path_in_trait_impl_decl() {
+    let _lock = sync!();
+
+    let src = "
+    mod foo {
+        pub trait Bar {}
+    }
+
+    mod baz {
+        pub struct Test;
+
+        impl ::foo::~Bar for Test {}
+    }
+
+    fn main() {}
+    ";
+
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "Bar");
+    assert_eq!(got.mtype, MatchType::Trait);
+}

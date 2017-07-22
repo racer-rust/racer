@@ -1,6 +1,6 @@
 # *Racer* - code completion for [Rust](http://www.rust-lang.org/)
 
-[![Build Status](https://travis-ci.org/phildawes/racer.svg?branch=master)](https://travis-ci.org/phildawes/racer)
+[![Build Status](https://travis-ci.org/racer-rust/racer.svg?branch=master)](https://travis-ci.org/racer-rust/racer)
 
 ![racer completion screenshot](images/racer_completion.png)
 
@@ -20,7 +20,7 @@ As mentioned in the command output, don't forget to add the installation directo
 
 ### From sources
 
-1. Clone the repository: ```git clone https://github.com/phildawes/racer.git```
+1. Clone the repository: ```git clone https://github.com/racer-rust/racer.git```
 
 2. ```cd racer; cargo build --release```.  The binary will now be in ```./target/release/racer```
 

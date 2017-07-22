@@ -62,11 +62,41 @@ pub fn string_to_crate(source_str: String) -> Option<ast::Crate> {
     })
 }
 
+/// The leaf of a `use` statement. Extends `core::Path` to support
+/// aliases in `ViewPathList` scenarios.
+#[derive(Debug)]
+pub struct PathWithAlias {
+    /// The identifier introduced into the current scope.
+    pub ident: String,
+
+    /// The path.
+    pub path: core::Path,
+}
+
+impl From<core::Path> for PathWithAlias {
+    fn from(v: core::Path) -> Self {
+        PathWithAlias {
+            ident: v.segments[0].name.clone(),
+            path: v,
+        }
+    }
+}
+
+impl AsRef<core::Path> for PathWithAlias {
+    fn as_ref(&self) -> &core::Path {
+        &self.path
+    }
+}
 
 #[derive(Debug)]
 pub struct UseVisitor {
+    /// For a single `use` statement, contains the identifier introduced into the current
+    /// scope.
+    ///
+    /// * A simple use statement such as `use foo::bar` will set this to `"bar"`.
+    /// * An alias such as `use foo::bar as baz` will set this to `"baz"`.
     pub ident : Option<String>,
-    pub paths : Vec<core::Path>,
+    pub paths : Vec<PathWithAlias>,
     pub is_glob: bool
 }
 
@@ -75,23 +105,34 @@ impl visit::Visitor for UseVisitor {
         if let ItemKind::Use(ref path) = i.node {
             match path.node {
                 ast::ViewPathSimple(ident, ref path) => {
-                    self.paths.push(to_racer_path(path));
+                    self.paths.push(PathWithAlias {
+                        ident: ident.name.to_string(),
+                        path: to_racer_path(path),
+                    });
                     self.ident = Some(ident.name.to_string());
                 },
                 ast::ViewPathList(ref pth, ref paths) => {
                     let basepath = to_racer_path(pth);
                     for path in paths {
+                        /// Figure out the identifier being introduced to the local
+                        /// namespace. This will differ from the import name if an `as`
+                        /// was used.
+                        let ident = path.node.rename.unwrap_or(path.node.name).name.to_string();
+
                         let name = path.node.name.name.to_string();
+
                         let seg = core::PathSegment{ name: name, types: Vec::new() };
                         let mut newpath = basepath.clone();
 
                         newpath.segments.push(seg);
-                        self.paths.push(newpath);
+                        self.paths.push(PathWithAlias {
+                            ident: ident,
+                            path: newpath,
+                        });
                     }
                 }
                 ast::ViewPathGlob(ref pth) => {
-                    let basepath = to_racer_path(pth);
-                    self.paths.push(basepath);
+                    self.paths.push(to_racer_path(pth).into());
                     self.is_glob = true;
                 }
             }
