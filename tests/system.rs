@@ -2881,7 +2881,10 @@ fn completes_trait_methods_in_trait_impl() {
     assert_eq!(got.contextstr, "fn traitm(&self) -> bool");
 }
 
+<<<<<<< HEAD
 /// Check if user is offered a completion for a static function defined by a trait.
+=======
+>>>>>>> Fix broken test
 #[test]
 fn completes_trait_fn_in_trait_impl() {
     let _lock = sync!();
@@ -2896,7 +2899,11 @@ fn completes_trait_fn_in_trait_impl() {
         pub struct Foo(bool);
 
         impl Trait for Foo {
+<<<<<<< HEAD
             fn traitf~() -> bool { false }
+=======
+            fn trait~f() -> bool { false }
+>>>>>>> Fix broken test
             fn traitm(&self) -> bool { true }
         }
     }
@@ -2905,6 +2912,7 @@ fn completes_trait_fn_in_trait_impl() {
     let got = get_one_completion(src, None);
     assert_eq!(got.matchstr, "traitf");
     assert_eq!(got.contextstr, "fn traitf() -> bool");
+<<<<<<< HEAD
 }
 
 #[test]
@@ -2990,6 +2998,8 @@ fn finds_mod_with_same_name_as_trait_method_in_body() {
 
     let got = get_one_completion(src, None);
     assert_eq!(got.matchstr, "Formatter");
+=======
+>>>>>>> Fix broken test
 }
 
 /// Addresses https://github.com/racer-rust/racer/issues/680. In this case,
