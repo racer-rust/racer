@@ -257,6 +257,8 @@ pub fn search_for_impls(pos: Point, searchstr: &str, filepath: &Path, local: boo
                     let is_trait_impl = implres.trait_path.is_some();
                     let mtype = if is_trait_impl { TraitImpl } else { Impl };
 
+                    // TODO: figure out why super::attrs aren't getting
+                    // parsed or found as matches here.
                     implres.name_path.map(|name_path| {
                         name_path.segments.last().map(|name| {
                             if symbol_matches(ExactMatch, searchstr, &name.name) {
