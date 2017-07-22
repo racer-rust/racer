@@ -2768,24 +2768,39 @@ fn completes_trait_methods_in_trait_impl() {
 
         impl Trait for Foo {
             fn traitf() -> bool { false }
+            fn traitm~(&self) -> bool { true }
+        }
+    }
+    ";
+
+    let got = get_one_completion(src, None);
+    assert_eq!(got.matchstr, "traitm");
+    assert_eq!(got.contextstr, "fn traitm(&self) -> bool");
+}
+
+#[test]
+fn completes_trait_fn_in_trait_impl() {
+    let _lock = sync!();
+
+    let src = "
+    mod sub {
+        pub trait Trait {
+            fn traitf() -> bool;
+            fn traitm(&self) -> bool;
+        }
+
+        pub struct Foo(bool);
+
+        impl Trait for Foo {
+            fn trait~f() -> bool { false }
             fn traitm(&self) -> bool { true }
         }
     }
     ";
 
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let cache = racer::FileCache::default();
-    let session = racer::Session::new(&cache);
-    let cursor = Coordinate { line: 11, column: 21 };
-    let got = complete_from_file(&path, cursor, &session).nth(0).unwrap();
+    let got = get_one_completion(src, None);
     assert_eq!(got.matchstr, "traitf");
     assert_eq!(got.contextstr, "fn traitf() -> bool");
-
-    let cursor = Coordinate { line: 12, column: 21 };
-    let got = complete_from_file(&path, cursor, &session).nth(0).unwrap();
-    assert_eq!(got.matchstr, "traitm");
-    assert_eq!(got.contextstr, "fn traitm(&self) -> bool");
 }
 
 /// Addresses https://github.com/racer-rust/racer/issues/680. In this case,
