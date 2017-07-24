@@ -202,8 +202,7 @@ fn search_scope_for_method_declarations(point: Point, src: Src, searchstr: &str,
         blob.find(';').map(|n| {
             let signature = blob[..n].trim_right();
 
-            if txt_matches(search_type, &format!("fn {}", searchstr), signature)
-                && typeinf::first_param_is_self(blob) {
+            if txt_matches(search_type, &format!("fn {}", searchstr), signature) {
                 debug!("found a method starting |{}| |{}|", searchstr, blob);
                 // TODO: parse this properly
                 let start = blob.find(&format!("fn {}", searchstr)).unwrap() + 3;
@@ -378,8 +377,7 @@ pub fn search_for_generic_impls(pos: Point, searchstr: &str, contextm: &Match, f
 
 // scope headers include fn decls, if let, while let etc..
 fn search_scope_headers(point: Point, scopestart: Point, msrc: Src, searchstr: &str,
-                        filepath: &Path, search_type: SearchType, session: &Session,
-                        pending_imports: &PendingImports) -> vec::IntoIter<Match> {
+                        filepath: &Path, search_type: SearchType) -> vec::IntoIter<Match> {
     debug!("search_scope_headers for |{}| pt: {}", searchstr, scopestart);
 
     if let Some(stmtstart) = scopes::find_stmt_start(msrc, scopestart) {
@@ -482,46 +480,6 @@ fn search_scope_headers(point: Point, scopestart: Point, msrc: Src, searchstr: &
                 }
             }
             return out.into_iter();
-        } else if preblock.starts_with("impl") {
-            if let Some(n) = preblock.find(" for ") {
-                let start = scopes::get_start_of_search_expr(preblock, n);
-                let expr = &preblock[start..n];
-
-                debug!("found impl of trait : expr is |{}|", expr);
-                let path = core::Path::from_vec(false, expr.split("::").collect::<Vec<_>>());
-                let m = resolve_path(&path,
-                                     filepath,
-                                     stmtstart + n - 1,
-                                     SearchType::ExactMatch,
-                                     Namespace::Both,
-                                     session,
-                                     pending_imports)
-                    .filter(|m| m.mtype == Trait)
-                    .nth(0);
-                if let Some(m) = m {
-                    debug!("found trait : match is |{:?}|", m);
-                    let mut out = Vec::new();
-                    let src = session.load_file(&m.filepath);
-                    src[m.point..].find('{').map(|n| {
-                        let point = m.point + n + 1;
-                        for m in search_scope_for_method_declarations(point, src.as_src(), searchstr, &m.filepath, search_type) {
-                            out.push(m);
-                        }
-                        for m in search_scope_for_methods(point, src.as_src(), searchstr, &m.filepath, search_type) {
-                            out.push(m);
-                        }
-                    });
-
-                    trace!(
-                        "Found {} methods matching `{}` for trait `{}`", 
-                        out.len(), 
-                        searchstr, 
-                        m.matchstr);
-
-                    return out.into_iter();
-                }
-
-            }
         } else if let Some(vec) = search_closure_args(searchstr, preblock, stmtstart, filepath, search_type) {
             return vec.into_iter();
         }
@@ -1110,7 +1068,7 @@ fn search_local_scopes(pathseg: &core::PathSegment, filepath: &Path,
             let searchstr = &pathseg.name;
 
             // scope headers = fn decls, if let, match, etc..
-            for m in search_scope_headers(point, start, msrc, searchstr, filepath, search_type, session, pending_imports) {
+            for m in search_scope_headers(point, start, msrc, searchstr, filepath, search_type) {
                 out.push(m);
                 if let ExactMatch = search_type {
                     return out.into_iter();
@@ -1195,7 +1153,8 @@ pub struct Search {
     pos: Point
 }
 
-pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: Point,
+/// Attempt to resolve a name which occurs in a given file.
+pub(crate) fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: Point,
                     search_type: SearchType, namespace: Namespace,
                     session: &Session, pending_imports: &PendingImports) -> vec::IntoIter<Match> {
     let mut out = Vec::new();
@@ -1240,27 +1199,21 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: Point,
     for m in search_local_scopes(pathseg, filepath, msrc.as_src(), pos, search_type, namespace, session, pending_imports) {
         out.push(m);
         if let ExactMatch = search_type {
-            if !out.is_empty() {
-                return out.into_iter();
-            }
+            return out.into_iter();
         }
     }
 
     for m in search_crate_root(pathseg, filepath, search_type, namespace, session, pending_imports) {
         out.push(m);
         if let ExactMatch = search_type {
-            if !out.is_empty() {
-                return out.into_iter();
-            }
+            return out.into_iter();
         }
     }
 
     for m in search_prelude_file(pathseg, search_type, namespace, session, pending_imports) {
         out.push(m);
         if let ExactMatch = search_type {
-            if !out.is_empty() {
-                return out.into_iter();
-            }
+            return out.into_iter();
         }
     }
     // filesearch. Used to complete e.g. extern crate blah or mod foo
@@ -1441,6 +1394,68 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: Point,
         // with empty segments in the first place ?
         Vec::new().into_iter()
     }
+}
+
+pub(crate) fn resolve_method(point: Point, msrc: Src, searchstr: &str,
+                        filepath: &Path, search_type: SearchType, session: &Session,
+                        pending_imports: &PendingImports) -> Vec<Match> {
+
+    let scopestart = scopes::scope_start(msrc, point);
+    debug!("resolve_method for |{}| pt: {} ({:?}); scopestart: {} ({:?})", 
+        searchstr, 
+        point, 
+        msrc.src.point_to_coords(point), 
+        scopestart,
+        msrc.src.point_to_coords(scopestart));
+
+    if let Some(stmtstart) = scopes::find_stmt_start(msrc, (scopestart - 1)) {
+        let preblock = &msrc[stmtstart..scopestart];
+        debug!("search_scope_headers preblock is |{}|", preblock);
+
+        if preblock.starts_with("impl") {
+            if let Some(n) = preblock.find(" for ") {
+                let start = scopes::get_start_of_search_expr(preblock, n);
+                let expr = &preblock[start..n];
+
+                debug!("found impl of trait : expr is |{}|", expr);
+                let path = core::Path::from_vec(false, expr.split("::").collect::<Vec<_>>());
+                let m = resolve_path(&path,
+                                     filepath,
+                                     stmtstart + n - 1,
+                                     SearchType::ExactMatch,
+                                     Namespace::Both,
+                                     session,
+                                     pending_imports)
+                    .filter(|m| m.mtype == Trait)
+                    .nth(0);
+                if let Some(m) = m {
+                    debug!("found trait : match is |{:?}|", m);
+                    let mut out = Vec::new();
+                    let src = session.load_file(&m.filepath);
+                    src[m.point..].find('{').map(|n| {
+                        let point = m.point + n + 1;
+                        for m in search_scope_for_method_declarations(point, src.as_src(), searchstr, &m.filepath, search_type) {
+                            out.push(m);
+                        }
+                        for m in search_scope_for_methods(point, src.as_src(), searchstr, &m.filepath, search_type) {
+                            out.push(m);
+                        }
+                    });
+
+                    trace!(
+                        "Found {} methods matching `{}` for trait `{}`", 
+                        out.len(), 
+                        searchstr, 
+                        m.matchstr);
+
+                    return out;
+                }
+
+            }
+        }
+    }
+
+    Vec::new()
 }
 
 pub fn do_external_search(path: &[&str], filepath: &Path, pos: Point, search_type: SearchType, namespace: Namespace,

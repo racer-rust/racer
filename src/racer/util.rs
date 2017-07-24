@@ -479,3 +479,36 @@ fn test_trim_visibility() {
     assert_eq!(trim_visibility("pub(crate)   struct"), "struct");
     assert_eq!(trim_visibility("pub (in super)  const fn"), "const fn");
 }
+
+/// Checks if the completion point is in a function declaration by looking
+/// to see if the second-to-last word is `fn`.
+pub fn in_fn_name(line_before_point: &str) -> bool {
+    /// Determine if the cursor is sitting in the whitespace after typing `fn ` before
+    /// typing a name.
+    let has_started_name = !line_before_point.ends_with(|c: char| c.is_whitespace());
+
+    let mut words = line_before_point.split_whitespace().rev();
+
+    // Make sure we haven't finished the name and started generics or arguments
+    if has_started_name {
+        if let Some(ident) = words.next() {
+            if ident.chars().any(|c| !is_ident_char(c)) {
+                return false;
+            }
+        }
+    }
+    
+    words
+        .next()
+        .map(|word| word == "fn")
+        .unwrap_or_default()
+}
+
+#[test]
+fn test_in_fn_name() {
+    assert!(in_fn_name("fn foo"));
+    assert!(in_fn_name(" fn  foo"));
+    assert!(in_fn_name("fn "));
+    assert!(!in_fn_name("fn foo(b"));
+    assert!(!in_fn_name("fn"));
+}

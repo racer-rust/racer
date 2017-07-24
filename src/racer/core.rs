@@ -17,6 +17,7 @@ use scopes;
 use nameres;
 use ast;
 use codecleaner;
+use util;
 
 /// Within a [`Match`], specifies what was matched
 ///
@@ -46,7 +47,7 @@ pub enum MatchType {
     Builtin,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SearchType {
     ExactMatch,
     StartsWith
@@ -971,6 +972,21 @@ fn complete_from_file_(
             /// in scope.
             let is_global = expr.starts_with("::");
             let is_use = line.starts_with("use ");
+
+            // when in the function ident position, only look for methods
+            // from a trait to complete.
+            if util::in_fn_name(line) {
+                trace!("Path is in fn declaration: `{}`", expr);
+
+                return nameres::resolve_method(
+                    pos, 
+                    src.as_src(), 
+                    expr, 
+                    filepath, 
+                    SearchType::StartsWith,
+                    session,
+                    &PendingImports::empty());
+            }
 
             let v = (if is_use {
                 // trim the `use ` statement
