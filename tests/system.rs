@@ -2778,6 +2778,7 @@ fn completes_trait_methods_in_trait_impl() {
     assert_eq!(got.contextstr, "fn traitm(&self) -> bool");
 }
 
+/// Check if user is offered a completion for a static function defined by a trait.
 #[test]
 fn completes_trait_fn_in_trait_impl() {
     let _lock = sync!();
@@ -2792,7 +2793,7 @@ fn completes_trait_fn_in_trait_impl() {
         pub struct Foo(bool);
 
         impl Trait for Foo {
-            fn trait~f() -> bool { false }
+            fn traitf~() -> bool { false }
             fn traitm(&self) -> bool { true }
         }
     }
