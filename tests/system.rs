@@ -2947,6 +2947,34 @@ fn completes_optional_trait_fn_in_trait_impl() {
     assert_eq!(got.contextstr, "fn traitf() -> bool");
 }
 
+#[test]
+fn completes_optional_trait_fn_in_trait_impl() {
+    let _lock = sync!();
+
+    let src = "
+    mod sub {
+        pub trait Trait {
+            fn traitf() -> bool {
+                true
+            }
+            
+            fn traitm(&self) -> bool;
+        }
+
+        pub struct Foo(bool);
+
+        impl Trait for Foo {
+            fn traitf~() -> bool { false }
+            fn traitm(&self) -> bool { true }
+        }
+    }
+    ";
+
+    let got = get_one_completion(src, None);
+    assert_eq!(got.matchstr, "traitf");
+    assert_eq!(got.contextstr, "fn traitf() -> bool");
+}
+
 /// Addresses https://github.com/racer-rust/racer/issues/680. In this case,
 /// `sub` should not be interpreted as a method name; it didn't appear after
 /// `fn` and therefore would need `Self::`, `self.` or another qualified name
