@@ -191,18 +191,23 @@ fn search_generic_impl_scope_for_methods(point: Point, src: Src, searchstr: &str
     out.into_iter()
 }
 
-fn search_scope_for_method_declarations(point: Point, src: Src, searchstr: &str, filepath: &Path,
+/// Look for static trait functions. This fn doesn't search for _method_ declarations
+/// or implementations as `search_scope_for_methods` already handles that.
+fn search_scope_for_static_trait_fns(point: Point, src: Src, searchstr: &str, filepath: &Path,
                             search_type: SearchType) -> vec::IntoIter<Match> {
-    debug!("searching scope for method declarations {} |{}| {:?}", point, searchstr, filepath.display());
+    debug!("searching scope for trait fn declarations {} |{}| {:?}", point, searchstr, filepath.display());
 
     let scopesrc = src.from(point);
     let mut out = Vec::new();
     for (blobstart,blobend) in scopesrc.iter_stmts() {
         let blob = &scopesrc[blobstart..blobend];
-        blob.find(';').map(|n| {
+        blob.find(|c| c == '{' || c == ';').map(|n| {
             let signature = blob[..n].trim_right();
 
-            if txt_matches(search_type, &format!("fn {}", searchstr), signature) {
+            if txt_matches(search_type, &format!("fn {}", searchstr), signature)
+                // filtering out methods here prevents duplicate results with
+                // `search_scope_for_methods`
+                && !typeinf::first_param_is_self(blob) {
                 debug!("found a method starting |{}| |{}|", searchstr, blob);
                 // TODO: parse this properly
                 let start = blob.find(&format!("fn {}", searchstr)).unwrap() + 3;
@@ -1434,7 +1439,7 @@ pub(crate) fn resolve_method(point: Point, msrc: Src, searchstr: &str,
                     let src = session.load_file(&m.filepath);
                     src[m.point..].find('{').map(|n| {
                         let point = m.point + n + 1;
-                        for m in search_scope_for_method_declarations(point, src.as_src(), searchstr, &m.filepath, search_type) {
+                        for m in search_scope_for_static_trait_fns(point, src.as_src(), searchstr, &m.filepath, search_type) {
                             out.push(m);
                         }
                         for m in search_scope_for_methods(point, src.as_src(), searchstr, &m.filepath, search_type) {
