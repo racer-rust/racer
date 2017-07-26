@@ -15,19 +15,24 @@ environment:
       CHANNEL: beta
     - TARGET: i686-pc-windows-msvc
       CHANNEL: beta
-    - TARGET: x86_64-pc-windows-gnu
-      CHANNEL: beta
-    - TARGET: x86_64-pc-windows-msvc
-      CHANNEL: beta
+    # Commented out because AppVeyor builds jobs serially
+    # so building all targets would be very slow.
+    # - TARGET: x86_64-pc-windows-gnu
+    #   CHANNEL: beta
+    # - TARGET: x86_64-pc-windows-msvc
+    #   CHANNEL: beta
+
     # Nightly channel
     - TARGET: i686-pc-windows-gnu
       CHANNEL: nightly
     - TARGET: i686-pc-windows-msvc
       CHANNEL: nightly
-    - TARGET: x86_64-pc-windows-gnu
-      CHANNEL: nightly
-    - TARGET: x86_64-pc-windows-msvc
-      CHANNEL: nightly
+    # Commented out because AppVeyor builds jobs serially
+    # so building all targets would be very slow.
+    # - TARGET: x86_64-pc-windows-gnu
+    #   CHANNEL: nightly
+    # - TARGET: x86_64-pc-windows-msvc
+    #   CHANNEL: nightly
 
 # Install Rust and Cargo
 # (Based on from https://github.com/rust-lang/libc/blob/master/appveyor.yml)
