@@ -35,6 +35,7 @@ install:
   - curl -sSf -o rustup-init.exe https://win.rustup.rs
   - rustup-init.exe --default-host %TARGET% --default-toolchain %CHANNEL% -y
   - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
+  - rustup component add rust-src
   - rustc -Vv
   - cargo -V
 
