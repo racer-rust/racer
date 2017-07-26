@@ -174,6 +174,9 @@ fn get_one_completion(src: &str, dir: Option<TmpDir>) -> Match {
 
 /// Return the first completion for the given source, which must be
 /// the only one.
+///
+/// # Panics
+/// Panics if there is not exactly one completion.
 fn get_only_completion(src: &str, dir: Option<TmpDir>) -> Match {
     let mut all = get_all_completions(src, dir);
     assert_eq!(all.len(), 1);
@@ -1102,6 +1105,57 @@ fn follows_use_self() {
 
     let completions = get_all_completions(src, None);
     assert!(completions.into_iter().any(|m| m.matchstr == "use_self_test"));
+}
+
+/// This test addresses https://github.com/racer-rust/racer/issues/645 by
+/// confirming that racer will not return duplicate results for a module.
+#[test]
+fn completes_mod_exactly_once() {
+    let _lock = sync!();
+    let src = "
+    mod sample {
+        pub struct Bar;
+    }
+
+    mod happy {
+        use sample;
+
+        fn do_things(bar: sampl~e::Bar) {
+            
+        }
+    }
+    ";
+
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "sample");
+    assert_eq!(got.mtype, MatchType::Module);
+}
+
+/// This test verifies that any result deduplication techniques
+/// are robust enough to avoid deduplication of multiple results
+/// which happen to share a match string.
+#[test]
+fn completes_mod_and_local_with_same_name() {
+    let _lock = sync!();
+    let src = "
+    mod sample {
+        pub struct Bar;
+    }
+
+    mod happy {
+        use sample;
+
+        fn do_things(bar: sample::Bar) {
+            let sample = bar;
+            let other = sampl~e::Bar;
+        }
+    }
+    ";
+
+    let got = get_all_completions(src, None);
+    assert_eq!(got.len(), 2);
+    assert_eq!(got[0].matchstr, "sample");
+    assert_eq!(got[1].matchstr, "sample");
 }
 
 #[test]
