@@ -1,6 +1,7 @@
 # *Racer* - code completion for [Rust](http://www.rust-lang.org/)
 
 [![Build Status](https://travis-ci.org/racer-rust/racer.svg?branch=master)](https://travis-ci.org/racer-rust/racer)
+[![Build Status](https://ci.appveyor.com/api/projects/status/hq51xvr5wpfcfqgt?svg=true)](https://ci.appveyor.com/project/TedDriggs/racer-xr5g5)
 
 ![racer completion screenshot](images/racer_completion.png)
 

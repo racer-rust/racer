@@ -37,7 +37,7 @@ install:
   - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
   # the rust-src is needed for tests that depend on the standard library
   - rustup component add rust-src
-  - set RUST_SRC_PATH=C:\Users\appveyor\.rustup\toolchains\%CHANNEL%-%TARGET%\lib\rustlib\src\rust
+  - set RUST_SRC_PATH=C:\Users\appveyor\.rustup\toolchains\%CHANNEL%-%TARGET%\lib\rustlib\src\rust\src
   - rustc -Vv
   - cargo -V
 
