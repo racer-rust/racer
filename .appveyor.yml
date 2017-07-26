@@ -56,3 +56,7 @@ build: false
 test_script:
   - cargo build --verbose
   - cargo test
+
+cache:
+  - target
+  - C:\Users\appveyor\.cargo\registry
