@@ -12,6 +12,24 @@ use std::path::{Path, PathBuf};
 use std::io::{self, BufRead, Read};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 
+fn point(cfg: Config) {
+    let cache = FileCache::default();
+    let session = Session::new(&cache);
+    cfg.interface.emit(Message::Coords(cfg.coords()));
+    racer::to_point(cfg.coords(), cfg.expect_file(), &session)
+        .map(|point| cfg.interface.emit(Message::Point(point)));
+    cfg.interface.emit(Message::End);
+}
+
+fn coord(cfg: Config) {
+    let cache = FileCache::default();
+    let session = Session::new(&cache);
+    cfg.interface.emit(Message::Point(cfg.point));
+    racer::to_coords(cfg.point, cfg.expect_file(), &session)
+        .map(|coords| cfg.interface.emit(Message::Coords(coords)));
+    cfg.interface.emit(Message::End);
+}
+
 fn match_with_snippet_fn(m: Match, session: &Session, interface: Interface) {
     let Coordinate { line: linenum, column: charnum } = m.coords.unwrap();
     if m.matchstr == "" {
@@ -199,6 +217,8 @@ enum Message<'a> {
     Prefix(Point, Point, &'a str),
     Match(String, Point, Point, &'a Path, MatchType, String),
     MatchWithSnippet(String, String, Point, Point, &'a Path, MatchType, String, String),
+    Point(Point),
+    Coords(Coordinate),
 }
 
 #[derive(Copy, Clone)]
@@ -214,6 +234,20 @@ impl Default for Interface {
 }
 
 impl Interface {
+    fn leading_space(&self) -> &str {
+        match *self {
+            Interface::Text => " ",
+            Interface::TabText => "\t"
+        }
+    }
+
+    fn field_separator(&self) -> &str {
+        match *self {
+            Interface::Text => ",",
+            Interface::TabText => "\t"
+        }
+    }
+
     fn emit(&self, message: Message) {
         match message {
             Message::End => println!("END"),
@@ -221,6 +255,14 @@ impl Interface {
                 Interface::Text => println!("PREFIX {},{},{}", start, pos, text),
                 Interface::TabText => println!("PREFIX\t{}\t{}\t{}", start, pos, text),
             },
+            Message::Point(point) => println!("POINT{}{}", self.leading_space(), point),
+            Message::Coords(coord) => {
+                println!("COORD{lead}{}{field}{}", 
+                    coord.line,
+                    coord.column,
+                    lead = self.leading_space(),
+                    field = self.field_separator());
+            }
             Message::Match(mstr, linenum, charnum, path, mtype, context) => match *self {
                 Interface::Text => {
                     let context = context.split_whitespace().collect::<Vec<&str>>().join(" ");
@@ -261,6 +303,7 @@ struct Config {
     fn_name: Option<PathBuf>,
     substitute_file: Option<PathBuf>,
     interface: Interface,
+    point: usize,
 }
 
 impl Config {
@@ -270,10 +313,24 @@ impl Config {
             column: self.charnum
         }
     }
+
+    fn expect_file(&self) -> &PathBuf {
+        self.fn_name.as_ref().expect("File path required")
+    }
 }
 
 impl<'a> From<&'a ArgMatches<'a>> for Config {
     fn from(m: &'a ArgMatches) -> Self {
+        // Check for the presence of the `point` argument that indicates we're
+        // being asked to convert from point to coordinates
+        if m.is_present("point") && m.is_present("path") {
+            return Config {
+                point: value_t_or_exit!(m.value_of("point"), usize),
+                fn_name: m.value_of("path").map(PathBuf::from),
+                ..Default::default()
+            }
+        }
+
         // We check for charnum because it's the second argument, which means more than just
         // an FQN was used (i.e. racer complete <linenum> <charnum> <fn_name> [substitute_file])
         if m.is_present("charnum") {
@@ -284,7 +341,7 @@ impl<'a> From<&'a ArgMatches<'a>> for Config {
                 ..Default::default()
              };
              if !m.is_present("linenum") {
-            // Becasue of the hack to allow fqn and linenum to share a single arg we set FQN
+            // Because of the hack to allow fqn and linenum to share a single arg we set FQN
             // to None and set the charnum correctly using the FQN arg so there's no
             // hackery later
                 return Config {linenum: value_t_or_exit!(m.value_of("fqn"), usize), .. cfg };
@@ -380,6 +437,29 @@ fn build_cli<'a, 'b>() -> App<'a, 'b> {
                 .help("An optional substitute file"))
             .arg(Arg::with_name("linenum")
                 .help("The line number at which to find the match")))
+         .subcommand(SubCommand::with_name("point")
+            .about("converts linenum and charnum in a file to a point")
+            // Next we make it an error to run without any args
+            .setting(AppSettings::ArgRequiredElseHelp)
+            .arg(Arg::with_name("linenum")
+                .help("The line number at which to convert to point")
+                .required(true))
+            .arg(Arg::with_name("charnum")
+                .help("The char number at which to convert to point")
+                .required(true))
+            .arg(Arg::with_name("path")
+                .help("The path where the line and char occur")
+                .required(true)))
+        .subcommand(SubCommand::with_name("coord")
+            .about("converts a racer point to line and character numbers")
+            // Next we make it an error to run without any args
+            .setting(AppSettings::ArgRequiredElseHelp)
+            .arg(Arg::with_name("point")
+                .help("The point to convert to line and character coordinates")
+                .required(true))
+            .arg(Arg::with_name("path")
+                .help("The path where the line and char occur")
+                .required(true)))
         .after_help("For more information about a specific command try 'racer <command> --help'")
 }
 
@@ -409,6 +489,8 @@ fn run(m: ArgMatches, interface: Interface) {
             "complete"              => complete(cfg, Normal),
             "complete-with-snippet" => complete(cfg, WithSnippets),
             "find-definition"       => find_definition(cfg),
+            "point"                 => point(cfg),
+            "coord"                => coord(cfg),
             _                       => unreachable!()
         }
     }

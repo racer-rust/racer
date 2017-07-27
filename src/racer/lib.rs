@@ -27,7 +27,7 @@ mod matchers;
 mod snippets;
 mod cargo;
 
-pub use core::{find_definition, complete_from_file, complete_fully_qualified_name};
+pub use core::{find_definition, complete_from_file, complete_fully_qualified_name, to_point, to_coords};
 pub use snippets::snippet_for_match;
 pub use core::{Match, MatchType, PathSearch};
 pub use core::{FileCache, Session, Coordinate, Location, FileLoader, Point, SourceByteRange};

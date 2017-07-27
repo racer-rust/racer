@@ -135,6 +135,7 @@ impl From<Coordinate> for Location {
 /// Internal cursor methods
 pub trait LocationExt {
     fn to_point(&self, src: &IndexedSource) -> Option<Point>;
+    fn to_coords(&self, src: &IndexedSource) -> Option<Coordinate>;
 }
 
 impl LocationExt for Location {
@@ -144,6 +145,13 @@ impl LocationExt for Location {
             Location::Coords(ref coords) => {
                 src.coords_to_point(coords)
             }
+        }
+    }
+
+    fn to_coords(&self, src: &IndexedSource) -> Option<Coordinate> {
+        match *self {
+            Location::Coords(val) => Some(val),
+            Location::Point(point) => src.point_to_coords(point)
         }
     }
 }
@@ -798,6 +806,28 @@ impl<'c> SessionExt for Session<'c> {
         self.cache.load_file_and_mask_comments(filepath)
     }
 }
+
+/// Get the racer point of a line/character number pair for a file.
+pub fn to_point<'c, P>(
+    coords: Coordinate, 
+    path: P, 
+    session: &'c Session
+) -> Option<Point> 
+    where 
+        P: AsRef<path::Path> {
+    Location::from(coords).to_point(&session.load_file(path.as_ref()))
+}
+
+/// Get the racer point of a line/character number pair for a file.
+pub fn to_coords<'c, P>(
+    point: Point, 
+    path: P, 
+    session: &'c Session
+) -> Option<Coordinate> 
+    where 
+        P: AsRef<path::Path> {
+    Location::from(point).to_coords(&session.load_file(path.as_ref()))
+} 
 
 /// Find completions for a fully qualified name like `std::io::`
 ///
