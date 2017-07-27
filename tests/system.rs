@@ -2881,14 +2881,7 @@ fn completes_trait_methods_in_trait_impl() {
     assert_eq!(got.contextstr, "fn traitm(&self) -> bool");
 }
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 /// Check if user is offered a completion for a static function defined by a trait.
-=======
->>>>>>> Fix broken test
-=======
-/// Check if user is offered a completion for a static function defined by a trait.
->>>>>>> Fix #680
 #[test]
 fn completes_trait_fn_in_trait_impl() {
     let _lock = sync!();
@@ -2903,39 +2896,6 @@ fn completes_trait_fn_in_trait_impl() {
         pub struct Foo(bool);
 
         impl Trait for Foo {
-<<<<<<< HEAD
-<<<<<<< HEAD
-            fn traitf~() -> bool { false }
-=======
-            fn trait~f() -> bool { false }
->>>>>>> Fix broken test
-            fn traitm(&self) -> bool { true }
-        }
-    }
-    ";
-
-    let got = get_one_completion(src, None);
-    assert_eq!(got.matchstr, "traitf");
-    assert_eq!(got.contextstr, "fn traitf() -> bool");
-}
-
-#[test]
-fn completes_optional_trait_fn_in_trait_impl() {
-    let _lock = sync!();
-
-    let src = "
-    mod sub {
-        pub trait Trait {
-            fn traitf() -> bool {
-                true
-            }
-            
-            fn traitm(&self) -> bool;
-        }
-
-        pub struct Foo(bool);
-
-        impl Trait for Foo {
             fn traitf~() -> bool { false }
             fn traitm(&self) -> bool { true }
         }
@@ -2973,63 +2933,6 @@ fn completes_optional_trait_fn_in_trait_impl() {
     let got = get_one_completion(src, None);
     assert_eq!(got.matchstr, "traitf");
     assert_eq!(got.contextstr, "fn traitf() -> bool");
-}
-
-/// Addresses https://github.com/racer-rust/racer/issues/680. In this case,
-/// `sub` should not be interpreted as a method name; it didn't appear after
-/// `fn` and therefore would need `Self::`, `self.` or another qualified name
-/// to be syntactically valid.
-#[test]
-fn finds_mod_with_same_name_as_trait_method_in_sig() {
-    let _lock = sync!();
-
-    let src = "
-    mod sub {
-        pub struct Formatter;
-
-        pub trait Fmt {
-            fn sub(&self, f: &Formatter);
-        }
-    }
-
-    struct Sample;
-
-    impl sub::Fmt for Sample {
-        fn sub(&self, f: &sub::Fo~rmatter) {
-
-        }
-    }
-    ";
-
-    let got = get_one_completion(src, None);
-    assert_eq!(got.matchstr, "Formatter");
-}
-
-/// Also addresses issue #680.
-#[test]
-fn finds_mod_with_same_name_as_trait_method_in_body() {
-    let _lock = sync!();
-
-    let src = "
-    mod sub {
-        pub struct Formatter;
-
-        pub trait Fmt {
-            fn sub(&self) -> sub::Formatter;
-        }
-    }
-
-    struct Sample;
-
-    impl sub::Fmt for Sample {
-        fn sub(&self) -> sub::Formatter {
-            sub::Fo~rmatter
-        }
-    }
-    ";
-
-    let got = get_one_completion(src, None);
-    assert_eq!(got.matchstr, "Formatter");
 }
 
 /// Addresses https://github.com/racer-rust/racer/issues/680. In this case,
