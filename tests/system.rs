@@ -965,7 +965,8 @@ fn follows_use_as() {
     let dir = TmpDir::new();
     dir.write_file("src2.rs", src2);
     let got = get_definition(src, Some(dir));
-    assert_eq!(got.matchstr, "myfn");
+    assert_eq!(got.matchstr, "myfoofn");
+    assert_eq!(got.contextstr, "pub fn myfn()");
 }
 
 /// Verifies fix for https://github.com/racer-rust/racer/issues/753
@@ -991,7 +992,8 @@ fn follows_use_as_in_braces() {
     ";
 
     let got = get_definition(src, None);
-    assert_eq!(got.matchstr, "Wrapper");
+    assert_eq!(got.matchstr, "Wpr");
+    assert_eq!(got.contextstr, "pub struct Wrapper");
 }
 
 #[test]
