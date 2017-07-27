@@ -99,6 +99,10 @@ pub struct Match {
 
 impl Match {
     /// Checks if two matches can be considered the same for deduplication purposes.
+    ///
+    /// This could be the basis for a `PartialEq` implementation in the future,
+    /// but in the interest of minimizing the crate's public API surface it's exposed
+    /// as a private method for now.
     fn is_same_as(&self, other: &Match) -> bool {
         self.point == other.point 
         && self.matchstr == other.matchstr
