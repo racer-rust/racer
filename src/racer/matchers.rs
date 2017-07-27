@@ -23,7 +23,7 @@ pub type PendingImports<'stack, 'fp> = StackLinkedListNode<'stack, PendingImport
 pub type MIter = option::IntoIter<Match>;
 pub type MChain<T> = iter::Chain<T, MIter>;
 
-// Should I return a boxed trait object to make this signature nicer?
+// TODO change return type to `impl Iterator<Item = Match>`
 pub fn match_types(src: Src, blobstart: Point, blobend: Point,
                    searchstr: &str, filepath: &Path,
                    search_type: SearchType,

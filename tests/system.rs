@@ -1341,14 +1341,16 @@ fn keeps_newlines_in_external_mod_doc() {
     assert_eq!("The mods multiline documentation\n\nwith an empty line", got.docs);
 }
 
+/// Addresses https://github.com/racer-rust/racer/issues/618
 #[test]
-fn issue_618() {
+fn always_get_all_doc_lines() {
     let _lock = sync!();
 
     let src = "
 /// Orange
 /// juice
-pub fn appl~e() {
+pub fn apple() {
+    app~le()
 }";
 
     let got = get_only_completion(src, None);
@@ -1356,14 +1358,20 @@ pub fn appl~e() {
     assert_eq!("Orange\njuice", got.docs);
 }
 
+/// Addresses https://github.com/racer-rust/racer/issues/594
 #[test]
-fn issue_594() {
+fn find_complete_docs_with_parentheses_on_last_line() {
     let _lock = sync!();
 
     let src = "
 /// Hello world
 /// (quux)
-pub fn fo~o() {}";
+pub fn foo() {}
+
+pub fn bar() {
+    fo~o()
+}
+";
 
     let got = get_only_completion(src, None);
     assert_eq!("foo", got.matchstr);
@@ -2865,24 +2873,167 @@ fn completes_trait_methods_in_trait_impl() {
 
         impl Trait for Foo {
             fn traitf() -> bool { false }
+            fn traitm~(&self) -> bool { true }
+        }
+    }
+    ";
+
+    let got = get_one_completion(src, None);
+    assert_eq!(got.matchstr, "traitm");
+    assert_eq!(got.contextstr, "fn traitm(&self) -> bool");
+}
+
+/// Check if user is offered a completion for a static function defined by a trait.
+#[test]
+fn completes_trait_fn_in_trait_impl() {
+    let _lock = sync!();
+
+    let src = "
+    mod sub {
+        pub trait Trait {
+            fn traitf() -> bool;
+            fn traitm(&self) -> bool;
+        }
+
+        pub struct Foo(bool);
+
+        impl Trait for Foo {
+            fn traitf~() -> bool { false }
             fn traitm(&self) -> bool { true }
         }
     }
     ";
 
-    let f = TmpFile::new(src);
-    let path = f.path();
-    let cache = racer::FileCache::default();
-    let session = racer::Session::new(&cache);
-    let cursor = Coordinate { line: 11, column: 21 };
-    let got = complete_from_file(&path, cursor, &session).nth(0).unwrap();
+    let got = get_one_completion(src, None);
     assert_eq!(got.matchstr, "traitf");
     assert_eq!(got.contextstr, "fn traitf() -> bool");
+}
 
-    let cursor = Coordinate { line: 12, column: 21 };
-    let got = complete_from_file(&path, cursor, &session).nth(0).unwrap();
-    assert_eq!(got.matchstr, "traitm");
-    assert_eq!(got.contextstr, "fn traitm(&self) -> bool");
+#[test]
+fn completes_optional_trait_fn_in_trait_impl() {
+    let _lock = sync!();
+
+    let src = "
+    mod sub {
+        pub trait Trait {
+            fn traitf() -> bool {
+                true
+            }
+            
+            fn traitm(&self) -> bool;
+        }
+
+        pub struct Foo(bool);
+
+        impl Trait for Foo {
+            fn traitf~() -> bool { false }
+            fn traitm(&self) -> bool { true }
+        }
+    }
+    ";
+
+    let got = get_one_completion(src, None);
+    assert_eq!(got.matchstr, "traitf");
+    assert_eq!(got.contextstr, "fn traitf() -> bool");
+}
+
+/// Addresses https://github.com/racer-rust/racer/issues/680. In this case,
+/// `sub` should not be interpreted as a method name; it didn't appear after
+/// `fn` and therefore would need `Self::`, `self.` or another qualified name
+/// to be syntactically valid.
+#[test]
+fn finds_mod_with_same_name_as_trait_method_in_sig() {
+    let _lock = sync!();
+
+    let src = "
+    mod sub {
+        pub struct Formatter;
+
+        pub trait Fmt {
+            fn sub(&self, f: &Formatter);
+        }
+    }
+
+    struct Sample;
+
+    impl sub::Fmt for Sample {
+        fn sub(&self, f: &sub::Fo~rmatter) {
+
+        }
+    }
+    ";
+
+    let got = get_one_completion(src, None);
+    assert_eq!(got.matchstr, "Formatter");
+}
+
+/// Also addresses issue #680.
+#[test]
+fn finds_mod_with_same_name_as_trait_method_in_body() {
+    let _lock = sync!();
+
+    let src = "
+    mod sub {
+        pub struct Formatter;
+
+        pub trait Fmt {
+            fn sub(&self) -> sub::Formatter;
+        }
+    }
+
+    struct Sample;
+
+    impl sub::Fmt for Sample {
+        fn sub(&self) -> sub::Formatter {
+            sub::Fo~rmatter
+        }
+    }
+    ";
+
+    let got = get_one_completion(src, None);
+    assert_eq!(got.matchstr, "Formatter");
+}
+
+/// Also addresses #680
+#[test]
+fn finds_fmt_formatter() {
+    let _lock = sync!();
+    let src = r#"
+    use std::fmt;
+
+    struct Foo;
+
+    impl fmt::Display for Foo {
+        fn fmt(&self, f: &mut fmt::Formatt~er) -> fmt::Result {
+            write!(f, "Hello")
+        }
+    }
+    "#;
+
+    let got = get_all_completions(src, None);
+    assert!(!got.is_empty());
+    assert_eq!(got[0].matchstr, "Formatter");
+}
+
+/// Also addresses #680
+#[test]
+fn finds_fmt_method() {
+    let _lock = sync!();
+    let src = r#"
+    use std::fmt;
+
+    struct Foo;
+
+    impl fmt::Display for Foo {
+        fn fm~t(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "Hello")
+        }
+    }
+    "#;
+
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "fmt");
+    assert_eq!(got.mtype, MatchType::Function);
 }
 
 #[test]
@@ -3598,6 +3749,48 @@ fn mod_restricted_fn_completes() {
     let got = get_all_completions(src, None);
     assert_eq!(1, got.len());
     assert_eq!("do_stuff", got[0].matchstr);
+}
+
+#[test]
+fn finds_definition_of_fn_arg() {
+    let _lock = sync!();
+    let src = r#"
+    pub fn say_hello(name: String) {
+        println!("{}", nam~e);
+    }
+    "#;
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "name");
+}
+
+#[test]
+fn finds_definition_of_crate_restricted_fn_arg() {
+    let _lock = sync!();
+    let src = r#"
+    pub(crate) fn say_hello(name: String) {
+        println!("{}", nam~e);
+    }
+    "#;
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "name");
+}
+
+/// This test should work, but may be failing because there is no `mod foo`
+/// in the generated code we parse to get the signature.
+#[test]
+#[ignore]
+fn finds_definition_of_mod_restricted_fn_arg() {
+    let _lock = sync!();
+    let src = r#"
+    pub(in foo) fn say_hello(name: String) {
+        println!("{}", nam~e);
+    }
+    "#;
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "name");
 }
 
 #[test]
