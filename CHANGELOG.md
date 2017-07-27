@@ -8,6 +8,7 @@ project adheres to [Semantic Versioning](http://semver.org/).
 
 - Support resolving `use as` aliases declared in multi-element `use` statements #753
 - Provide suggestions for global paths in more cases #765
+- Return fewer duplicate suggestions #778
 
 ## 2.0.9
 

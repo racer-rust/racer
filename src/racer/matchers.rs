@@ -315,14 +315,13 @@ pub fn match_mod(msrc: Src, blobstart: Point, blobend: Point,
                  local: bool, session: &Session) -> Option<Match> {
     let blob = &msrc[blobstart..blobend];
     if let Some(start) = find_keyword(blob, "mod", searchstr, search_type, local) {
-        debug!("found a module: |{}|", blob);
         let l = match search_type {
             ExactMatch => searchstr, // already checked in find_keyword
             StartsWith => &blob[start..find_ident_end(blob, start+searchstr.len())]
         };
 
         if blob.find('{').is_some() {
-            debug!("found an inline module!");
+            debug!("found a module inline: |{}|", blob);
 
             return Some(Match {
                 matchstr: l.to_owned(),
@@ -337,6 +336,8 @@ pub fn match_mod(msrc: Src, blobstart: Point, blobend: Point,
                 docs: String::new(),
             })
         } else {
+            debug!("found a module declaration: |{}|", blob);
+
             // get module from path attribute
             if let Some(modpath) = scopes::get_module_file_from_path(msrc, blobstart,filepath.parent().unwrap()) {
                 let msrc = session.load_file(&modpath);
