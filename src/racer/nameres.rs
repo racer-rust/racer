@@ -5,13 +5,12 @@ use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{Match, Src, Session, Coordinate, SessionExt, Ty, Point};
 use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, TraitImpl, MatchArm, Builtin};
 use core::Namespace;
-use util::{symbol_matches, txt_matches, find_ident_end};
+use util::{closure_valid_arg_scope, symbol_matches, txt_matches, find_ident_end};
 use matchers::find_doc;
 use cargo;
 use std::path::{Path, PathBuf};
 use std::{self, vec};
 use matchers::PendingImports;
-use regex::Regex;
 
 #[cfg(unix)]
 pub const PATH_SEP: char = ':';
@@ -515,10 +514,8 @@ fn search_scope_headers(point: Point, scopestart: Point, msrc: Src, searchstr: &
                 }
 
             }
-        } else if let Some(mat) = try_to_match_closure_definition(searchstr, preblock, stmtstart, filepath) {
-            let mut out = Vec::new();
-            out.push(mat);
-            return out.into_iter();
+        } else if let Some(vec) = search_closure_args(searchstr, preblock, stmtstart, filepath, search_type) {
+            return vec.into_iter();
         }
     }
 
@@ -934,8 +931,11 @@ pub fn search_scope(start: Point, point: Point, src: Src,
         }
     }
 
-    if let Some(mat) = try_to_match_closure_definition(searchstr, &scopesrc[0..], start, filepath) {
-        out.push(mat);
+    if let Some(vec) = search_closure_args(
+        searchstr, &scopesrc[0..], start, filepath, search_type) {
+        for mat in vec {
+            out.push(mat)
+        }
 
         if let ExactMatch = search_type {
             return out.into_iter();
@@ -946,68 +946,51 @@ pub fn search_scope(start: Point, point: Point, src: Src,
     out.into_iter()
 }
 
-fn try_to_match_closure_definition(searchstr: &str, scope_src: &str, scope_src_pos: Point, filepath: &Path) -> Option<Match> {
+fn search_closure_args(searchstr: &str, scope_src: &str, scope_src_pos: Point,
+                       filepath: &Path, search_type: SearchType) -> Option<Vec<Match>> {
     if searchstr.is_empty() {
         return None;
     }
 
-    /// Search for a closure declaration (defined here as "stuff bracketed by | characters").
-    ///
-    /// The pipe characters are preserved by the capture as their presence for some reason
-    /// prevents bad matches on type annotations.
-    ///
-    /// TODO: properly look for closures by requiring it not be after an expression.
-    lazy_static! {
-        static ref CLOSURE_DECL: Regex = Regex::new(r"\|[^;]*?\|").unwrap();
-    }
-
     trace!("Closure definition match is looking for `{}` in {} characters", searchstr, scope_src.len());
 
-    if let Some(cap) = CLOSURE_DECL.captures(scope_src) {
-        /// This regex looks for the passed-in ident surrounded by non-ident characters
-        /// on the left side of a colon (if one is present). It takes as input the declaration
-        /// of a closure's arguments.
-        let ident_in_closure = Regex::new(&format!(r"(?x:
-            \|
-            (?:(?s).*,[^a-zA-Z0-9]*|[^a-zA-Z0-9]*)? # discard things before the identifier
-            (?P<definition>{})
-            (?:[^a-zA-Z0-9\|]+[^\|;]*)?
-            \|
-        )", searchstr)).unwrap();
+    if let Some((left_pipe, _, pipe_scope)) = closure_valid_arg_scope(scope_src) {
+        debug!("search_closure_args found valid closure arg scope: {}", pipe_scope);
 
-        let decl = cap.get(0).unwrap();
+        if txt_matches(search_type, searchstr, pipe_scope) {
+            // Add a fake body for parsing
+            let closure_def = String::from(pipe_scope) + "{}";
 
-        trace!("Found a closure declaration {}..{}, about to search for `{}` in {}", 
-            decl.start(), 
-            decl.end(), 
-            searchstr, 
-            decl.as_str().trim()
-        );
+            let coords = ast::parse_fn_args(closure_def.clone());
 
-        if let Some(ident_match) = ident_in_closure.captures(decl.as_str()) {
+            let mut out: Vec<Match> = Vec::new();
 
-            let def = ident_match.name("definition").unwrap();
-    
-            trace!("Closure definition matched by {}..{}: {:?}", def.start(), def.end(), &cap[0]);
+            for (start,end) in coords {
+                let s = &closure_def[start..end];
 
-            Some(Match {
-                matchstr: searchstr.to_owned(),
-                filepath: filepath.to_path_buf(),
-                point: def.start() + scope_src_pos,
-                coords: None,
-                local: true,
-                mtype: FnArg,
-                contextstr: cap.get(0).unwrap().as_str().to_owned(),
-                generic_args: Vec::new(),
-                generic_types: Vec::new(),
-                docs: String::new(),
-            })
-        } else {
-            None
+                if symbol_matches(search_type, searchstr, s) {
+                    let m = Match {
+                        matchstr: s.to_owned(),
+                        filepath: filepath.to_path_buf(),
+                        point: scope_src_pos + left_pipe + start,
+                        coords: None,
+                        local: true,
+                        mtype: FnArg,
+                        contextstr: pipe_scope.to_owned(),
+                        generic_args: Vec::new(),
+                        generic_types: Vec::new(),
+                        docs: String::new(),
+                    };
+                    debug!("search_closure_args matched: {:?}", m);
+                    out.push(m);
+                }
+            }
+
+            return Some(out)
         }
-    } else {
-        None
     }
+
+    None
 }
 
 fn run_matchers_on_blob(src: Src, start: Point, end: Point, searchstr: &str,
