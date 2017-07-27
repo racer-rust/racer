@@ -2992,6 +2992,48 @@ fn finds_mod_with_same_name_as_trait_method_in_body() {
     assert_eq!(got.matchstr, "Formatter");
 }
 
+/// Also addresses #680
+#[test]
+fn finds_fmt_formatter() {
+    let _lock = sync!();
+    let src = r#"
+    use std::fmt;
+
+    struct Foo;
+
+    impl fmt::Display for Foo {
+        fn fmt(&self, f: &mut fmt::Formatt~er) -> fmt::Result {
+            write!(f, "Hello")
+        }
+    }
+    "#;
+
+    let got = get_all_completions(src, None);
+    assert!(!got.is_empty());
+    assert_eq!(got[0].matchstr, "Formatter");
+}
+
+/// Also addresses #680
+#[test]
+fn finds_fmt_method() {
+    let _lock = sync!();
+    let src = r#"
+    use std::fmt;
+
+    struct Foo;
+
+    impl fmt::Display for Foo {
+        fn fm~t(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "Hello")
+        }
+    }
+    "#;
+
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "fmt");
+    assert_eq!(got.mtype, MatchType::Function);
+}
+
 #[test]
 fn finds_field_with_same_name_as_method() {
     let _lock = sync!();
