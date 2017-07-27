@@ -1,0 +1,62 @@
+# Based on https://github.com/japaric/rust-everywhere/blob/master/appveyor.yml
+environment:
+  matrix:
+    # Stable channel
+    - TARGET: i686-pc-windows-gnu
+      CHANNEL: stable
+    - TARGET: i686-pc-windows-msvc
+      CHANNEL: stable
+    - TARGET: x86_64-pc-windows-gnu
+      CHANNEL: stable
+    - TARGET: x86_64-pc-windows-msvc
+      CHANNEL: stable
+    # Beta channel
+    - TARGET: i686-pc-windows-gnu
+      CHANNEL: beta
+    - TARGET: i686-pc-windows-msvc
+      CHANNEL: beta
+    # Commented out because AppVeyor builds jobs serially
+    # so building all targets would be very slow.
+    # - TARGET: x86_64-pc-windows-gnu
+    #   CHANNEL: beta
+    # - TARGET: x86_64-pc-windows-msvc
+    #   CHANNEL: beta
+
+    # Nightly channel
+    - TARGET: i686-pc-windows-gnu
+      CHANNEL: nightly
+    - TARGET: i686-pc-windows-msvc
+      CHANNEL: nightly
+    # Commented out because AppVeyor builds jobs serially
+    # so building all targets would be very slow.
+    # - TARGET: x86_64-pc-windows-gnu
+    #   CHANNEL: nightly
+    # - TARGET: x86_64-pc-windows-msvc
+    #   CHANNEL: nightly
+
+# Install Rust and Cargo
+# (Based on from https://github.com/rust-lang/libc/blob/master/appveyor.yml)
+install:
+  - curl -sSf -o rustup-init.exe https://win.rustup.rs
+  - rustup-init.exe --default-host %TARGET% --default-toolchain %CHANNEL% -y
+  - set PATH=%PATH%;C:\Users\appveyor\.cargo\bin
+  # the rust-src is needed for tests that depend on the standard library
+  - rustup component add rust-src
+  - set RUST_SRC_PATH=C:\Users\appveyor\.rustup\toolchains\%CHANNEL%-%TARGET%\lib\rustlib\src\rust\src
+  - rustc -Vv
+  - cargo -V
+
+# 'cargo test' takes care of building for us, so disable Appveyor's build stage. This prevents
+# the "directory does not contain a project or solution file" error.
+# source: https://github.com/starkat99/appveyor-rust/blob/master/appveyor.yml#L113
+build: false
+
+# Equivalent to Travis' `script` phase
+# TODO modify this phase as you see fit
+test_script:
+  - cargo build --verbose
+  - cargo test
+
+cache:
+  - target
+  - C:\Users\appveyor\.cargo\registry

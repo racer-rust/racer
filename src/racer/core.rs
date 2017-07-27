@@ -97,6 +97,19 @@ pub struct Match {
     pub docs: String,
 }
 
+impl Match {
+    /// Checks if two matches can be considered the same for deduplication purposes.
+    ///
+    /// This could be the basis for a `PartialEq` implementation in the future,
+    /// but in the interest of minimizing the crate's public API surface it's exposed
+    /// as a private method for now.
+    fn is_same_as(&self, other: &Match) -> bool {
+        self.point == other.point 
+        && self.matchstr == other.matchstr
+        && self.filepath == other.filepath
+    }
+}
+
 /// The cursor position used by public search methods
 #[derive(Debug, Clone, Copy)]
 pub enum Location {
@@ -819,9 +832,11 @@ pub fn complete_fully_qualified_name<'c, S, P>(
     where S: AsRef<str>,
           P: AsRef<path::Path>,
 {
-    let matches = complete_fully_qualified_name_(query.as_ref(), path.as_ref(), session);
+    let mut matches = complete_fully_qualified_name_(query.as_ref(), path.as_ref(), session);
+    matches.dedup_by(|a, b| a.is_same_as(b));
+    
     MatchIter {
-        matches: matches,
+        matches: matches.into_iter(),
         session: session
     }
 }
@@ -831,7 +846,7 @@ fn complete_fully_qualified_name_(
     query: &str,
     path: &path::Path,
     session: &Session
-) -> vec::IntoIter<Match> {
+) -> Vec<Match> {
     let p: Vec<&str> = query.split("::").collect();
 
     let mut matches = Vec::new();
@@ -855,7 +870,7 @@ fn complete_fully_qualified_name_(
         }
     }
 
-    matches.into_iter()
+    matches
 }
 
 
@@ -902,10 +917,12 @@ pub fn complete_from_file<'c, P, C>(
     where P: AsRef<path::Path>,
           C: Into<Location>
 {
-    let matches = complete_from_file_(filepath.as_ref(), cursor.into(), session);
+    let mut matches = complete_from_file_(filepath.as_ref(), cursor.into(), session);
+    matches.dedup_by(|a, b| a.is_same_as(b));
+
     MatchIter {
+        matches: matches.into_iter(),
         session: session,
-        matches: matches,
     }
 }
 
@@ -913,21 +930,21 @@ fn complete_from_file_(
     filepath: &path::Path,
     cursor: Location,
     session: &Session
-) -> vec::IntoIter<Match> {
+) -> Vec<Match> {
     let src = session.load_file_and_mask_comments(filepath);
-    let src = &src.as_src()[..];
+    let src_text = &src.as_src()[..];
 
     // TODO return result
     let pos = match cursor.to_point(&session.load_file(filepath)) {
         Some(pos) => pos,
         None => {
             debug!("Failed to convert cursor to point");
-            return Vec::new().into_iter();
+            return Vec::new();
         }
     };
 
-    let start = scopes::get_start_of_search_expr(src, pos);
-    let expr = &src[start..pos];
+    let start = scopes::get_start_of_search_expr(src_text, pos);
+    let expr = &src_text[start..pos];
 
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
@@ -942,11 +959,11 @@ fn complete_from_file_(
             // 1. The line is use contextstr::{A, B, C, searchstr
             // 2. The line started with contextstr or ::
             // 3. FIXME(may not correct): Neither above case, then expr parsed above is corrected
-            let linestart = scopes::get_line(src, pos);
+            let linestart = scopes::find_stmt_start(src.as_src(), pos).unwrap_or_else(|| scopes::get_line(src_text, pos));
 
             // step 1, get full line, take the rightmost part split by semicolon
             //   prevent the case that someone write multiple line in one line
-            let line = src[linestart..pos].trim().rsplit(';').nth(0).unwrap();
+            let line = src_text[linestart..pos].trim().rsplit(';').nth(0).unwrap();
             debug!("Complete path with line: {:?}", line);
 
             /// Test if the **path expression** starts with `::`, in which case the path
@@ -980,7 +997,8 @@ fn complete_from_file_(
             });
         }
     }
-    out.into_iter()
+    
+    out
 }
 
 fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &Session, out: &mut Vec<Match>) {

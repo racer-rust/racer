@@ -70,6 +70,47 @@ pub fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bo
     }
 }
 
+/// Try to valid if the given scope contains a valid closure arg scope.
+pub fn closure_valid_arg_scope(scope_src: &str) -> Option<(usize, usize, &str)> {
+    // Try to find the left and right pipe, if one or both are not present, this is not a valid
+    // closure definition
+    let left_pipe = if let Some(pos) = scope_src.find('|') { pos } else { return None; };
+    let rest_scope = &scope_src[left_pipe + 1..];
+    let right_pipe = if let Some(pos) = rest_scope.find('|') {
+        left_pipe + 1 + pos
+    } else {
+        return None;
+    };
+
+    let pipe_scope = &scope_src[left_pipe..right_pipe+1];
+
+    // For each '{' increase the counter by one and for each '}' decrease the counter by one
+    // If we have a equal number of curly brackets, we should get 0 as result
+    let curly_brackets = pipe_scope.chars().fold(0,
+                           |count, c| {
+                               if c == '{' {
+                                   count + 1
+                               } else if c == '}' {
+                                   count - 1
+                               } else {
+                                   count
+                               }
+                           });
+
+    // If we found an unequal number of curly brackets in the scope, this can not be a valid
+    // closure definition
+    if curly_brackets != 0 {
+        return None;
+    }
+
+    // If we find a ';' --> no closure definition
+    if pipe_scope.contains(';') {
+        return None;
+    }
+
+    Some((left_pipe, right_pipe, pipe_scope))
+}
+
 // pub fn get_backtrace() -> String {
 //     let mut m = std::old_io::MemWriter::new();
 //     let s = std::rt::backtrace::write(&mut m)

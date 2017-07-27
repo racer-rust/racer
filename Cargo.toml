@@ -5,8 +5,8 @@ version = "2.0.9"
 license = "MIT"
 description = "Code completion for Rust"
 authors = ["Phil Dawes <phil@phildawes.net>"]
-homepage = "https://github.com/phildawes/racer"
-repository = "https://github.com/phildawes/racer"
+homepage = "https://github.com/racer-rust/racer"
+repository = "https://github.com/racer-rust/racer"
 
 [lib]
 name = "racer"
@@ -21,7 +21,6 @@ doc = false
 debug = true
 
 [dependencies]
-lazy_static = "0.2"
 log = "0.3.6"
 syntex_syntax = "0.52.0"
 syntex_errors = "0.52.0"
@@ -29,7 +28,6 @@ toml = "0.2.1"
 env_logger = "0.3.4"
 typed-arena = "1.2"
 clap = "2.19"
-regex = "0.2"
 
 [dependencies.clippy]
 version = "0.0.103"
@@ -37,6 +35,7 @@ optional = true
 
 [dev-dependencies]
 rand = "0.3"
+lazy_static = "0.2"
 
 [features]
 nightly = []
