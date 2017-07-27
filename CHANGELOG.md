@@ -8,7 +8,9 @@ project adheres to [Semantic Versioning](http://semver.org/).
 
 - Support resolving `use as` aliases declared in multi-element `use` statements #753
 - Provide suggestions for global paths in more cases #765
+- Suggestions imported via `use as` statements now return their in-scope alias as the match string #767
 - Add new commands for converting between points and coordinates in files #776
+- Return fewer duplicate suggestions #778
 
 ## 2.0.9
 

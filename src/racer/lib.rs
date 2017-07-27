@@ -4,7 +4,6 @@
 #![cfg_attr(feature = "clippy", allow(clippy))]
 #![cfg_attr(all(feature = "clippy", not(test)), deny(print_stdout))]
 
-#[macro_use] extern crate lazy_static;
 #[macro_use] extern crate log;
 
 extern crate syntex_syntax;
@@ -12,7 +11,6 @@ extern crate syntex_errors;
 extern crate toml;
 extern crate env_logger;
 extern crate typed_arena;
-extern crate regex;
 
 #[macro_use]
 mod testutils;

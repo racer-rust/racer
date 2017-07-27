@@ -6,8 +6,7 @@ use core::{self, Coordinate};
 use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
-use util::char_at;
-use regex::Regex;
+use util::{closure_valid_arg_scope, char_at};
 
 fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<Point> where A: Iterator<Item=&'a u8> {
     let mut levels = 0u32;
@@ -33,12 +32,7 @@ pub fn find_closure_scope_start(src: Src, point: Point, parentheses_open_pos: Po
 
     let src_between_parent = mask_comments(src.from_to(parentheses_open_pos, closing_paren_pos));
 
-    if Regex::new(r"\|[^\|]+\|").unwrap().find(src_between_parent.as_str()).is_some() {
-        Some(parentheses_open_pos)
-    } else {
-        None
-    }
-}
+    closure_valid_arg_scope(&src_between_parent).map(|_ |parentheses_open_pos)}
 
 pub fn scope_start(src: Src, point: Point) -> Point {
     let masked_src = mask_comments(src.to(point));

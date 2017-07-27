@@ -174,6 +174,9 @@ fn get_one_completion(src: &str, dir: Option<TmpDir>) -> Match {
 
 /// Return the first completion for the given source, which must be
 /// the only one.
+///
+/// # Panics
+/// Panics if there is not exactly one completion.
 fn get_only_completion(src: &str, dir: Option<TmpDir>) -> Match {
     let mut all = get_all_completions(src, dir);
     assert_eq!(all.len(), 1);
@@ -962,7 +965,8 @@ fn follows_use_as() {
     let dir = TmpDir::new();
     dir.write_file("src2.rs", src2);
     let got = get_definition(src, Some(dir));
-    assert_eq!(got.matchstr, "myfn");
+    assert_eq!(got.matchstr, "myfoofn");
+    assert_eq!(got.contextstr, "pub fn myfn()");
 }
 
 /// Verifies fix for https://github.com/racer-rust/racer/issues/753
@@ -988,7 +992,8 @@ fn follows_use_as_in_braces() {
     ";
 
     let got = get_definition(src, None);
-    assert_eq!(got.matchstr, "Wrapper");
+    assert_eq!(got.matchstr, "Wpr");
+    assert_eq!(got.contextstr, "pub struct Wrapper");
 }
 
 #[test]
@@ -1102,6 +1107,57 @@ fn follows_use_self() {
 
     let completions = get_all_completions(src, None);
     assert!(completions.into_iter().any(|m| m.matchstr == "use_self_test"));
+}
+
+/// This test addresses https://github.com/racer-rust/racer/issues/645 by
+/// confirming that racer will not return duplicate results for a module.
+#[test]
+fn completes_mod_exactly_once() {
+    let _lock = sync!();
+    let src = "
+    mod sample {
+        pub struct Bar;
+    }
+
+    mod happy {
+        use sample;
+
+        fn do_things(bar: sampl~e::Bar) {
+            
+        }
+    }
+    ";
+
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "sample");
+    assert_eq!(got.mtype, MatchType::Module);
+}
+
+/// This test verifies that any result deduplication techniques
+/// are robust enough to avoid deduplication of multiple results
+/// which happen to share a match string.
+#[test]
+fn completes_mod_and_local_with_same_name() {
+    let _lock = sync!();
+    let src = "
+    mod sample {
+        pub struct Bar;
+    }
+
+    mod happy {
+        use sample;
+
+        fn do_things(bar: sample::Bar) {
+            let sample = bar;
+            let other = sampl~e::Bar;
+        }
+    }
+    ";
+
+    let got = get_all_completions(src, None);
+    assert_eq!(got.len(), 2);
+    assert_eq!(got[0].matchstr, "sample");
+    assert_eq!(got[1].matchstr, "sample");
 }
 
 #[test]
@@ -3403,6 +3459,82 @@ fn closure_bracket_scope_nested_match_outside() {
     assert_eq!("x", got.matchstr);
     assert_eq!("| x: i32 |", got.contextstr);
 }
+
+// Issue: https://github.com/racer-rust/racer/issues/754
+#[test]
+fn closure_dont_detect_normal_pipes() {
+    let _lock = sync!();
+
+    let src = "
+    enum Fruit {
+        Apple = 1,
+    }
+
+    fn foo(ty: Fruit) -> bool {
+        (1 as u8 | Fruit~::Apple as u8) == Fruit::Apple as u8
+    }
+
+    fn bar(ty: Fruit) -> bool {
+        match ty {
+            Fruit::Apple |
+            Fruit::Apple => {
+                false
+            }
+        }
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("Fruit", got.matchstr);
+    assert_eq!(got.mtype, MatchType::Enum);
+}
+
+#[test]
+fn closure_test_curly_brackets_in_args() {
+    let _lock = sync!();
+    
+    let src ="
+    struct Foo {
+        bar: u16
+    }
+
+    fn example() -> Result<Foo, ()> {
+        Ok(Foo { bar: 10 })
+    }
+
+    fn main() {
+        example().and_then(|Foo { bar }| { println!(\"{}\", bar~); Ok(()) });
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("bar", got.matchstr);
+    assert_eq!("|Foo { bar }|", got.contextstr);
+}
+
+#[test]
+fn closure_test_multiple_curly_brackets_in_args() {
+    let _lock = sync!();
+    
+    let src ="
+    struct Foo {
+        bar: u16
+    }
+
+    fn example() -> Result<Foo, ()> {
+        Ok(Foo { bar: 10 })
+    }
+
+    fn main() {
+        example().and_then(|Foo { bar }, Foo { ex }, Foo { b }| { println!(\"{}\", bar~); Ok(()) });
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("bar", got.matchstr);
+    assert_eq!("|Foo { bar }, Foo { ex }, Foo { b }|", got.contextstr);
+}
+
 
 #[test]
 fn literal_string_method() {
