@@ -1016,6 +1016,17 @@ fn complete_from_file_(
                     SearchType::StartsWith,
                     session,
                     &PendingImports::empty());
+            } else if util::in_type_name(line) {
+                trace!("Path is in type declaration: `{}`", expr);
+
+                return nameres::resolve_associated_type(
+                    pos,
+                    src.as_src(),
+                    expr,
+                    filepath,
+                    SearchType::StartsWith,
+                    session,
+                    &PendingImports::empty());
             }
 
             let v = (if is_use {

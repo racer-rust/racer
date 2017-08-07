@@ -480,10 +480,8 @@ fn test_trim_visibility() {
     assert_eq!(trim_visibility("pub (in super)  const fn"), "const fn");
 }
 
-/// Checks if the completion point is in a function declaration by looking
-/// to see if the second-to-last word is `fn`.
-pub fn in_fn_name(line_before_point: &str) -> bool {
-    /// Determine if the cursor is sitting in the whitespace after typing `fn ` before
+fn is_after_keyword(keyword: &str, line_before_point: &str) -> bool {
+    /// Determine if the cursor is sitting in the whitespace after typing `[keyword] ` before
     /// typing a name.
     let has_started_name = !line_before_point.ends_with(|c: char| c.is_whitespace());
 
@@ -500,8 +498,14 @@ pub fn in_fn_name(line_before_point: &str) -> bool {
     
     words
         .next()
-        .map(|word| word == "fn")
+        .map(|word| word == keyword)
         .unwrap_or_default()
+}
+
+/// Checks if the completion point is in a function declaration by looking
+/// to see if the second-to-last word is `fn`.
+pub fn in_fn_name(line_before_point: &str) -> bool {
+    is_after_keyword("fn", line_before_point)
 }
 
 #[test]
@@ -511,4 +515,21 @@ fn test_in_fn_name() {
     assert!(in_fn_name("fn "));
     assert!(!in_fn_name("fn foo(b"));
     assert!(!in_fn_name("fn"));
+}
+
+/// Checks if the completion point is in a type or associated type declaration
+/// by looking to see if the second-to-last word is `type`.
+pub fn in_type_name(line_before_point: &str) -> bool {
+    is_after_keyword("type", line_before_point)
+}
+
+#[test]
+fn test_in_type_name() {
+    assert!(in_type_name("type Er"));
+    assert!(in_type_name(" type  Err"));
+
+
+    assert!(!in_type_name("type Foo<T"));
+    assert!(!in_type_name("type Foo=String"));
+    assert!(!in_type_name("type Foo = String"));
 }
