@@ -1438,11 +1438,12 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: Point,
     }
 }
 
+/// If the cursor is inside a trait implementation, try to find the definition of that trait.
 fn find_implemented_trait(point: Point, msrc: Src, searchstr: &str,
                         filepath: &Path, session: &Session,
                         pending_imports: &PendingImports) -> Option<Match> {
     let scopestart = scopes::scope_start(msrc, point);
-    debug!("resolve_method for |{}| pt: {} ({:?}); scopestart: {} ({:?})", 
+    debug!("find implemented trait for |{}| pt: {} ({:?}); scopestart: {} ({:?})", 
         searchstr, 
         point, 
         msrc.src.point_to_coords(point), 
@@ -1477,24 +1478,25 @@ fn find_implemented_trait(point: Point, msrc: Src, searchstr: &str,
     None
 }
 
+/// Find required or optional trait functions declared by the trait currently being implemented
+/// if the cursor is in a trait implementation.
 pub fn resolve_method(point: Point, msrc: Src, searchstr: &str,
                         filepath: &Path, search_type: SearchType, session: &Session,
                         pending_imports: &PendingImports) -> Vec<Match> {
 
-    let scopestart = scopes::scope_start(msrc, point);
-    debug!("resolve_method for |{}| pt: {} ({:?}); scopestart: {} ({:?})", 
+    debug!("resolve_method for |{}| pt: {} ({:?})", 
         searchstr, 
         point, 
-        msrc.src.point_to_coords(point), 
-        scopestart,
-        msrc.src.point_to_coords(scopestart));
+        msrc.src.point_to_coords(point));
 
     let trayt = find_implemented_trait(point, msrc, searchstr, filepath, session, pending_imports);
 
     if let Some(m) = trayt {
         debug!("found trait : match is |{:?}|", m);
-        let mut out = Vec::new();
+
         let src = session.load_file(&m.filepath);
+        let mut out = Vec::new();
+
         src[m.point..].find('{').map(|n| {
             let point = m.point + n + 1;
             for m in search_scope_for_static_trait_fns(point, src.as_src(), searchstr, &m.filepath, search_type) {
@@ -1517,20 +1519,21 @@ pub fn resolve_method(point: Point, msrc: Src, searchstr: &str,
     Vec::new()
 }
 
+/// Find associated types declared by the trait being implemented if the cursor is inside
+/// a trait implementation.
 pub fn resolve_associated_type(point: Point, msrc: Src, searchstr: &str,
                         filepath: &Path, search_type: SearchType, session: &Session,
                         pending_imports: &PendingImports) -> Vec<Match> {
     
-    let scopestart = scopes::scope_start(msrc, point);
-    debug!("resolve_associated_type for |{}| pt: {} ({:?}); scopestart: {} ({:?})", 
+    debug!("resolve_associated_type for |{}| pt: {} ({:?})", 
         searchstr, 
         point, 
-        msrc.src.point_to_coords(point), 
-        scopestart,
-        msrc.src.point_to_coords(scopestart));
+        msrc.src.point_to_coords(point));
 
     let trayt = find_implemented_trait(point, msrc, searchstr, filepath, session, pending_imports);
     if let Some(m) = trayt {
+        debug!("found trait: match is |{:?}|", m);
+
         let src = session.load_file(&m.filepath);
         let mut out = Vec::new();
 
