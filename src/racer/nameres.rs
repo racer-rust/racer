@@ -539,7 +539,7 @@ fn preblock_is_fn(preblock: &str) -> bool {
         return true;
     }
 
-    /// Remove visibility declarations, such as restricted visibility
+    // Remove visibility declarations, such as restricted visibility
     let trimmed = if preblock.starts_with("pub") {
         util::trim_visibility(preblock)
     } else {

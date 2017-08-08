@@ -481,8 +481,8 @@ fn test_trim_visibility() {
 }
 
 fn is_after_keyword(keyword: &str, line_before_point: &str) -> bool {
-    /// Determine if the cursor is sitting in the whitespace after typing `[keyword] ` before
-    /// typing a name.
+    // Determine if the cursor is sitting in the whitespace after typing `[keyword] ` before
+    // typing a name.
     let has_started_name = !line_before_point.ends_with(|c: char| c.is_whitespace());
 
     let mut words = line_before_point.split_whitespace().rev();
