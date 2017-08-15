@@ -58,9 +58,9 @@ Emacs integration has been moved to a separate project: [emacs-racer](https://gi
 
 Gedit integration can be found [here](https://github.com/isamert/gracer).
 
-### Builder Integration
+### Builder integration
 
-Gnome Builder Integration can be found [here](https://github.com/deikatsuo/bracer)
+Gnome Builder integration can be found [here](https://github.com/deikatsuo/bracer)
 
 ### Kate integration
 
