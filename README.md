@@ -58,6 +58,10 @@ Emacs integration has been moved to a separate project: [emacs-racer](https://gi
 
 Gedit integration can be found [here](https://github.com/isamert/gracer).
 
+### Builder integration
+
+Gnome Builder integration can be found [here](https://github.com/deikatsuo/bracer)
+
 ### Kate integration
 
 The Kate community maintains a [plugin](https://cgit.kde.org/kate.git/tree/addons/rustcompletion). It is bundled with recent releases of Kate (tested with 16.08 - read more [here](https://blogs.kde.org/2015/05/22/updates-kates-rust-plugin-syntax-highlighting-and-rust-source-mime-type)).
