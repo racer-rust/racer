@@ -59,8 +59,8 @@ fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType,
     // optional (pub\s+)?(unsafe\s+)?
     for pat in ["pub", "unsafe"].into_iter() {
         if src[start..].starts_with(pat) {
-            /// Rust added support for `pub(in codegen)`; we need to consume the visibility 
-            /// specifier for the rest of the code to keep working.
+            // Rust added support for `pub(in codegen)`; we need to consume the visibility 
+            // specifier for the rest of the code to keep working.
             let allow_scope = pat == &"pub";
             let mut levels = 0;
 

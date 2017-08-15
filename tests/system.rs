@@ -3982,3 +3982,50 @@ fn completes_for_global_path_in_trait_impl_decl() {
     assert_eq!(got.matchstr, "Bar");
     assert_eq!(got.mtype, MatchType::Trait);
 }
+
+/// Addresses https://github.com/racer-rust/racer/issues/775
+#[test]
+fn completes_associated_type() {
+    let _lock = sync!();
+
+    let src = "
+    struct Test;
+
+    impl IntoIterator for Test {
+        type Item = u64;
+        type IntoIt~er = ::std::iter::Once<Self::Item>;
+
+        fn into_iter(self) -> Self::IntoIter {
+            ::std::iter::once(0)
+        }
+    }
+    ";
+
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "IntoIter");
+    assert_eq!(got.mtype, MatchType::Type);
+}
+
+/// Verifies the fix for https://github.com/racer-rust/racer/issues/775 doesn't
+/// break completions on the RHS for associated types.
+#[test]
+fn completes_types_on_rhs_for_associated_type() {
+    let _lock = sync!();
+
+    let src = "
+    struct Test;
+
+    impl IntoIterator for Test {
+        type Item = u64;
+        type IntoIter = ::std::iter::On~ce<Self::Item>;
+
+        fn into_iter(self) -> Self::IntoIter {
+            ::std::iter::once(0)
+        }
+    }
+    ";
+
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "Once");
+    assert_eq!(got.mtype, MatchType::Struct);
+}

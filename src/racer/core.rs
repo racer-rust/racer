@@ -997,9 +997,9 @@ fn complete_from_file_(
             let line = src_text[linestart..pos].trim().rsplit(';').nth(0).unwrap();
             debug!("Complete path with line: {:?}", line);
 
-            /// Test if the **path expression** starts with `::`, in which case the path
-            /// should be checked against the global namespace rather than the items currently
-            /// in scope.
+            // Test if the **path expression** starts with `::`, in which case the path
+            // should be checked against the global namespace rather than the items currently
+            // in scope.
             let is_global = expr.starts_with("::");
             let is_use = line.starts_with("use ");
 
@@ -1013,6 +1013,17 @@ fn complete_from_file_(
                     src.as_src(), 
                     expr, 
                     filepath, 
+                    SearchType::StartsWith,
+                    session,
+                    &PendingImports::empty());
+            } else if util::in_type_name(line) {
+                trace!("Path is in type declaration: `{}`", expr);
+
+                return nameres::resolve_associated_type(
+                    pos,
+                    src.as_src(),
+                    expr,
+                    filepath,
                     SearchType::StartsWith,
                     session,
                     &PendingImports::empty());

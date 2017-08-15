@@ -3,7 +3,7 @@
 use {core, ast, matchers, scopes, typeinf};
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{Match, Src, Session, Coordinate, SessionExt, Ty, Point};
-use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, TraitImpl, MatchArm, Builtin};
+use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, TraitImpl, MatchArm, Builtin, Type};
 use core::Namespace;
 
 use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches, find_ident_end};
@@ -231,6 +231,43 @@ fn search_scope_for_static_trait_fns(point: Point, src: Src, searchstr: &str, fi
         });
     }
     out.into_iter()
+}
+
+fn search_scope_for_associated_types(point: Point, src: Src, searchstr: &str, filepath: &Path, 
+                                     search_type: SearchType) -> vec::IntoIter<Match> {
+    debug!("searching scope for associated type declarations {} |{}| {:?}", point, searchstr, filepath.display());
+
+    let scopesrc = src.from(point);
+    let mut out = Vec::new();
+    for (blobstart,blobend) in scopesrc.iter_stmts() {
+        let blob = &scopesrc[blobstart..blobend];
+        blob.find(|c| c == '=' || c == ';').map(|n| {
+            let signature = blob[..n].trim_right();
+
+            if txt_matches(search_type, &format!("type {}", searchstr), signature) {
+                debug!("found associated type starting |{}| |{}|", searchstr, blob);
+                // TODO: parse this properly
+                let start = blob.find(&format!("type {}", searchstr)).unwrap() + 5;
+                let end = find_ident_end(blob, start);
+                let l = &blob[start..end];
+                
+                let m = Match {
+                           matchstr: l.to_owned(),
+                           filepath: filepath.to_path_buf(),
+                           point: point + blobstart + start,
+                           coords: None,
+                           local: true,
+                           mtype: Type,
+                           contextstr: signature.to_owned(),
+                           generic_args: Vec::new(),
+                           generic_types: Vec::new(),
+                           docs: find_doc(&scopesrc, blobstart + start),
+                };
+                out.push(m);
+            }
+        });
+    }
+    out.into_iter()    
 }
 
 
@@ -502,7 +539,7 @@ fn preblock_is_fn(preblock: &str) -> bool {
         return true;
     }
 
-    /// Remove visibility declarations, such as restricted visibility
+    // Remove visibility declarations, such as restricted visibility
     let trimmed = if preblock.starts_with("pub") {
         util::trim_visibility(preblock)
     } else {
@@ -1401,12 +1438,12 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: Point,
     }
 }
 
-pub(crate) fn resolve_method(point: Point, msrc: Src, searchstr: &str,
-                        filepath: &Path, search_type: SearchType, session: &Session,
-                        pending_imports: &PendingImports) -> Vec<Match> {
-
+/// If the cursor is inside a trait implementation, try to find the definition of that trait.
+fn find_implemented_trait(point: Point, msrc: Src, searchstr: &str,
+                        filepath: &Path, session: &Session,
+                        pending_imports: &PendingImports) -> Option<Match> {
     let scopestart = scopes::scope_start(msrc, point);
-    debug!("resolve_method for |{}| pt: {} ({:?}); scopestart: {} ({:?})", 
+    debug!("find implemented trait for |{}| pt: {} ({:?}); scopestart: {} ({:?})", 
         searchstr, 
         point, 
         msrc.src.point_to_coords(point), 
@@ -1424,7 +1461,8 @@ pub(crate) fn resolve_method(point: Point, msrc: Src, searchstr: &str,
 
                 debug!("found impl of trait : expr is |{}|", expr);
                 let path = core::Path::from_vec(false, expr.split("::").collect::<Vec<_>>());
-                let m = resolve_path(&path,
+                
+                return resolve_path(&path,
                                      filepath,
                                      stmtstart + n - 1,
                                      SearchType::ExactMatch,
@@ -1433,34 +1471,83 @@ pub(crate) fn resolve_method(point: Point, msrc: Src, searchstr: &str,
                                      pending_imports)
                     .filter(|m| m.mtype == Trait)
                     .nth(0);
-                if let Some(m) = m {
-                    debug!("found trait : match is |{:?}|", m);
-                    let mut out = Vec::new();
-                    let src = session.load_file(&m.filepath);
-                    src[m.point..].find('{').map(|n| {
-                        let point = m.point + n + 1;
-                        for m in search_scope_for_static_trait_fns(point, src.as_src(), searchstr, &m.filepath, search_type) {
-                            out.push(m);
-                        }
-                        for m in search_scope_for_methods(point, src.as_src(), searchstr, &m.filepath, search_type) {
-                            out.push(m);
-                        }
-                    });
-
-                    trace!(
-                        "Found {} methods matching `{}` for trait `{}`", 
-                        out.len(), 
-                        searchstr, 
-                        m.matchstr);
-
-                    return out;
-                }
-
             }
         }
     }
 
+    None
+}
+
+/// Find required or optional trait functions declared by the trait currently being implemented
+/// if the cursor is in a trait implementation.
+pub fn resolve_method(point: Point, msrc: Src, searchstr: &str,
+                        filepath: &Path, search_type: SearchType, session: &Session,
+                        pending_imports: &PendingImports) -> Vec<Match> {
+
+    debug!("resolve_method for |{}| pt: {} ({:?})", 
+        searchstr, 
+        point, 
+        msrc.src.point_to_coords(point));
+
+    let trayt = find_implemented_trait(point, msrc, searchstr, filepath, session, pending_imports);
+
+    if let Some(m) = trayt {
+        debug!("found trait : match is |{:?}|", m);
+
+        let src = session.load_file(&m.filepath);
+        let mut out = Vec::new();
+
+        src[m.point..].find('{').map(|n| {
+            let point = m.point + n + 1;
+            for m in search_scope_for_static_trait_fns(point, src.as_src(), searchstr, &m.filepath, search_type) {
+                out.push(m);
+            }
+            for m in search_scope_for_methods(point, src.as_src(), searchstr, &m.filepath, search_type) {
+                out.push(m);
+            }
+        });
+
+        trace!(
+            "Found {} methods matching `{}` for trait `{}`", 
+            out.len(), 
+            searchstr, 
+            m.matchstr);
+
+        return out;
+    }
+
     Vec::new()
+}
+
+/// Find associated types declared by the trait being implemented if the cursor is inside
+/// a trait implementation.
+pub fn resolve_associated_type(point: Point, msrc: Src, searchstr: &str,
+                        filepath: &Path, search_type: SearchType, session: &Session,
+                        pending_imports: &PendingImports) -> Vec<Match> {
+    
+    debug!("resolve_associated_type for |{}| pt: {} ({:?})", 
+        searchstr, 
+        point, 
+        msrc.src.point_to_coords(point));
+
+    let trayt = find_implemented_trait(point, msrc, searchstr, filepath, session, pending_imports);
+    if let Some(m) = trayt {
+        debug!("found trait: match is |{:?}|", m);
+
+        let src = session.load_file(&m.filepath);
+        let mut out = Vec::new();
+
+        src[m.point..].find('{').map(|n| {
+            let point = m.point + n + 1;
+            for at in search_scope_for_associated_types(point, src.as_src(), searchstr, &m.filepath, search_type) {
+                out.push(at);
+            }
+        });
+
+        out
+    } else {
+        Vec::new()
+    }
 }
 
 pub fn do_external_search(path: &[&str], filepath: &Path, pos: Point, search_type: SearchType, namespace: Namespace,

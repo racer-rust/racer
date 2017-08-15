@@ -6,7 +6,7 @@ project adheres to [Semantic Versioning](http://semver.org/).
 
 ## HEAD
 
-No changes, yet!
+- Add completions for associated type names in `impl for` blocks #784
 
 ## 2.0.10
 
