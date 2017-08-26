@@ -518,8 +518,32 @@ fn getstr(t: &toml::Table, k: &str) -> Option<String> {
 fn find_cargo_tomlfile<P>(file: P) -> Option<PathBuf>
     where P: Into<PathBuf>
 {
-    find_next_crate_root(file)
-        .map(|mut f| { f.push("Cargo.toml"); f })
+    find_next_crate_root(file).map(|mut f| {
+        f.push("Cargo.toml");
+        f
+    })
+}
+
+/// Find workspace root by traversing up the directory tree
+///
+/// Checks every Cargo.toml found while searching up the directory tree to see if it has a
+/// [workspace] section in its top level.
+fn find_workspace_root<P>(path: P) -> Option<PathBuf>
+    where P: Into<PathBuf>
+{
+    let mut path = path.into();
+    path.push("Cargo.toml");
+    trace!("find_workspace_root checking {:?}", path);
+    if path.exists() &&
+       parse_toml_file(&path).as_ref().and_then(|toml| toml.get("workspace")).is_some() {
+        trace!("find_workspace_root found workspace section in {:?}", path);
+        path.pop();
+        Some(path)
+    } else if path.pop() && path.pop() {
+        find_workspace_root(path)
+    } else {
+        None
+    }
 }
 
 /// Find crate root by traversing up the directory tree searching
@@ -673,9 +697,18 @@ pub fn get_crate_file(kratename: &str, from_path: &Path) -> Option<PathBuf> {
 
     if let Some(tomlfile) = find_cargo_tomlfile(from_path.to_path_buf()) {
         // look in the lockfile first, if there is one
+        // also search workspaces for a lockfile
         trace!("get_crate_file tomlfile is {:?}", tomlfile);
+
+        let absolute_path = env::current_dir().unwrap().join(from_path);
+        let workspace = find_workspace_root(absolute_path);
+
         let mut lockfile = tomlfile.clone();
         lockfile.pop();
+        if workspace.is_some() {
+            lockfile.push(workspace.unwrap());
+            trace!("get_crate_file workspace is {:?}", lockfile);
+        }
         lockfile.push("Cargo.lock");
         if lockfile.exists() {
             if let Some(f) = find_src_via_lockfile(kratename, &lockfile) {
@@ -686,7 +719,7 @@ pub fn get_crate_file(kratename: &str, from_path: &Path) -> Option<PathBuf> {
         }
 
         // oh, no luck with the lockfile. Try the tomlfile
-        return find_src_via_tomlfile(kratename, &tomlfile)
+        return find_src_via_tomlfile(kratename, &tomlfile);
     }
     None
 }
