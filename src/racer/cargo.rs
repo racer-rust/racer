@@ -673,9 +673,22 @@ pub fn get_crate_file(kratename: &str, from_path: &Path) -> Option<PathBuf> {
 
     if let Some(tomlfile) = find_cargo_tomlfile(from_path.to_path_buf()) {
         // look in the lockfile first, if there is one
+        // check if there's a workspace first.
         trace!("get_crate_file tomlfile is {:?}", tomlfile);
+        let mut workspace: Option<String> = None;
+        if let Some(toml) = parse_toml_file(&tomlfile) {
+            if let Some(package) = toml.get("package") {
+                if let Some(w) = package.lookup("workspace") {
+                    workspace = Some(w.as_str().unwrap().to_owned());
+                }
+            }
+        }
         let mut lockfile = tomlfile.clone();
         lockfile.pop();
+        if workspace.is_some() {
+            lockfile.push(workspace.unwrap());
+            trace!("get_crate_file workspace is {:?}", lockfile);
+        }
         lockfile.push("Cargo.lock");
         if lockfile.exists() {
             if let Some(f) = find_src_via_lockfile(kratename, &lockfile) {
