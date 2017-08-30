@@ -705,8 +705,8 @@ pub fn get_crate_file(kratename: &str, from_path: &Path) -> Option<PathBuf> {
 
         let mut lockfile = tomlfile.clone();
         lockfile.pop();
-        if workspace.is_some() {
-            lockfile.push(workspace.unwrap());
+        if let Some(workspace) = workspace {
+            lockfile = workspace;
             trace!("get_crate_file workspace is {:?}", lockfile);
         }
         lockfile.push("Cargo.lock");
