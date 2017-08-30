@@ -1159,7 +1159,7 @@ pub struct Search {
 }
 
 /// Attempt to resolve a name which occurs in a given file.
-pub(crate) fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: Point,
+pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: Point,
                     search_type: SearchType, namespace: Namespace,
                     session: &Session, pending_imports: &PendingImports) -> vec::IntoIter<Match> {
     let mut out = Vec::new();
@@ -1401,7 +1401,7 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: Point,
     }
 }
 
-pub(crate) fn resolve_method(point: Point, msrc: Src, searchstr: &str,
+pub fn resolve_method(point: Point, msrc: Src, searchstr: &str,
                         filepath: &Path, search_type: SearchType, session: &Session,
                         pending_imports: &PendingImports) -> Vec<Match> {
 
