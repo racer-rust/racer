@@ -540,6 +540,8 @@ fn find_workspace_root<P>(path: P) -> Option<PathBuf>
         path.pop();
         Some(path)
     } else if path.pop() && path.pop() {
+        // If we haven't found the root and there is still more to search, discard the current
+        // Cargo.toml, move up a directory, and try again.
         find_workspace_root(path)
     } else {
         None
