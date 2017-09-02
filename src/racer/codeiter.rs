@@ -2,17 +2,19 @@ use std::iter::{Fuse, Iterator};
 
 use core::{Point, SourceByteRange};
 
-pub struct StmtIndicesIter<'a,I>
-    where I: Iterator<Item=SourceByteRange>
+pub struct StmtIndicesIter<'a, I>
+where
+    I: Iterator<Item = SourceByteRange>,
 {
     src: &'a str,
     it: I,
     pos: Point,
-    end: Point
+    end: Point,
 }
 
-impl<'a,I> Iterator for StmtIndicesIter<'a,I>
-    where I: Iterator<Item=SourceByteRange>
+impl<'a, I> Iterator for StmtIndicesIter<'a, I>
+where
+    I: Iterator<Item = SourceByteRange>,
 {
     type Item = SourceByteRange;
 
@@ -33,14 +35,19 @@ impl<'a,I> Iterator for StmtIndicesIter<'a,I>
                 match self.it.next() {
                     Some((ch_start, ch_end)) => {
                         self.end = ch_end;
-                        if start == pos { start = ch_start; }
+                        if start == pos {
+                            start = ch_start;
+                        }
                         pos = ch_start;
                     }
                     None => {
                         // no more chunks. finished
                         self.pos = pos;
-                        return if start < self.end { Some((start, self.end)) }
-                               else { None }
+                        return if start < self.end {
+                            Some((start, self.end))
+                        } else {
+                            None
+                        };
                     }
                 }
             }
@@ -49,8 +56,12 @@ impl<'a,I> Iterator for StmtIndicesIter<'a,I>
                 // if this is a new stmt block, skip the whitespace
                 for &b in &src_bytes[pos..self.end] {
                     match b {
-                        b' ' | b'\r' | b'\n' | b'\t' => { pos += 1; },
-                        _ => { break; }
+                        b' ' | b'\r' | b'\n' | b'\t' => {
+                            pos += 1;
+                        }
+                        _ => {
+                            break;
+                        }
                     }
                 }
                 start = pos;
@@ -66,17 +77,23 @@ impl<'a,I> Iterator for StmtIndicesIter<'a,I>
                 pos += 1;
 
                 match b {
-                    b'(' => { parenlevel += 1; },
-                    b')' => { parenlevel -= 1; },
+                    b'(' => {
+                        parenlevel += 1;
+                    }
+                    b')' => {
+                        parenlevel -= 1;
+                    }
                     b'{' => {
                         // if we are top level and stmt is not a 'use' or 'let' then
                         // closebrace finishes the stmt
-                        if bracelevel == 0 && parenlevel == 0
-                            && !(is_a_use_stmt(src_bytes, start, pos) || is_a_let_stmt(src_bytes, start, pos)) {
+                        if bracelevel == 0 && parenlevel == 0 &&
+                            !(is_a_use_stmt(src_bytes, start, pos) ||
+                                is_a_let_stmt(src_bytes, start, pos))
+                        {
                             enddelim = b'}';
                         }
                         bracelevel += 1;
-                    },
+                    }
                     b'}' => {
                         // have we reached the end of the scope?
                         if bracelevel == 0 {
@@ -84,16 +101,16 @@ impl<'a,I> Iterator for StmtIndicesIter<'a,I>
                             return None;
                         }
                         bracelevel -= 1;
-                    },
+                    }
                     b'!' => {
                         // macro if followed by at least one space or (
                         // FIXME: test with boolean 'not' expression
-                        if parenlevel == 0 && bracelevel == 0
-                            && pos < self.end && (pos-start) > 1 {
+                        if parenlevel == 0 && bracelevel == 0 && pos < self.end && (pos - start) > 1
+                        {
                             match src_bytes[pos] {
-                                b' ' | b'\r' | b'\n' | b'\t' | b'('  => {
+                                b' ' | b'\r' | b'\n' | b'\t' | b'(' => {
                                     enddelim = b')';
-                                },
+                                }
                                 _ => {}
                             }
                         }
@@ -112,22 +129,28 @@ impl<'a,I> Iterator for StmtIndicesIter<'a,I>
 
 fn is_a_use_stmt(src_bytes: &[u8], start: Point, pos: Point) -> bool {
     let whitespace = b" {\t\r\n";
-    (pos > 3 && &src_bytes[start..start+3] == b"use" &&
-     whitespace.contains(&src_bytes[start+3])) ||
-    (pos > 7 && &src_bytes[start..(start+7)] == b"pub use" &&
-     whitespace.contains(&src_bytes[start+7]))
+    (pos > 3 && &src_bytes[start..start + 3] == b"use" &&
+        whitespace.contains(&src_bytes[start + 3])) ||
+        (pos > 7 && &src_bytes[start..(start + 7)] == b"pub use" &&
+            whitespace.contains(&src_bytes[start + 7]))
 }
 
 fn is_a_let_stmt(src_bytes: &[u8], start: Point, pos: Point) -> bool {
     let whitespace = b" {\t\r\n";
-    pos > 3 && &src_bytes[start..start+3] == b"let" && whitespace.contains(&src_bytes[start+3])
+    pos > 3 && &src_bytes[start..start + 3] == b"let" && whitespace.contains(&src_bytes[start + 3])
 }
 
-impl<'a, I> StmtIndicesIter<'a,I>
-    where I: Iterator<Item=SourceByteRange>
+impl<'a, I> StmtIndicesIter<'a, I>
+where
+    I: Iterator<Item = SourceByteRange>,
 {
     pub fn from_parts(src: &str, it: I) -> Fuse<StmtIndicesIter<I>> {
-        StmtIndicesIter{ src: src, it: it, pos: 0, end: 0 }.fuse()
+        StmtIndicesIter {
+            src: src,
+            it: it,
+            pos: 0,
+            end: 0,
+        }.fuse()
     }
 }
 
@@ -143,16 +166,23 @@ mod test {
 
     fn iter_stmts(src: &str) -> Fuse<StmtIndicesIter<codecleaner::CodeIndicesIter>> {
         let it = codecleaner::code_chunks(src);
-        StmtIndicesIter{ src: src, it: it, pos: 0, end: 0 }.fuse()
+        StmtIndicesIter {
+            src: src,
+            it: it,
+            pos: 0,
+            end: 0,
+        }.fuse()
     }
 
 
     #[test]
     fn iterates_single_use_stmts() {
-        let src = rejustify("
+        let src = rejustify(
+            "
             use std::Foo; // a comment
             use std::Bar;
-        ");
+        ",
+        );
 
         let mut it = iter_stmts(src.as_ref());
         assert_eq!("use std::Foo;", slice(&src, it.next().unwrap()));
@@ -161,41 +191,54 @@ mod test {
 
     #[test]
     fn iterates_use_stmt_over_two_lines() {
-        let src = rejustify("
+        let src = rejustify(
+            "
         use std::{Foo,
                   Bar}; // a comment
-        ");
+        ",
+        );
         let mut it = iter_stmts(src.as_ref());
-        assert_eq!("use std::{Foo,
-              Bar};", slice(&src, it.next().unwrap()));
+        assert_eq!(
+            "use std::{Foo,
+              Bar};",
+            slice(&src, it.next().unwrap())
+        );
     }
 
     #[test]
     fn iterates_use_stmt_without_the_prefix() {
-        let src = rejustify("
+        let src = rejustify(
+            "
         pub use {Foo,
                  Bar}; // this is also legit apparently
-        ");
+        ",
+        );
         let mut it = iter_stmts(src.as_ref());
-        assert_eq!("pub use {Foo,
-             Bar};", slice(&src, it.next().unwrap())
+        assert_eq!(
+            "pub use {Foo,
+             Bar};",
+            slice(&src, it.next().unwrap())
         );
     }
 
     #[test]
     fn iterates_while_stmt() {
-        let src = rejustify("
+        let src = rejustify(
+            "
             while self.pos < 3 { }
-        ");
+        ",
+        );
         let mut it = iter_stmts(src.as_ref());
         assert_eq!("while self.pos < 3 { }", slice(&src, it.next().unwrap()));
     }
 
     #[test]
     fn iterates_lambda_arg() {
-        let src = rejustify("
+        let src = rejustify(
+            "
             myfn(|n|{});
-        ");
+        ",
+        );
         let mut it = iter_stmts(src.as_ref());
         assert_eq!("myfn(|n|{});", slice(&src, it.next().unwrap()));
     }
@@ -211,9 +254,12 @@ mod test {
         ";
         let mut it = iter_stmts(src.as_ref());
         assert_eq!("mod foo;", slice(&src, it.next().unwrap()));
-        assert_eq!("macro_rules! otry(
+        assert_eq!(
+            "macro_rules! otry(
             ($e:expr) => (match $e { Some(e) => e, None => return })
-        )", slice(&src, it.next().unwrap()));
+        )",
+            slice(&src, it.next().unwrap())
+        );
         assert_eq!("mod bar;", slice(&src, it.next().unwrap()));
     }
 
@@ -226,7 +272,10 @@ mod test {
         ";
         let mut it = iter_stmts(src.as_ref());
         assert_eq!("mod foo;", slice(&src, it.next().unwrap()));
-        assert_eq!("local_data_key!(local_stdout: Box<Writer + Send>)", slice(&src, it.next().unwrap()));
+        assert_eq!(
+            "local_data_key!(local_stdout: Box<Writer + Send>)",
+            slice(&src, it.next().unwrap())
+        );
         assert_eq!("mod bar;", slice(&src, it.next().unwrap()));
     }
 
@@ -261,10 +310,12 @@ mod test {
 
     #[test]
     fn iterates_module_attribute() {
-        let src = rejustify("
+        let src = rejustify(
+            "
             #![license = \"BSD\"]
             #[test]
-        ");
+        ",
+        );
         let mut it = iter_stmts(src.as_ref());
         assert_eq!("#![license = \"BSD\"]", slice(&src, it.next().unwrap()));
         assert_eq!("#[test]", slice(&src, it.next().unwrap()));
@@ -281,10 +332,13 @@ mod test {
 
         let mut it = iter_stmts(src.as_ref());
         assert_eq!("let something = 35;", slice(&src, it.next().unwrap()));
-        assert_eq!("while self.pos < 3 {
+        assert_eq!(
+            "while self.pos < 3 {
             let a = 35;
             return a + 35;  // should iterate this
-        ", slice(&src, it.next().unwrap()));
+        ",
+            slice(&src, it.next().unwrap())
+        );
     }
 
 }

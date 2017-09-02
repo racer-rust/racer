@@ -3,7 +3,7 @@ use std::cmp;
 use std::path;
 use std::rc::Rc;
 
-use core::{IndexedSource, Session, SessionExt, Location, LocationExt, Point};
+use core::{IndexedSource, Location, LocationExt, Point, Session, SessionExt};
 
 use core::SearchType::{self, ExactMatch, StartsWith};
 
@@ -33,27 +33,28 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
             }
 
             // PD: switch to use .match_indices() when that stabilizes
-            let mut n=0;
+            let mut n = 0;
             while let Some(n1) = haystack[n..].find(needle) {
                 n += n1;
-                if (n == 0  || !is_ident_char(char_at(haystack, n-1))) &&
-                    (n+n_len == h_len || !is_ident_char(char_at(haystack, n+n_len))) {
+                if (n == 0 || !is_ident_char(char_at(haystack, n - 1))) &&
+                    (n + n_len == h_len || !is_ident_char(char_at(haystack, n + n_len)))
+                {
                     return true;
                 }
                 n += 1;
             }
             false
-        },
+        }
         StartsWith => {
             if needle.is_empty() {
                 return true;
             }
 
             // PD: switch to use .match_indices() when that stabilizes
-            let mut n=0;
+            let mut n = 0;
             while let Some(n1) = haystack[n..].find(needle) {
                 n += n1;
-                if n == 0  || !is_ident_char(char_at(haystack, n-1)) {
+                if n == 0 || !is_ident_char(char_at(haystack, n - 1)) {
                     return true;
                 }
                 n += 1;
@@ -64,9 +65,9 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
 }
 
 pub fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bool {
-   match stype {
+    match stype {
         ExactMatch => searchstr == candidate,
-        StartsWith => candidate.starts_with(searchstr)
+        StartsWith => candidate.starts_with(searchstr),
     }
 }
 
@@ -74,7 +75,11 @@ pub fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bo
 pub fn closure_valid_arg_scope(scope_src: &str) -> Option<(usize, usize, &str)> {
     // Try to find the left and right pipe, if one or both are not present, this is not a valid
     // closure definition
-    let left_pipe = if let Some(pos) = scope_src.find('|') { pos } else { return None; };
+    let left_pipe = if let Some(pos) = scope_src.find('|') {
+        pos
+    } else {
+        return None;
+    };
     let rest_scope = &scope_src[left_pipe + 1..];
     let right_pipe = if let Some(pos) = rest_scope.find('|') {
         left_pipe + 1 + pos
@@ -82,20 +87,17 @@ pub fn closure_valid_arg_scope(scope_src: &str) -> Option<(usize, usize, &str)> 
         return None;
     };
 
-    let pipe_scope = &scope_src[left_pipe..right_pipe+1];
+    let pipe_scope = &scope_src[left_pipe..right_pipe + 1];
 
     // For each '{' increase the counter by one and for each '}' decrease the counter by one
     // If we have a equal number of curly brackets, we should get 0 as result
-    let curly_brackets = pipe_scope.chars().fold(0,
-                           |count, c| {
-                               if c == '{' {
-                                   count + 1
-                               } else if c == '}' {
-                                   count - 1
-                               } else {
-                                   count
-                               }
-                           });
+    let curly_brackets = pipe_scope.chars().fold(0, |count, c| if c == '{' {
+        count + 1
+    } else if c == '}' {
+        count - 1
+    } else {
+        count
+    });
 
     // If we found an unequal number of curly brackets in the scope, this can not be a valid
     // closure definition
@@ -121,20 +123,26 @@ pub fn closure_valid_arg_scope(scope_src: &str) -> Option<(usize, usize, &str)> 
 
 #[test]
 fn txt_matches_matches_stuff() {
-    assert_eq!(true, txt_matches(ExactMatch, "Vec","Vec"));
-    assert_eq!(true, txt_matches(StartsWith, "Vec","Vector"));
-    assert_eq!(false, txt_matches(ExactMatch, "Vec","use Vector"));
-    assert_eq!(true, txt_matches(StartsWith, "Vec","use Vector"));
-    assert_eq!(false, txt_matches(StartsWith, "Vec","use aVector"));
-    assert_eq!(true, txt_matches(ExactMatch, "Vec","use Vec"));
+    assert_eq!(true, txt_matches(ExactMatch, "Vec", "Vec"));
+    assert_eq!(true, txt_matches(StartsWith, "Vec", "Vector"));
+    assert_eq!(false, txt_matches(ExactMatch, "Vec", "use Vector"));
+    assert_eq!(true, txt_matches(StartsWith, "Vec", "use Vector"));
+    assert_eq!(false, txt_matches(StartsWith, "Vec", "use aVector"));
+    assert_eq!(true, txt_matches(ExactMatch, "Vec", "use Vec"));
 }
 
 #[test]
 fn txt_matches_matches_methods() {
     assert_eq!(true, txt_matches(StartsWith, "do_st", "fn do_stuff"));
     assert_eq!(true, txt_matches(StartsWith, "do_st", "pub fn do_stuff"));
-    assert_eq!(true, txt_matches(StartsWith, "do_st", "pub(crate) fn do_stuff"));
-    assert_eq!(true, txt_matches(StartsWith, "do_st", "pub(in codegen) fn do_stuff"));
+    assert_eq!(
+        true,
+        txt_matches(StartsWith, "do_st", "pub(crate) fn do_stuff")
+    );
+    assert_eq!(
+        true,
+        txt_matches(StartsWith, "do_st", "pub(in codegen) fn do_stuff")
+    );
 }
 
 
@@ -161,13 +169,10 @@ fn txt_matches_matches_methods() {
 /// let expanded = racer::expand_ident(path, pos, &session).unwrap();
 /// assert_eq!("this_is_an_identifier", expanded.ident());
 /// ```
-pub fn expand_ident<P, C>(
-    filepath: P,
-    cursor: C,
-    session: &Session
-) -> Option<ExpandedIdent>
-    where P: AsRef<::std::path::Path>,
-          C: Into<Location>
+pub fn expand_ident<P, C>(filepath: P, cursor: C, session: &Session) -> Option<ExpandedIdent>
+where
+    P: AsRef<::std::path::Path>,
+    C: Into<Location>,
 {
     let cursor = cursor.into();
     let indexed_source = session.load_file(filepath.as_ref());
@@ -283,31 +288,36 @@ impl ::std::error::Error for RustSrcPathError {
 impl ::std::fmt::Display for RustSrcPathError {
     fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
         match *self {
-            RustSrcPathError::Missing => {
-                write!(f, "RUST_SRC_PATH environment variable must be set to \
-                           point to the src directory of a rust checkout. \
-                           E.g. \"/home/foouser/src/rust/src\"")
-            },
-            RustSrcPathError::DoesNotExist(ref path) => {
-                write!(f, "racer can't find the directory pointed to by the \
-                           RUST_SRC_PATH variable \"{:?}\". Try using an \
-                           absolute fully qualified path and make sure it \
-                           points to the src directory of a rust checkout - \
-                           e.g. \"/home/foouser/src/rust/src\".", path)
-            },
-            RustSrcPathError::NotRustSourceTree(ref path) => {
-                write!(f, "Unable to find libstd under RUST_SRC_PATH. N.B. \
-                           RUST_SRC_PATH variable needs to point to the *src* \
-                           directory inside a rust checkout e.g. \
-                           \"/home/foouser/src/rust/src\". \
-                           Current value \"{:?}\"", path)
-            },
+            RustSrcPathError::Missing => write!(
+                f,
+                "RUST_SRC_PATH environment variable must be set to \
+                 point to the src directory of a rust checkout. \
+                 E.g. \"/home/foouser/src/rust/src\""
+            ),
+            RustSrcPathError::DoesNotExist(ref path) => write!(
+                f,
+                "racer can't find the directory pointed to by the \
+                 RUST_SRC_PATH variable \"{:?}\". Try using an \
+                 absolute fully qualified path and make sure it \
+                 points to the src directory of a rust checkout - \
+                 e.g. \"/home/foouser/src/rust/src\".",
+                path
+            ),
+            RustSrcPathError::NotRustSourceTree(ref path) => write!(
+                f,
+                "Unable to find libstd under RUST_SRC_PATH. N.B. \
+                 RUST_SRC_PATH variable needs to point to the *src* \
+                 directory inside a rust checkout e.g. \
+                 \"/home/foouser/src/rust/src\". \
+                 Current value \"{:?}\"",
+                path
+            ),
         }
     }
 }
 
 fn check_rust_sysroot() -> Option<path::PathBuf> {
-    use ::std::process::Command;
+    use std::process::Command;
     let mut cmd = Command::new("rustc");
     cmd.arg("--print").arg("sysroot");
 
@@ -374,44 +384,42 @@ pub fn check_rust_src_env_var() -> ::std::result::Result<(), RustSrcPathError> {
             } else {
                 Ok(())
             }
-        },
-        _ => {
-            if let Some(path) = check_rust_sysroot() {
-                env::set_var("RUST_SRC_PATH", path);
-                Ok(())
-            } else {
-                let default_paths = [
-                    "/usr/local/src/rust/src",
-                    "/usr/src/rust/src",
-                ];
-
-                for &path in &default_paths {
-                    let f = path::Path::new(path);
-                    if f.exists() {
-                        env::set_var("RUST_SRC_PATH", path);
-                        return Ok(())
-                    }
-                }
-
-                Err(RustSrcPathError::Missing)
-            }
         }
+        _ => if let Some(path) = check_rust_sysroot() {
+            env::set_var("RUST_SRC_PATH", path);
+            Ok(())
+        } else {
+            let default_paths = ["/usr/local/src/rust/src", "/usr/src/rust/src"];
+
+            for &path in &default_paths {
+                let f = path::Path::new(path);
+                if f.exists() {
+                    env::set_var("RUST_SRC_PATH", path);
+                    return Ok(());
+                }
+            }
+
+            Err(RustSrcPathError::Missing)
+        },
     }
 }
 
 /// An immutable stack implemented as a linked list backed by a thread's stack.
 pub struct StackLinkedListNode<'stack, T>(Option<StackLinkedListNodeData<'stack, T>>)
-    where T: 'stack;
+where
+    T: 'stack;
 
 struct StackLinkedListNodeData<'stack, T>
-    where T: 'stack
+where
+    T: 'stack,
 {
     item: T,
     previous: &'stack StackLinkedListNode<'stack, T>,
 }
 
 impl<'stack, T> StackLinkedListNode<'stack, T>
-    where T: 'stack
+where
+    T: 'stack,
 {
     /// Returns an empty node.
     pub fn empty() -> Self {
@@ -428,13 +436,20 @@ impl<'stack, T> StackLinkedListNode<'stack, T>
 }
 
 impl<'stack, T> StackLinkedListNode<'stack, T>
-    where T: 'stack + PartialEq
+where
+    T: 'stack + PartialEq,
 {
     /// Check if the stack contains the specified item.
     /// Returns `true` if the item is found, or `false` if it's not found.
     pub fn contains(&self, item: &T) -> bool {
         let mut current = self;
-        while let &StackLinkedListNode(Some(StackLinkedListNodeData { item: ref current_item, previous })) = current {
+        while let &StackLinkedListNode(
+            Some(StackLinkedListNodeData {
+                item: ref current_item,
+                previous,
+            }),
+        ) = current
+        {
             if current_item == item {
                 return true;
             }
@@ -451,9 +466,9 @@ impl<'stack, T> StackLinkedListNode<'stack, T>
 /// visibility.
 pub fn trim_visibility(blob: &str) -> &str {
     if !blob.trim_left().starts_with("pub") {
-        return blob
+        return blob;
     }
-    
+
     let mut level = 0;
     let mut skip_restricted = 0;
     for (i, c) in blob[3..].char_indices() {
@@ -465,7 +480,7 @@ pub fn trim_visibility(blob: &str) -> &str {
             _ if is_ident_char(c) => {
                 skip_restricted = i + 3;
                 break;
-            },
+            }
             _ => continue,
         }
     }
@@ -497,11 +512,8 @@ pub fn in_fn_name(line_before_point: &str) -> bool {
             }
         }
     }
-    
-    words
-        .next()
-        .map(|word| word == "fn")
-        .unwrap_or_default()
+
+    words.next().map(|word| word == "fn").unwrap_or_default()
 }
 
 #[test]
