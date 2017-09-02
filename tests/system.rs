@@ -3982,3 +3982,80 @@ fn completes_for_global_path_in_trait_impl_decl() {
     assert_eq!(got.matchstr, "Bar");
     assert_eq!(got.mtype, MatchType::Trait);
 }
+
+// Issue #755
+#[test]
+fn completes_for_match_type_inference_let_expr() {
+    let _lock = sync!();
+
+    let src = r#"
+    use std::fs::File;
+
+    fn main() {
+        let f = File::open("hey");
+
+        let f = match f {
+            Ok(file) => file,
+            Err(error) =>  {
+                panic!("Error opening file: {:?}", error)
+            }
+        };
+        f.set_p~
+    }
+    "#;
+
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "set_permissions");
+    assert_eq!(got.mtype, MatchType::Function);
+}
+
+#[test]
+fn completes_for_match_type_inference_let_expr_with_block() {
+    let _lock = sync!();
+
+    let src = r#"
+    use std::fs::File;
+
+    fn main() {
+        let f = File::open("hey");
+
+        let f = match f {
+            Ok(file) => { file },
+            Err(error) =>  {
+                panic!("Error opening file: {:?}", error)
+            }
+        };
+        f.set_p~
+    }
+    "#;
+
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "set_permissions");
+    assert_eq!(got.mtype, MatchType::Function);
+}
+
+#[test]
+fn completes_for_match_type_inference_let_expr_with_return() {
+    let _lock = sync!();
+
+    let src = r#"
+    use std::fs::File;
+
+    fn test() -> String {
+        let f = File::open("hey");
+
+        let f = match f {
+            Err(error) =>  {
+                return "result".to_string();
+            },
+            Ok(file) => { file }
+        };
+
+        f.set_p~
+    }
+    "#;
+
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "set_permissions");
+    assert_eq!(got.mtype, MatchType::Function);
+}
