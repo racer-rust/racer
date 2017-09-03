@@ -3983,7 +3983,7 @@ fn completes_for_global_path_in_trait_impl_decl() {
     assert_eq!(got.mtype, MatchType::Trait);
 }
 
-// Issue #755
+// Issue: https://github.com/racer-rust/racer/issues/755
 #[test]
 fn completes_for_match_type_inference_let_expr() {
     let _lock = sync!();
@@ -4000,7 +4000,7 @@ fn completes_for_match_type_inference_let_expr() {
                 panic!("Error opening file: {:?}", error)
             }
         };
-        f.set_p~
+        f.set_p~ermissions(/* args */);
     }
     "#;
 
@@ -4025,7 +4025,7 @@ fn completes_for_match_type_inference_let_expr_with_block() {
                 panic!("Error opening file: {:?}", error)
             }
         };
-        f.set_p~
+        f.set_p~ermissions(/* args */);
     }
     "#;
 
@@ -4051,7 +4051,54 @@ fn completes_for_match_type_inference_let_expr_with_return() {
             Ok(file) => { file }
         };
 
-        f.set_p~
+        f.set_p~ermissions(/* args */);
+    }
+    "#;
+
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "set_permissions");
+    assert_eq!(got.mtype, MatchType::Function);
+}
+
+#[test]
+fn completes_for_let_if_let() {
+    let _lock = sync!();
+
+    let src = r#"
+    use std::fs::File;
+
+    fn test() -> String {
+        let f = File::open("hey");
+
+        let f = if let Ok(f) = f { f } else { return "result".to_string(); };
+
+        f.set_p~ermissions(/* args */);
+    }
+    "#;
+
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "set_permissions");
+    assert_eq!(got.mtype, MatchType::Function);
+}
+
+#[test]
+fn completes_for_match_type_inference_with_if() {
+    let _lock = sync!();
+
+    let src = r#"
+    use std::fs::File;
+
+    fn test() -> String {
+        let f = File::open("hey");
+
+        let f = match f {
+            Err(error) =>  {
+                return "result".to_string();
+            },
+            Ok(file) => { if file.sync_data().is_ok() { return "nice".to_string(); } else { file } }
+        };
+
+        f.set_p~ermissions(/* args */);
     }
     "#;
 

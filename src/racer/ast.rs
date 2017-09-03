@@ -710,6 +710,18 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
                 }
             }
 
+            ExprKind::If(_, ref block, ref else_block) |
+            ExprKind::IfLet(_, _, ref block, ref else_block) => {
+                debug!("if/iflet expr");
+
+                visit::walk_block(self, &block);
+
+                // if the block does not resolve to a type, try the else block
+                if self.result.is_none() && else_block.is_some() {
+                    self.visit_expr(&else_block.as_ref().unwrap());
+                }
+            }
+
             ExprKind::Block(ref block) => {
                 debug!("block expr");
                 visit::walk_block(self, &block);
