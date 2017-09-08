@@ -1,13 +1,13 @@
 use std::fs::File;
 use std::io::Read;
-use std::{vec, fmt};
-use std::{str, path};
+use std::{fmt, vec};
+use std::{path, str};
 use std::io;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::slice;
-use std::cmp::{min, max};
+use std::cmp::{max, min};
 use std::iter::{Fuse, Iterator};
 use std::rc::Rc;
 use codeiter::StmtIndicesIter;
@@ -50,7 +50,7 @@ pub enum MatchType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SearchType {
     ExactMatch,
-    StartsWith
+    StartsWith,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -58,13 +58,13 @@ pub enum SearchType {
 pub enum Namespace {
     Type,
     Value,
-    Both
+    Both,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum CompletionType {
     Field,
-    Path
+    Path,
 }
 
 /// A byte offset in a file.
@@ -94,7 +94,7 @@ pub struct Match {
     pub mtype: MatchType,
     pub contextstr: String,
     pub generic_args: Vec<String>,
-    pub generic_types: Vec<PathSearch>,  // generic types are evaluated lazily
+    pub generic_types: Vec<PathSearch>, // generic types are evaluated lazily
     pub docs: String,
 }
 
@@ -105,9 +105,8 @@ impl Match {
     /// but in the interest of minimizing the crate's public API surface it's exposed
     /// as a private method for now.
     fn is_same_as(&self, other: &Match) -> bool {
-        self.point == other.point 
-        && self.matchstr == other.matchstr
-        && self.filepath == other.filepath
+        self.point == other.point && self.matchstr == other.matchstr &&
+            self.filepath == other.filepath
     }
 }
 
@@ -143,16 +142,14 @@ impl LocationExt for Location {
     fn to_point(&self, src: &IndexedSource) -> Option<Point> {
         match *self {
             Location::Point(val) => Some(val),
-            Location::Coords(ref coords) => {
-                src.coords_to_point(coords)
-            }
+            Location::Coords(ref coords) => src.coords_to_point(coords),
         }
     }
 
     fn to_coords(&self, src: &IndexedSource) -> Option<Coordinate> {
         match *self {
             Location::Coords(val) => Some(val),
-            Location::Point(point) => src.point_to_coords(point)
+            Location::Point(point) => src.point_to_coords(point),
         }
     }
 }
@@ -160,66 +157,66 @@ impl LocationExt for Location {
 
 impl fmt::Debug for Match {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Match [{:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?} |{}|]",
-               self.matchstr,
-               self.filepath.display(),
-               self.point,
-               self.local,
-               self.mtype,
-               self.generic_args,
-               self.generic_types,
-               self.contextstr)
+        write!(
+            f,
+            "Match [{:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?} |{}|]",
+            self.matchstr,
+            self.filepath.display(),
+            self.point,
+            self.local,
+            self.mtype,
+            self.generic_args,
+            self.generic_types,
+            self.contextstr
+        )
     }
 }
 
 #[derive(Clone)]
 pub struct Scope {
     pub filepath: path::PathBuf,
-    pub point: Point
+    pub point: Point,
 }
 
 impl Scope {
     pub fn from_match(m: &Match) -> Scope {
-        Scope{ filepath: m.filepath.clone(), point: m.point }
+        Scope {
+            filepath: m.filepath.clone(),
+            point: m.point,
+        }
     }
 }
 
 impl fmt::Debug for Scope {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Scope [{:?}, {:?}]",
-               self.filepath.display(),
-               self.point)
+        write!(f, "Scope [{:?}, {:?}]", self.filepath.display(), self.point)
     }
 }
 
 // Represents a type. Equivilent to rustc's ast::Ty but can be passed across threads
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub enum Ty {
     Match(Match),
-    PathSearch(Path, Scope),   // A path + the scope to be able to resolve it
+    PathSearch(Path, Scope), // A path + the scope to be able to resolve it
     Tuple(Vec<Ty>),
     FixedLengthVec(Box<Ty>, String), // ty, length expr as string
     RefPtr(Box<Ty>),
     Vec(Box<Ty>),
-    Unsupported
+    Unsupported,
 }
 
 impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Ty::Match(ref m) => {
-                write!(f, "{}", m.matchstr)
-            }
-            Ty::PathSearch(ref p, _) => {
-                write!(f, "{}", p)
-            }
+            Ty::Match(ref m) => write!(f, "{}", m.matchstr),
+            Ty::PathSearch(ref p, _) => write!(f, "{}", p),
             Ty::Tuple(ref vec) => {
                 let mut first = true;
                 try!(write!(f, "("));
                 for field in vec.iter() {
                     if first {
                         try!(write!(f, "{}", field));
-                            first = false;
+                        first = false;
                     } else {
                         try!(write!(f, ", {}", field));
                     }
@@ -238,12 +235,8 @@ impl fmt::Display for Ty {
                 try!(write!(f, "{}", ty));
                 write!(f, "]")
             }
-            Ty::RefPtr(ref ty) => {
-                write!(f, "&{}", ty)
-            }
-            Ty::Unsupported => {
-                write!(f, "_")
-            }
+            Ty::RefPtr(ref ty) => write!(f, "&{}", ty),
+            Ty::Unsupported => write!(f, "_"),
         }
     }
 }
@@ -252,28 +245,35 @@ impl fmt::Display for Ty {
 #[derive(Clone)]
 pub struct Path {
     pub global: bool,
-    pub segments: Vec<PathSegment>
+    pub segments: Vec<PathSegment>,
 }
 
 impl Path {
     pub fn generic_types(&self) -> ::std::slice::Iter<Path> {
-        self.segments[self.segments.len()-1].types.iter()
+        self.segments[self.segments.len() - 1].types.iter()
     }
 
     pub fn from_vec(global: bool, v: Vec<&str>) -> Path {
-        let segs = v
-            .into_iter()
-            .map(|x| PathSegment{ name: x.to_owned(), types: Vec::new() })
+        let segs = v.into_iter()
+            .map(|x| {
+                PathSegment {
+                    name: x.to_owned(),
+                    types: Vec::new(),
+                }
+            })
             .collect::<Vec<_>>();
-        Path{ global: global, segments: segs }
+        Path {
+            global: global,
+            segments: segs,
+        }
     }
 
     pub fn from_svec(global: bool, v: Vec<String>) -> Path {
-        let segs = v
-            .into_iter()
-            .map(PathSegment::from)
-            .collect::<Vec<_>>();
-        Path{ global: global, segments: segs }
+        let segs = v.into_iter().map(PathSegment::from).collect::<Vec<_>>();
+        Path {
+            global: global,
+            segments: segs,
+        }
     }
 }
 
@@ -336,10 +336,10 @@ impl fmt::Display for Path {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub struct PathSegment {
     pub name: String,
-    pub types: Vec<Path>
+    pub types: Vec<Path>,
 }
 
 impl From<String> for PathSegment {
@@ -356,29 +356,32 @@ impl From<String> for PathSegment {
 pub struct PathSearch {
     pub path: Path,
     pub filepath: path::PathBuf,
-    pub point: Point
+    pub point: Point,
 }
 
 impl fmt::Debug for PathSearch {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Search [{:?}, {:?}, {:?}]",
-               self.path,
-               self.filepath.display(),
-               self.point)
+        write!(
+            f,
+            "Search [{:?}, {:?}, {:?}]",
+            self.path,
+            self.filepath.display(),
+            self.point
+        )
     }
 }
 
 pub struct IndexedSource {
     pub code: String,
     pub idx: Vec<SourceByteRange>,
-    pub lines: RefCell<Vec<SourceByteRange>>
+    pub lines: RefCell<Vec<SourceByteRange>>,
 }
 
-#[derive(Clone,Copy)]
+#[derive(Clone, Copy)]
 pub struct Src<'c> {
     pub src: &'c IndexedSource,
     pub from: Point,
-    pub to: Point
+    pub to: Point,
 }
 
 impl IndexedSource {
@@ -387,7 +390,7 @@ impl IndexedSource {
         IndexedSource {
             code: src,
             idx: indices,
-            lines: RefCell::new(Vec::new())
+            lines: RefCell::new(Vec::new()),
         }
     }
 
@@ -395,7 +398,7 @@ impl IndexedSource {
         IndexedSource {
             code: new_src,
             idx: self.idx.clone(),
-            lines: self.lines.clone()
+            lines: self.lines.clone(),
         }
     }
 
@@ -407,7 +410,7 @@ impl IndexedSource {
         Src {
             src: self,
             from: from,
-            to: self.len()
+            to: self.len(),
         }
     }
 
@@ -428,12 +431,10 @@ impl IndexedSource {
         self.lines
             .borrow()
             .get(coords.line - 1)
-            .and_then(|&(i, l)| {
-                if coords.column <= l {
-                    Some(i + coords.column)
-                } else {
-                    None
-                }
+            .and_then(|&(i, l)| if coords.column <= l {
+                Some(i + coords.column)
+            } else {
+                None
             })
     }
 
@@ -441,7 +442,10 @@ impl IndexedSource {
         self.cache_lineoffsets();
         for (n, &(i, l)) in self.lines.borrow().iter().enumerate() {
             if i <= point && (point - i) <= l {
-                return Some(Coordinate { line: n + 1, column: point - i });
+                return Some(Coordinate {
+                    line: n + 1,
+                    column: point - i,
+                });
             }
         }
         None
@@ -457,18 +461,15 @@ impl<'c> Iterator for MatchIter<'c> {
     type Item = Match;
 
     fn next(&mut self) -> Option<Match> {
-        self.matches
-            .next()
-            .map(|mut m| {
-                if m.coords.is_none() {
-                    let point = m.point;
-                    let src = self.session.load_file(m.filepath.as_path());
-                    m.coords = src.point_to_coords(point);
-                }
+        self.matches.next().map(|mut m| {
+            if m.coords.is_none() {
+                let point = m.point;
+                let src = self.session.load_file(m.filepath.as_path());
+                m.coords = src.point_to_coords(point);
+            }
 
-                m
-            })
-
+            m
+        })
     }
 }
 
@@ -480,7 +481,10 @@ fn myfn() {
     print(a);
 }";
     let src = new_source(src.into());
-    assert_eq!(src.coords_to_point(&Coordinate { line: 3, column: 5}), Some(18));
+    assert_eq!(
+        src.coords_to_point(&Coordinate { line: 3, column: 5 }),
+        Some(18)
+    );
 }
 
 #[test]
@@ -499,10 +503,16 @@ fn myfn(b:usize) {
         let src = new_source(src.into());
         let point = src.coords_to_point(&Coordinate {
             line: lineno,
-            column: charno
+            column: charno,
         }).unwrap();
         let coords = src.point_to_coords(point).unwrap();
-        assert_eq!(coords, Coordinate { line: lineno, column: charno });
+        assert_eq!(
+            coords,
+            Coordinate {
+                line: lineno,
+                column: charno,
+            }
+        );
     }
     round_trip_point_and_coords(src, 4, 5);
 }
@@ -517,7 +527,7 @@ impl<'c> Src<'c> {
         Src {
             src: self.src,
             from: self.from + from,
-            to: self.to
+            to: self.to,
         }
     }
 
@@ -525,7 +535,7 @@ impl<'c> Src<'c> {
         Src {
             src: self.src,
             from: self.from,
-            to: self.from + to
+            to: self.from + to,
         }
     }
 
@@ -533,12 +543,15 @@ impl<'c> Src<'c> {
         Src {
             src: self.src,
             from: self.from + from,
-            to: self.from + to
+            to: self.from + to,
         }
     }
 
     pub fn chunk_indices(&self) -> CodeChunkIter<'c> {
-        CodeChunkIter { src: *self, iter: self.src.idx.iter() }
+        CodeChunkIter {
+            src: *self,
+            iter: self.src.idx.iter(),
+        }
     }
 }
 
@@ -546,7 +559,7 @@ impl<'c> Src<'c> {
 // N.b. src can be a substr, so iteration skips chunks that aren't part of the substr
 pub struct CodeChunkIter<'c> {
     src: Src<'c>,
-    iter: slice::Iter<'c, SourceByteRange>
+    iter: slice::Iter<'c, SourceByteRange>,
 }
 
 impl<'c> Iterator for CodeChunkIter<'c> {
@@ -565,7 +578,8 @@ impl<'c> Iterator for CodeChunkIter<'c> {
                     } else {
                         return Some((
                             max(start, self.src.from) - self.src.from,
-                            min(end, self.src.to) - self.src.from));
+                            min(end, self.src.to) - self.src.from,
+                        ));
                     }
                 }
             }
@@ -642,8 +656,7 @@ impl FileLoader for DefaultFileLoader {
                 .map(|s| s.to_owned())
                 .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
         } else {
-            String::from_utf8(rawbytes)
-                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+            String::from_utf8(rawbytes).map_err(|err| io::Error::new(io::ErrorKind::Other, err))
         }
     }
 }
@@ -681,14 +694,19 @@ impl FileCache {
 
     /// Add/Replace a file in both versions.
     fn cache_file_contents<P, T>(&self, filepath: P, buf: T)
-        where T: Into<String>,
-              P: Into<path::PathBuf>
+    where
+        T: Into<String>,
+        P: Into<path::PathBuf>,
     {
         let pathbuf = filepath.into();
         let src = IndexedSource::new(buf.into());
         let masked_src = IndexedSource::new(scopes::mask_comments(src.as_src()));
-        self.raw_map.borrow_mut().insert(pathbuf.clone(), Rc::new(src));
-        self.masked_map.borrow_mut().insert(pathbuf, Rc::new(masked_src));
+        self.raw_map
+            .borrow_mut()
+            .insert(pathbuf.clone(), Rc::new(src));
+        self.masked_map
+            .borrow_mut()
+            .insert(pathbuf, Rc::new(masked_src));
     }
 
 
@@ -699,9 +717,13 @@ impl FileCache {
 
         // nothing found, insert into cache
         // Ugh, really need handle results on all these methods :(
-        let res = self.loader.load_file(filepath).expect("load file successfully");
+        let res = self.loader
+            .load_file(filepath)
+            .expect("load file successfully");
         let src = Rc::new(IndexedSource::new(res));
-        self.raw_map.borrow_mut().insert(filepath.to_path_buf(), src.clone());
+        self.raw_map
+            .borrow_mut()
+            .insert(filepath.to_path_buf(), src.clone());
         src
     }
 
@@ -712,8 +734,9 @@ impl FileCache {
         // nothing found, insert into cache
         let src = self.load_file(filepath);
         let msrc = Rc::new(src.with_src(scopes::mask_comments(src.as_src())));
-        self.masked_map.borrow_mut().insert(filepath.to_path_buf(),
-                                            msrc.clone());
+        self.masked_map
+            .borrow_mut()
+            .insert(filepath.to_path_buf(), msrc.clone());
         msrc
     }
 }
@@ -763,9 +786,7 @@ impl<'c> Session<'c> {
     ///
     /// [`FileCache`]: struct.FileCache.html
     pub fn new(cache: &'c FileCache) -> Session<'c> {
-        Session {
-            cache: cache
-        }
+        Session { cache: cache }
     }
 
     /// Specify the contents of a file to be used in completion operations
@@ -783,8 +804,9 @@ impl<'c> Session<'c> {
     /// session.cache_file_contents("foo.rs", "pub struct Foo;\\n");
     /// ```
     pub fn cache_file_contents<T, P>(&self, filepath: P, buf: T)
-        where T: Into<String>,
-              P: Into<path::PathBuf>
+    where
+        T: Into<String>,
+        P: Into<path::PathBuf>,
     {
         self.cache.cache_file_contents(filepath, buf);
     }
@@ -795,7 +817,6 @@ impl<'c> Session<'c> {
         let masked = self.cache.masked_map.borrow();
         raw.contains_key(path) && masked.contains_key(path)
     }
-
 }
 
 impl<'c> SessionExt for Session<'c> {
@@ -809,26 +830,20 @@ impl<'c> SessionExt for Session<'c> {
 }
 
 /// Get the racer point of a line/character number pair for a file.
-pub fn to_point<'c, P>(
-    coords: Coordinate, 
-    path: P, 
-    session: &'c Session
-) -> Option<Point> 
-    where 
-        P: AsRef<path::Path> {
+pub fn to_point<'c, P>(coords: Coordinate, path: P, session: &'c Session) -> Option<Point>
+where
+    P: AsRef<path::Path>,
+{
     Location::from(coords).to_point(&session.load_file(path.as_ref()))
 }
 
 /// Get the racer point of a line/character number pair for a file.
-pub fn to_coords<'c, P>(
-    point: Point, 
-    path: P, 
-    session: &'c Session
-) -> Option<Coordinate> 
-    where 
-        P: AsRef<path::Path> {
+pub fn to_coords<'c, P>(point: Point, path: P, session: &'c Session) -> Option<Coordinate>
+where
+    P: AsRef<path::Path>,
+{
     Location::from(point).to_coords(&session.load_file(path.as_ref()))
-} 
+}
 
 /// Find completions for a fully qualified name like `std::io::`
 ///
@@ -858,26 +873,23 @@ pub fn to_coords<'c, P>(
 pub fn complete_fully_qualified_name<'c, S, P>(
     query: S,
     path: P,
-    session: &'c Session
+    session: &'c Session,
 ) -> MatchIter<'c>
-    where S: AsRef<str>,
-          P: AsRef<path::Path>,
+where
+    S: AsRef<str>,
+    P: AsRef<path::Path>,
 {
     let mut matches = complete_fully_qualified_name_(query.as_ref(), path.as_ref(), session);
     matches.dedup_by(|a, b| a.is_same_as(b));
-    
+
     MatchIter {
         matches: matches.into_iter(),
-        session: session
+        session: session,
     }
 }
 
 /// Actual implementation without generic bounds
-fn complete_fully_qualified_name_(
-    query: &str,
-    path: &path::Path,
-    session: &Session
-) -> Vec<Match> {
+fn complete_fully_qualified_name_(query: &str, path: &path::Path, session: &Session) -> Vec<Match> {
     let p: Vec<&str> = query.split("::").collect();
 
     let mut matches = Vec::new();
@@ -892,7 +904,7 @@ fn complete_fully_qualified_name_(
                 m.point,
                 SearchType::StartsWith,
                 Namespace::Both,
-                &session
+                &session,
             );
 
             for m in external_search_matches {
@@ -940,13 +952,10 @@ fn complete_fully_qualified_name_(
 ///
 /// # }
 /// ```
-pub fn complete_from_file<'c, P, C>(
-    filepath: P,
-    cursor: C,
-    session: &'c Session
-) -> MatchIter<'c>
-    where P: AsRef<path::Path>,
-          C: Into<Location>
+pub fn complete_from_file<'c, P, C>(filepath: P, cursor: C, session: &'c Session) -> MatchIter<'c>
+where
+    P: AsRef<path::Path>,
+    C: Into<Location>,
 {
     let mut matches = complete_from_file_(filepath.as_ref(), cursor.into(), session);
     matches.dedup_by(|a, b| a.is_same_as(b));
@@ -957,11 +966,7 @@ pub fn complete_from_file<'c, P, C>(
     }
 }
 
-fn complete_from_file_(
-    filepath: &path::Path,
-    cursor: Location,
-    session: &Session
-) -> Vec<Match> {
+fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Session) -> Vec<Match> {
     let src = session.load_file_and_mask_comments(filepath);
     let src_text = &src.as_src()[..];
 
@@ -979,18 +984,25 @@ fn complete_from_file_(
 
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
-    debug!("{:?}: contextstr is |{}|, searchstr is |{}|", completetype, contextstr, searchstr);
+    debug!(
+        "{:?}: contextstr is |{}|, searchstr is |{}|",
+        completetype,
+        contextstr,
+        searchstr
+    );
 
     let mut out = Vec::new();
 
     match completetype {
         CompletionType::Path => {
-            // reparse the string, searchstr is not corrected parsed with split_into_context_and_completion
-            // it will stop by character like '{', and ' ', which occurs in the following case
+            // reparse the string, searchstr is not corrected parsed with
+            // split_into_context_and_completion it will stop by character like '{', and ' ',
+            // which occurs in the following case:
             // 1. The line is use contextstr::{A, B, C, searchstr
             // 2. The line started with contextstr or ::
             // 3. FIXME(may not correct): Neither above case, then expr parsed above is corrected
-            let linestart = scopes::find_stmt_start(src.as_src(), pos).unwrap_or_else(|| scopes::get_line(src_text, pos));
+            let linestart = scopes::find_stmt_start(src.as_src(), pos)
+                .unwrap_or_else(|| scopes::get_line(src_text, pos));
 
             // step 1, get full line, take the rightmost part split by semicolon
             //   prevent the case that someone write multiple line in one line
@@ -1009,13 +1021,14 @@ fn complete_from_file_(
                 trace!("Path is in fn declaration: `{}`", expr);
 
                 return nameres::resolve_method(
-                    pos, 
-                    src.as_src(), 
-                    expr, 
-                    filepath, 
+                    pos,
+                    src.as_src(),
+                    expr,
+                    filepath,
                     SearchType::StartsWith,
                     session,
-                    &PendingImports::empty());
+                    &PendingImports::empty(),
+                );
             }
 
             let v = (if is_use {
@@ -1026,15 +1039,22 @@ fn complete_from_file_(
                 &expr[2..]
             } else {
                 expr
-            }).split("::").collect::<Vec<_>>();
+            }).split("::")
+                .collect::<Vec<_>>();
 
             let path = Path::from_vec(is_global, v);
-            for m in nameres::resolve_path(&path, filepath, pos,
-                                           SearchType::StartsWith, Namespace::Both,
-                                           session, &PendingImports::empty()) {
+            for m in nameres::resolve_path(
+                &path,
+                filepath,
+                pos,
+                SearchType::StartsWith,
+                Namespace::Both,
+                session,
+                &PendingImports::empty(),
+            ) {
                 out.push(m);
             }
-        },
+        }
         CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("complete_from_file context is {:?}", context);
@@ -1043,11 +1063,17 @@ fn complete_from_file_(
             });
         }
     }
-    
+
     out
 }
 
-fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &Session, out: &mut Vec<Match>) {
+fn complete_field_for_ty(
+    ty: Ty,
+    searchstr: &str,
+    stype: SearchType,
+    session: &Session,
+    out: &mut Vec<Match>,
+) {
     // TODO would be nice if this and other methods could operate on a ref instead of requiring
     // ownership
     match ty {
@@ -1055,10 +1081,8 @@ fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &S
             for m in nameres::search_for_field_or_method(m, searchstr, stype, session) {
                 out.push(m)
             }
-        },
-        Ty::RefPtr(m) => {
-            complete_field_for_ty(*m, searchstr, stype, session, out)
         }
+        Ty::RefPtr(m) => complete_field_for_ty(*m, searchstr, stype, session, out),
         _ => {}
     }
 }
@@ -1110,27 +1134,27 @@ fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &S
 /// assert_eq!(m.mtype, racer::MatchType::Function);
 /// # }
 /// ```
-pub fn find_definition<P, C>(
-    filepath: P,
-    cursor: C,
-    session: &Session
-) -> Option<Match>
-    where P: AsRef<path::Path>,
-          C: Into<Location>
+pub fn find_definition<P, C>(filepath: P, cursor: C, session: &Session) -> Option<Match>
+where
+    P: AsRef<path::Path>,
+    C: Into<Location>,
 {
-    find_definition_(filepath.as_ref(), cursor.into(), session)
-        .map(|mut m| {
-            if m.coords.is_none() {
-                let point = m.point;
-                let src = session.load_file(m.filepath.as_path());
-                m.coords = src.point_to_coords(point);
-            }
+    find_definition_(filepath.as_ref(), cursor.into(), session).map(|mut m| {
+        if m.coords.is_none() {
+            let point = m.point;
+            let src = session.load_file(m.filepath.as_path());
+            m.coords = src.point_to_coords(point);
+        }
 
-            m
-        })
+        m
+    })
 }
 
-pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Session) -> Option<Match> {
+pub fn find_definition_(
+    filepath: &path::Path,
+    cursor: Location,
+    session: &Session,
+) -> Option<Match> {
     let src = session.load_file_and_mask_comments(filepath);
     let src = &src.as_src()[..];
 
@@ -1148,35 +1172,64 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
     let expr = &src[start..end];
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
-    debug!("find_definition_ for |{:?}| |{:?}| {:?}", contextstr, searchstr, completetype);
+    debug!(
+        "find_definition_ for |{:?}| |{:?}| {:?}",
+        contextstr,
+        searchstr,
+        completetype
+    );
 
     match completetype {
         CompletionType::Path => {
             let mut v = expr.split("::").collect::<Vec<_>>();
             let global = v[0] == "";
-            if global {      // i.e. starts with '::' e.g. ::std::old_io::blah
+            if global {
+                // i.e. starts with '::' e.g. ::std::old_io::blah
                 v.remove(0);
             }
 
-            let segs = v
-                .into_iter()
-                .map(|x| PathSegment{ name: x.to_owned(), types: Vec::new() })
+            let segs = v.into_iter()
+                .map(|x| {
+                    PathSegment {
+                        name: x.to_owned(),
+                        types: Vec::new(),
+                    }
+                })
                 .collect::<Vec<_>>();
-            let path = Path{ global: global, segments: segs };
+            let path = Path {
+                global: global,
+                segments: segs,
+            };
 
-            nameres::resolve_path(&path, filepath, pos,
-                                  SearchType::ExactMatch, Namespace::Both,
-                                  session, &PendingImports::empty()).nth(0)
-        },
+            nameres::resolve_path(
+                &path,
+                filepath,
+                pos,
+                SearchType::ExactMatch,
+                Namespace::Both,
+                session,
+                &PendingImports::empty(),
+            ).nth(0)
+        }
         CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("context is {:?}", context);
 
-            let match_type:MatchType = if src[end..].starts_with('(') { MatchType::Function } else { MatchType::StructField };
+            let match_type: MatchType = if src[end..].starts_with('(') {
+                MatchType::Function
+            } else {
+                MatchType::StructField
+            };
             context.and_then(|ty| {
                 // for now, just handle matches
                 if let Ty::Match(m) = ty {
-                    nameres::search_for_field_or_method(m, searchstr, SearchType::ExactMatch, session).filter(|m| m.mtype == match_type).nth(0)
+                    nameres::search_for_field_or_method(
+                        m,
+                        searchstr,
+                        SearchType::ExactMatch,
+                        session,
+                    ).filter(|m| m.mtype == match_type)
+                        .nth(0)
                 } else {
                     None
                 }
@@ -1202,8 +1255,8 @@ mod tests {
         let path = Path::new("not_on_disk");
         let cache = FileCache::default();
 
-        // Cache contents for a file and assert that load_file and load_file_and_mask_comments return
-        // the newly cached contents.
+        // Cache contents for a file and assert that load_file and load_file_and_mask_comments
+        // return the newly cached contents.
         macro_rules! cache_and_assert {
             ($src:ident) => {{
                 let session = Session::new(&cache);

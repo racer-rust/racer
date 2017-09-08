@@ -12,7 +12,7 @@ pub fn rejustify(src: &str) -> String {
             sb.push_str("\n");
         }
     }
-    let newlen = sb.len()-1; // remove the trailing newline
+    let newlen = sb.len() - 1; // remove the trailing newline
     sb.truncate(newlen);
     sb
 }

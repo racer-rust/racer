@@ -45,7 +45,7 @@ pub fn snippet_for_match(m: &Match, session: &Session) -> String {
 
 struct MethodInfo {
     name: String,
-    args: Vec<String>
+    args: Vec<String>,
 }
 
 impl MethodInfo {
@@ -57,21 +57,21 @@ impl MethodInfo {
         with_error_checking_parse(decorated, |p| {
             if let Ok(method) = p.parse_impl_item() {
                 if let ImplItemKind::Method(ref msig, _) = method.node {
-                        let decl = &msig.decl;
-                        return Some(MethodInfo {
-                            // ident.as_str calls Ident.name.as_str
-                            name: method.ident.name.to_string(),
-                            args: decl.inputs
-                                      .iter()
-                                      .map(|arg| {
-                                          let codemap = &p.sess.codemap();
-                                          match codemap.span_to_snippet(arg.pat.span) {
-                                              Ok(name) => name,
-                                              _ => "".into()
-                                          }
-                                      })
-                                      .collect()
-                        })
+                    let decl = &msig.decl;
+                    return Some(MethodInfo {
+                        // ident.as_str calls Ident.name.as_str
+                        name: method.ident.name.to_string(),
+                        args: decl.inputs
+                            .iter()
+                            .map(|arg| {
+                                let codemap = &p.sess.codemap();
+                                match codemap.span_to_snippet(arg.pat.span) {
+                                    Ok(name) => name,
+                                    _ => "".into(),
+                                }
+                            })
+                            .collect(),
+                    });
                 }
             }
             debug!("Unable to parse method declaration. |{}|", source);
@@ -81,17 +81,19 @@ impl MethodInfo {
 
     ///Returns completion snippets usable by some editors
     fn snippet(&self) -> String {
-        format!("{}({})",
-                self.name,
-                &self.args
-                     .iter()
-                     .filter(|&s| !s.ends_with("self"))
-                     .enumerate()
-                     .fold(String::new(), |cur, (i, ref s)| {
-                         let arg = format!("${{{}:{}}}", i + 1, s);
-                         let delim = if i > 0 { ", " } else { "" };
-                         cur + delim + &arg
-                     }))
+        format!(
+            "{}({})",
+            self.name,
+            &self.args
+                .iter()
+                .filter(|&s| !s.ends_with("self"))
+                .enumerate()
+                .fold(String::new(), |cur, (i, ref s)| {
+                    let arg = format!("${{{}:{}}}", i + 1, s);
+                    let delim = if i > 0 { ", " } else { "" };
+                    cur + delim + &arg
+                })
+        )
     }
 }
 
