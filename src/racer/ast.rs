@@ -527,9 +527,10 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
             }
             ExprKind::Path(_, ref path) => {
                 debug!("expr is a path {:?}", to_racer_path(path));
+                let codemap::BytePos(lo) = path.span.lo;
                 self.result = resolve_ast_path(path,
                                  &self.scope.filepath,
-                                 self.scope.point,
+                                 self.scope.point + lo as usize,
                                  self.session).and_then(|m| {
                                      let msrc = self.session.load_file_and_mask_comments(&m.filepath);
                                      typeinf::get_type_of_match(m, msrc.as_src(), self.session)
@@ -695,10 +696,46 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
                 };
             }
 
+            ExprKind::Match(_, ref arms) => {
+                debug!("match expr");
+
+                for arm in arms {
+                    self.visit_expr(&arm.body);
+
+                    // All match arms need to return the same result, so if we found a result
+                    // we can end the search.
+                    if self.result.is_some() {
+                        break;
+                    }
+                }
+            }
+
+            ExprKind::If(_, ref block, ref else_block) |
+            ExprKind::IfLet(_, _, ref block, ref else_block) => {
+                debug!("if/iflet expr");
+
+                visit::walk_block(self, &block);
+
+                // if the block does not resolve to a type, try the else block
+                if self.result.is_none() && else_block.is_some() {
+                    self.visit_expr(&else_block.as_ref().unwrap());
+                }
+            }
+
+            ExprKind::Block(ref block) => {
+                debug!("block expr");
+                visit::walk_block(self, &block);
+            }
+
             _ => {
                 debug!("- Could not match expr node type: {:?}",expr.node);
             }
-        }
+        };
+    }
+
+    fn visit_mac(&mut self, mac: &ast::Mac) {
+        // Just do nothing if we see a macro, but also prevent the panic! in the default impl.
+        debug!("ignoring visit_mac: {:?}", mac);
     }
 }
 
@@ -1117,7 +1154,8 @@ pub fn get_let_type(stmtstr: String, pos: Point, scope: Scope, session: &Session
         scope: scope,
         session: session,
         srctxt: stmtstr.clone(),
-        pos: pos, result: None
+        pos: pos,
+        result: None
     };
     if let Some(stmt) = string_to_stmt(stmtstr) {
         visit::walk_stmt(&mut v, &stmt);

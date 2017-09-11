@@ -366,17 +366,27 @@ fn expand_search_expr_handles_double_dot() {
     assert_eq!((2, 5), expand_search_expr("..foo", 4))
 }
 
+fn fill_gaps(buffer: &str, result: &mut String, start: usize, prev: usize) {
+    for _ in 0..((start-prev)/buffer.len()) { result.push_str(buffer); }
+    result.push_str(&buffer[..((start-prev)%buffer.len())]);
+}
+
 pub fn mask_comments(src: Src) -> String {
     let mut result = String::with_capacity(src.len());
     let buf_byte = &[b' '; 128];
     let buffer = from_utf8(buf_byte).unwrap();
     let mut prev: usize = 0;
     for (start, end) in src.chunk_indices() {
-        for _ in 0..((start-prev)/128) { result.push_str(buffer); }
-        result.push_str(&buffer[..((start-prev)%128)]);
+        fill_gaps(buffer, &mut result, start, prev);
         result.push_str(&src[start..end]);
         prev = end;
     }
+
+    // Fill up if the comment was at the end
+    if src.len() > prev {
+        fill_gaps(buffer, &mut result, src.len(), prev);
+    }
+
     result
 }
 
@@ -400,17 +410,14 @@ pub fn mask_sub_scopes(src: &str) -> String {
             },
             b'}' => {
                 if levels == 1 {
-                    let num_spaces = pos-start;
-                    for _ in 0..(num_spaces/128) { result.push_str(buffer); }
-                    result.push_str(&buffer[..((num_spaces)%128)]);
+                    fill_gaps(buffer, &mut result, pos, start);
                     result.push_str("}");
                     start = pos;
                 }
                 levels -= 1;
             },
             b'\n' if levels > 0 => {
-                for _ in 0..((pos-start)/128) { result.push_str(buffer); }
-                result.push_str(&buffer[..((pos-start)%128)]);
+                fill_gaps(buffer, &mut result, pos, start);
                 result.push('\n');
                 start = pos+1;
             },
@@ -421,8 +428,7 @@ pub fn mask_sub_scopes(src: &str) -> String {
         start = pos;
     }
     if levels > 0 {
-        for _ in 0..((pos - start)/128) { result.push_str(buffer); }
-        result.push_str(&buffer[..((pos-start)%128)]);
+        fill_gaps(buffer, &mut result, pos, start);
     } else {
         result.push_str(&src[start..pos]);
     }

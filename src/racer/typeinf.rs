@@ -153,7 +153,7 @@ fn get_type_of_let_expr(m: &Match, msrc: Src, session: &Session) -> Option<core:
         debug!("get_type_of_let_expr calling parse_let |{}|", blob);
 
         let pos = m.point - point - start;
-        let scope = Scope{ filepath: m.filepath.clone(), point: m.point };
+        let scope = Scope{ filepath: m.filepath.clone(), point: point };
         ast::get_let_type(blob.to_owned(), pos, scope, session)
     } else {
         None
@@ -172,7 +172,7 @@ fn get_type_of_let_block_expr(m: &Match, msrc: Src, session: &Session, prefix: &
         debug!("get_type_of_let_block_expr calling get_let_type |{}|", blob);
 
         let pos = m.point - stmtstart - point - start;
-        let scope = Scope{ filepath: m.filepath.clone(), point: m.point };
+        let scope = Scope{ filepath: m.filepath.clone(), point: stmtstart };
         ast::get_let_type(blob.to_owned(), pos, scope, session)
     } else {
         None
@@ -208,7 +208,7 @@ fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<core:
         debug!("get_type_of_for_expr: |{}| {} {} {} {}", blob, m.point, stmtstart, forpos, start);
 
         let pos = m.point + 8 - stmtstart - forpos - start;
-        let scope = Scope{ filepath: m.filepath.clone(), point: m.point + 8 };
+        let scope = Scope{ filepath: m.filepath.clone(), point: stmtstart };
 
         ast::get_let_type(blob.to_owned(), pos, scope, session)
     } else {

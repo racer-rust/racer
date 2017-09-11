@@ -1112,8 +1112,8 @@ pub fn search_prelude_file(pathseg: &core::PathSegment, search_type: SearchType,
 }
 
 pub fn resolve_path_with_str(path: &core::Path, filepath: &Path, pos: Point,
-                                   search_type: SearchType, namespace: Namespace,
-                                   session: &Session) -> vec::IntoIter<Match> {
+                             search_type: SearchType, namespace: Namespace,
+                             session: &Session) -> vec::IntoIter<Match> {
     debug!("resolve_path_with_str {:?}", path);
 
     let mut out = Vec::new();
