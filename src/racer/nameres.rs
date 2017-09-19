@@ -2,7 +2,7 @@
 
 use {core, ast, matchers, scopes, typeinf};
 use core::SearchType::{self, ExactMatch, StartsWith};
-use core::{Match, Src, Session, Coordinate, SessionExt};
+use core::{Match, Src, Session, Coordinate, SessionExt, Ty};
 use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, TraitImpl, MatchArm, Builtin};
 use core::Namespace;
 use util::{symbol_matches, txt_matches, find_ident_end};
@@ -1063,6 +1063,12 @@ pub fn resolve_name(pathseg: &core::PathSegment, filepath: &Path, pos: usize,
 
     let msrc = session.load_file(filepath);
     let is_exact_match = match search_type { ExactMatch => true, StartsWith => false };
+
+    if is_exact_match && &searchstr[..] == "Self" {
+        if let Some(Ty::Match(m)) = typeinf::get_type_of_self(pos, filepath, true, msrc.as_src(), session) {
+            out.push(m.clone());
+        }
+    }
 
     if (is_exact_match && &searchstr[..] == "std") ||
        (!is_exact_match && "std".starts_with(searchstr)) {

@@ -1042,7 +1042,7 @@ fn finds_external_fn_docs() {
     let src1 = "
     /// Orange
     /// juice
-    
+
     pub fn apple() {
         let x = 1;
     }";
@@ -2480,4 +2480,39 @@ fn finds_method_with_same_name_as_field() {
     let got = get_definition(src, None);
     assert_eq!("same_name", got.matchstr);
     assert_eq!(MatchType::Function, got.mtype);
+}
+
+#[test]
+fn finds_self() {
+    let _lock = sync!();
+
+    let src = "
+    struct Foo;
+    impl Foo {
+        fn foo() {
+            Se~lf
+        }
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("Foo", got.matchstr);
+}
+
+#[test]
+fn finds_self_referenced_functions() {
+    let _lock = sync!();
+
+    let src = "
+    struct Foo;
+    impl Foo {
+        fn foo() {
+            Self::myfun~ction
+        }
+        fn myfunction() {}
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("myfunction", got.matchstr);
 }

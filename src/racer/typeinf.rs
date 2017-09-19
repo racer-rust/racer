@@ -9,6 +9,7 @@ use scopes;
 use matchers;
 use core::SearchType::ExactMatch;
 use util::txt_matches;
+use std::path::Path;
 
 fn find_start_of_function_body(src: &str) -> usize {
     // TODO: this should ignore anything inside parens so as to skip the arg list
@@ -78,7 +79,11 @@ fn generates_skeleton_for_mod() {
 
 fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty> {
     debug!("get_type_of_self_arg {:?}", m);
-    scopes::find_impl_start(msrc, m.point, 0).and_then(|start| {
+    get_type_of_self(m.point, &m.filepath, m.local, msrc, session)
+}
+
+pub fn get_type_of_self(point: usize, filepath: &Path, local: bool, msrc: Src, session: &Session) -> Option<core::Ty> {
+    scopes::find_impl_start(msrc, point, 0).and_then(|start| {
         let decl = generate_skeleton_for_parsing(&msrc.from(start));
         debug!("get_type_of_self_arg impl skeleton |{}|", decl);
 
@@ -86,23 +91,23 @@ fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<core:
             let implres = ast::parse_impl(decl);
             debug!("get_type_of_self_arg implres |{:?}|", implres);
             resolve_path_with_str(&implres.name_path.expect("failed parsing impl name"),
-                                  &m.filepath, start,
+                                  filepath, start,
                                   ExactMatch, Namespace::Type,
                                   session).nth(0).map(core::Ty::Match)
         } else {
             // // must be a trait
             ast::parse_trait(decl).name.and_then(|name| {
                 Some(core::Ty::Match(Match {
-                           matchstr: name,
-                           filepath: m.filepath.clone(),
-                           point: start,
-                           coords: None,
-                           local: m.local,
-                           mtype: core::MatchType::Trait,
-                           contextstr: matchers::first_line(&msrc[start..]),
-                           generic_args: Vec::new(),
-                           generic_types: Vec::new(),
-                           docs: String::new(),
+                    matchstr: name,
+                    filepath: filepath.into(),
+                    point: start,
+                    coords: None,
+                    local: local,
+                    mtype: core::MatchType::Trait,
+                    contextstr: matchers::first_line(&msrc[start..]),
+                    generic_args: Vec::new(),
+                    generic_types: Vec::new(),
+                    docs: String::new(),
                 }))
             })
         }
