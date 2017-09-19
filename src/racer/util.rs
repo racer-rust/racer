@@ -262,6 +262,7 @@ pub fn char_at(src: &str, i: usize) -> char {
 #[derive(Debug)]
 pub enum RustSrcPathError {
     Missing,
+    MissingRustSrc(path::PathBuf),
     DoesNotExist(path::PathBuf),
     NotRustSourceTree(path::PathBuf),
 }
@@ -273,9 +274,10 @@ impl ::std::error::Error for RustSrcPathError {
 
     fn description(&self) -> &str {
         match *self {
-            RustSrcPathError::Missing => "RUSTC_SRC_PATH not set or not found in sysroot",
-            RustSrcPathError::DoesNotExist(_) => "RUSTC_SRC_PATH does not exist on file system",
-            RustSrcPathError::NotRustSourceTree(_) => "RUSTC_SRC_PATH isn't a rustc source tree",
+            RustSrcPathError::Missing => "RUST_SRC_PATH not set or not found in sysroot",
+            RustSrcPathError::MissingRustSrc(_) => "Missing rust-src and unspecified RUST_SRC_PATH",
+            RustSrcPathError::DoesNotExist(_) => "RUST_SRC_PATH does not exist on file system",
+            RustSrcPathError::NotRustSourceTree(_) => "RUST_SRC_PATH isn't a rustc source tree",
         }
     }
 }
@@ -288,9 +290,16 @@ impl ::std::fmt::Display for RustSrcPathError {
                            point to the src directory of a rust checkout. \
                            E.g. \"/home/foouser/src/rust/src\"")
             },
+            RustSrcPathError::MissingRustSrc(ref path) => {
+                write!(f, "racer found rust checkout, but no src directory. \
+                           Expected to find it at {:?}. If using rustup, \
+                           running \"rustup component add rust-src\" will \
+                           likely fix this. Alternatively, set RUST_SRC_PATH.",
+                       path)
+            },
             RustSrcPathError::DoesNotExist(ref path) => {
                 write!(f, "racer can't find the directory pointed to by the \
-                           RUST_SRC_PATH variable \"{:?}\". Try using an \
+                           RUST_SRC_PATH variable {:?}. Try using an \
                            absolute fully qualified path and make sure it \
                            points to the src directory of a rust checkout - \
                            e.g. \"/home/foouser/src/rust/src\".", path)
@@ -300,13 +309,13 @@ impl ::std::fmt::Display for RustSrcPathError {
                            RUST_SRC_PATH variable needs to point to the *src* \
                            directory inside a rust checkout e.g. \
                            \"/home/foouser/src/rust/src\". \
-                           Current value \"{:?}\"", path)
+                           Current value {:?}", path)
             },
         }
     }
 }
 
-fn check_rust_sysroot() -> Option<path::PathBuf> {
+fn get_rust_sysroot() -> Option<path::PathBuf> {
     use ::std::process::Command;
     let mut cmd = Command::new("rustc");
     cmd.arg("--print").arg("sysroot");
@@ -314,10 +323,7 @@ fn check_rust_sysroot() -> Option<path::PathBuf> {
     if let Ok(output) = cmd.output() {
         if let Ok(s) = String::from_utf8(output.stdout) {
             let sysroot = path::Path::new(s.trim());
-            let srcpath = sysroot.join("lib/rustlib/src/rust/src");
-            if srcpath.exists() {
-                return Some(srcpath);
-            }
+            return Some(sysroot.to_path_buf());
         }
     }
     None
@@ -376,9 +382,17 @@ pub fn check_rust_src_env_var() -> ::std::result::Result<(), RustSrcPathError> {
             }
         },
         _ => {
-            if let Some(path) = check_rust_sysroot() {
-                env::set_var("RUST_SRC_PATH", path);
-                Ok(())
+            if let Some(sysroot) = get_rust_sysroot() {
+                let rustlibpath = sysroot.join("lib/rustlib");
+                let srcpath = rustlibpath.join("src/rust/src");
+                if !rustlibpath.exists() {
+                    Err(RustSrcPathError::Missing)
+                } else if !srcpath.exists() {
+                    Err(RustSrcPathError::MissingRustSrc(srcpath))
+                } else {
+                    env::set_var("RUST_SRC_PATH", srcpath);
+                    Ok(())
+                }
             } else {
                 let default_paths = [
                     "/usr/local/src/rust/src",
