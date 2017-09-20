@@ -26,7 +26,6 @@ syntex_syntax = "0.52.0"
 syntex_errors = "0.52.0"
 toml = "0.2.1"
 env_logger = "0.3.4"
-typed-arena = "1.2"
 clap = "2.19"
 
 [dependencies.clippy]

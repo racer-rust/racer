@@ -1,6 +1,4 @@
 #[macro_use] extern crate log;
-extern crate syntex_syntax;
-extern crate toml;
 extern crate env_logger;
 #[macro_use] extern crate clap;
 
@@ -257,7 +255,7 @@ impl Interface {
             },
             Message::Point(point) => println!("POINT{}{}", self.leading_space(), point),
             Message::Coords(coord) => {
-                println!("COORD{lead}{}{field}{}", 
+                println!("COORD{lead}{}{field}{}",
                     coord.line,
                     coord.column,
                     lead = self.leading_space(),
@@ -471,9 +469,9 @@ fn main() {
             Some("tab-text") => Interface::TabText,
             Some("text") | _ => Interface::Text
         };
-    
+
     validate_rust_src_path_env_var();
-    
+
     run(matches, interface);
 }
 

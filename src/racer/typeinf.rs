@@ -28,12 +28,12 @@ pub fn generate_skeleton_for_parsing(src: &str) -> String {
 }
 
 pub fn first_param_is_self(blob: &str) -> bool {
-    /// Restricted visibility introduces the possibility of `pub(in ...)` at the start
-    /// of a method declaration. To counteract this, we restrict the search to only
-    /// look at text _after_ the visibility declaration.
-    ///
-    /// Having found the end of the visibility declaration, we now start the search
-    /// for method parameters.
+    // Restricted visibility introduces the possibility of `pub(in ...)` at the start
+    // of a method declaration. To counteract this, we restrict the search to only
+    // look at text _after_ the visibility declaration.
+    //
+    // Having found the end of the visibility declaration, we now start the search
+    // for method parameters.
     let blob = util::trim_visibility(blob);
 
     // skip generic arg

@@ -177,7 +177,7 @@ fn get_cargo_packages(cargofile: &Path) -> Option<Vec<PackageInfo>> {
                         d.push("git");
                         d.push("checkouts");
 
-                        //use repository name instead of package name                        
+                        // use repository name instead of package name
                         let repository_name = get_repository_name_from_source(&package_source);
                         if repository_name.is_some() {
                             d = unwrap_or_continue!(find_git_src_dir(d, repository_name.unwrap(), &sha1, branch));
@@ -732,8 +732,6 @@ mod tests {
 
     #[test]
     fn get_crate_file_from_overrides() {
-        let _ = ::env_logger::init();
-
         let mut start_from = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         start_from.push("fixtures");
 

@@ -105,7 +105,7 @@ impl Match {
     /// but in the interest of minimizing the crate's public API surface it's exposed
     /// as a private method for now.
     fn is_same_as(&self, other: &Match) -> bool {
-        self.point == other.point 
+        self.point == other.point
         && self.matchstr == other.matchstr
         && self.filepath == other.filepath
     }
@@ -810,25 +810,25 @@ impl<'c> SessionExt for Session<'c> {
 
 /// Get the racer point of a line/character number pair for a file.
 pub fn to_point<'c, P>(
-    coords: Coordinate, 
-    path: P, 
+    coords: Coordinate,
+    path: P,
     session: &'c Session
-) -> Option<Point> 
-    where 
+) -> Option<Point>
+    where
         P: AsRef<path::Path> {
     Location::from(coords).to_point(&session.load_file(path.as_ref()))
 }
 
 /// Get the racer point of a line/character number pair for a file.
 pub fn to_coords<'c, P>(
-    point: Point, 
-    path: P, 
+    point: Point,
+    path: P,
     session: &'c Session
-) -> Option<Coordinate> 
-    where 
+) -> Option<Coordinate>
+    where
         P: AsRef<path::Path> {
     Location::from(point).to_coords(&session.load_file(path.as_ref()))
-} 
+}
 
 /// Find completions for a fully qualified name like `std::io::`
 ///
@@ -865,7 +865,7 @@ pub fn complete_fully_qualified_name<'c, S, P>(
 {
     let mut matches = complete_fully_qualified_name_(query.as_ref(), path.as_ref(), session);
     matches.dedup_by(|a, b| a.is_same_as(b));
-    
+
     MatchIter {
         matches: matches.into_iter(),
         session: session
@@ -997,9 +997,9 @@ fn complete_from_file_(
             let line = src_text[linestart..pos].trim().rsplit(';').nth(0).unwrap();
             debug!("Complete path with line: {:?}", line);
 
-            /// Test if the **path expression** starts with `::`, in which case the path
-            /// should be checked against the global namespace rather than the items currently
-            /// in scope.
+            // Test if the **path expression** starts with `::`, in which case the path
+            // should be checked against the global namespace rather than the items currently
+            // in scope.
             let is_global = expr.starts_with("::");
             let is_use = line.starts_with("use ");
 
@@ -1009,10 +1009,10 @@ fn complete_from_file_(
                 trace!("Path is in fn declaration: `{}`", expr);
 
                 return nameres::resolve_method(
-                    pos, 
-                    src.as_src(), 
-                    expr, 
-                    filepath, 
+                    pos,
+                    src.as_src(),
+                    expr,
+                    filepath,
                     SearchType::StartsWith,
                     session,
                     &PendingImports::empty());
@@ -1043,7 +1043,7 @@ fn complete_from_file_(
             });
         }
     }
-    
+
     out
 }
 
