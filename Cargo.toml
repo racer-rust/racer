@@ -27,6 +27,7 @@ syntex_errors = "0.52.0"
 toml = "0.2.1"
 env_logger = "0.3.4"
 clap = "2.19"
+lazy-init = "0.1.1"
 
 [dependencies.clippy]
 version = "0.0.103"

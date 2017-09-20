@@ -6,6 +6,7 @@
 
 #[macro_use] extern crate log;
 
+extern crate lazy_init;
 extern crate syntex_syntax;
 extern crate syntex_errors;
 extern crate toml;
