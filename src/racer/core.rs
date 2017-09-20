@@ -9,8 +9,10 @@ use std::ops::Deref;
 use std::slice;
 use std::cmp::{min, max};
 use std::iter::{Fuse, Iterator};
-use std::rc::Rc;
+use std::sync::Arc;
+
 use codeiter::StmtIndicesIter;
+use lazy_init::Lazy;
 use matchers::PendingImports;
 
 use scopes;
@@ -105,7 +107,7 @@ impl Match {
     /// but in the interest of minimizing the crate's public API surface it's exposed
     /// as a private method for now.
     fn is_same_as(&self, other: &Match) -> bool {
-        self.point == other.point 
+        self.point == other.point
         && self.matchstr == other.matchstr
         && self.filepath == other.filepath
     }
@@ -371,7 +373,7 @@ impl fmt::Debug for PathSearch {
 pub struct IndexedSource {
     pub code: String,
     pub idx: Vec<SourceByteRange>,
-    pub lines: RefCell<Vec<SourceByteRange>>
+    pub lines: Arc<Lazy<Vec<SourceByteRange>>>,
 }
 
 #[derive(Clone,Copy)]
@@ -387,7 +389,7 @@ impl IndexedSource {
         IndexedSource {
             code: src,
             idx: indices,
-            lines: RefCell::new(Vec::new())
+            lines: Arc::new(Lazy::new()),
         }
     }
 
@@ -411,22 +413,21 @@ impl IndexedSource {
         }
     }
 
-    fn cache_lineoffsets(&self) {
-        if self.lines.borrow().len() == 0 {
-            let mut result = Vec::new();
+    fn lineoffsets(&self) -> &Vec<SourceByteRange> {
+        self.lines.get_or_create(|| {
             let mut point = 0;
-            for line in self.code.split('\n') {
-                result.push((point, line.len() + 1));
-                point += line.len() + 1;
-            }
-            *self.lines.borrow_mut() = result;
-        }
+            self.code.split('\n').map(|line| {
+                let start = point;
+                let len = line.len() + 1;
+                point += len;
+
+                (start, len)
+            }).collect()
+        })
     }
 
     pub fn coords_to_point(&self, coords: &Coordinate) -> Option<Point> {
-        self.cache_lineoffsets();
-        self.lines
-            .borrow()
+        self.lineoffsets()
             .get(coords.line - 1)
             .and_then(|&(i, l)| {
                 if coords.column <= l {
@@ -438,8 +439,7 @@ impl IndexedSource {
     }
 
     pub fn point_to_coords(&self, point: Point) -> Option<Coordinate> {
-        self.cache_lineoffsets();
-        for (n, &(i, l)) in self.lines.borrow().iter().enumerate() {
+        for (n, &(i, l)) in self.lineoffsets().iter().enumerate() {
             if i <= point && (point - i) <= l {
                 return Some(Coordinate { line: n + 1, column: point - i });
             }
@@ -597,13 +597,13 @@ pub fn new_source(src: String) -> IndexedSource {
 /// files.
 pub struct FileCache {
     /// raw source for cached files
-    raw_map: RefCell<HashMap<path::PathBuf, Rc<IndexedSource>>>,
+    raw_map: RefCell<HashMap<path::PathBuf, Arc<IndexedSource>>>,
 
     /// masked source for cached files
     ///
     /// a version with comments and strings replaced by spaces, so that they
     /// aren't found when scanning the source for signatures.
-    masked_map: RefCell<HashMap<path::PathBuf, Rc<IndexedSource>>>,
+    masked_map: RefCell<HashMap<path::PathBuf, Arc<IndexedSource>>>,
 
     /// The file loader
     loader: Box<FileLoader>,
@@ -613,13 +613,13 @@ pub struct FileCache {
 ///
 /// Implement one of these and pass it to `FileCache::new()` to override Racer's
 /// file loading behavior.
-pub trait FileLoader {
+pub trait FileLoader: Send {
     /// Load a single file
     fn load_file(&self, path: &path::Path) -> io::Result<String>;
 }
 
 /// Provide a blanket impl for Arc<T> since Rls uses that
-impl<T: FileLoader> FileLoader for ::std::sync::Arc<T> {
+impl<T: FileLoader + Sync> FileLoader for ::std::sync::Arc<T> {
     fn load_file(&self, path: &path::Path) -> io::Result<String> {
         (&self as &T).load_file(path)
     }
@@ -687,12 +687,12 @@ impl FileCache {
         let pathbuf = filepath.into();
         let src = IndexedSource::new(buf.into());
         let masked_src = IndexedSource::new(scopes::mask_comments(src.as_src()));
-        self.raw_map.borrow_mut().insert(pathbuf.clone(), Rc::new(src));
-        self.masked_map.borrow_mut().insert(pathbuf, Rc::new(masked_src));
+        self.raw_map.borrow_mut().insert(pathbuf.clone(), Arc::new(src));
+        self.masked_map.borrow_mut().insert(pathbuf, Arc::new(masked_src));
     }
 
 
-    fn load_file(&self, filepath: &path::Path) -> Rc<IndexedSource> {
+    fn load_file(&self, filepath: &path::Path) -> Arc<IndexedSource> {
         if let Some(src) = self.raw_map.borrow().get(filepath) {
             return src.clone();
         }
@@ -700,18 +700,18 @@ impl FileCache {
         // nothing found, insert into cache
         // Ugh, really need handle results on all these methods :(
         let res = self.loader.load_file(filepath).expect("load file successfully");
-        let src = Rc::new(IndexedSource::new(res));
+        let src = Arc::new(IndexedSource::new(res));
         self.raw_map.borrow_mut().insert(filepath.to_path_buf(), src.clone());
         src
     }
 
-    fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Rc<IndexedSource> {
+    fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Arc<IndexedSource> {
         if let Some(src) = self.masked_map.borrow().get(filepath) {
             return src.clone();
         }
         // nothing found, insert into cache
         let src = self.load_file(filepath);
-        let msrc = Rc::new(src.with_src(scopes::mask_comments(src.as_src())));
+        let msrc = Arc::new(src.with_src(scopes::mask_comments(src.as_src())));
         self.masked_map.borrow_mut().insert(filepath.to_path_buf(),
                                             msrc.clone());
         msrc
@@ -723,12 +723,12 @@ pub trait SessionExt {
     /// Request that a file is loaded into the cache
     ///
     /// This API is unstable and should not be used outside of Racer
-    fn load_file(&self, &path::Path) -> Rc<IndexedSource>;
+    fn load_file(&self, &path::Path) -> Arc<IndexedSource>;
 
     /// Request that a file is loaded into the cache with comments masked
     ///
     /// This API is unstable and should not be used outside of Racer
-    fn load_file_and_mask_comments(&self, &path::Path) -> Rc<IndexedSource>;
+    fn load_file_and_mask_comments(&self, &path::Path) -> Arc<IndexedSource>;
 }
 
 /// Context for a Racer operation
@@ -799,36 +799,36 @@ impl<'c> Session<'c> {
 }
 
 impl<'c> SessionExt for Session<'c> {
-    fn load_file(&self, filepath: &path::Path) -> Rc<IndexedSource> {
+    fn load_file(&self, filepath: &path::Path) -> Arc<IndexedSource> {
         self.cache.load_file(filepath)
     }
 
-    fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Rc<IndexedSource> {
+    fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Arc<IndexedSource> {
         self.cache.load_file_and_mask_comments(filepath)
     }
 }
 
 /// Get the racer point of a line/character number pair for a file.
 pub fn to_point<'c, P>(
-    coords: Coordinate, 
-    path: P, 
+    coords: Coordinate,
+    path: P,
     session: &'c Session
-) -> Option<Point> 
-    where 
+) -> Option<Point>
+    where
         P: AsRef<path::Path> {
     Location::from(coords).to_point(&session.load_file(path.as_ref()))
 }
 
 /// Get the racer point of a line/character number pair for a file.
 pub fn to_coords<'c, P>(
-    point: Point, 
-    path: P, 
+    point: Point,
+    path: P,
     session: &'c Session
-) -> Option<Coordinate> 
-    where 
+) -> Option<Coordinate>
+    where
         P: AsRef<path::Path> {
     Location::from(point).to_coords(&session.load_file(path.as_ref()))
-} 
+}
 
 /// Find completions for a fully qualified name like `std::io::`
 ///
@@ -865,7 +865,7 @@ pub fn complete_fully_qualified_name<'c, S, P>(
 {
     let mut matches = complete_fully_qualified_name_(query.as_ref(), path.as_ref(), session);
     matches.dedup_by(|a, b| a.is_same_as(b));
-    
+
     MatchIter {
         matches: matches.into_iter(),
         session: session
@@ -997,9 +997,9 @@ fn complete_from_file_(
             let line = src_text[linestart..pos].trim().rsplit(';').nth(0).unwrap();
             debug!("Complete path with line: {:?}", line);
 
-            /// Test if the **path expression** starts with `::`, in which case the path
-            /// should be checked against the global namespace rather than the items currently
-            /// in scope.
+            // Test if the **path expression** starts with `::`, in which case the path
+            // should be checked against the global namespace rather than the items currently
+            // in scope.
             let is_global = expr.starts_with("::");
             let is_use = line.starts_with("use ");
 
@@ -1009,10 +1009,10 @@ fn complete_from_file_(
                 trace!("Path is in fn declaration: `{}`", expr);
 
                 return nameres::resolve_method(
-                    pos, 
-                    src.as_src(), 
-                    expr, 
-                    filepath, 
+                    pos,
+                    src.as_src(),
+                    expr,
+                    filepath,
                     SearchType::StartsWith,
                     session,
                     &PendingImports::empty());
@@ -1043,7 +1043,7 @@ fn complete_from_file_(
             });
         }
     }
-    
+
     out
 }
 
@@ -1190,6 +1190,13 @@ mod tests {
     use std::path::Path;
     use super::FileCache;
     use super::{Session, SessionExt};
+
+    #[test]
+    fn filecache_is_send() {
+        fn is_send<T: Send>(_: T) {}
+
+        is_send(FileCache::default());
+    }
 
     #[test]
     fn overwriting_cached_files() {

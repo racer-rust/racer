@@ -1,7 +1,7 @@
 // Small functions of utility
 use std::cmp;
 use std::path;
-use std::rc::Rc;
+use std::sync::Arc;
 
 use core::{IndexedSource, Session, SessionExt, Location, LocationExt, Point};
 
@@ -207,7 +207,7 @@ pub fn expand_ident<P, C>(
 }
 
 pub struct ExpandedIdent {
-    src: Rc<IndexedSource>,
+    src: Arc<IndexedSource>,
     start: Point,
     pos: Point,
 }
@@ -453,7 +453,7 @@ pub fn trim_visibility(blob: &str) -> &str {
     if !blob.trim_left().starts_with("pub") {
         return blob
     }
-    
+
     let mut level = 0;
     let mut skip_restricted = 0;
     for (i, c) in blob[3..].char_indices() {
@@ -483,8 +483,8 @@ fn test_trim_visibility() {
 /// Checks if the completion point is in a function declaration by looking
 /// to see if the second-to-last word is `fn`.
 pub fn in_fn_name(line_before_point: &str) -> bool {
-    /// Determine if the cursor is sitting in the whitespace after typing `fn ` before
-    /// typing a name.
+    // Determine if the cursor is sitting in the whitespace after typing `fn ` before
+    // typing a name.
     let has_started_name = !line_before_point.ends_with(|c: char| c.is_whitespace());
 
     let mut words = line_before_point.split_whitespace().rev();
@@ -497,7 +497,7 @@ pub fn in_fn_name(line_before_point: &str) -> bool {
             }
         }
     }
-    
+
     words
         .next()
         .map(|word| word == "fn")

@@ -502,7 +502,7 @@ fn preblock_is_fn(preblock: &str) -> bool {
         return true;
     }
 
-    /// Remove visibility declarations, such as restricted visibility
+    // Remove visibility declarations, such as restricted visibility
     let trimmed = if preblock.starts_with("pub") {
         util::trim_visibility(preblock)
     } else {
@@ -1406,10 +1406,10 @@ pub fn resolve_method(point: Point, msrc: Src, searchstr: &str,
                         pending_imports: &PendingImports) -> Vec<Match> {
 
     let scopestart = scopes::scope_start(msrc, point);
-    debug!("resolve_method for |{}| pt: {} ({:?}); scopestart: {} ({:?})", 
-        searchstr, 
-        point, 
-        msrc.src.point_to_coords(point), 
+    debug!("resolve_method for |{}| pt: {} ({:?}); scopestart: {} ({:?})",
+        searchstr,
+        point,
+        msrc.src.point_to_coords(point),
         scopestart,
         msrc.src.point_to_coords(scopestart));
 
@@ -1448,9 +1448,9 @@ pub fn resolve_method(point: Point, msrc: Src, searchstr: &str,
                     });
 
                     trace!(
-                        "Found {} methods matching `{}` for trait `{}`", 
-                        out.len(), 
-                        searchstr, 
+                        "Found {} methods matching `{}` for trait `{}`",
+                        out.len(),
+                        searchstr,
                         m.matchstr);
 
                     return out;

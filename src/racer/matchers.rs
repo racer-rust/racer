@@ -59,8 +59,8 @@ fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType,
     // optional (pub\s+)?(unsafe\s+)?
     for pat in ["pub", "unsafe"].into_iter() {
         if src[start..].starts_with(pat) {
-            /// Rust added support for `pub(in codegen)`; we need to consume the visibility 
-            /// specifier for the rest of the code to keep working.
+            // Rust added support for `pub(in codegen)`; we need to consume the visibility
+            // specifier for the rest of the code to keep working.
             let allow_scope = pat == &"pub";
             let mut levels = 0;
 
@@ -77,7 +77,7 @@ fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType,
                         levels -= 1;
                         start += 1;
                     }
-                    _ if levels >= 1 => { 
+                    _ if levels >= 1 => {
                         start += 1;
                     }
                     b' ' | b'\r' | b'\n' | b'\t' => start += 1,
@@ -603,7 +603,7 @@ pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
                     // search in a bit.
                 } else {
                     for mut m in resolve_path(path.as_ref(), filepath, blobstart, ExactMatch, Namespace::Both, session, pending_imports) {
-                        
+
                         // If the match was imported by a `use as` statement, racer
                         // should return the alias so that completions will produce
                         // valid code.

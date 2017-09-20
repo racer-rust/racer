@@ -114,9 +114,9 @@ impl visit::Visitor for UseVisitor {
                 ast::ViewPathList(ref pth, ref paths) => {
                     let basepath = to_racer_path(pth);
                     for path in paths {
-                        /// Figure out the identifier being introduced to the local
-                        /// namespace. This will differ from the import name if an `as`
-                        /// was used.
+                        // Figure out the identifier being introduced to the local
+                        // namespace. This will differ from the import name if an `as`
+                        // was used.
                         let ident = path.node.rename.unwrap_or(path.node.name).name.to_string();
 
                         let name = path.node.name.name.to_string();
@@ -634,7 +634,7 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
                     LitKind::Str(_, _) => {
                         Some(core::Path::from_vec(false, vec!["str"]))
                     },
-                    // See https://github.com/phildawes/racer/issues/727 for 
+                    // See https://github.com/phildawes/racer/issues/727 for
                     // information on why other literals aren't supported.
                     _ => None,
                 };
@@ -657,10 +657,10 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
                         Ty::Match(ref structm) => {
                             typeinf::get_tuplestruct_field_type(fieldnum, structm, &self.session)
                                 .and_then(|fieldtypepath|
-                                    find_type_match_including_generics(&fieldtypepath, 
-                                                                       &structm.filepath, 
-                                                                       structm.point, 
-                                                                       structm, 
+                                    find_type_match_including_generics(&fieldtypepath,
+                                                                       &structm.filepath,
+                                                                       structm.point,
+                                                                       structm,
                                                                        self.session))
                         }
                         _ => None
@@ -668,7 +668,7 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
                 });
             }
 
-            ExprKind::Try(ref expr) => {                
+            ExprKind::Try(ref expr) => {
                 debug!("try expr");
                 self.visit_expr(&expr);
                 self.result = if let Some(&Ty::Match(ref m)) = self.result.as_ref() {
@@ -677,16 +677,16 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
                     // find the type through the trait.
                     if m.matchstr == "Result" && m.generic_types.len() == 2 {
                         let ok_var = &m.generic_types[0];
-                        find_type_match(&ok_var.path, 
-                                        &ok_var.filepath, 
-                                        ok_var.point, 
+                        find_type_match(&ok_var.path,
+                                        &ok_var.filepath,
+                                        ok_var.point,
                                         self.session)
                     } else if m.matchstr == "Result" && (m.generic_types.len() != m.generic_args.len()) {
                         debug!("Unable to desugar Try expression; either `T` or `E` was `()`.");
                         None
                     } else {
-                        debug!("Unable to desugar Try expression; type was {} with arity {} of {}", 
-                            m.matchstr, 
+                        debug!("Unable to desugar Try expression; type was {} with arity {} of {}",
+                            m.matchstr,
                             m.generic_types.len(),
                             m.generic_args.len());
                         None
