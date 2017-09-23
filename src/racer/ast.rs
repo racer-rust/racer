@@ -114,9 +114,9 @@ impl visit::Visitor for UseVisitor {
                 ast::ViewPathList(ref pth, ref paths) => {
                     let basepath = to_racer_path(pth);
                     for path in paths {
-                        /// Figure out the identifier being introduced to the local
-                        /// namespace. This will differ from the import name if an `as`
-                        /// was used.
+                        // Figure out the identifier being introduced to the local
+                        // namespace. This will differ from the import name if an `as`
+                        // was used.
                         let ident = path.node.rename.unwrap_or(path.node.name).name.to_string();
 
                         let name = path.node.name.name.to_string();

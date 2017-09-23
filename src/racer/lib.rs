@@ -5,12 +5,11 @@
 #![cfg_attr(all(feature = "clippy", not(test)), deny(print_stdout))]
 
 #[macro_use] extern crate log;
+#[macro_use] extern crate lazy_static;
 
 extern crate syntex_syntax;
 extern crate syntex_errors;
 extern crate toml;
-extern crate env_logger;
-extern crate typed_arena;
 
 #[macro_use]
 mod testutils;
@@ -26,6 +25,7 @@ mod codecleaner;
 mod matchers;
 mod snippets;
 mod cargo;
+mod config;
 
 pub use core::{find_definition, complete_from_file, complete_fully_qualified_name, to_point, to_coords};
 pub use snippets::snippet_for_match;

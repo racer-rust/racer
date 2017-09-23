@@ -4,8 +4,8 @@ use std::path;
 use std::rc::Rc;
 
 use core::{IndexedSource, Session, SessionExt, Location, LocationExt, Point};
-
 use core::SearchType::{self, ExactMatch, StartsWith};
+use config;
 
 pub fn is_pattern_char(c: char) -> bool {
     c.is_alphanumeric() || c.is_whitespace() || (c == '_') || (c == ':') || (c == '.')
@@ -353,7 +353,6 @@ fn check_rust_sysroot() -> Option<path::PathBuf> {
 /// ```
 pub fn check_rust_src_env_var() -> ::std::result::Result<(), RustSrcPathError> {
     use std::env;
-    use nameres;
 
     match env::var("RUST_SRC_PATH") {
         Ok(ref srcpaths) if !srcpaths.is_empty() => {
@@ -365,7 +364,7 @@ pub fn check_rust_src_env_var() -> ::std::result::Result<(), RustSrcPathError> {
 
             // Unwrap is ok here since split returns the original string
             // even if it doesn't contain the split pattern.
-            let v = srcpaths.split(nameres::PATH_SEP).next().unwrap();
+            let v = srcpaths.split(config::PATH_SEP).next().unwrap();
             let f = path::Path::new(v);
             if !f.exists() {
                 Err(RustSrcPathError::DoesNotExist(f.to_path_buf()))
@@ -483,8 +482,8 @@ fn test_trim_visibility() {
 /// Checks if the completion point is in a function declaration by looking
 /// to see if the second-to-last word is `fn`.
 pub fn in_fn_name(line_before_point: &str) -> bool {
-    /// Determine if the cursor is sitting in the whitespace after typing `fn ` before
-    /// typing a name.
+    // Determine if the cursor is sitting in the whitespace after typing `fn ` before
+    // typing a name.
     let has_started_name = !line_before_point.ends_with(|c: char| c.is_whitespace());
 
     let mut words = line_before_point.split_whitespace().rev();

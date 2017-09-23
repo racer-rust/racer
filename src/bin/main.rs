@@ -1,6 +1,4 @@
 #[macro_use] extern crate log;
-extern crate syntex_syntax;
-extern crate toml;
 extern crate env_logger;
 #[macro_use] extern crate clap;
 
