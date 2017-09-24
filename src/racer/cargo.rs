@@ -728,11 +728,12 @@ pub fn get_crate_file(kratename: &str, from_path: &Path) -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
+    extern crate env_logger;
     use std::path::PathBuf;
 
     #[test]
     fn get_crate_file_from_overrides() {
-        let _ = ::env_logger::init();
+        let _ = env_logger::init();
 
         let mut start_from = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         start_from.push("fixtures");
