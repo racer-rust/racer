@@ -10,8 +10,7 @@ use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches, find_iden
 use matchers::find_doc;
 use cargo;
 use std::path::{Path, PathBuf};
-use std::{self, vec};
-use std::iter;
+use std::{self, vec, iter};
 use matchers::PendingImports;
 
 fn search_struct_fields(searchstr: &str, structmatch: &Match,
@@ -1084,10 +1083,6 @@ pub fn search_prelude_file(pathseg: &core::PathSegment, search_type: SearchType,
     let mut out : Vec<Match> = Vec::new();
 
     // find the prelude file from the search path and scan it
-    if config::RUST_SRC_PATHS.is_empty() {
-        return out.into_iter();
-    };
-
     for srcpath in config::RUST_SRC_PATHS.iter() {
         let filepath = srcpath.join("libstd").join("prelude").join("v1.rs");
         if filepath.exists() || session.contains_file(&filepath) {
