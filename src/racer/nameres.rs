@@ -3,28 +3,21 @@
 use {core, ast, matchers, scopes, typeinf};
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{Match, Src, Session, Coordinate, SessionExt, Ty, Point};
-use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField, Impl, TraitImpl, MatchArm, Builtin};
+use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField,
+    Impl, TraitImpl, MatchArm, Builtin};
 use core::Namespace;
 
 
-use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches, find_ident_end, check_rust_src_env_var, PATH_SEP};
+use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches,
+    find_ident_end, get_rust_src_path};
 use matchers::find_doc;
 use cargo;
 use std::path::{Path, PathBuf};
-use std::{self, vec, iter, env};
+use std::{self, vec, iter};
 use matchers::PendingImports;
 
 lazy_static! {
-    pub static ref RUST_SRC_PATHS: Vec<PathBuf> = {
-            check_rust_src_env_var()
-                .expect("Missing the Rust stdlib source path! Set env var \
-                RUST_SRC_PATH manually to point to the source or install the \
-                `rust-src` component using rustup: \
-                `rustup component add rust-src`");
-            let srcpaths = env::var("RUST_SRC_PATH")
-                .expect("Invariant: RUST_SRC_PATH is already set");
-            srcpaths.split(PATH_SEP).map(|p| p.into()).collect()
-    };
+    pub static ref RUST_SRC_PATH: PathBuf = get_rust_src_path().unwrap();
 }
 
 fn search_struct_fields(searchstr: &str, structmatch: &Match,
@@ -592,7 +585,7 @@ pub fn do_file_search(
     debug!("do_file_search {}", searchstr);
     let mut out = Vec::new();
 
-    let srcpaths = RUST_SRC_PATHS.iter().map(|p| p.as_ref());
+    let srcpaths = RUST_SRC_PATH.iter().map(|p| p.as_ref());
     debug!("do_file_search srcpaths {:?}", srcpaths);
     let v = srcpaths.chain(iter::once(currentdir));
     debug!("do_file_search v is {:?}", v);
@@ -738,21 +731,20 @@ pub fn get_crate_file(name: &str, from_path: &Path, session: &Session) -> Option
         return Some(p);
     }
 
-    for srcpath in RUST_SRC_PATHS.iter() {
-        {
-            // try lib<name>/lib.rs, like in the rust source dir
-            let cratelibname = format!("lib{}", name);
-            let filepath = srcpath.join(cratelibname).join("lib.rs");
-            if filepath.exists() || session.contains_file(&filepath) {
-                return Some(filepath);
-            }
+    let srcpath = &*RUST_SRC_PATH;
+    {
+        // try lib<name>/lib.rs, like in the rust source dir
+        let cratelibname = format!("lib{}", name);
+        let filepath = srcpath.join(cratelibname).join("lib.rs");
+        if filepath.exists() || session.contains_file(&filepath) {
+            return Some(filepath);
         }
-        {
-            // try <name>/lib.rs
-            let filepath = srcpath.join(name).join("lib.rs");
-            if filepath.exists() || session.contains_file(&filepath) {
-                return Some(filepath);
-            }
+    }
+    {
+        // try <name>/lib.rs
+        let filepath = srcpath.join(name).join("lib.rs");
+        if filepath.exists() || session.contains_file(&filepath) {
+            return Some(filepath);
         }
     }
     None
@@ -1097,14 +1089,13 @@ pub fn search_prelude_file(pathseg: &core::PathSegment, search_type: SearchType,
     let mut out : Vec<Match> = Vec::new();
 
     // find the prelude file from the search path and scan it
-    for srcpath in RUST_SRC_PATHS.iter() {
-        let filepath = srcpath.join("libstd").join("prelude").join("v1.rs");
-        if filepath.exists() || session.contains_file(&filepath) {
-            let msrc = session.load_file_and_mask_comments(&filepath);
-            let is_local = true;
-            for m in search_scope(0, 0, msrc.as_src(), pathseg, &filepath, search_type, is_local, namespace, session, pending_imports) {
-                out.push(m);
-            }
+    let srcpath = &*RUST_SRC_PATH;
+    let filepath = srcpath.join("libstd").join("prelude").join("v1.rs");
+    if filepath.exists() || session.contains_file(&filepath) {
+        let msrc = session.load_file_and_mask_comments(&filepath);
+        let is_local = true;
+        for m in search_scope(0, 0, msrc.as_src(), pathseg, &filepath, search_type, is_local, namespace, session, pending_imports) {
+            out.push(m);
         }
     }
     out.into_iter()

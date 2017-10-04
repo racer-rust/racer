@@ -32,4 +32,4 @@ pub use core::{Match, MatchType, PathSearch};
 pub use core::{FileCache, Session, Coordinate, Location, FileLoader, Point, SourceByteRange};
 pub use util::expand_ident;
 
-pub use util::{RustSrcPathError, check_rust_src_env_var};
+pub use util::{RustSrcPathError, get_rust_src_path};

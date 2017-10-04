@@ -180,7 +180,7 @@ fn find_definition(cfg: Config) {
 }
 
 fn validate_rust_src_path_env_var() {
-    match racer::check_rust_src_env_var() {
+    match racer::get_rust_src_path() {
         Ok(_) => (),
         Err(err) => {
             println!("{}", err);
