@@ -5,7 +5,11 @@ use std::rc::Rc;
 
 use core::{IndexedSource, Session, SessionExt, Location, LocationExt, Point};
 use core::SearchType::{self, ExactMatch, StartsWith};
-use config;
+
+#[cfg(unix)]
+pub const PATH_SEP: char = ':';
+#[cfg(windows)]
+pub const PATH_SEP: char = ';';
 
 pub fn is_pattern_char(c: char) -> bool {
     c.is_alphanumeric() || c.is_whitespace() || (c == '_') || (c == ':') || (c == '.')
@@ -364,7 +368,7 @@ pub fn check_rust_src_env_var() -> ::std::result::Result<(), RustSrcPathError> {
 
             // Unwrap is ok here since split returns the original string
             // even if it doesn't contain the split pattern.
-            let v = srcpaths.split(config::PATH_SEP).next().unwrap();
+            let v = srcpaths.split(PATH_SEP).next().unwrap();
             let f = path::Path::new(v);
             if !f.exists() {
                 Err(RustSrcPathError::DoesNotExist(f.to_path_buf()))
