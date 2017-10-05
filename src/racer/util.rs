@@ -324,7 +324,6 @@ fn check_rust_sysroot() -> Option<path::PathBuf> {
             }
         }
     }
-    eprintln!("Calling rustc failed! PATH={:?}", ::std::env::var("PATH"));
     None
 }
 
@@ -402,40 +401,72 @@ fn validate_rust_src_path(path: path::PathBuf) -> ::std::result::Result<path::Pa
     }
 }
 
-// This test is unreliable because it relies on RUST_SRC_PATH being set correctly.
-// This can't be assured in the precence of other RUST_SRC_PATH-mutating tests.
+#[cfg(test)]
+lazy_static! {
+    static ref TEST_SEMAPHORE: ::std::sync::Mutex<()> = ::std::sync::Mutex::new(());
+}
+
 #[test]
-#[ignore]
 fn test_get_rust_src_path_env_ok() {
     use std::env;
 
-    assert!(env::var_os("RUST_SRC_PATH").is_some());
+    let _guard = TEST_SEMAPHORE.lock().unwrap();
+
+    let original = env::var_os("RUST_SRC_PATH");
+    if env::var_os("RUST_SRC_PATH").is_none() {
+        env::set_var("RUST_SRC_PATH", check_rust_sysroot().unwrap());
+    }
     assert!(get_rust_src_path().is_ok());
+
+    match original {
+        Some(path) => env::set_var("RUST_SRC_PATH", path),
+        None => env::remove_var("RUST_SRC_PATH"),
+    }
 }
 
 #[test]
 fn test_get_rust_src_path_does_not_exist() {
     use std::env;
 
+    let _guard = TEST_SEMAPHORE.lock().unwrap();
+
+    let original = env::var_os("RUST_SRC_PATH");
     env::set_var("RUST_SRC_PATH", "test_path");
     assert_eq!(Err(RustSrcPathError::DoesNotExist(path::PathBuf::from("test_path"))),
         get_rust_src_path());
+
+    match original {
+        Some(path) => env::set_var("RUST_SRC_PATH", path),
+        None => env::remove_var("RUST_SRC_PATH"),
+    }
 }
 
 #[test]
 fn test_get_rust_src_path_not_rust_source_tree() {
     use std::env;
 
+    let _guard = TEST_SEMAPHORE.lock().unwrap();
+
+    let original = env::var_os("RUST_SRC_PATH");
+
     env::set_var("RUST_SRC_PATH", "/");
     assert_eq!(Err(RustSrcPathError::NotRustSourceTree(path::PathBuf::from("/libstd"))),
         get_rust_src_path());
+
+    match original {
+        Some(path) => env::set_var("RUST_SRC_PATH", path),
+        None => env::remove_var("RUST_SRC_PATH"),
+    }
 }
 
 #[test]
 fn test_get_rust_src_path_missing() {
     use std::env;
 
+    let _guard = TEST_SEMAPHORE.lock().unwrap();
+
     let path = env::var_os("PATH").unwrap();
+    let original = env::var_os("RUST_SRC_PATH");
 
     env::remove_var("RUST_SRC_PATH");
     env::remove_var("PATH");
@@ -443,15 +474,27 @@ fn test_get_rust_src_path_missing() {
         get_rust_src_path());
 
     env::set_var("PATH", path);
+    match original {
+        Some(path) => env::set_var("RUST_SRC_PATH", path),
+        None => env::remove_var("RUST_SRC_PATH"),
+    }
 }
 
 #[test]
 fn test_get_rust_src_path_rustup_ok() {
     use std::env;
 
+    let _guard = TEST_SEMAPHORE.lock().unwrap();
+
+    let original = env::var_os("RUST_SRC_PATH");
+
     env::remove_var("RUST_SRC_PATH");
-    eprintln!("{:?}", get_rust_src_path());
     assert!(get_rust_src_path().is_ok());
+
+    match original {
+        Some(path) => env::set_var("RUST_SRC_PATH", path),
+        None => env::remove_var("RUST_SRC_PATH"),
+    }
 }
 
 
