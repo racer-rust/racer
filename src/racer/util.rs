@@ -324,6 +324,7 @@ fn check_rust_sysroot() -> Option<path::PathBuf> {
             }
         }
     }
+    eprintln!("Calling rustc failed! PATH={:?}", ::std::env::var("PATH"));
     None
 }
 
