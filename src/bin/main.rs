@@ -1,6 +1,4 @@
 #[macro_use] extern crate log;
-extern crate syntex_syntax;
-extern crate toml;
 extern crate env_logger;
 #[macro_use] extern crate clap;
 
@@ -182,7 +180,7 @@ fn find_definition(cfg: Config) {
 }
 
 fn validate_rust_src_path_env_var() {
-    match racer::check_rust_src_env_var() {
+    match racer::get_rust_src_path() {
         Ok(_) => (),
         Err(err) => {
             println!("{}", err);

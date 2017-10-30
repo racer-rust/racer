@@ -4,8 +4,12 @@ use std::path;
 use std::rc::Rc;
 
 use core::{IndexedSource, Session, SessionExt, Location, LocationExt, Point};
-
 use core::SearchType::{self, ExactMatch, StartsWith};
+
+#[cfg(unix)]
+pub const PATH_SEP: char = ':';
+#[cfg(windows)]
+pub const PATH_SEP: char = ';';
 
 pub fn is_pattern_char(c: char) -> bool {
     c.is_alphanumeric() || c.is_whitespace() || (c == '_') || (c == ':') || (c == '.')
@@ -259,7 +263,7 @@ pub fn char_at(src: &str, i: usize) -> char {
 /// Error type returned from [`check_rust_src_env_var()`]
 ///
 /// [`check_rust_src_env_var()`]: fn.check_rust_src_env_var.html
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum RustSrcPathError {
     Missing,
     DoesNotExist(path::PathBuf),
@@ -323,25 +327,32 @@ fn check_rust_sysroot() -> Option<path::PathBuf> {
     None
 }
 
-/// Check for `RUST_SRC_PATH` environment variable validity and presence
+/// Get the path for Rust standard library source code.
+/// Checks first the paths in the `RUST_SRC_PATH` environment variable.
 ///
-/// If the environment variable is _not_ set, try and set it from the rust sys
-/// root.
+/// If the environment variable is _not_ set, it checks the rust sys
+/// root for the `rust-src` component.
 ///
-/// If the rust src path is there and valid or can be set, Ok(()) is returned.
-/// Otherwise, an error with the appropriate reason is provided.
+/// If that isn't available, checks `/usr/local/src/rust/src` and
+/// `/usr/src/rust/src` as default values.
+///
+/// If the Rust standard library source code cannot be found, returns
+/// `Err(racer::RustSrcPathError::Missing)`.
+///
+/// If the path in `RUST_SRC_PATH` or the path in rust sys root is invalid,
+/// returns a corresponding error. If a valid path is found, returns that path.
 ///
 /// # Examples
 ///
 /// ```
 /// extern crate racer;
 ///
-/// match racer::check_rust_src_env_var() {
-///     Ok(()) => {
+/// match racer::get_rust_src_path() {
+///     Ok(_path) => {
 ///         // RUST_SRC_PATH is valid
 ///     },
 ///     Err(racer::RustSrcPathError::Missing) => {
-///         // path is not set or not found in sysroot
+///         // path is not set
 ///     },
 ///     Err(racer::RustSrcPathError::DoesNotExist(_path)) => {
 ///         // provided path doesnt point to valid file
@@ -351,53 +362,141 @@ fn check_rust_sysroot() -> Option<path::PathBuf> {
 ///     }
 /// }
 /// ```
-pub fn check_rust_src_env_var() -> ::std::result::Result<(), RustSrcPathError> {
+pub fn get_rust_src_path() -> ::std::result::Result<path::PathBuf, RustSrcPathError> {
     use std::env;
-    use nameres;
 
-    match env::var("RUST_SRC_PATH") {
-        Ok(ref srcpaths) if !srcpaths.is_empty() => {
-            // TODO implementation has the same behavior as the original
-            // (before returning an error) where only the first path in
-            // RUST_SRC_PATH is considered. This should either expect a single
-            // path to be provided, or all paths should be considered. The
-            // latter option would need to be supported in the rest of racer.
-
-            // Unwrap is ok here since split returns the original string
-            // even if it doesn't contain the split pattern.
-            let v = srcpaths.split(nameres::PATH_SEP).next().unwrap();
-            let f = path::Path::new(v);
-            if !f.exists() {
-                Err(RustSrcPathError::DoesNotExist(f.to_path_buf()))
-            } else if !f.join("libstd").exists() {
-                Err(RustSrcPathError::NotRustSourceTree(f.join("libstd")))
-            } else {
-                Ok(())
-            }
-        },
-        _ => {
-            if let Some(path) = check_rust_sysroot() {
-                env::set_var("RUST_SRC_PATH", path);
-                Ok(())
-            } else {
-                let default_paths = [
-                    "/usr/local/src/rust/src",
-                    "/usr/src/rust/src",
-                ];
-
-                for &path in &default_paths {
-                    let f = path::Path::new(path);
-                    if f.exists() {
-                        env::set_var("RUST_SRC_PATH", path);
-                        return Ok(())
-                    }
-                }
-
-                Err(RustSrcPathError::Missing)
+    if let Ok(ref srcpaths) = env::var("RUST_SRC_PATH") {
+         if !srcpaths.is_empty() {
+            for path in srcpaths.split(PATH_SEP) {
+                return validate_rust_src_path(path::PathBuf::from(path));
             }
         }
+    };
+
+    if let Some(path) = check_rust_sysroot() {
+        return validate_rust_src_path(path);
+    };
+
+    let default_paths = [
+        "/usr/local/src/rust/src",
+        "/usr/src/rust/src",
+    ];
+
+    for path in default_paths.iter() {
+        if let Ok(path) = validate_rust_src_path(path::PathBuf::from(path)) {
+            return Ok(path);
+        }
+    }
+
+    return Err(RustSrcPathError::Missing)
+}
+
+fn validate_rust_src_path(path: path::PathBuf) -> ::std::result::Result<path::PathBuf, RustSrcPathError> {
+    if !path.exists() {
+        Err(RustSrcPathError::DoesNotExist(path.to_path_buf()))
+    } else if !path.join("libstd").exists() {
+        Err(RustSrcPathError::NotRustSourceTree(path.join("libstd")))
+    } else {
+        Ok(path.to_path_buf())
     }
 }
+
+#[cfg(test)]
+lazy_static! {
+    static ref TEST_SEMAPHORE: ::std::sync::Mutex<()> = ::std::sync::Mutex::new(());
+}
+
+#[test]
+fn test_get_rust_src_path_env_ok() {
+    use std::env;
+
+    let _guard = TEST_SEMAPHORE.lock().unwrap();
+
+    let original = env::var_os("RUST_SRC_PATH");
+    if env::var_os("RUST_SRC_PATH").is_none() {
+        env::set_var("RUST_SRC_PATH", check_rust_sysroot().unwrap());
+    }
+    assert!(get_rust_src_path().is_ok());
+
+    match original {
+        Some(path) => env::set_var("RUST_SRC_PATH", path),
+        None => env::remove_var("RUST_SRC_PATH"),
+    }
+}
+
+#[test]
+fn test_get_rust_src_path_does_not_exist() {
+    use std::env;
+
+    let _guard = TEST_SEMAPHORE.lock().unwrap();
+
+    let original = env::var_os("RUST_SRC_PATH");
+    env::set_var("RUST_SRC_PATH", "test_path");
+    assert_eq!(Err(RustSrcPathError::DoesNotExist(path::PathBuf::from("test_path"))),
+        get_rust_src_path());
+
+    match original {
+        Some(path) => env::set_var("RUST_SRC_PATH", path),
+        None => env::remove_var("RUST_SRC_PATH"),
+    }
+}
+
+#[test]
+fn test_get_rust_src_path_not_rust_source_tree() {
+    use std::env;
+
+    let _guard = TEST_SEMAPHORE.lock().unwrap();
+
+    let original = env::var_os("RUST_SRC_PATH");
+
+    env::set_var("RUST_SRC_PATH", "/");
+    assert_eq!(Err(RustSrcPathError::NotRustSourceTree(path::PathBuf::from("/libstd"))),
+        get_rust_src_path());
+
+    match original {
+        Some(path) => env::set_var("RUST_SRC_PATH", path),
+        None => env::remove_var("RUST_SRC_PATH"),
+    }
+}
+
+#[test]
+fn test_get_rust_src_path_missing() {
+    use std::env;
+
+    let _guard = TEST_SEMAPHORE.lock().unwrap();
+
+    let path = env::var_os("PATH").unwrap();
+    let original = env::var_os("RUST_SRC_PATH");
+
+    env::remove_var("RUST_SRC_PATH");
+    env::remove_var("PATH");
+    assert_eq!(Err(RustSrcPathError::Missing),
+        get_rust_src_path());
+
+    env::set_var("PATH", path);
+    match original {
+        Some(path) => env::set_var("RUST_SRC_PATH", path),
+        None => env::remove_var("RUST_SRC_PATH"),
+    }
+}
+
+#[test]
+fn test_get_rust_src_path_rustup_ok() {
+    use std::env;
+
+    let _guard = TEST_SEMAPHORE.lock().unwrap();
+
+    let original = env::var_os("RUST_SRC_PATH");
+
+    env::remove_var("RUST_SRC_PATH");
+    assert!(get_rust_src_path().is_ok());
+
+    match original {
+        Some(path) => env::set_var("RUST_SRC_PATH", path),
+        None => env::remove_var("RUST_SRC_PATH"),
+    }
+}
+
 
 /// An immutable stack implemented as a linked list backed by a thread's stack.
 pub struct StackLinkedListNode<'stack, T>(Option<StackLinkedListNodeData<'stack, T>>)
@@ -483,8 +582,8 @@ fn test_trim_visibility() {
 /// Checks if the completion point is in a function declaration by looking
 /// to see if the second-to-last word is `fn`.
 pub fn in_fn_name(line_before_point: &str) -> bool {
-    /// Determine if the cursor is sitting in the whitespace after typing `fn ` before
-    /// typing a name.
+    // Determine if the cursor is sitting in the whitespace after typing `fn ` before
+    // typing a name.
     let has_started_name = !line_before_point.ends_with(|c: char| c.is_whitespace());
 
     let mut words = line_before_point.split_whitespace().rev();
