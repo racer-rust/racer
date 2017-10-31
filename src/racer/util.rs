@@ -365,6 +365,8 @@ fn check_rust_sysroot() -> Option<path::PathBuf> {
 pub fn get_rust_src_path() -> ::std::result::Result<path::PathBuf, RustSrcPathError> {
     use std::env;
 
+    debug!("Getting rust source path. Trying env var RUST_SRC_PATH.");
+
     if let Ok(ref srcpaths) = env::var("RUST_SRC_PATH") {
          if !srcpaths.is_empty() {
             for path in srcpaths.split(PATH_SEP) {
@@ -373,9 +375,13 @@ pub fn get_rust_src_path() -> ::std::result::Result<path::PathBuf, RustSrcPathEr
         }
     };
 
+    debug!("Nope. Trying rustc --sysroot and appending lib/rustlib/src/rust/src to that.");
+
     if let Some(path) = check_rust_sysroot() {
         return validate_rust_src_path(path);
     };
+
+    debug!("Nope. Trying default paths: /usr/local/src/rust/src and /usr/src/rust/src");
 
     let default_paths = [
         "/usr/local/src/rust/src",
@@ -387,6 +393,8 @@ pub fn get_rust_src_path() -> ::std::result::Result<path::PathBuf, RustSrcPathEr
             return Ok(path);
         }
     }
+
+    debug!("Nope. Rust source path not found!");
 
     return Err(RustSrcPathError::Missing)
 }
