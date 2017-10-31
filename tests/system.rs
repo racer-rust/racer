@@ -3350,7 +3350,7 @@ fn closure_scope_dont_match_bitwise_or() {
         // 1 || 2;
     }
     ";
-    
+
     let got = get_definition(src, None);
     println!("Unexpectedly found definition: {:?}", got);
 }
