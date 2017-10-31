@@ -577,18 +577,31 @@ fn search_fn_args(fnstart: Point, open_brace_pos: Point, msrc: &str,
     out.into_iter()
 }
 
+#[test]
+fn test_do_file_search() {
+    let cache = core::FileCache::default();
+    let session = Session::new(&cache);
+    let mut matches = do_file_search("std", &Path::new("."), &session);
+
+    assert!(matches.len() > 1);
+
+    let first_match = matches.next().unwrap();
+
+    assert!(first_match.filepath.ends_with("src/libstd/lib.rs"));
+}
+
 pub fn do_file_search(
     searchstr: &str,
     currentdir: &Path,
     session: &Session
 ) -> vec::IntoIter<Match> {
-    debug!("do_file_search {}", searchstr);
+    debug!("do_file_search with search string \"{}\"", searchstr);
     let mut out = Vec::new();
 
-    let srcpaths = RUST_SRC_PATH.iter().map(|p| p.as_ref());
-    debug!("do_file_search srcpaths {:?}", srcpaths);
-    let v = srcpaths.chain(iter::once(currentdir));
-    debug!("do_file_search v is {:?}", v);
+    let srcpath = RUST_SRC_PATH.as_ref();
+    debug!("do_file_search srcpath: {:?}", srcpath);
+    let v = &[srcpath, currentdir][..];
+    debug!("do_file_search v: {:?}", v);
     for srcpath in v {
         if let Ok(iter) = std::fs::read_dir(srcpath) {
             for fpath_buf in iter.filter_map(|res| res.ok().map(|entry| entry.path())) {

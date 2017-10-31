@@ -84,7 +84,7 @@ pub struct Coordinate {
 }
 
 /// Context, source, and etc. for detected completion or definition
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Match {
     pub matchstr: String,
     pub filepath: path::PathBuf,
@@ -249,7 +249,7 @@ impl fmt::Display for Ty {
 }
 
 // The racer implementation of an ast::Path. Difference is that it is Send-able
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Path {
     pub global: bool,
     pub segments: Vec<PathSegment>
@@ -336,7 +336,7 @@ impl fmt::Display for Path {
     }
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PathSegment {
     pub name: String,
     pub types: Vec<Path>
@@ -352,7 +352,7 @@ impl From<String> for PathSegment {
 }
 
 /// Information about generic types in a match
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct PathSearch {
     pub path: Path,
     pub filepath: path::PathBuf,

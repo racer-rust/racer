@@ -424,12 +424,13 @@ fn test_get_rust_src_path_env_ok() {
     if env::var_os("RUST_SRC_PATH").is_none() {
         env::set_var("RUST_SRC_PATH", check_rust_sysroot().unwrap());
     }
-    assert!(get_rust_src_path().is_ok());
+    let result = get_rust_src_path();
 
     match original {
         Some(path) => env::set_var("RUST_SRC_PATH", path),
         None => env::remove_var("RUST_SRC_PATH"),
     }
+    assert!(result.is_ok());
 }
 
 #[test]
@@ -440,13 +441,15 @@ fn test_get_rust_src_path_does_not_exist() {
 
     let original = env::var_os("RUST_SRC_PATH");
     env::set_var("RUST_SRC_PATH", "test_path");
-    assert_eq!(Err(RustSrcPathError::DoesNotExist(path::PathBuf::from("test_path"))),
-        get_rust_src_path());
+    let result = get_rust_src_path();
 
     match original {
         Some(path) => env::set_var("RUST_SRC_PATH", path),
         None => env::remove_var("RUST_SRC_PATH"),
     }
+
+    assert_eq!(Err(RustSrcPathError::DoesNotExist(path::PathBuf::from("test_path"))),
+               result);
 }
 
 #[test]
@@ -458,13 +461,17 @@ fn test_get_rust_src_path_not_rust_source_tree() {
     let original = env::var_os("RUST_SRC_PATH");
 
     env::set_var("RUST_SRC_PATH", "/");
-    assert_eq!(Err(RustSrcPathError::NotRustSourceTree(path::PathBuf::from("/libstd"))),
-        get_rust_src_path());
+
+    let result = get_rust_src_path();
 
     match original {
         Some(path) => env::set_var("RUST_SRC_PATH", path),
         None => env::remove_var("RUST_SRC_PATH"),
     }
+
+    assert_eq!(Err(RustSrcPathError::NotRustSourceTree(path::PathBuf::from("/libstd"))),
+               result);
+
 }
 
 #[test]
@@ -478,14 +485,17 @@ fn test_get_rust_src_path_missing() {
 
     env::remove_var("RUST_SRC_PATH");
     env::remove_var("PATH");
-    assert_eq!(Err(RustSrcPathError::Missing),
-        get_rust_src_path());
+
+    let result = get_rust_src_path();
 
     env::set_var("PATH", path);
     match original {
         Some(path) => env::set_var("RUST_SRC_PATH", path),
         None => env::remove_var("RUST_SRC_PATH"),
     }
+
+    assert_eq!(Err(RustSrcPathError::Missing),
+        result);
 }
 
 #[test]
@@ -493,15 +503,20 @@ fn test_get_rust_src_path_rustup_ok() {
     use std::env;
 
     let _guard = TEST_SEMAPHORE.lock().unwrap();
-
     let original = env::var_os("RUST_SRC_PATH");
-
     env::remove_var("RUST_SRC_PATH");
-    assert!(get_rust_src_path().is_ok());
+
+    let result = get_rust_src_path();
 
     match original {
         Some(path) => env::set_var("RUST_SRC_PATH", path),
         None => env::remove_var("RUST_SRC_PATH"),
+    }
+
+    match result {
+        Ok(_) => (),
+        Err(_) => panic!("Couldn't get the path via rustup! \
+            Rustup and the component rust-src needs to be installed for this test to pass!"),
     }
 }
 
