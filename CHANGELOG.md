@@ -8,9 +8,13 @@ project adheres to [Semantic Versioning](http://semver.org/).
 
 No changes, yet!
 
+## 2.0.12
+
+- Fix bug that broke completions in previous release #807
+
 ## 2.0.11
 
-- Use `rustup` to find libstd path even when used as library #799.
+- Use `rustup` to find libstd path even when used as library #799
 
 ## 2.0.10
 
