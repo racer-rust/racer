@@ -13,7 +13,7 @@ use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches,
 use matchers::find_doc;
 use cargo;
 use std::path::{Path, PathBuf};
-use std::{self, vec, iter};
+use std::{self, vec};
 use matchers::PendingImports;
 
 lazy_static! {
