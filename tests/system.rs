@@ -4156,3 +4156,21 @@ fn completes_for_let_below_multibyte_in_match() {
     ";
     assert_eq!(get_all_completions(src, None)[0].matchstr, "variable");
 }
+
+#[test]
+fn completes_for_let_destracted_var_over_comment() {
+    let _lock = sync!();
+    let src = "
+    fn main() {
+        let option = Some(5);
+        let _ = match option {
+            Some(variable) /* comment */=> {
+                let b = variable;
+                3
+            }
+            None => 4,
+        };
+    }
+    ";
+    assert_eq!(get_all_completions(src, None)[0].matchstr, "variable");
+}
