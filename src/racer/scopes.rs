@@ -276,9 +276,10 @@ pub fn get_start_of_pattern(src: &str, point: Point) -> Point {
             },
             b')' => { levels += 1; },
             _ => {
-                if levels == 0 &&
-                    !util::is_pattern_char(char_at(src, i)) {
-                    return i+1;
+                let is_break_char = util::is_newline_byte(b)
+                    || !util::is_pattern_char(char_at(src, i));
+                if levels == 0 && is_break_char {
+                    return i + 1;
                 }
             }
         }
