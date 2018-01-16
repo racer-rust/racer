@@ -266,24 +266,53 @@ pub fn get_start_of_search_expr(src: &str, point: Point) -> Point {
 }
 
 pub fn get_start_of_pattern(src: &str, point: Point) -> Point {
-    let mut i = point-1;
     let mut levels = 0u32;
-    for &b in src.as_bytes()[..point].iter().rev() {
+    let mut comment_am = util::CommentAutomaton::default();
+    if point < 1 {
+        return point;
+    }
+    comment_am.lookahead(src.as_bytes()[point - 1]);
+    let mut ignore_until = None;
+    for i in (0..point).rev() {
+        // ignore C-style comment
+        let ignore_c_comment = if i == 0 {
+            comment_am.cur_state()
+        } else {
+            comment_am.lookahead(src.as_bytes()[i - 1])
+        };
+        if ignore_c_comment {
+            continue;
+        }
+        // ignore line comment
+        if let Some(comment_start) = ignore_until {
+            if i >= comment_start {
+                continue;
+            } else {
+                ignore_until = None;
+            }
+        }
+        let b = src.as_bytes()[i];
         match b {
             b'(' => {
-                if levels == 0 { return i+1; }
+                if levels == 0 {
+                    return i + 1;
+                }
                 levels -= 1;
             },
             b')' => { levels += 1; },
             _ => {
-                let is_break_char = util::is_newline_byte(b)
-                    || !util::is_pattern_char(char_at(src, i));
-                if levels == 0 && is_break_char {
+                if util::is_newline_byte(b) {
+                    if let Some(below_line_start) = src[..i].rfind('\n') {
+                        if let Some(comment_start) = src[below_line_start..i].rfind("//") {
+                            ignore_until = Some(comment_start + below_line_start);
+                        }
+                    }
+                }
+                if levels == 0 && !util::is_pattern_char(char_at(src, i)) {
                     return i + 1;
                 }
             }
         }
-        i -= 1;
     }
     0
 }

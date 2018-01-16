@@ -4164,8 +4164,10 @@ fn completes_for_let_destracted_var_over_comment() {
     fn main() {
         let option = Some(5);
         let _ = match option {
-            Some(variable) /* comment */=> {
-                let b = variable;
+            Some(variable) /* C-style-comment*/
+// one -liner comment
+ => {
+                let b = vari~;
                 3
             }
             None => 4,

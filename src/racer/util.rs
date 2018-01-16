@@ -27,6 +27,114 @@ pub fn is_ident_char(c: char) -> bool {
     c.is_alphanumeric() || (c == '_') || (c == '!')
 }
 
+// to ignore C-Style Comment
+#[derive(Debug)]
+enum CommentAutomatonState {
+    None,
+    Start, // just / occurs
+    InComment, // /* ...
+    BeforeEnd, // /* ... *
+    InSlash, // like ///// (maybe not useless)
+}
+
+impl CommentAutomatonState {
+    // in case we can know wer'e in comment without looking ahead
+    fn is_in_comment(&self) -> bool {
+        match *self {
+            CommentAutomatonState::InComment
+            | CommentAutomatonState::BeforeEnd
+            | CommentAutomatonState::InSlash => true,
+            _ => false,
+        }
+    }
+}
+
+impl Default for CommentAutomatonState {
+    fn default() -> CommentAutomatonState {
+        CommentAutomatonState::None
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct CommentAutomaton {
+    state: CommentAutomatonState,
+}
+
+impl CommentAutomaton {
+    pub fn cur_state(&self) -> bool {
+        self.state.is_in_comment()
+    }
+    // need to look ahead
+    pub fn lookahead(&mut self, next_byte: u8) -> bool {
+        let mut res = self.state.is_in_comment();
+        let next_state = match self.state {
+            CommentAutomatonState::None => {
+                if next_byte == b'/' {
+                    CommentAutomatonState::Start
+                } else {
+                    CommentAutomatonState::None
+                }
+            }
+            CommentAutomatonState::Start => {
+                // Current status may changes by looking ahead
+                if next_byte == b'/' {
+                    res = true;
+                    CommentAutomatonState::InSlash
+                } else if next_byte == b'*' {
+                    res = true;
+                    CommentAutomatonState::InComment
+                } else {
+                    CommentAutomatonState::None
+                }
+            }
+            CommentAutomatonState::InComment => {
+                if next_byte == b'*' {
+                    CommentAutomatonState::BeforeEnd
+                } else {
+                    CommentAutomatonState::InComment
+                }
+            }
+            CommentAutomatonState::BeforeEnd => {
+                if next_byte == b'/' {
+                    CommentAutomatonState::InSlash
+                } else {
+                    CommentAutomatonState::InComment
+                }
+            }
+            CommentAutomatonState::InSlash => {
+                if next_byte == b'/' {
+                    CommentAutomatonState::InSlash
+                } else {
+                    CommentAutomatonState::None
+                }
+            }
+        };
+        self.state = next_state;
+        res
+    }
+}
+
+#[test]
+fn test_comment_automaton() {
+    let mut automaton = CommentAutomaton::default();
+    let s = "aaa///*hhh*/aaa";
+    let len = s.as_bytes().len();
+    automaton.lookahead(s.as_bytes()[len - 1]);
+    for i in (0..len).rev() {
+        let b = s.as_bytes()[i];
+        let in_comment = if i == 0 {
+            automaton.cur_state()
+        } else {
+            automaton.lookahead(s.as_bytes()[i - 1])
+        };
+        if b == b'a' {
+            assert_eq!(in_comment, false);
+        } else if b == b'h' {
+            assert_eq!(in_comment, true);
+        }
+    }
+}
+
 /// Searches for `needle` as a standalone identifier in `haystack`. To be considered a match,
 /// the `needle` must occur either at the beginning of `haystack` or after a non-identifier
 /// character.
