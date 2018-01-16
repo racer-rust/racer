@@ -4106,3 +4106,23 @@ fn completes_for_match_type_inference_with_if() {
     assert_eq!(got.matchstr, "set_permissions");
     assert_eq!(got.mtype, MatchType::Function);
 }
+
+#[test]
+fn completes_for_let_below_multibyte_in_match() {
+    let _lock = sync!();
+    let src = "
+    fn main() {
+        let variable = 0;
+        let _ = match a {
+            1 => 1,
+            2 => 2,
+            // comment with a multibyte char, like ★
+            _ => {
+                let b = vari~;
+                3
+            }
+        };
+    }
+    ";
+    assert_eq!(get_all_completions(src, None)[0].matchstr, "variable");
+}
