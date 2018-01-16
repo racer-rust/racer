@@ -15,6 +15,10 @@ pub fn is_pattern_char(c: char) -> bool {
     c.is_alphanumeric() || c.is_whitespace() || (c == '_') || (c == ':') || (c == '.')
 }
 
+pub fn is_newline_byte(b: u8) -> bool {
+    b == b'\n' || b == b'\r'
+}
+
 pub fn is_search_expr_char(c: char) -> bool {
     c.is_alphanumeric() || (c == '_') || (c == ':') || (c == '.')
 }
