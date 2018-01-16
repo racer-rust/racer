@@ -4137,3 +4137,22 @@ fn completes_between_statements() {
     let completions = get_all_completions(src, None);
     assert!(completions.into_iter().any(|m| m.matchstr == "std"));
 }
+
+fn completes_for_let_below_multibyte_in_match() {
+    let _lock = sync!();
+    let src = "
+    fn main() {
+        let variable = 0;
+        let _ = match a {
+            1 => 1,
+            2 => 2,
+            // comment with a multibyte char, like ★
+            _ => {
+                let b = vari~;
+                3
+            }
+        };
+    }
+    ";
+    assert_eq!(get_all_completions(src, None)[0].matchstr, "variable");
+}
