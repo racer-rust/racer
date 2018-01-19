@@ -7,6 +7,7 @@ use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 use util::{closure_valid_arg_scope, char_at};
+use codecleaner::comment_skip_iter_rev;
 
 fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<Point> where A: Iterator<Item=&'a u8> {
     let mut levels = 0u32;
@@ -267,48 +268,17 @@ pub fn get_start_of_search_expr(src: &str, point: Point) -> Point {
 
 pub fn get_start_of_pattern(src: &str, point: Point) -> Point {
     let mut levels = 0u32;
-    let mut comment_am = util::CommentAutomaton::default();
-    if point < 1 {
-        return point;
-    }
-    comment_am.lookahead(src.as_bytes()[point - 1]);
-    let mut ignore_until = None;
-    for i in (0..point).rev() {
-        // ignore C-style comment
-        let ignore_c_comment = if i == 0 {
-            comment_am.cur_state()
-        } else {
-            comment_am.lookahead(src.as_bytes()[i - 1])
-        };
-        if ignore_c_comment {
-            continue;
-        }
-        // ignore line comment
-        if let Some(comment_start) = ignore_until {
-            if i >= comment_start {
-                continue;
-            } else {
-                ignore_until = None;
-            }
-        }
-        let b = src.as_bytes()[i];
-        match b {
-            b'(' => {
+    for (c, i) in comment_skip_iter_rev(src, point) {
+        match c {
+            '(' => {
                 if levels == 0 {
                     return i + 1;
                 }
                 levels -= 1;
             },
-            b')' => { levels += 1; },
+            ')' => { levels += 1; },
             _ => {
-                if util::is_newline_byte(b) {
-                    if let Some(below_line_start) = src[..i].rfind('\n') {
-                        if let Some(comment_start) = src[below_line_start..i].rfind("//") {
-                            ignore_until = Some(comment_start + below_line_start);
-                        }
-                    }
-                }
-                if levels == 0 && !util::is_pattern_char(char_at(src, i)) {
+                if levels == 0 && !util::is_pattern_char(c) {
                     return i + 1;
                 }
             }

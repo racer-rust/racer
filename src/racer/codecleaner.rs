@@ -168,8 +168,130 @@ pub fn code_chunks(src: &str) -> CodeIndicesIter {
     CodeIndicesIter { src: src, state: State::Code, pos: 0 }
 }
 
+/// Reverse Iterator for reading the source bytes skipping comments.
+/// This is written for get_start_of_pattern and may be not so robust.
+pub struct CommentSkipIterRev<'a> {
+    src: &'a str,
+    pos: Point,
+}
+
+/// This produce CommentSkipIterRev for range [0, start)
+pub fn comment_skip_iter_rev(s: &str, start: Point) -> CommentSkipIterRev {
+    let start = if start > s.len() { 0 } else { start };
+    CommentSkipIterRev { src: s, pos: start }
+}
+
+impl<'a> Iterator for CommentSkipIterRev<'a> {
+    type Item = (char, Point);
+    fn next(&mut self) -> Option<(char, Point)> {
+        let cur_byte = self.cur_byte()?;
+        match cur_byte {
+            b'\n' => {
+                let pos = self.pos;
+                self.pos = self.skip_line_comment();
+                Some((cur_byte as char, pos - 1))
+            }
+            b'/' => {
+                if let Some(next_byte) = self.get_byte(self.pos - 1) {
+                    if next_byte == b'*' {
+                        self.pos = self.skip_block_comment();
+                        Some((self.cur_byte()? as char, self.pos - 1))
+                    } else {
+                        self.code()
+                    }
+                } else {
+                    self.code()
+                }
+            }
+            _ => self.code(),
+        }
+    }
+}
+
+impl<'a> CommentSkipIterRev<'a> {
+
+    fn cur_byte(&self) -> Option<u8> {
+        self.get_byte(self.pos)
+    }
+
+    fn code(&mut self) -> Option<(char, Point)> {
+        let cur_byte = self.cur_byte()?;
+        self.pos -= 1;
+        Some((cur_byte as char, self.pos))
+    }
+
+    fn get_byte(&self, p: Point) -> Option<u8> {
+        if p == 0 {
+            None
+        } else {
+            let b = self.src.as_bytes()[p - 1];
+            Some(b)
+        }
+    }
+
+    // return where 'pos' shuld be after skipping block comments
+    fn skip_block_comment(&self) -> Point {
+        let mut nest_level = 0;
+        let mut prev = b' ';
+        for i in (0..self.pos - 2).rev() {
+            let b = self.src.as_bytes()[i];
+            match b {
+                b'/' if prev == b'*' => {
+                    if nest_level == 0 {
+                        return i;
+                    } else {
+                        nest_level -= 1;
+                    }
+                }
+                b'*' if prev == b'/' => {
+                    nest_level += 1;
+                }
+                _ => {
+                    prev = b;
+                }
+            }
+        }
+        0
+    }
+
+    // return where 'pos' shuld be after skipping line comments
+    fn skip_line_comment(&self) -> Point {
+        let skip_cr = |p: Point| -> Point {
+            if let Some(b) = self.get_byte(p) {
+                if b == b'\r' {
+                    return p - 1;
+                }
+            }
+            p
+        };
+        let mut pos = self.pos;
+        let mut skipped_whole_line = true;
+        while skipped_whole_line && pos > 0 {
+            // now pos >= 1 && self.src.as_bytes()[pos - 1] == '\n'
+            skipped_whole_line = false;
+            let comment_start = if let Some(next_newline) = self.src[..pos - 1].rfind('\n') {
+                if let Some(start) = self.src[next_newline + 1..pos - 1].find("//") {
+                    skipped_whole_line = start == 0;
+                    start + next_newline + 1
+                } else {
+                    return skip_cr(pos - 1);
+                }
+            } else {
+                if let Some(start) = self.src[..pos - 1].find("//") {
+                    start
+                } else {
+                    return skip_cr(pos - 1);
+                }
+            };
+            pos = comment_start;
+        }
+        pos
+    }
+}
+
+
 #[cfg(test)]
-mod tests {
+mod code_indices_iter_test {
     use super::*;
     use ::testutils::{rejustify, slice};
 
@@ -309,4 +431,40 @@ mod tests {
         }
     }
 
+}
+
+#[cfg(test)]
+mod comment_skip_iter_rev_test {
+    use super::*;
+    use ::testutils::rejustify;
+    #[test]
+    fn removes_consecutive_comments_with_comment_skip_iter_rev() {
+         let src = &rejustify("
+    this is some code // this is a comment
+    // this is more comment
+    // another comment
+    some more code
+    ");
+        let result: String = comment_skip_iter_rev(&src, src.len()).map(|c| c.0).collect();
+        assert_eq!(&result, "edoc erom emos\n edoc emos si siht");
+    }
+    #[test]
+    fn removes_nested_block_comments_with_comment_skip_iter_rev() {
+         let src = &rejustify("
+    this is some code // this is a comment
+    /* /* nested comment */ */
+    some more code
+    ");
+        let result: String = comment_skip_iter_rev(&src, src.len()).map(|c| c.0).collect();
+        assert_eq!(&result, "edoc erom emos\n\n\n edoc emos si siht");
+    }
+    #[test]
+    fn removes_multiline_commentwith_comment_skip_iter_rev() {
+        let src = &rejustify("
+    this is some code /* this is a
+    \"multiline\" comment */some more code
+    ");
+        let result: String = comment_skip_iter_rev(&src, src.len()).map(|c| c.0).collect();
+        assert_eq!(&result, "edoc erom emos  edoc emos si siht");
+    }
 }
