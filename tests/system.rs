@@ -4232,7 +4232,7 @@ fn completes_for_let_below_multibyte_in_match() {
         };
     }
     ";
-    assert_eq!(get_all_completions(src, None)[0].matchstr, "variable");
+    assert_eq!(get_only_completion(src, None).matchstr, "variable");
 }
 
 // For issue 816 & 818
@@ -4244,7 +4244,9 @@ fn completes_for_let_destracted_var_over_comment() {
         let option = Some(5);
         let _ = match option {
             Some(variable) /* C-style-comment*/
-            // one -liner comment ★
+            // one -liner comment
+            /*  nested and /* multiline
+                                comment*/  */
             => {
                 let b = vari~;
                 3
@@ -4253,5 +4255,5 @@ fn completes_for_let_destracted_var_over_comment() {
         };
     }
     ";
-    assert_eq!(get_all_completions(src, None)[0].matchstr, "variable");
+    assert_eq!(get_only_completion(src, None).matchstr, "variable");
 }
