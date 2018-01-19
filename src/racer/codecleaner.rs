@@ -169,7 +169,7 @@ pub fn code_chunks(src: &str) -> CodeIndicesIter {
 }
 
 /// Reverse Iterator for reading the source bytes skipping comments.
-/// This is written for get_start_of_pattern and may be not so robust.
+/// This is written for get_start_of_pattern and maybe not so robust.
 pub struct CommentSkipIterRev<'a> {
     src: &'a str,
     pos: Point,
@@ -459,7 +459,7 @@ mod comment_skip_iter_rev_test {
         assert_eq!(&result, "edoc erom emos\n\n\n edoc emos si siht");
     }
     #[test]
-    fn removes_multiline_commentwith_comment_skip_iter_rev() {
+    fn removes_multiline_comment_with_comment_skip_iter_rev() {
         let src = &rejustify("
     this is some code /* this is a
     \"multiline\" comment */some more code

@@ -4216,26 +4216,27 @@ fn completes_between_statements() {
     assert!(completions.into_iter().any(|m| m.matchstr == "std"));
 }
 
-fn completes_for_let_below_multibyte_in_match() {
+// For issue 816
+#[test]
+fn completes_for_let_after_comments_with_multibyte_char() {
     let _lock = sync!();
     let src = "
     fn main() {
-        let variable = 0;
-        let _ = match a {
-            1 => 1,
-            2 => 2,
-            // comment with a multibyte char, like ★
-            _ => {
+        let option = Some(5);
+        let _ = match option {
+            // multibyte comment ☆
+            Some(variable) => {
                 let b = vari~;
                 3
             }
+            None => 4,
         };
     }
     ";
     assert_eq!(get_only_completion(src, None).matchstr, "variable");
 }
 
-// For issue 816 & 818
+// For issue 818
 #[test]
 fn completes_for_let_destracted_var_over_comment() {
     let _lock = sync!();
