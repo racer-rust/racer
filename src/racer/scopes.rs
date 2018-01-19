@@ -297,6 +297,11 @@ fn get_start_of_pattern_handles_variant2() {
     assert_eq!(4, get_start_of_pattern("bla, ast::PatTup(ref tuple_elements) => {",36));
 }
 
+#[test]
+fn get_start_of_pattern_with_block_comments() {
+    assert_eq!(6, get_start_of_pattern("break, Some(b) /* if expr is Some */ => {", 36));
+}
+
 pub fn expand_search_expr(msrc: &str, point: Point) -> SourceByteRange {
     let start = get_start_of_search_expr(msrc, point);
     (start, util::find_ident_end(msrc, point))
