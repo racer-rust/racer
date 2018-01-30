@@ -4180,3 +4180,17 @@ fn completes_for_let_destracted_var_over_comment() {
     ";
     assert_eq!(get_only_completion(src, None).matchstr, "variable");
 }
+
+// For Issue #815
+#[test]
+fn complete_let_after_raw_string() {
+    let _lock = sync!();
+    let src = r##"
+    fn main() {
+        let s = r#"""#;
+        let v = Vec::<u32>::new();
+        v.l~
+    }
+    "##;
+    assert_eq!(get_one_completion(src, None).matchstr, "len");
+}
