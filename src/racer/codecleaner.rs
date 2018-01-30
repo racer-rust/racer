@@ -1,11 +1,18 @@
 use core::{Point, SourceByteRange};
 
+/// Type of the string
+#[derive(Clone, Copy, Debug)]
+enum StringType {
+    Raw(usize), // raw string started with n #s
+    NotRaw,     // normal string
+}
+
 #[derive(Clone,Copy)]
 enum State {
     Code,
     Comment,
     CommentBlock,
-    String,
+    String(StringType),
     Char,
     Finished
 }
@@ -26,7 +33,7 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
             State::Code => Some(self.code()),
             State::Comment => Some(self.comment()),
             State::CommentBlock  => Some(self.comment_block()),
-            State::String => Some(self.string()),
+            State::String(level) => Some(self.string(level)),
             State::Char => Some(self.char()),
             State::Finished => None
         }
@@ -37,7 +44,7 @@ impl<'a> CodeIndicesIter<'a> {
     fn code(&mut self) -> SourceByteRange {
         let mut pos = self.pos;
         let start = match self.state {
-            State::String |
+            State::String(_) |
             State::Char => { pos-1 }, // include quote
             _ => { pos }
         };
@@ -59,7 +66,8 @@ impl<'a> CodeIndicesIter<'a> {
                     _ => {}
                 },
                 b'"' => {    // "
-                    self.state = State::String;
+                    let raw_level = self.detect_raw_level(pos);
+                    self.state = State::String(raw_level);
                     self.pos = pos;
                     return (start, pos); // include dblquotes
                 },
@@ -123,26 +131,59 @@ impl<'a> CodeIndicesIter<'a> {
         self.code()
     }
 
-    fn string(&mut self) -> SourceByteRange {
+    fn string(&mut self, str_type: StringType) -> SourceByteRange {
         let src_bytes = self.src.as_bytes();
         let mut pos = self.pos;
-        if pos > 1 && src_bytes[pos-2] == b'r' {
-            // raw string (eg br"\"): no escape
-            match src_bytes[pos..].iter().position(|&b| b == b'"') {
-                Some(p) => pos += p+1,
-                None    => pos = src_bytes.len()
-            }
-        } else {
-            let mut is_not_escaped = true;
-            for &b in &src_bytes[pos..] {
-                pos += 1;
-                match b {
-                    b'"' if is_not_escaped  => { break; }, // "
-                    b'\\' => { is_not_escaped = !is_not_escaped; },
-                    _ => { is_not_escaped = true; }
+        match str_type {
+            StringType::Raw(level) => {
+                // raw string (eg br#"\"#)
+                // detect corresponding end(if start is r##", ##") greedy
+                #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+                enum SharpState {
+                    Sharp((usize, usize)), // (Num of #, Pos of end ")
+                    None,
+                }
+                let mut cur_state = SharpState::None;
+                let mut end_was_find = false;
+                for (i, &b) in src_bytes[self.pos..].iter().enumerate() {
+                    match cur_state {
+                        SharpState::Sharp((n_sharp, pos_quote)) => {
+                            cur_state = match b {
+                                b'#' => SharpState::Sharp((n_sharp + 1, pos_quote)),
+                                b'"' => SharpState::Sharp((0, i)),
+                                _ => SharpState::None,
+                            }
+                        }
+                        SharpState::None => {
+                            if b == b'"' {
+                                cur_state = SharpState::Sharp((0, i));
+                            }
+                        }
+                    }
+                    if let SharpState::Sharp((n_sharp, pos_quote)) = cur_state {
+                        if n_sharp == level {
+                            end_was_find = true;
+                            pos += pos_quote + 1;
+                            break;
+                        }
+                    }
+                }
+                if !end_was_find {
+                    pos = src_bytes.len();
                 }
             }
-        }
+            StringType::NotRaw => {
+                let mut is_not_escaped = true;
+                for &b in &src_bytes[pos..] {
+                    pos += 1;
+                    match b {
+                        b'"' if is_not_escaped  => { break; }, // "
+                        b'\\' => { is_not_escaped = !is_not_escaped; },
+                        _ => { is_not_escaped = true; }
+                    }
+                }
+            }
+        };
         self.pos = pos;
         self.code()
     }
@@ -160,6 +201,22 @@ impl<'a> CodeIndicesIter<'a> {
         }
         self.pos = pos;
         self.code()
+    }
+
+    fn detect_raw_level(&self, pos: usize) -> StringType {
+        let src_bytes = self.src.as_bytes();
+        let mut sharp = 0;
+        if pos == 0 {
+            return StringType::NotRaw;
+        }
+        for &b in src_bytes[..pos - 1].iter().rev() {
+            match b {
+                b'#' => sharp += 1,
+                b'r' => return StringType::Raw(sharp),
+                _ => return StringType::NotRaw,
+            }
+        }
+        StringType::NotRaw
     }
 }
 
@@ -429,6 +486,17 @@ mod code_indices_iter_test {
                 panic!("{}", &src[start..end]);
             }
         }
+    }
+
+    #[test]
+    fn removes_nested_rawstr() {
+        let src = &rejustify(r####"
+    this is some code br###""" r##""##"### more code
+    "####);
+
+        let mut it = code_chunks(src);
+        assert_eq!("this is some code br###\"", slice(src, it.next().unwrap()));
+        assert_eq!("\"### more code", slice(src, it.next().unwrap()));
     }
 
 }
