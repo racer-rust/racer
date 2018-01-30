@@ -140,11 +140,11 @@ impl<'a> CodeIndicesIter<'a> {
                 // detect corresponding end(if start is r##", ##") greedy
                 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
                 enum SharpState {
-                    Sharp((usize, usize)), // (Num of #, Pos of end ")
+                    Sharp((usize, usize)), // (Num of preceeding #s, Pos of end ")
                     None,
                 }
                 let mut cur_state = SharpState::None;
-                let mut end_was_find = false;
+                let mut end_was_found = false;
                 for (i, &b) in src_bytes[self.pos..].iter().enumerate() {
                     match cur_state {
                         SharpState::Sharp((n_sharp, pos_quote)) => {
@@ -162,13 +162,13 @@ impl<'a> CodeIndicesIter<'a> {
                     }
                     if let SharpState::Sharp((n_sharp, pos_quote)) = cur_state {
                         if n_sharp == level {
-                            end_was_find = true;
+                            end_was_found = true;
                             pos += pos_quote + 1;
                             break;
                         }
                     }
                 }
-                if !end_was_find {
+                if !end_was_found {
                     pos = src_bytes.len();
                 }
             }
@@ -209,6 +209,7 @@ impl<'a> CodeIndicesIter<'a> {
         if pos == 0 {
             return StringType::NotRaw;
         }
+        // now pos is at one byte after ", so we have to start at pos - 2
         for &b in src_bytes[..pos - 1].iter().rev() {
             match b {
                 b'#' => sharp += 1,
