@@ -3,7 +3,7 @@ use core::{Point, SourceByteRange};
 /// Type of the string
 #[derive(Clone, Copy, Debug)]
 enum StringType {
-    Raw(usize), // raw string started with n #s
+    Raw(usize), // Raw(n) => raw string started with n #s
     NotRaw,     // normal string
 }
 
@@ -66,8 +66,8 @@ impl<'a> CodeIndicesIter<'a> {
                     _ => {}
                 },
                 b'"' => {    // "
-                    let raw_level = self.detect_raw_level(pos);
-                    self.state = State::String(raw_level);
+                    let str_type = self.detect_str_type(pos);
+                    self.state = State::String(str_type);
                     self.pos = pos;
                     return (start, pos); // include dblquotes
                 },
@@ -137,11 +137,11 @@ impl<'a> CodeIndicesIter<'a> {
         match str_type {
             StringType::Raw(level) => {
                 // raw string (eg br#"\"#)
-                // detect corresponding end(if start is r##", ##") greedy
+                // detect corresponding end(if start is r##", ##") greedily
                 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
                 enum SharpState {
                     Sharp((usize, usize)), // (Num of preceeding #s, Pos of end ")
-                    None,
+                    None, // No preceeding "##...
                 }
                 let mut cur_state = SharpState::None;
                 let mut end_was_found = false;
@@ -203,7 +203,7 @@ impl<'a> CodeIndicesIter<'a> {
         self.code()
     }
 
-    fn detect_raw_level(&self, pos: usize) -> StringType {
+    fn detect_str_type(&self, pos: usize) -> StringType {
         let src_bytes = self.src.as_bytes();
         let mut sharp = 0;
         if pos == 0 {
