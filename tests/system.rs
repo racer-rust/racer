@@ -4106,3 +4106,34 @@ fn completes_for_match_type_inference_with_if() {
     assert_eq!(got.matchstr, "set_permissions");
     assert_eq!(got.mtype, MatchType::Function);
 }
+
+#[test]
+fn completes_before_first_statement() {
+    let _lock = sync!();
+
+    let src = r#"
+    fn test() {
+        ~
+        let x = 8;
+    }
+    "#;
+
+    let completions = get_all_completions(src, None);
+    assert!(completions.into_iter().any(|m| m.matchstr == "std"));
+}
+
+#[test]
+fn completes_between_statements() {
+    let _lock = sync!();
+
+    let src = r#"
+    fn test() {
+        let x = 8;
+        ~
+        let y = 55;
+    }
+    "#;
+
+    let completions = get_all_completions(src, None);
+    assert!(completions.into_iter().any(|m| m.matchstr == "std"));
+}
