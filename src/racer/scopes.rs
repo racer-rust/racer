@@ -64,10 +64,10 @@ pub fn scope_start(src: Src, point: Point) -> Point {
 }
 
 pub fn find_stmt_start(msrc: Src, point: Point) -> Option<Point> {
-    // iterate the scope to find the start of the statement
+    // Iterate the scope to find the start of the statement that surrounds the point.
     let scopestart = scope_start(msrc, point);
     msrc.from(scopestart).iter_stmts()
-        .find(|&(_, end)| scopestart + end > point)
+        .find(|&(start, end)| scopestart + start < point && point < scopestart + end)
         .map(|(start, _)| scopestart + start)
 }
 
