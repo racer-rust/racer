@@ -7,6 +7,7 @@ use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 use util::{closure_valid_arg_scope, char_at};
+use codecleaner::comment_skip_iter_rev;
 
 fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<Point> where A: Iterator<Item=&'a u8> {
     let mut levels = 0u32;
@@ -266,23 +267,22 @@ pub fn get_start_of_search_expr(src: &str, point: Point) -> Point {
 }
 
 pub fn get_start_of_pattern(src: &str, point: Point) -> Point {
-    let mut i = point-1;
     let mut levels = 0u32;
-    for &b in src.as_bytes()[..point].iter().rev() {
-        match b {
-            b'(' => {
-                if levels == 0 { return i+1; }
+    for (c, i) in comment_skip_iter_rev(src, point) {
+        match c {
+            '(' => {
+                if levels == 0 {
+                    return i + 1;
+                }
                 levels -= 1;
             },
-            b')' => { levels += 1; },
+            ')' => { levels += 1; },
             _ => {
-                if levels == 0 &&
-                    !util::is_pattern_char(char_at(src, i)) {
-                    return i+1;
+                if levels == 0 && !util::is_pattern_char(c) {
+                    return i + 1;
                 }
             }
         }
-        i -= 1;
     }
     0
 }
@@ -295,6 +295,11 @@ fn get_start_of_pattern_handles_variant() {
 #[test]
 fn get_start_of_pattern_handles_variant2() {
     assert_eq!(4, get_start_of_pattern("bla, ast::PatTup(ref tuple_elements) => {",36));
+}
+
+#[test]
+fn get_start_of_pattern_with_block_comments() {
+    assert_eq!(6, get_start_of_pattern("break, Some(b) /* if expr is Some */ => {", 36));
 }
 
 pub fn expand_search_expr(msrc: &str, point: Point) -> SourceByteRange {

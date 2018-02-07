@@ -4137,3 +4137,46 @@ fn completes_between_statements() {
     let completions = get_all_completions(src, None);
     assert!(completions.into_iter().any(|m| m.matchstr == "std"));
 }
+
+// For issue 816
+#[test]
+fn completes_for_let_after_comments_with_multibyte_char() {
+    let _lock = sync!();
+    let src = "
+    fn main() {
+        let option = Some(5);
+        let _ = match option {
+            // multibyte comment ☆
+            Some(variable) => {
+                let b = vari~;
+                3
+            }
+            None => 4,
+        };
+    }
+    ";
+    assert_eq!(get_only_completion(src, None).matchstr, "variable");
+}
+
+// For issue 818
+#[test]
+fn completes_for_let_destracted_var_over_comment() {
+    let _lock = sync!();
+    let src = "
+    fn main() {
+        let option = Some(5);
+        let _ = match option {
+            Some(variable) /* C-style-comment*/
+            // one -liner comment
+            /*  nested and /* multiline
+                                comment*/  */
+            => {
+                let b = vari~;
+                3
+            }
+            None => 4,
+        };
+    }
+    ";
+    assert_eq!(get_only_completion(src, None).matchstr, "variable");
+}
