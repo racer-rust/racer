@@ -518,7 +518,7 @@ struct ExprTypeVisitor<'c: 's, 's> {
 
 impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
     fn visit_expr(&mut self, expr: &ast::Expr) {
-        debug!("visit_expr {:?}", expr);
+        debug!("ExprTypeVisitor::visit_expr {:?}(kind: {:?})", expr, expr.node);
         //walk_expr(self, ex, e)
         match expr.node {
             ExprKind::Unary(_, ref expr) |
