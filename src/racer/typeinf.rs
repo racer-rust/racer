@@ -236,7 +236,7 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match, session: &Ses
 pub fn get_tuplestruct_field_type(fieldnum: usize, structmatch: &Match, session: &Session) -> Option<core::Ty> {
     let src = session.load_file(&structmatch.filepath);
 
-    let structsrc = if let core::MatchType::EnumVariant = structmatch.mtype {
+    let structsrc = if let core::MatchType::EnumVariant(_) = structmatch.mtype {
         // decorate the enum variant src to make it look like a tuple struct
         let to = src[structmatch.point..].find('(')
             .map(|n| scopes::find_closing_paren(&src, structmatch.point + n+1))
@@ -281,6 +281,14 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<core:
         core::MatchType::Enum |
         core::MatchType::Function |
         core::MatchType::Module => Some(core::Ty::Match(m)),
+        core::MatchType::EnumVariant(Some(boxed_enum)) => {
+            if boxed_enum.mtype == core::MatchType::Enum {
+                Some(core::Ty::Match(*boxed_enum))
+            } else {
+                debug!("EnumVariant has not-enum type: {:?}", boxed_enum.mtype);
+                None
+            }
+        }
         _ => { debug!("!!! WARNING !!! Can't get type of {:?}", m.mtype); None }
     }
 }

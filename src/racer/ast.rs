@@ -544,7 +544,7 @@ impl<'c, 's> visit::Visitor for ExprTypeVisitor<'c, 's> {
                         match m.mtype {
                             MatchType::Function => typeinf::get_return_type_of_function(&m, &m, self.session)
                                 .and_then(|ty| path_to_match(ty, self.session)),
-                            MatchType::Struct => Some(Ty::Match(m)),
+                            MatchType::Struct | MatchType::Enum => Some(Ty::Match(m)),
                             _ => {
                                 debug!("ExprTypeVisitor: Cannot handle ExprCall of {:?} type", m.mtype);
                                 None
