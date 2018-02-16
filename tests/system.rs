@@ -4180,3 +4180,19 @@ fn completes_for_let_destracted_var_over_comment() {
     ";
     assert_eq!(get_only_completion(src, None).matchstr, "variable");
 }
+
+// For issue 826
+#[test]
+fn find_crate_doc() {
+    let _lock = sync!();
+
+    let src = "
+    extern crate fixtures;
+    use fixtur~
+    ";
+
+    within_test_project(|| {
+        let got = get_one_completion(src, None);
+        assert_eq!("This is a test project for racer.", got.docs);
+    })
+}
