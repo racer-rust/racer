@@ -22,7 +22,7 @@ use util;
 /// Within a [`Match`], specifies what was matched
 ///
 /// [`Match`]: struct.Match.html
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MatchType {
     Struct,
     Module,
@@ -41,6 +41,7 @@ pub enum MatchType {
     Type,
     FnArg,
     Trait,
+    TraitBounds(ast::TraitBounds),
     Const,
     Static,
     Macro,

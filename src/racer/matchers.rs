@@ -185,7 +185,7 @@ fn match_pattern_let(msrc: &str, blobstart: Point, blobend: Point,
                                    point: blobstart + start,
                                    coords: None,
                                    local: local,
-                                   mtype: mtype,
+                                   mtype: mtype.clone(),
                                    contextstr: first_line(blob),
                                    generic_args: Vec::new(),
                                    generic_types: Vec::new(),
@@ -407,7 +407,7 @@ pub fn match_struct(msrc: &str, blobstart: Point, blobend: Point,
         };
 
         // structs with no values need to end in ';', not '{}'
-        let generics = ast::parse_generics(format!("{};", &blob[..end]));
+        let generics_list = ast::parse_generics(format!("{};", &blob[..end]), filepath);
 
         Some(Match {
             matchstr: l.to_owned(),
@@ -417,7 +417,7 @@ pub fn match_struct(msrc: &str, blobstart: Point, blobend: Point,
             local: local,
             mtype: Struct,
             contextstr: get_context(blob, "{"),
-            generic_args: generics.generic_args.into_iter().map(|arg| {arg.name}).collect(),
+            generic_args: generics_list.get_idents(),
             generic_types: Vec::new(),
             docs: find_doc(msrc, blobstart + start),
         })
@@ -524,7 +524,7 @@ pub fn match_enum(msrc: &str, blobstart: Point, blobend: Point,
         // Parse generics
         let end = blob.find('{').or(blob.find(';'))
             .expect("Can't find end of enum header");
-        let generics = ast::parse_generics(format!("{}{{}}", &blob[..end]));
+        let generics_list = ast::parse_generics(format!("{}{{}}", &blob[..end]), filepath);
 
         Some(Match {
             matchstr: l.to_owned(),
@@ -534,7 +534,7 @@ pub fn match_enum(msrc: &str, blobstart: Point, blobend: Point,
             local: local,
             mtype: Enum,
             contextstr: first_line(blob),
-            generic_args: generics.generic_args.into_iter().map(|arg| {arg.name}).collect(),
+            generic_args: generics_list.get_idents(),
             generic_types: Vec::new(),
             docs: find_doc(msrc, blobstart + start),
         })

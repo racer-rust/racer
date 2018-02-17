@@ -4,7 +4,7 @@ use {core, ast, matchers, scopes, typeinf};
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{Match, Src, Session, Coordinate, SessionExt, Ty, Point};
 use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField,
-    Impl, TraitImpl, MatchArm, Builtin};
+                      Impl, TraitImpl, TraitBounds, MatchArm, Builtin};
 use core::Namespace;
 
 
@@ -13,7 +13,7 @@ use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches,
 use matchers::find_doc;
 use cargo;
 use std::path::{Path, PathBuf};
-use std::{self, vec, iter};
+use std::{self, vec};
 use matchers::PendingImports;
 
 lazy_static! {
@@ -340,14 +340,13 @@ pub fn search_for_generic_impls(pos: Point, searchstr: &str, contextm: &Match, f
                 }
                 let mut decl = decl.to_owned();
                 decl.push_str("}");
-                let generics = ast::parse_generics(decl.clone());
+                let generics = ast::parse_generics(decl.clone(), filepath);
                 let implres = ast::parse_impl(decl.clone());
                 if let (Some(name_path), Some(trait_path)) = (implres.name_path, implres.trait_path) {
                     if let (Some(name), Some(trait_name)) = (name_path.segments.last(), trait_path.segments.last()) {
-                        for gen_arg in generics.generic_args {
-                        if symbol_matches(ExactMatch, &gen_arg.name, &name.name)
-                           && gen_arg.bounds.len() == 1
-                           && gen_arg.bounds[0] == searchstr {
+                        for gen_arg in generics.inner {
+                        if symbol_matches(ExactMatch, gen_arg.name(), &name.name)
+                           && gen_arg.bounds.find_by_name(searchstr).is_some() {
                                   debug!("generic impl decl {}", decl);
 
                                   let trait_pos = blob.find(&trait_name.name).unwrap();
@@ -366,7 +365,7 @@ pub fn search_for_generic_impls(pos: Point, searchstr: &str, contextm: &Match, f
                                       local: true,
                                       mtype: TraitImpl,
                                       contextstr: "".into(),
-                                      generic_args: vec![gen_arg.name],
+                                      generic_args: vec![gen_arg.name().to_owned()],
                                       generic_types: vec![self_pathsearch],
                                       docs: String::new(),
                                   };
@@ -381,6 +380,7 @@ pub fn search_for_generic_impls(pos: Point, searchstr: &str, contextm: &Match, f
     }
     out.into_iter()
 }
+
 
 // scope headers include fn decls, if let, while let etc..
 fn search_scope_headers(point: Point, scopestart: Point, msrc: Src, searchstr: &str,
@@ -1541,6 +1541,15 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
                                   session: &Session) -> vec::IntoIter<Match> {
     let m = context;
     let mut out = Vec::new();
+    // It's used when trait and trait bound
+    let __search_for_trait = |m: &Match| -> Option<Vec<Match>> {
+        let src = session.load_file(&m.filepath);
+        let point = m.point + src[m.point..].find('{')? + 1;
+        Some(
+            search_scope_for_methods(point, src.as_src(), searchstr, &m.filepath, search_type)
+                .collect(),
+        )
+    };
     match m.mtype {
         Struct => {
             debug!("got a struct, looking for fields and impl methods!! {}", m.matchstr);
@@ -1582,18 +1591,28 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
         },
         Trait => {
             debug!("got a trait, looking for methods {}", m.matchstr);
-            let src = session.load_file(&m.filepath);
-            src[m.point..].find('{').map(|n| {
-                let point = m.point + n + 1;
-                for m in search_scope_for_methods(point, src.as_src(), searchstr, &m.filepath, search_type) {
-                    out.push(m);
+            if let Some(res) = __search_for_trait(&m) {
+                out = res;
+            }
+        }
+        TraitBounds(bounds) => {
+            debug!("got a trait bound, looking for methods {}", m.matchstr);
+            let traits = bounds.get_traits(session);
+            traits.iter().for_each(|m| {
+                if m.mtype == Trait {
+                    if let Some(res) = __search_for_trait(&m) {
+                        out.extend(res);
+                    }
                 }
             });
         }
-        _ => { debug!("WARN!! context wasn't a Struct, Enum, Builtin or Trait {:?}",m);}
+        _ => {
+            warn!("WARN!! context wasn't a Struct, Enum, Builtin or Trait {:?}",m);
+        }
     };
     out.into_iter()
 }
+
 
 fn search_for_deref_matches(impl_match: &Match, type_match: &Match, fieldsearchstr: &str, fpath: &Path, session: &Session) -> vec::IntoIter<Match>
 {

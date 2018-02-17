@@ -8,7 +8,8 @@ use std::rc::Rc;
 
 use syntex_errors::Handler;
 use syntex_errors::emitter::ColorConfig;
-use syntex_syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, LitKind, PatKind, TyKind, TyParamBound};
+use syntex_syntax::ast::{self, ExprKind, FunctionRetTy, Generics,
+                         ItemKind, LitKind, PatKind, TyKind, TyParamBound};
 use syntex_syntax::codemap;
 use syntex_syntax::parse::parser::Parser;
 use syntex_syntax::parse::{lexer, ParseSess};
@@ -964,38 +965,128 @@ impl visit::Visitor for ExternCrateVisitor {
     }
 }
 
-#[derive(Debug)]
-pub struct GenericArg {
-    pub name: String,
-    pub bounds: Vec<String>
-}
+/// Wrapper struct for representing trait bounds.
+/// Its usages are
+/// - for generic types like T: Debug + Clone
+/// - for impl_trait like fn f(a: impl Debug + Clone))
+/// - for dynamic traits(dyn_trait) like Box<Debug + Clone> or Box<dyn Debug + Clone>
+#[derive(Clone, Debug, PartialEq)]
+pub struct TraitBounds(Vec<core::PathSearch>);
 
-#[derive(Debug)]
-pub struct GenericsVisitor {
-    pub generic_args: Vec<GenericArg>,
-}
-
-impl visit::Visitor for GenericsVisitor {
-    fn visit_generics(&mut self, g: &ast::Generics) {
-        for ty in g.ty_params.iter() {
-            let generic_ty_name = ty.ident.name.to_string();
-            let mut generic_bounds = Vec::new();
-            for trait_bound in ty.bounds.iter() {
-                let bound_path = match *trait_bound {
-                    TyParamBound::TraitTyParamBound(ref ptrait_ref, _) => Some(&ptrait_ref.trait_ref.path),
-                    _ => None,
-                };
-                if let Some(path) = bound_path.and_then(|path| { path.segments.get(0) }) {
-                    generic_bounds.push(path.identifier.name.to_string());
-                };
+impl TraitBounds {
+    pub fn find_by_name(&self, name: &str) -> Option<&core::PathSearch> {
+        Some(self.0.iter().find(|path_search| {
+            let seg = &path_search.path.segments;
+            if seg.len() != 1 {
+                return false;
             }
-            self.generic_args.push(GenericArg {
-                name: generic_ty_name,
-                bounds: generic_bounds
-            });
-        }
+            &seg[0].name == name
+        })?)
+    }
+    pub fn get_traits(&self, session: &Session) -> Vec<Match> {
+        self.0.iter().filter_map(|ps| {
+            resolve_path_with_str(&ps.path, &ps.filepath, ps.point,  core::SearchType::ExactMatch,
+                                            core::Namespace::Both, session).nth(0)
+        }).collect()
     }
 }
+
+/// Argument of generics like T: From<String>
+#[derive(Clone, Debug)]
+pub struct GenericsArg {
+    /// Type parameter of generics, like 'T'
+    pub name: String,
+    /// The point 'T' appears
+    pub point: usize,
+    /// bounds
+    pub bounds: TraitBounds,
+}
+
+impl GenericsArg {
+    pub fn name(&self) -> &str {
+        &(*self.name)
+    }
+    fn into_match(self, filepath: &Path) -> Option<Match> {
+        Some(Match {
+            matchstr: self.name,
+            filepath: filepath.to_path_buf(),
+            point: self.point,
+            coords: None,
+            local: true,
+            mtype: MatchType::TraitBounds(self.bounds),
+            contextstr: String::new(),
+            generic_args: Vec::new(),
+            generic_types: Vec::new(),
+            docs: String::new(),
+        })
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct GenericsList {
+    pub inner: Vec<GenericsArg>
+}
+
+impl GenericsList {
+    fn find_type_param(&self, name: &str) -> Option<&GenericsArg> {
+        self.inner.iter().find(|v| &v.name == name)
+    }
+    fn from_generics<'a, P: AsRef<Path>>(
+        generics: &'a Generics,
+        file_path: P,
+        offset: i32
+    ) -> GenericsList {
+        let ty_params = generics.ty_params.iter();
+        let res = ty_params
+            .map(|ty_param| {
+                let param_name = ty_param.ident.name.as_str().to_string();
+                let bounds = ty_param
+                    .bounds
+                    .iter()
+                    .filter_map(|bound| {
+                        if let TyParamBound::TraitTyParamBound(ref ptrait_ref, _) = *bound {
+                            let ast_path = &ptrait_ref.trait_ref.path;
+                            let codemap::BytePos(point) = ast_path.span.lo;
+                            let path = to_racer_path(&ast_path);
+                            let path_search = core::PathSearch {
+                                path: path,
+                                filepath: file_path.as_ref().to_path_buf(),
+                                point: (point as i32 + offset) as Point,
+                            };
+                            Some(path_search)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                let codemap::BytePos(point) = ty_param.span.lo;
+                GenericsArg {
+                    name: param_name,
+                    point: (point as i32 + offset) as Point,
+                    bounds: TraitBounds(bounds),
+                }
+            })
+            .collect();
+        GenericsList { inner: res }
+    }
+    pub fn get_idents(&self) -> Vec<String> {
+        self.inner.iter().map(|g| g.name.to_string()).collect()
+    }
+}
+
+#[derive(Debug)]
+struct GenericsVisitor<P> {
+    result: GenericsList,
+    filepath: P,
+}
+
+impl<P: AsRef<Path>> visit::Visitor for GenericsVisitor<P> {
+    fn visit_generics(&mut self, g: &ast::Generics) {
+        let path = &self.filepath;
+        self.result.inner.extend(GenericsList::from_generics(g, path, 0).inner);
+    }
+}
+
 
 pub struct EnumVisitor {
     pub name: String,
@@ -1061,12 +1152,15 @@ pub fn parse_trait(s: String) -> TraitVisitor {
     v
 }
 
-pub fn parse_generics(s: String) -> GenericsVisitor {
-    let mut v = GenericsVisitor { generic_args: Vec::new() };
+pub fn parse_generics<P: AsRef<Path>>(s: String, filepath: P) -> GenericsList {
+    let mut v = GenericsVisitor {
+        result: GenericsList::default(),
+        filepath: filepath,
+    };
     if let Some(stmt) = string_to_stmt(s) {
         visit::walk_stmt(&mut v, &stmt);
     }
-    v
+    v.result
 }
 
 pub fn parse_type(s: String) -> TypeVisitor {
@@ -1100,15 +1194,27 @@ pub fn parse_fn_output(s: String, scope: Scope) -> Option<core::Ty> {
     v.result
 }
 
-pub fn parse_fn_arg_type(s: String, argpos: Point, scope: Scope, session: &Session) -> Option<core::Ty> {
+pub fn parse_fn_arg_type(
+    s: String,
+    argpos: Point,
+    scope: Scope,
+    session: &Session,
+    offset: i32,
+) -> Option<core::Ty> {
     debug!("parse_fn_arg {} |{}|", argpos, s);
-    let mut v = FnArgTypeVisitor { argpos: argpos, scope: scope, result: None,
-                                   session: session };
+    let mut v = FnArgTypeVisitor {
+        argpos: argpos,
+        scope: scope,
+        result: None,
+        offset: offset,
+        session: session,
+    };
     if let Some(stmt) = string_to_stmt(s) {
         visit::walk_stmt(&mut v, &stmt);
     }
     v.result
 }
+
 
 pub fn parse_mod(s: String) -> ModVisitor {
     let mut v = ModVisitor { name: None };
@@ -1194,11 +1300,24 @@ pub struct FnArgTypeVisitor<'c: 's, 's> {
     argpos: Point,
     scope: Scope,
     session: &'s Session<'c>,
+    offset: i32,
     pub result: Option<Ty>
 }
 
+
 impl<'c, 's> visit::Visitor for FnArgTypeVisitor<'c, 's> {
-    fn visit_fn(&mut self, _: visit::FnKind, fd: &ast::FnDecl, _: codemap::Span, _: ast::NodeId) {
+    fn visit_fn(&mut self, fk: visit::FnKind, fd: &ast::FnDecl, _: codemap::Span, _: ast::NodeId) {
+        // Get generics arguments here (just for speed up)
+        let filepath = &self.scope.filepath;
+        let generics_list = match fk {
+            visit::FnKind::ItemFn(_, generics, _, _, _, _, _) => {
+                GenericsList::from_generics(generics, filepath, self.offset)
+            }
+            visit::FnKind::Method(_, method_sig, _, _) => {
+                GenericsList::from_generics(&method_sig.generics, filepath, self.offset)
+            }
+            _ => GenericsList::default(),
+        };
         for arg in &fd.inputs {
             let codemap::BytePos(lo) = arg.pat.span.lo;
             let codemap::BytePos(hi) = arg.pat.span.hi;
@@ -1207,9 +1326,32 @@ impl<'c, 's> visit::Visitor for FnArgTypeVisitor<'c, 's> {
                 self.result = to_racer_ty(&arg.ty, &self.scope)
                     .and_then(|ty| destructure_pattern_to_ty(&arg.pat, self.argpos,
                                                              &ty, &self.scope, self.session))
-                    .and_then(|ty| path_to_match(ty, self.session));
-                break;
+                    .and_then(|ty| {
+                        let ty = destruct_ty_refptr(ty);
+                        if let Ty::PathSearch(ref path, ref scope) = ty {
+                            let segments = &path.segments;
+                            if segments.len() == 1 {
+                                let name = &segments[0].name;
+                                if let Some(bounds) = generics_list.find_type_param(name) {
+                                    let res = bounds.to_owned().into_match(filepath)?;
+                                    return Some(Ty::Match(res));
+                                }
+                            }
+                            find_type_match(path, &scope.filepath, scope.point, self.session)
+                        } else {
+                            Some(ty)
+                        }
+                    });
+                return;
             }
         }
+    }
+}
+
+fn destruct_ty_refptr(ty_arg: Ty) -> Ty {
+    if let Ty::RefPtr(ty) = ty_arg {
+        destruct_ty_refptr(*ty)
+    } else {
+        ty_arg
     }
 }
