@@ -132,7 +132,7 @@ fn get_type_of_fnarg(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty
         let blob = &msrc[(stmtstart+start)..(stmtstart+end)];
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut s = String::new();
-        let start_blah = "impl plah {";
+        let start_blah = "impl blah {";
         s.push_str(start_blah);
         let impl_header_len = s.len();
         s.push_str(&blob[..(find_start_of_function_body(blob)+1)]);

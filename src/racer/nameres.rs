@@ -7,15 +7,14 @@ use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField,
                       Impl, TraitImpl, TraitBounds, MatchArm, Builtin};
 use core::Namespace;
 
-
 use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches,
-    find_ident_end, get_rust_src_path};
+           find_ident_end, get_rust_src_path, calculate_str_hash};
 use matchers::find_doc;
 use cargo;
 use std::path::{Path, PathBuf};
 use std::{self, vec};
+use std::collections::HashSet;
 use matchers::PendingImports;
-
 lazy_static! {
     pub static ref RUST_SRC_PATH: PathBuf = get_rust_src_path().unwrap();
 }
@@ -1537,18 +1536,76 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: Point, search_typ
     out.into_iter()
 }
 
+/// collect inherited traits by Depth First Search
+fn collect_inherited_traits(trait_match: Match, s: &Session) -> Vec<Match> {
+    /// informations needed to collect inherited traits
+    struct TraitInfo {
+        /// name of trait
+        target_str: String,
+        /// code point 'trait' statement starts
+        offset: i32,
+        /// file path trait appears
+        filepath: PathBuf,
+    }
+    impl TraitInfo {
+        fn from_match(m: &Match) -> TraitInfo {
+            let mut target_str = m.contextstr.to_owned();
+            target_str.push_str("{}");
+            let offset = m.point as i32 - "trait ".len() as i32;
+            TraitInfo {
+                target_str: target_str,
+                offset: offset,
+                filepath: m.filepath.clone(),
+            }
+        }
+    }
+    // DFS stack
+    let mut stack = vec![TraitInfo::from_match(&trait_match)];
+    // we have to store hashes of trait names to prevent infinite loop!
+    let mut trait_names = HashSet::new();
+    trait_names.insert(calculate_str_hash(&trait_match.matchstr));
+    let mut res = vec![trait_match];
+    // DFS
+    while let Some(t) = stack.pop() {
+        if let Some(bounds) = ast::parse_inherited_traits(t.target_str, t.filepath, t.offset) {
+            let traits = bounds.get_traits(s);
+            let filtered = traits.into_iter().filter(|tr| {
+                let hash = calculate_str_hash(&tr.matchstr);
+                if trait_names.contains(&hash) {
+                    return false;
+                }
+                let tr_info = TraitInfo::from_match(&tr);
+                stack.push(tr_info);
+                true
+            });
+            res.extend(filtered);
+        }
+    }
+    res
+}
+
 pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: SearchType,
                                   session: &Session) -> vec::IntoIter<Match> {
     let m = context;
     let mut out = Vec::new();
-    // It's used when trait and trait bound
-    let __search_for_trait = |m: &Match| -> Option<Vec<Match>> {
-        let src = session.load_file(&m.filepath);
-        let point = m.point + src[m.point..].find('{')? + 1;
-        Some(
-            search_scope_for_methods(point, src.as_src(), searchstr, &m.filepath, search_type)
-                .collect(),
-        )
+    // for Trait and TraitBound
+    let __search_for_trait = |m: Match| -> Vec<Match> {
+        let traits = collect_inherited_traits(m, session);
+        let mut res = Vec::new();
+        traits.into_iter().for_each(|tr| {
+            let src = session.load_file(&tr.filepath);
+            if let Some(start) = src[tr.point..].find('{') {
+                let point = tr.point + start + 1;
+                res.extend(search_scope_for_methods(
+                    point,
+                    src.as_src(),
+                    searchstr,
+                    &tr.filepath,
+                    search_type,
+                ));
+            }
+        });
+        res
     };
     match m.mtype {
         Struct => {
@@ -1591,19 +1648,13 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
         },
         Trait => {
             debug!("got a trait, looking for methods {}", m.matchstr);
-            if let Some(res) = __search_for_trait(&m) {
-                out = res;
-            }
+            out = __search_for_trait(m);
         }
         TraitBounds(bounds) => {
             debug!("got a trait bound, looking for methods {}", m.matchstr);
             let traits = bounds.get_traits(session);
-            traits.iter().for_each(|m| {
-                if m.mtype == Trait {
-                    if let Some(res) = __search_for_trait(&m) {
-                        out.extend(res);
-                    }
-                }
+            traits.into_iter().for_each(|m| {
+                out.extend(__search_for_trait(m));
             });
         }
         _ => {

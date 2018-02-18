@@ -2,6 +2,8 @@
 use std::cmp;
 use std::path;
 use std::rc::Rc;
+use std::hash::{Hash, Hasher};
+use std::collections::hash_map::DefaultHasher;
 
 use core::{IndexedSource, Session, SessionExt, Location, LocationExt, Point};
 use core::SearchType::{self, ExactMatch, StartsWith};
@@ -633,4 +635,12 @@ fn test_in_fn_name() {
     assert!(in_fn_name("fn "));
     assert!(!in_fn_name("fn foo(b"));
     assert!(!in_fn_name("fn"));
+}
+
+
+/// calculate hash of string
+pub fn calculate_str_hash(s: &str) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    s.hash(&mut hasher);
+    hasher.finish()
 }

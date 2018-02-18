@@ -8,8 +8,8 @@ use std::rc::Rc;
 
 use syntex_errors::Handler;
 use syntex_errors::emitter::ColorConfig;
-use syntex_syntax::ast::{self, ExprKind, FunctionRetTy, Generics,
-                         ItemKind, LitKind, PatKind, TyKind, TyParamBound};
+use syntex_syntax::ast::{self, ExprKind, FunctionRetTy, Generics, ItemKind,
+                         LitKind, PatKind, TyKind, TyParamBound, TyParamBounds};
 use syntex_syntax::codemap;
 use syntex_syntax::parse::parser::Parser;
 use syntex_syntax::parse::{lexer, ParseSess};
@@ -69,7 +69,6 @@ pub fn string_to_crate(source_str: String) -> Option<ast::Crate> {
 pub struct PathWithAlias {
     /// The identifier introduced into the current scope.
     pub ident: String,
-
     /// The path.
     pub path: core::Path,
 }
@@ -968,12 +967,14 @@ impl visit::Visitor for ExternCrateVisitor {
 /// Wrapper struct for representing trait bounds.
 /// Its usages are
 /// - for generic types like T: Debug + Clone
+/// - for trait inheritance like trait A: Debug + Clone
 /// - for impl_trait like fn f(a: impl Debug + Clone))
 /// - for dynamic traits(dyn_trait) like Box<Debug + Clone> or Box<dyn Debug + Clone>
 #[derive(Clone, Debug, PartialEq)]
 pub struct TraitBounds(Vec<core::PathSearch>);
 
 impl TraitBounds {
+    /// checks if it contains a trait, whick its name is 'name'
     pub fn find_by_name(&self, name: &str) -> Option<&core::PathSearch> {
         Some(self.0.iter().find(|path_search| {
             let seg = &path_search.path.segments;
@@ -983,11 +984,37 @@ impl TraitBounds {
             &seg[0].name == name
         })?)
     }
+    /// Search traits included in bounds and return Matches
     pub fn get_traits(&self, session: &Session) -> Vec<Match> {
         self.0.iter().filter_map(|ps| {
-            resolve_path_with_str(&ps.path, &ps.filepath, ps.point,  core::SearchType::ExactMatch,
-                                            core::Namespace::Both, session).nth(0)
+            resolve_path_with_str(&ps.path, &ps.filepath, ps.point, core::SearchType::ExactMatch,
+                                  core::Namespace::Type, session).nth(0)
         }).collect()
+    }
+    fn from_ty_param_bounds<P: AsRef<Path>>(
+        bounds: &TyParamBounds,
+        file_path: P,
+        offset: i32
+    ) -> TraitBounds {
+        let vec = bounds
+            .iter()
+            .filter_map(|bound| {
+                if let TyParamBound::TraitTyParamBound(ref ptrait_ref, _) = *bound {
+                    let ast_path = &ptrait_ref.trait_ref.path;
+                    let codemap::BytePos(point) = ast_path.span.lo;
+                    let path = to_racer_path(&ast_path);
+                    let path_search = core::PathSearch {
+                        path: path,
+                        filepath: file_path.as_ref().to_path_buf(),
+                        point: (point as i32 + offset) as Point,
+                    };
+                    Some(path_search)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        TraitBounds(vec)
     }
 }
 
@@ -1006,13 +1033,14 @@ impl GenericsArg {
     pub fn name(&self) -> &str {
         &(*self.name)
     }
-    fn into_match(self, filepath: &Path) -> Option<Match> {
+    fn into_match<P: AsRef<Path>>(self, filepath: &P) -> Option<Match> {
+        // TODO: contextstr, local
         Some(Match {
             matchstr: self.name,
-            filepath: filepath.to_path_buf(),
+            filepath: filepath.as_ref().to_path_buf(),
             point: self.point,
             coords: None,
-            local: true,
+            local: false,
             mtype: MatchType::TraitBounds(self.bounds),
             contextstr: String::new(),
             generic_args: Vec::new(),
@@ -1022,6 +1050,7 @@ impl GenericsArg {
     }
 }
 
+/// List of Some GenericsArgs like <T: Clone, U, P>
 #[derive(Clone, Debug, Default)]
 pub struct GenericsList {
     pub inner: Vec<GenericsArg>
@@ -1040,30 +1069,12 @@ impl GenericsList {
         let res = ty_params
             .map(|ty_param| {
                 let param_name = ty_param.ident.name.as_str().to_string();
-                let bounds = ty_param
-                    .bounds
-                    .iter()
-                    .filter_map(|bound| {
-                        if let TyParamBound::TraitTyParamBound(ref ptrait_ref, _) = *bound {
-                            let ast_path = &ptrait_ref.trait_ref.path;
-                            let codemap::BytePos(point) = ast_path.span.lo;
-                            let path = to_racer_path(&ast_path);
-                            let path_search = core::PathSearch {
-                                path: path,
-                                filepath: file_path.as_ref().to_path_buf(),
-                                point: (point as i32 + offset) as Point,
-                            };
-                            Some(path_search)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
                 let codemap::BytePos(point) = ty_param.span.lo;
+                let bounds = TraitBounds::from_ty_param_bounds(&ty_param.bounds, &file_path, offset);
                 GenericsArg {
                     name: param_name,
                     point: (point as i32 + offset) as Point,
-                    bounds: TraitBounds(bounds),
+                    bounds: bounds,
                 }
             })
             .collect();
@@ -1150,6 +1161,22 @@ pub fn parse_trait(s: String) -> TraitVisitor {
         visit::walk_stmt(&mut v, &stmt);
     }
     v
+}
+
+/// parse traits and collect inherited traits as TraitBounds
+pub fn parse_inherited_traits<P: AsRef<Path>>(
+    s: String,
+    filepath: P,
+    offset: i32
+) -> Option<TraitBounds>{
+    let mut v = InheritedTraitsVisitor {
+        result: None,
+        file_path: filepath,
+        offset: offset,
+    };
+    let stmt = string_to_stmt(s)?;
+    visit::walk_stmt(&mut v, &stmt);
+    v.result
 }
 
 pub fn parse_generics<P: AsRef<Path>>(s: String, filepath: P) -> GenericsList {
@@ -1296,10 +1323,14 @@ impl visit::Visitor for FnOutputVisitor {
     }
 }
 
+/// Visitor to detect type of fnarg
 pub struct FnArgTypeVisitor<'c: 's, 's> {
+    /// the code point arg appears in search string
     argpos: Point,
     scope: Scope,
     session: &'s Session<'c>,
+    /// the code point search string starts
+    /// use i32 for the case `impl blah {` in inserted
     offset: i32,
     pub result: Option<Ty>
 }
@@ -1319,9 +1350,7 @@ impl<'c, 's> visit::Visitor for FnArgTypeVisitor<'c, 's> {
             _ => GenericsList::default(),
         };
         for arg in &fd.inputs {
-            let codemap::BytePos(lo) = arg.pat.span.lo;
-            let codemap::BytePos(hi) = arg.pat.span.hi;
-            if self.argpos >= (lo as usize) && self.argpos <= (hi as usize) {
+            if point_is_in_span(self.argpos as u32, &arg.pat.span) {
                 debug!("fn arg visitor found type {:?}", arg.ty);
                 self.result = to_racer_ty(&arg.ty, &self.scope)
                     .and_then(|ty| destructure_pattern_to_ty(&arg.pat, self.argpos,
@@ -1353,5 +1382,27 @@ fn destruct_ty_refptr(ty_arg: Ty) -> Ty {
         destruct_ty_refptr(*ty)
     } else {
         ty_arg
+    }
+}
+
+/// Visitor to collect Inherited Traits
+pub struct InheritedTraitsVisitor<P> {
+    /// search result(list of Inherited Traits)
+    result: Option<TraitBounds>,
+    /// the file trait appears
+    file_path: P,
+    /// thecode point 'trait' statement starts
+    offset: i32,
+}
+
+impl<P: AsRef<Path>> visit::Visitor for InheritedTraitsVisitor<P> {
+    fn visit_item(&mut self, item: &ast::Item) {
+        if let ItemKind::Trait(_, _, ref bounds, _) = item.node {
+            self.result = Some(TraitBounds::from_ty_param_bounds(
+                bounds,
+                &self.file_path,
+                self.offset,
+            ));
+        }
     }
 }
