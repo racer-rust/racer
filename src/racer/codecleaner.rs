@@ -3,8 +3,10 @@ use core::{Point, SourceByteRange};
 /// Type of the string
 #[derive(Clone, Copy, Debug)]
 enum StringType {
-    Raw(usize), // Raw(n) => raw string started with n #s
-    NotRaw,     // normal string
+    /// Raw(n) => raw string started with n #s
+    Raw(usize),
+    /// normal string starts with "
+    NotRaw,
 }
 
 #[derive(Clone,Copy)]
@@ -138,7 +140,6 @@ impl<'a> CodeIndicesIter<'a> {
             StringType::Raw(level) => {
                 // raw string (eg br#"\"#)
                 // detect corresponding end(if start is r##", ##") greedily
-                #[derive(Clone, Copy, Debug, Eq, PartialEq)]
                 enum SharpState {
                     Sharp((usize, usize)), // (Num of preceeding #s, Pos of end ")
                     None, // No preceeding "##...
