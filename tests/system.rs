@@ -4252,23 +4252,4 @@ mod trait_bounds {
         ";
         assert_eq!(get_only_completion(src, None).matchstr, "inherited");
     }
-
-    #[test]
-    fn completes_methods_for_struct_member_by_trait_bounds() {
-        let _lock = sync!();
-        let src = "
-        fn main() {
-            trait Trait {
-                fn method(&self);
-            }
-            struct Struct<T> {
-                var: T,
-            }
-            fn func<T: Trait>(arg: Struct<T>) {
-                arg.var.meth~
-            }
-        }
-        ";
-        assert_eq!(get_only_completion(src, None).matchstr, "method");
-    }
 }
