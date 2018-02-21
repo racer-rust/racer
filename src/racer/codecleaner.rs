@@ -2,11 +2,11 @@ use core::{Point, SourceByteRange};
 
 /// Type of the string
 #[derive(Clone, Copy, Debug)]
-enum StringType {
+enum StrStyle {
+    /// normal string starts with "
+    Cooked,
     /// Raw(n) => raw string started with n #s
     Raw(usize),
-    /// normal string starts with "
-    NotRaw,
 }
 
 #[derive(Clone,Copy)]
@@ -14,7 +14,7 @@ enum State {
     Code,
     Comment,
     CommentBlock,
-    String(StringType),
+    String(StrStyle),
     Char,
     Finished
 }
@@ -133,16 +133,16 @@ impl<'a> CodeIndicesIter<'a> {
         self.code()
     }
 
-    fn string(&mut self, str_type: StringType) -> SourceByteRange {
+    fn string(&mut self, str_type: StrStyle) -> SourceByteRange {
         let src_bytes = self.src.as_bytes();
         let mut pos = self.pos;
         match str_type {
-            StringType::Raw(level) => {
+            StrStyle::Raw(level) => {
                 // raw string (eg br#"\"#)
-                // detect corresponding end(if start is r##", ##") greedily
+                // detect corresponding end(if start is r##", "##) greedily
                 enum SharpState {
-                    Sharp((usize, usize)), // (Num of preceeding #s, Pos of end ")
-                    None, // No preceeding "##...
+                    Sharp((usize, usize)), // (Num of preceding #s, Pos of end ")
+                    None, // No preceding "##...
                 }
                 let mut cur_state = SharpState::None;
                 let mut end_was_found = false;
@@ -173,7 +173,7 @@ impl<'a> CodeIndicesIter<'a> {
                     pos = src_bytes.len();
                 }
             }
-            StringType::NotRaw => {
+            StrStyle::Cooked => {
                 let mut is_not_escaped = true;
                 for &b in &src_bytes[pos..] {
                     pos += 1;
@@ -204,21 +204,21 @@ impl<'a> CodeIndicesIter<'a> {
         self.code()
     }
 
-    fn detect_str_type(&self, pos: usize) -> StringType {
+    fn detect_str_type(&self, pos: usize) -> StrStyle {
         let src_bytes = self.src.as_bytes();
         let mut sharp = 0;
         if pos == 0 {
-            return StringType::NotRaw;
+            return StrStyle::Cooked;
         }
         // now pos is at one byte after ", so we have to start at pos - 2
         for &b in src_bytes[..pos - 1].iter().rev() {
             match b {
                 b'#' => sharp += 1,
-                b'r' => return StringType::Raw(sharp),
-                _ => return StringType::NotRaw,
+                b'r' => return StrStyle::Raw(sharp),
+                _ => return StrStyle::Cooked,
             }
         }
-        StringType::NotRaw
+        StrStyle::Cooked
     }
 }
 
