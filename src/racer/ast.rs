@@ -968,7 +968,7 @@ impl visit::Visitor for ExternCrateVisitor {
 /// Its usages are
 /// - for generic types like T: Debug + Clone
 /// - for trait inheritance like trait A: Debug + Clone
-/// - for impl_trait like fn f(a: impl Debug + Clone))
+/// - for impl_trait like fn f(a: impl Debug + Clone)
 /// - for dynamic traits(dyn_trait) like Box<Debug + Clone> or Box<dyn Debug + Clone>
 #[derive(Clone, Debug, PartialEq)]
 pub struct TraitBounds(Vec<core::PathSearch>);
