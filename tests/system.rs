@@ -4238,7 +4238,7 @@ mod trait_bounds {
         let _lock = sync!();
         let src = "
         fn main() {
-            trait Inherited2: Trait {}
+            trait Inherited2: Inherited1 {}
             trait Inherited1: Inherited2 {
                 fn inherited(&self);
             }

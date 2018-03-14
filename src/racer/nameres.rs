@@ -1574,6 +1574,7 @@ fn collect_inherited_traits(trait_match: Match, s: &Session) -> Vec<Match> {
                 if trait_names.contains(&hash) {
                     return false;
                 }
+                trait_names.insert(hash);
                 let tr_info = TraitInfo::from_match(&tr);
                 stack.push(tr_info);
                 true
