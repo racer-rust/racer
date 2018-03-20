@@ -462,7 +462,7 @@ fn build_cli<'a, 'b>() -> App<'a, 'b> {
 }
 
 fn main() {
-    env_logger::init().unwrap();
+    env_logger::init();
 
     let matches = build_cli().get_matches();
     let interface = match matches.value_of("interface") {
