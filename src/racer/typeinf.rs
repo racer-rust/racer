@@ -126,19 +126,20 @@ fn get_type_of_fnarg(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty
     if m.matchstr == "self" {
         return get_type_of_self_arg(m, msrc, session);
     }
-
     let stmtstart = scopes::expect_stmt_start(msrc, m.point);
     let block = msrc.from(stmtstart);
     if let Some((start, end)) = block.iter_stmts().next() {
         let blob = &msrc[(stmtstart+start)..(stmtstart+end)];
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut s = String::new();
-        s.push_str("impl blah {");
+        let start_blah = "impl blah {";
+        s.push_str(start_blah);
         let impl_header_len = s.len();
         s.push_str(&blob[..(find_start_of_function_body(blob)+1)]);
         s.push_str("}}");
         let argpos = m.point - (stmtstart+start) + impl_header_len;
-        return ast::parse_fn_arg_type(s, argpos, Scope::from_match(m), session);
+        let offset = (stmtstart + start) as i32 - start_blah.len() as i32;
+        return ast::parse_fn_arg_type(s, argpos, Scope::from_match(m), session, offset);
     }
     None
 }
