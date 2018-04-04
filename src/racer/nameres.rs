@@ -13,7 +13,7 @@ use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches,
 use matchers::find_doc;
 use cargo;
 use std::path::{Path, PathBuf};
-use std::{self, vec, iter};
+use std::{self, vec};
 use matchers::PendingImports;
 
 lazy_static! {
@@ -1414,7 +1414,7 @@ pub fn resolve_method(point: Point, msrc: Src, searchstr: &str,
         scopestart,
         msrc.src.point_to_coords(scopestart));
 
-    if let Some(stmtstart) = scopes::find_stmt_start(msrc, (scopestart - 1)) {
+    if let Some(stmtstart) = scopes::find_stmt_start(msrc, scopestart - 1) {
         let preblock = &msrc[stmtstart..scopestart];
         debug!("search_scope_headers preblock is |{}|", preblock);
 
