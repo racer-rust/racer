@@ -18,6 +18,7 @@ use nameres;
 use ast;
 use codecleaner;
 use util;
+use cargo;
 
 /// Within a [`Match`], specifies what was matched
 ///
@@ -738,6 +739,8 @@ pub struct Session<'c> {
     /// The file cache is used within a session to prevent multiple reads. It is
     /// borrowed here in order to support reuse across Racer operations.
     cache: &'c FileCache,
+    /// Cache for crate roots
+    cargo_roots: RefCell<HashMap<(String, path::PathBuf), Option<path::PathBuf>>>,
 }
 
 impl<'c> fmt::Debug for Session<'c> {
@@ -764,7 +767,8 @@ impl<'c> Session<'c> {
     /// [`FileCache`]: struct.FileCache.html
     pub fn new(cache: &'c FileCache) -> Session<'c> {
         Session {
-            cache: cache
+            cache: cache,
+            cargo_roots: Default::default(),
         }
     }
 
@@ -796,6 +800,18 @@ impl<'c> Session<'c> {
         raw.contains_key(path) && masked.contains_key(path)
     }
 
+    /// Find the library root for kratename
+    ///
+    /// The library is searched for by checking
+    ///
+    /// 1. overrides
+    /// 2. lock file
+    /// 3. toml file
+    pub fn get_crate_file(&self, kratename: &str, from_path: &path::Path) -> Option<path::PathBuf> {
+        self.cargo_roots.borrow_mut().entry((kratename.into(), from_path.into()))
+            .or_insert_with(|| cargo::get_crate_file(kratename, from_path))
+            .clone()
+    }
 }
 
 impl<'c> SessionExt for Session<'c> {
