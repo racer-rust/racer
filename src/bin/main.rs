@@ -3,11 +3,13 @@ extern crate env_logger;
 #[macro_use] extern crate clap;
 
 extern crate racer;
+extern crate humantime;
 
 use racer::{Match, MatchType, FileCache, Session, Coordinate, Point};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::io::{self, BufRead, Read};
+use std::time::SystemTime;
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 
 fn point(cfg: Config) {
@@ -462,16 +464,26 @@ fn build_cli<'a, 'b>() -> App<'a, 'b> {
 }
 
 fn main() {
-    env_logger::init();
+    use std::io::Write;
+
+    env_logger::Builder::from_default_env()
+        .format(|f, record| {
+            writeln!(f, "{:>5} {}: {}: {}",
+                     record.level(),
+                     humantime::format_rfc3339_nanos(SystemTime::now()),
+                     record.module_path().unwrap_or("-"),
+                     record.args())
+        })
+        .init();
 
     let matches = build_cli().get_matches();
     let interface = match matches.value_of("interface") {
             Some("tab-text") => Interface::TabText,
             Some("text") | _ => Interface::Text
         };
-    
+
     validate_rust_src_path_env_var();
-    
+
     run(matches, interface);
 }
 
