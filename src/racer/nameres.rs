@@ -1,19 +1,22 @@
 // Name resolution
 
+use std::{self, vec};
+use std::rc::Rc;
+use std::path::{Path, PathBuf};
+
 use {core, ast, matchers, scopes, typeinf};
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{Match, Src, Session, Coordinate, SessionExt, Ty, Point};
 use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField,
     Impl, TraitImpl, MatchArm, Builtin};
 use core::Namespace;
+use ast::{GenericsVisitor, ImplVisitor};
 
 
 use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches,
     find_ident_end, get_rust_src_path};
 use matchers::find_doc;
 use cargo;
-use std::path::{Path, PathBuf};
-use std::{self, vec, iter};
 use matchers::PendingImports;
 
 lazy_static! {
@@ -320,62 +323,77 @@ pub fn search_for_impls(pos: Point, searchstr: &str, filepath: &Path, local: boo
     out.into_iter()
 }
 
+fn cached_generic_impls(filepath: &Path, session: &Session, scope_start: usize)
+                        -> Rc<Vec<(usize, String, GenericsVisitor, ImplVisitor)>> {
+    // the cache is keyed by path and the scope we search in
+    session.generic_impls.borrow_mut().entry((filepath.into(), scope_start))
+        .or_insert_with(|| {
+            let s = session.load_file(&filepath);
+            let src = s.from(scope_start);
+            let mut out = Vec::new();
+            for (start, end) in src.iter_stmts() {
+                let blob = &src[start..end];
+
+                if blob.starts_with("impl") {
+                    blob.find('{').map(|n| {
+                        let ref decl = blob[..n+1];
+                        if decl.contains('!') {
+                            // Guard against macros
+                            debug!("impl was probably a macro: {} {}", filepath.display(), start);
+                            return;
+                        }
+                        let mut decl = decl.to_owned();
+                        decl.push_str("}");
+                        let (generics, impls) = ast::parse_generics_and_impl(decl);
+                        out.push((start, blob.into(), generics, impls));
+                    });
+                }
+            }
+            Rc::new(out)
+        })
+        .clone()
+}
+
 pub fn search_for_generic_impls(pos: Point, searchstr: &str, contextm: &Match, filepath: &Path, session: &Session) -> vec::IntoIter<Match> {
     debug!("search_for_generic_impls {}, {}, {:?}", pos, searchstr, filepath.display());
     let s = session.load_file(filepath);
     let scope_start = scopes::scope_start(s.as_src(), pos);
-    let src = s.from(scope_start);
 
     let mut out = Vec::new();
-    for (start, end) in src.iter_stmts() {
-        let blob = &src[start..end];
+    for &(start, ref blob, ref generics, ref implres) in cached_generic_impls(filepath, session, scope_start).iter() {
+        if let (Some(name_path), Some(trait_path)) = (implres.name_path.as_ref(), implres.trait_path.as_ref()) {
+            if let (Some(name), Some(trait_name)) = (name_path.segments.last(), trait_path.segments.last()) {
+                for gen_arg in &generics.generic_args {
+                    if symbol_matches(ExactMatch, &gen_arg.name, &name.name)
+                        && gen_arg.bounds.len() == 1
+                        && gen_arg.bounds[0] == searchstr {
+                            debug!("generic impl decl {}", blob);
 
-        if blob.starts_with("impl") {
-            blob.find('{').map(|n| {
-                let ref decl = blob[..n+1];
-                if decl.contains('!') {
-                    // Guard against macros
-                    debug!("impl was probably a macro: {} {}", filepath.display(), start);
-                    return;
-                }
-                let mut decl = decl.to_owned();
-                decl.push_str("}");
-                let (generics, implres) = ast::parse_generics_and_impl(decl.clone());
-                if let (Some(name_path), Some(trait_path)) = (implres.name_path, implres.trait_path) {
-                    if let (Some(name), Some(trait_name)) = (name_path.segments.last(), trait_path.segments.last()) {
-                        for gen_arg in generics.generic_args {
-                        if symbol_matches(ExactMatch, &gen_arg.name, &name.name)
-                           && gen_arg.bounds.len() == 1
-                           && gen_arg.bounds[0] == searchstr {
-                                  debug!("generic impl decl {}", decl);
+                            let trait_pos = blob.find(&trait_name.name).unwrap();
+                            let self_path = core::Path::from_vec(false, vec![&contextm.matchstr]);
+                            let self_pathsearch = core::PathSearch {
+                                path: self_path,
+                                filepath: contextm.filepath.clone(),
+                                point: contextm.point
+                            };
 
-                                  let trait_pos = blob.find(&trait_name.name).unwrap();
-                                  let self_path = core::Path::from_vec(false, vec![&contextm.matchstr]);
-                                  let self_pathsearch = core::PathSearch {
-                                      path: self_path,
-                                      filepath: contextm.filepath.clone(),
-                                      point: contextm.point
-                                  };
-
-                                  let m = Match {
-                                      matchstr: trait_name.name.clone(),
-                                      filepath: filepath.to_path_buf(),
-                                      point: scope_start + start + trait_pos,
-                                      coords: None,
-                                      local: true,
-                                      mtype: TraitImpl,
-                                      contextstr: "".into(),
-                                      generic_args: vec![gen_arg.name],
-                                      generic_types: vec![self_pathsearch],
-                                      docs: String::new(),
-                                  };
-                                  debug!("Found a trait! {:?}", m);
-                                  out.push(m);
-                              }
+                            let m = Match {
+                                matchstr: trait_name.name.clone(),
+                                filepath: filepath.to_path_buf(),
+                                point: start + trait_pos,
+                                coords: None,
+                                local: true,
+                                mtype: TraitImpl,
+                                contextstr: "".into(),
+                                generic_args: vec![gen_arg.name.clone()],
+                                generic_types: vec![self_pathsearch],
+                                docs: String::new(),
+                            };
+                            debug!("Found a trait! {:?}", m);
+                            out.push(m);
                         }
-                    }
                 }
-            });
+            }
         }
     }
     out.into_iter()
@@ -1413,7 +1431,7 @@ pub fn resolve_method(point: Point, msrc: Src, searchstr: &str,
         scopestart,
         msrc.src.point_to_coords(scopestart));
 
-    if let Some(stmtstart) = scopes::find_stmt_start(msrc, (scopestart - 1)) {
+    if let Some(stmtstart) = scopes::find_stmt_start(msrc, scopestart - 1) {
         let preblock = &msrc[stmtstart..scopestart];
         debug!("search_scope_headers preblock is |{}|", preblock);
 

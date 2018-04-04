@@ -738,6 +738,10 @@ pub struct Session<'c> {
     /// The file cache is used within a session to prevent multiple reads. It is
     /// borrowed here in order to support reuse across Racer operations.
     cache: &'c FileCache,
+    /// Cache for generic impls
+    pub generic_impls: RefCell<HashMap<(path::PathBuf, usize),
+                                       Rc<Vec<(usize, String,
+                                               ast::GenericsVisitor, ast::ImplVisitor)>>>>,
 }
 
 impl<'c> fmt::Debug for Session<'c> {
@@ -764,7 +768,8 @@ impl<'c> Session<'c> {
     /// [`FileCache`]: struct.FileCache.html
     pub fn new(cache: &'c FileCache) -> Session<'c> {
         Session {
-            cache: cache
+            cache: cache,
+            generic_impls: Default::default(),
         }
     }
 
