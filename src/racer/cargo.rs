@@ -1,7 +1,11 @@
 use std::fs::{self, File};
+use std::rc::Rc;
+use std::cell::RefCell;
 use std::io::Read;
 use std::env;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
+use std::collections::HashMap;
 use toml;
 
 #[derive(Debug)]
@@ -122,18 +126,42 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     None
 }
 
-fn parse_toml_file(toml_file: &Path) -> Option<toml::Value> {
-    trace!("parse_toml_file: {:?}", toml_file);
-    let mut file = otry2!(File::open(toml_file));
-    let mut string = String::new();
-    otry2!(file.read_to_string(&mut string));
-    toml::from_str(&string).ok()
+thread_local! {
+    /// Caches parsed Cargo.toml/Cargo.lock files, together with the mtime for
+    /// invalidation.
+    static TOML_CACHE: RefCell<HashMap<PathBuf, (SystemTime, Option<Rc<toml::Value>>)>> =
+        Default::default();
+}
+
+fn parse_toml_file(toml_file: &Path) -> Option<Rc<toml::Value>> {
+    TOML_CACHE.with(|cache| {
+        let mtime = otry!(fs::metadata(toml_file).ok().and_then(|m| m.modified().ok()));
+        if let Some(val) = cache.borrow().get(toml_file) {
+            if mtime == val.0 {
+                return val.1.clone();
+            }
+        }
+        trace!("parse_toml_file parsing: {:?}", toml_file);
+        let parsed = File::open(toml_file).ok()
+            .and_then(|mut f| {
+                let mut content = Vec::new();
+                if f.read_to_end(&mut content).is_ok() {
+                    Some(content)
+                } else {
+                    None
+                }
+            })
+            .and_then(|content| toml::from_slice(&content).ok())
+            .map(Rc::new);
+        cache.borrow_mut().insert(toml_file.into(), (mtime, parsed.clone()));
+        parsed
+    })
 }
 
 fn get_cargo_packages(cargofile: &Path) -> Option<Vec<PackageInfo>> {
     let lock_table = parse_toml_file(cargofile).unwrap();
 
-    debug!("get_cargo_packages found lock_table {:?}", lock_table);
+    debug!("get_cargo_packages found lock_table {}: {:?}", cargofile.display(), lock_table);
 
     let packages_array = match lock_table.get("package") {
         Some(&toml::Value::Array(ref t1)) => t1,
@@ -208,7 +236,7 @@ fn get_package_name(cargofile: &Path) -> String {
         None => return String::new(),
     };
 
-    debug!("get_package_name found lock_table {:?}", lock_table);
+    debug!("get_package_name found lock_table {}: {:?}", cargofile.display(), lock_table);
 
     if let Some(&toml::Value::Table(ref lib_table)) = lock_table.get("lib") {
         if let Some(&toml::Value::String(ref package_name)) = lib_table.get("name") {
@@ -374,7 +402,7 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
 
     for package in local_packages.into_iter().chain(local_packages_dev) {
         if let Some(package_source) = package.source {
-            if let Some(tomlfile) = find_cargo_tomlfile(package_source.clone()) {
+            if let Some(tomlfile) = find_cargo_tomlfile(package_source) {
                 let package_name = get_package_name(tomlfile.as_path());
 
                 debug!("find_src_via_tomlfile package_name: {}", package_name);
