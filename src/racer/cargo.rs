@@ -8,6 +8,16 @@ use std::time::SystemTime;
 use std::collections::HashMap;
 use toml;
 
+thread_local! {
+    /// Caches parsed Cargo.toml/Cargo.lock files, together with the mtime for
+    /// invalidation.
+    ///
+    /// This cache is not tied to the session because it has its own invalidation
+    /// strategy, and can be reused across Racer sessions.
+    static TOML_CACHE: RefCell<HashMap<PathBuf, (SystemTime, Option<Rc<toml::Value>>)>> =
+        Default::default();
+}
+
 #[derive(Debug)]
 struct PackageInfo {
     name: String,
@@ -126,13 +136,6 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     None
 }
 
-thread_local! {
-    /// Caches parsed Cargo.toml/Cargo.lock files, together with the mtime for
-    /// invalidation.
-    static TOML_CACHE: RefCell<HashMap<PathBuf, (SystemTime, Option<Rc<toml::Value>>)>> =
-        Default::default();
-}
-
 fn parse_toml_file(toml_file: &Path) -> Option<Rc<toml::Value>> {
     TOML_CACHE.with(|cache| {
         let mtime = otry!(fs::metadata(toml_file).ok().and_then(|m| m.modified().ok()));
@@ -142,14 +145,11 @@ fn parse_toml_file(toml_file: &Path) -> Option<Rc<toml::Value>> {
             }
         }
         trace!("parse_toml_file parsing: {:?}", toml_file);
+        // TODO: use fs::read when stabilized
         let parsed = File::open(toml_file).ok()
             .and_then(|mut f| {
                 let mut content = Vec::new();
-                if f.read_to_end(&mut content).is_ok() {
-                    Some(content)
-                } else {
-                    None
-                }
+                f.read_to_end(&mut content).ok().map(|_| content)
             })
             .and_then(|content| toml::from_slice(&content).ok())
             .map(Rc::new);
@@ -698,13 +698,6 @@ fn get_crate_file_from_overrides<P>(crate_name: &str, path: P) -> Option<PathBuf
     None
 }
 
-/// Find the library root for kratename
-///
-/// The library is searched for by checking
-///
-/// 1. overrides
-/// 2. lock file
-/// 3. toml file
 pub fn get_crate_file(kratename: &str, from_path: &Path) -> Option<PathBuf> {
     debug!("get_crate_file: from_path={:?}", from_path);
     if let Some(src) = get_crate_file_from_overrides(kratename, from_path) {

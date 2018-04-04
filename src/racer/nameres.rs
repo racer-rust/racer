@@ -12,11 +12,9 @@ use core::MatchType::{Module, Function, Struct, Enum, EnumVariant, FnArg, Trait,
 use core::Namespace;
 use ast::{GenericsVisitor, ImplVisitor};
 
-
 use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches,
-    find_ident_end, get_rust_src_path};
+           find_ident_end, get_rust_src_path};
 use matchers::find_doc;
-use cargo;
 use matchers::PendingImports;
 
 lazy_static! {
@@ -754,7 +752,7 @@ pub fn search_next_scope(mut startpoint: Point, pathseg: &core::PathSegment,
 
 pub fn get_crate_file(name: &str, from_path: &Path, session: &Session) -> Option<PathBuf> {
     debug!("get_crate_file {}, {:?}", name, from_path);
-    if let Some(p) = cargo::get_crate_file(name, from_path) {
+    if let Some(p) = session.get_crate_file(name, from_path) {
         debug!("get_crate_file  - found the crate file! {:?}", p);
         return Some(p);
     }
