@@ -340,8 +340,7 @@ pub fn search_for_generic_impls(pos: Point, searchstr: &str, contextm: &Match, f
                 }
                 let mut decl = decl.to_owned();
                 decl.push_str("}");
-                let generics = ast::parse_generics(decl.clone());
-                let implres = ast::parse_impl(decl.clone());
+                let (generics, implres) = ast::parse_generics_and_impl(decl.clone());
                 if let (Some(name_path), Some(trait_path)) = (implres.name_path, implres.trait_path) {
                     if let (Some(name), Some(trait_name)) = (name_path.segments.last(), trait_path.segments.last()) {
                         for gen_arg in generics.generic_args {
