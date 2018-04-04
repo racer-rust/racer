@@ -4,6 +4,8 @@
 #![cfg_attr(feature = "clippy", allow(clippy))]
 #![cfg_attr(all(feature = "clippy", not(test)), deny(print_stdout))]
 
+#![cfg_attr(feature = "nightly", feature(test))]
+
 #[macro_use] extern crate log;
 #[macro_use] extern crate lazy_static;
 
@@ -33,3 +35,6 @@ pub use core::{FileCache, Session, Coordinate, Location, FileLoader, Point, Sour
 pub use util::expand_ident;
 
 pub use util::{RustSrcPathError, get_rust_src_path};
+
+#[cfg(all(feature = "nightly", test))]
+mod benches;
