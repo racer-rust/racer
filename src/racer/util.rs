@@ -1,6 +1,5 @@
 // Small functions of utility
-use std::cmp;
-use std::path;
+use std::{cmp, error, fmt, path};
 use std::rc::Rc;
 
 use core::{IndexedSource, Session, SessionExt, Location, LocationExt, Point};
@@ -170,7 +169,7 @@ pub fn expand_ident<P, C>(
     cursor: C,
     session: &Session
 ) -> Option<ExpandedIdent>
-    where P: AsRef<::std::path::Path>,
+    where P: AsRef<path::Path>,
           C: Into<Location>
 {
     let cursor = cursor.into();
@@ -260,9 +259,7 @@ pub fn char_at(src: &str, i: usize) -> char {
     src[i..].chars().next().unwrap()
 }
 
-/// Error type returned from [`check_rust_src_env_var()`]
-///
-/// [`check_rust_src_env_var()`]: fn.check_rust_src_env_var.html
+/// Error type returned from validate_rust_src_path()
 #[derive(Debug, PartialEq)]
 pub enum RustSrcPathError {
     Missing,
@@ -270,8 +267,8 @@ pub enum RustSrcPathError {
     NotRustSourceTree(path::PathBuf),
 }
 
-impl ::std::error::Error for RustSrcPathError {
-    fn cause(&self) -> Option<&::std::error::Error> {
+impl error::Error for RustSrcPathError {
+    fn cause(&self) -> Option<&error::Error> {
         None
     }
 
@@ -284,8 +281,8 @@ impl ::std::error::Error for RustSrcPathError {
     }
 }
 
-impl ::std::fmt::Display for RustSrcPathError {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+impl fmt::Display for RustSrcPathError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             RustSrcPathError::Missing => {
                 write!(f, "RUST_SRC_PATH environment variable must be set to \
@@ -311,7 +308,7 @@ impl ::std::fmt::Display for RustSrcPathError {
 }
 
 fn check_rust_sysroot() -> Option<path::PathBuf> {
-    use ::std::process::Command;
+    use std::process::Command;
     let mut cmd = Command::new("rustc");
     cmd.arg("--print").arg("sysroot");
 
@@ -362,7 +359,7 @@ fn check_rust_sysroot() -> Option<path::PathBuf> {
 ///     }
 /// }
 /// ```
-pub fn get_rust_src_path() -> ::std::result::Result<path::PathBuf, RustSrcPathError> {
+pub fn get_rust_src_path() -> Result<path::PathBuf, RustSrcPathError> {
     use std::env;
 
     debug!("Getting rust source path. Trying env var RUST_SRC_PATH.");
@@ -399,7 +396,7 @@ pub fn get_rust_src_path() -> ::std::result::Result<path::PathBuf, RustSrcPathEr
     return Err(RustSrcPathError::Missing)
 }
 
-fn validate_rust_src_path(path: path::PathBuf) -> ::std::result::Result<path::PathBuf, RustSrcPathError> {
+fn validate_rust_src_path(path: path::PathBuf) -> Result<path::PathBuf, RustSrcPathError> {
     if !path.exists() {
         Err(RustSrcPathError::DoesNotExist(path.to_path_buf()))
     } else if !path.join("libstd").exists() {
@@ -411,7 +408,7 @@ fn validate_rust_src_path(path: path::PathBuf) -> ::std::result::Result<path::Pa
 
 #[cfg(test)]
 lazy_static! {
-    static ref TEST_SEMAPHORE: ::std::sync::Mutex<()> = ::std::sync::Mutex::new(());
+    static ref TEST_SEMAPHORE: ::std::sync::Mutex<()> = Default::default();
 }
 
 #[test]
