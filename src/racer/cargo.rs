@@ -1,8 +1,7 @@
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::Read;
 use std::env;
-use std::path::{Path,PathBuf};
-use std::fs::{read_dir};
+use std::path::{Path, PathBuf};
 use toml;
 
 #[derive(Debug)]
@@ -174,13 +173,15 @@ fn get_cargo_packages(cargofile: &Path) -> Option<Vec<PackageInfo>> {
                         d.push("git");
                         d.push("checkouts");
 
-                        //use repository name instead of package name                        
-                        let repository_name = get_repository_name_from_source(&package_source);
-                        if repository_name.is_some() {
-                            d = unwrap_or_continue!(find_git_src_dir(d, repository_name.unwrap(), &sha1, branch));
-                        } else {
-                            d = unwrap_or_continue!(find_git_src_dir(d, package_name, &sha1, branch));
-                        }
+                        // use repository name instead of package name
+                        d = match get_repository_name_from_source(&package_source) {
+                            Some(repo_name) => {
+                                unwrap_or_continue!(find_git_src_dir(d, repo_name, &sha1, branch))
+                            }
+                            None => {
+                                unwrap_or_continue!(find_git_src_dir(d, package_name, &sha1, branch))
+                            }
+                        };
 
                         d.push("src");
                         d.push("lib.rs");
@@ -261,12 +262,11 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
 
         // if version=* then search for the first matching folder
         if version == "*" {
-            use std::fs::read_dir;
             let mut start_path = d.clone();
             start_path.push(kratename);
             let start_name = start_path.to_str().unwrap();
 
-            if let Ok(reader) = read_dir(d) {
+            if let Ok(reader) = fs::read_dir(d) {
                 if let Some(path) = reader
                     .map(|entry| entry.unwrap().path())
                     .find(|path| path.to_str().unwrap().starts_with(start_name)) {
@@ -340,7 +340,7 @@ fn path_if_desired_lib(crate_name: &str, path: &Path, cargo_toml: &toml::Value) 
     if lib_name == crate_name {
         debug!("found {} as lib entry in Cargo.toml", crate_name);
 
-        if ::std::fs::metadata(&lib_path).ok().map_or(false, |m| m.is_file()) {
+        if fs::metadata(&lib_path).ok().map_or(false, |m| m.is_file()) {
             return Some(lib_path);
         }
     }
@@ -438,7 +438,7 @@ fn get_local_packages(table: &toml::Value, cargofile: &Path, section_name: &str)
 
 fn find_cratesio_src_dirs(d: PathBuf) -> Vec<PathBuf> {
     let mut out = Vec::new();
-    for entry in vectry!(read_dir(d)) {
+    for entry in vectry!(fs::read_dir(d)) {
         let path = vectry!(entry).path();
         if path.is_dir() {
             if let Some(fname) = path.file_name().and_then(|s| s.to_str()) {
@@ -452,7 +452,7 @@ fn find_cratesio_src_dirs(d: PathBuf) -> Vec<PathBuf> {
 }
 
 fn find_git_src_dir(d: PathBuf, name: &str, sha1: &str, branch: Option<&str>) -> Option<PathBuf> {
-    for entry in otry2!(read_dir(d)) {
+    for entry in otry2!(fs::read_dir(d)) {
         let path = otry2!(entry).path();
         if path.is_dir() {
             if let Some(fname) = path.file_name().and_then(|s| s.to_str()) {
@@ -565,26 +565,15 @@ fn find_next_crate_root<P>(path: P) -> Option<PathBuf>
 }
 
 fn get_override_paths(path: &Path) -> Vec<String> {
-    macro_rules! vtry {
-        ($opt:expr) => {
-            match $opt {
-                Some(thing) => thing,
-                None => return Vec::new(),
-            }
-        }
-    }
-
-    let config = vtry!(parse_toml_file(path));
-    let paths = vtry!(config.get("paths"));
-    let paths = vtry!(paths.as_array());
-
-    paths
-        .iter()
-        .map(|v| v.as_str())
-        .filter(|s| s.is_some())
-        .map(|s| s.unwrap())
-        .map(String::from)
-        .collect()
+    parse_toml_file(path)
+        .as_ref()
+        .and_then(|config| config.get("paths"))
+        .and_then(|paths| paths.as_array())
+        .map(|paths| paths.iter()
+                          .filter_map(|v| v.as_str())
+                          .map(String::from)
+                          .collect())
+        .unwrap_or_default()
 }
 
 /// An iterator yielding PathBuf for cargo override files
