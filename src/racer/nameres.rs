@@ -31,7 +31,7 @@ fn search_struct_fields(searchstr: &str, structmatch: &Match,
 
     let mut out = Vec::new();
 
-    for (field, field_point, ty) in fields.into_iter() {
+    for (field, field_point, ty) in fields {
         if symbol_matches(search_type, searchstr, &field) {
             let contextstr = if let Some(t) = ty {
                 t.to_string()
@@ -833,7 +833,7 @@ pub fn search_scope(start: Point, point: Point, src: Src,
         for m in matchers::match_let(&src, start+blobstart,
                                      start+blobend,
                                      searchstr,
-                                     filepath, search_type, local).into_iter() {
+                                     filepath, search_type, local) {
             out.push(m);
             if let ExactMatch = search_type {
                 return out.into_iter();
@@ -937,7 +937,7 @@ pub fn search_scope(start: Point, point: Point, src: Src,
         // There's a good chance of a match. Run the matchers
         for m in run_matchers_on_blob(src, start+blobstart, start+blobend,
                                       searchstr, filepath, search_type,
-                                      local, namespace, session, pending_imports).into_iter() {
+                                      local, namespace, session, pending_imports) {
             out.push(m);
             if let ExactMatch = search_type {
                 return out.into_iter();

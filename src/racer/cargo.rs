@@ -627,7 +627,7 @@ fn get_crate_file_from_overrides<P>(crate_name: &str, path: P) -> Option<PathBuf
     // For each .cargo/config file
     for cargo_config in CargoOverrides(path) {
         // For each path in .cargo/config `paths`
-        for override_path in get_override_paths(cargo_config.as_path()).into_iter() {
+        for override_path in get_override_paths(cargo_config.as_path()) {
             trace!("examining override_path={:?}", override_path);
             let mut path = PathBuf::from(override_path);
 
