@@ -22,6 +22,7 @@ impl<'a,I> Iterator for StmtIndicesIter<'a,I>
         let mut enddelim = b';';
         let mut bracelevel = 0isize;
         let mut parenlevel = 0isize;
+        let mut bracketlevel = 0isize;
         let mut start = self.pos;
         let mut pos = self.pos;
 
@@ -68,6 +69,8 @@ impl<'a,I> Iterator for StmtIndicesIter<'a,I>
                 match b {
                     b'(' => { parenlevel += 1; },
                     b')' => { parenlevel -= 1; },
+                    b'[' => { bracketlevel += 1; },
+                    b']' => { bracketlevel -= 1; },
                     b'{' => {
                         // if we are top level and stmt is not a 'use' or 'let' then
                         // closebrace finishes the stmt
@@ -101,7 +104,7 @@ impl<'a,I> Iterator for StmtIndicesIter<'a,I>
                     _ => {}
                 }
 
-                if enddelim == b && bracelevel == 0 && parenlevel == 0 {
+                if enddelim == b && bracelevel == 0 && parenlevel == 0 && bracketlevel == 0 {
                     self.pos = pos;
                     return Some((start, pos));
                 }
@@ -157,6 +160,20 @@ mod test {
         let mut it = iter_stmts(src.as_ref());
         assert_eq!("use std::Foo;", slice(&src, it.next().unwrap()));
         assert_eq!("use std::Bar;", slice(&src, it.next().unwrap()));
+    }
+
+    #[test]
+    fn iterates_array_stmts() {
+        let src = rejustify("
+            let a: [i32; 2] = [1, 2];
+            let b = [[0], [1], [2]];
+            let c = ([1, 2, 3])[1];
+        ");
+
+        let mut it = iter_stmts(src.as_ref());
+        assert_eq!("let a: [i32; 2] = [1, 2];", slice(&src, it.next().unwrap()));
+        assert_eq!("let b = [[0], [1], [2]];", slice(&src, it.next().unwrap()));
+        assert_eq!("let c = ([1, 2, 3])[1];", slice(&src, it.next().unwrap()));
     }
 
     #[test]
