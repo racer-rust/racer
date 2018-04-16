@@ -215,27 +215,27 @@ impl fmt::Display for Ty {
             }
             Ty::Tuple(ref vec) => {
                 let mut first = true;
-                try!(write!(f, "("));
+                write!(f, "(")?;
                 for field in vec.iter() {
                     if first {
-                        try!(write!(f, "{}", field));
+                        write!(f, "{}", field)?;
                             first = false;
                     } else {
-                        try!(write!(f, ", {}", field));
+                        write!(f, ", {}", field)?;
                     }
                 }
                 write!(f, ")")
             }
             Ty::FixedLengthVec(ref ty, ref expr) => {
-                try!(write!(f, "["));
-                try!(write!(f, "{}", ty));
-                try!(write!(f, "; "));
-                try!(write!(f, "{}", expr));
+                write!(f, "[")?;
+                write!(f, "{}", ty)?;
+                write!(f, "; ")?;
+                write!(f, "{}", expr)?;
                 write!(f, "]")
             }
             Ty::Vec(ref ty) => {
-                try!(write!(f, "["));
-                try!(write!(f, "{}", ty));
+                write!(f, "[")?;
+                write!(f, "{}", ty)?;
                 write!(f, "]")
             }
             Ty::RefPtr(ref ty) => {
@@ -279,28 +279,28 @@ impl Path {
 
 impl fmt::Debug for Path {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        try!(write!(f, "P["));
+        write!(f, "P[")?;
         let mut first = true;
         for seg in &self.segments {
             if first {
-                try!(write!(f, "{}", seg.name));
+                write!(f, "{}", seg.name)?;
                 first = false;
             } else {
-                try!(write!(f, "::{}", seg.name));
+                write!(f, "::{}", seg.name)?;
             }
 
             if !seg.types.is_empty() {
-                try!(write!(f, "<"));
+                write!(f, "<")?;
                 let mut t_first = true;
                 for typath in &seg.types {
                     if t_first {
-                        try!(write!(f, "{:?}", typath));
+                        write!(f, "{:?}", typath)?;
                         t_first = false;
                     } else {
-                        try!(write!(f, ",{:?}", typath))
+                        write!(f, ",{:?}", typath)?
                     }
                 }
-                try!(write!(f, ">"));
+                write!(f, ">")?;
             }
         }
         write!(f, "]")
@@ -312,24 +312,24 @@ impl fmt::Display for Path {
         let mut first = true;
         for seg in &self.segments {
             if first {
-                try!(write!(f, "{}", seg.name));
+                write!(f, "{}", seg.name)?;
                 first = false;
             } else {
-                try!(write!(f, "::{}", seg.name));
+                write!(f, "::{}", seg.name)?;
             }
 
             if !seg.types.is_empty() {
-                try!(write!(f, "<"));
+                write!(f, "<")?;
                 let mut t_first = true;
                 for typath in &seg.types {
                     if t_first {
-                        try!(write!(f, "{}", typath));
+                        write!(f, "{}", typath)?;
                         t_first = false;
                     } else {
-                        try!(write!(f, ", {}", typath))
+                        write!(f, ", {}", typath)?
                     }
                 }
-                try!(write!(f, ">"));
+                write!(f, ">")?;
             }
         }
         Ok(())
@@ -633,8 +633,8 @@ struct DefaultFileLoader;
 impl FileLoader for DefaultFileLoader {
     fn load_file(&self, path: &path::Path) -> io::Result<String> {
         let mut rawbytes = Vec::new();
-        let mut f = try!(File::open(path));
-        try!(f.read_to_end(&mut rawbytes));
+        let mut f = File::open(path)?;
+        f.read_to_end(&mut rawbytes)?;
 
         // skip BOM bytes, if present
         if rawbytes.len() > 2 && rawbytes[0..3] == [0xEF, 0xBB, 0xBF] {
