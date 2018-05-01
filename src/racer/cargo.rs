@@ -1,9 +1,75 @@
-use std::fs::File;
+use std::fs::{self, File};
+use std::rc::Rc;
+use std::cell::RefCell;
 use std::io::Read;
 use std::env;
-use std::path::{Path,PathBuf};
-use std::fs::{read_dir};
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
+use std::collections::HashMap;
 use toml;
+
+// otry is 'option try'
+macro_rules! otry {
+    ($e:expr) => {
+        match $e {
+            Some(e) => e,
+            None => return None
+        }
+    }
+}
+
+// converts Err into None, while logging an error
+macro_rules! otry2 {
+    ($e:expr) => {
+        match $e {
+            Ok(e) => e,
+            Err(e) => { error!("ERROR!: {:?} {} {}", e, file!(), line!()); return None }
+        }
+    }
+}
+
+// converts errors into message + empty vec
+macro_rules! vectry {
+    ($e:expr) => {
+        match $e {
+            Ok(e) => e,
+            Err(e) => { error!("ERROR!: {:?} {} {}", e, file!(), line!()); return Vec::new() }
+        }
+    }
+}
+
+thread_local! {
+    /// Caches parsed Cargo.toml/Cargo.lock files, together with the mtime for
+    /// invalidation.
+    ///
+    /// This cache is not tied to the session because it has its own invalidation
+    /// strategy, and can be reused across Racer sessions.
+    static TOML_CACHE: RefCell<HashMap<PathBuf, (SystemTime, Option<Rc<toml::Value>>)>> =
+        Default::default();
+}
+
+/// Parse and cache a TOML file (Cargo.toml or Cargo.lock).
+fn parse_toml_file(toml_file: &Path) -> Option<Rc<toml::Value>> {
+    TOML_CACHE.with(|cache| {
+        let mtime = otry!(fs::metadata(toml_file).ok().and_then(|m| m.modified().ok()));
+        if let Some(val) = cache.borrow().get(toml_file) {
+            if mtime == val.0 {
+                return val.1.clone();
+            }
+        }
+        trace!("parse_toml_file parsing: {:?}", toml_file);
+        // TODO: use fs::read when stabilized
+        let parsed = File::open(toml_file).ok()
+            .and_then(|mut f| {
+                let mut content = Vec::new();
+                f.read_to_end(&mut content).ok().map(|_| content)
+            })
+            .and_then(|content| toml::from_slice(&content).ok())
+            .map(Rc::new);
+        cache.borrow_mut().insert(toml_file.into(), (mtime, parsed.clone()));
+        parsed
+    })
+}
 
 #[derive(Debug)]
 struct PackageInfo {
@@ -12,106 +78,41 @@ struct PackageInfo {
     source: Option<PathBuf>
 }
 
-// otry is 'option try'
-macro_rules! otry {
-    ($e:expr) => (match $e { Some(e) => e, None => return None })
-}
-
-// converts errors into None
-macro_rules! otry2 {
-    ($e:expr) => (match $e { Ok(e) => e, Err(e) => { error!("ERROR!: {:?} {} {}", e, file!(), line!()); return None } })
-}
-
-// converts errors into message + empty vec
-macro_rules! vectry {
-    ($e:expr) => (match $e { Ok(e) => e, Err(e) => { error!("ERROR!: {:?} {} {}", e, file!(), line!()); return Vec::new() } })
-}
-
 /// Gets the branch from a git source string if one is present.
 fn get_branch_from_source(source: &str) -> Option<&str> {
     debug!("get_branch_from_source - Finding branch from {:?}", source);
-    match source.find("branch=") {
-        Some(idx) => {
-            let (_start, branch) = source.split_at(idx+7);
-            match branch.find('#') {
-                Some(idx) => {
-                    let (branch, _end) = branch.split_at(idx);
-                    Some(branch)
-                },
-                None => Some(branch),
-            }
-        },
-        None => None
-    }
+    source.find("branch=").and_then(|idx| {
+        let branch = &source[idx+7..];
+        branch.find('#').map(|idx| &branch[..idx]).or(Some(branch))
+    })
 }
 
 /// Gets the repository_name from a git source string if one is present.
 fn get_repository_name_from_source(source: &str) -> Option<&str> {
     debug!("get_repository_name_from_source - Finding repository name from {:?}", source);
-    match source.rfind("/") {
-        Some(idx) => {
-            let (_, mut repository_name) = source.split_at(idx + 1);
-            let mut idx =  repository_name.find("?").unwrap_or_else(|| {
-                repository_name.find("#").unwrap_or(0)
-            });
-            if idx == 0 {
-                return None;
-            }
-            repository_name = &repository_name[0..idx];
-            idx = repository_name.find(".git").unwrap_or(0);
-            if idx == 0 {
-                return Some(repository_name);
-            }
-            repository_name = &repository_name[0..idx];
-            Some(repository_name)
-        },
-        None => None
-    }
+    source.rfind('/').and_then(|idx| {
+        let repository_name = &source[idx+1..];
+        repository_name.find(&['?', '#'][..])
+            .map(|idx| repository_name[0..idx].trim_right_matches(".git"))
+    })
 }
 
-#[test]
-fn gets_repository_name_from_source() {
-    let source = "git+https://github.com/phildawes/racer.git?branch=dev#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1";
-    let repository_name = get_repository_name_from_source(source);
-    assert_eq!(repository_name, Some("racer"));
-}
-
-#[test]
-fn gets_branch_from_git_source_with_hash() {
-    let source = "git+https://github.com/phildawes/racer.git?branch=dev#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1";
-    let branch = get_branch_from_source(source);
-    assert_eq!(branch, Some("dev"));
-}
-
-#[test]
-fn gets_branch_from_git_source_without_hash() {
-    let source = "git+https://github.com/phildawes/racer.git?branch=dev";
-    let branch = get_branch_from_source(source);
-    assert_eq!(branch, Some("dev"));
-}
-
-#[test]
-fn empty_if_no_branch() {
-    let source = "git+https://github.com/phildawes/racer.git#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1";
-    let branch = get_branch_from_source(source);
-    assert_eq!(branch, None);
-}
-
-fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
-    trace!("find_src_via_lockfile searching for {} in {:?}", kratename, cargofile);
-    if let Some(packages) = get_cargo_packages(cargofile) {
+/// Find the main package file for a given crate, given a Cargo.lock file location.
+fn find_src_via_lockfile(cratename: &str, lockfile: &Path) -> Option<PathBuf> {
+    trace!("find_src_via_lockfile searching for {} in {:?}", cratename, lockfile);
+    if let Some(packages) = get_cargo_packages(lockfile) {
         trace!("find_src_via_lockfile got packages");
         for package in packages {
             trace!("find_src_via_lockfile examining {:?}", package);
             if let Some(package_source) = package.source {
                 trace!("find_src_via_lockfile package_source {:?}", package_source);
-                if let Some(tomlfile) = find_cargo_tomlfile(package_source.clone()) {
+                if let Some(tomlfile) = find_cargo_tomlfile(&package_source) {
                     trace!("find_src_via_lockfile tomlfile {:?}", tomlfile);
-                    let package_name = get_package_name(tomlfile.as_path());
+                    let package_name = get_package_name(&tomlfile);
 
                     debug!("find_src_via_lockfile package_name: {}", package_name);
 
-                    if package_name == kratename {
+                    if package_name == cratename {
                         return Some(package_source);
                     }
                 }
@@ -123,18 +124,11 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     None
 }
 
-fn parse_toml_file(toml_file: &Path) -> Option<toml::Value> {
-    trace!("parse_toml_file: {:?}", toml_file);
-    let mut file = otry2!(File::open(toml_file));
-    let mut string = String::new();
-    otry2!(file.read_to_string(&mut string));
-    toml::from_str(&string).ok()
-}
+/// Extract all dependency packages from a Cargo.lock file.
+fn get_cargo_packages(lockfile: &Path) -> Option<Vec<PackageInfo>> {
+    let lock_table = otry!(parse_toml_file(lockfile));
 
-fn get_cargo_packages(cargofile: &Path) -> Option<Vec<PackageInfo>> {
-    let lock_table = parse_toml_file(cargofile).unwrap();
-
-    debug!("get_cargo_packages found lock_table {:?}", lock_table);
+    debug!("get_cargo_packages found lock_table {}: {:?}", lockfile.display(), lock_table);
 
     let packages_array = match lock_table.get("package") {
         Some(&toml::Value::Array(ref t1)) => t1,
@@ -165,35 +159,34 @@ fn get_cargo_packages(cargofile: &Path) -> Option<Vec<PackageInfo>> {
 
                 let package_source = match package_source.split('+').nth(0) {
                     Some("registry") => {
-                        get_versioned_cratefile(package_name, &package_version, cargofile)
+                        get_versioned_cratefile(package_name, &package_version)
                     },
                     Some("git") => {
                         let sha1 = unwrap_or_continue!(package_source.split('#').last());
-                        let mut d = unwrap_or_continue!(get_cargo_rootdir(cargofile));
                         let branch = get_branch_from_source(&package_source);
-                        d.push("git");
-                        d.push("checkouts");
 
-                        //use repository name instead of package name                        
-                        let repository_name = get_repository_name_from_source(&package_source);
-                        if repository_name.is_some() {
-                            d = unwrap_or_continue!(find_git_src_dir(d, repository_name.unwrap(), &sha1, branch));
-                        } else {
-                            d = unwrap_or_continue!(find_git_src_dir(d, package_name, &sha1, branch));
-                        }
+                        // use repository name instead of package name
+                        let mut dir = match get_repository_name_from_source(&package_source) {
+                            Some(repo_name) => {
+                                unwrap_or_continue!(find_git_src_dir(repo_name, &sha1, branch))
+                            }
+                            None => {
+                                unwrap_or_continue!(find_git_src_dir(package_name, &sha1, branch))
+                            }
+                        };
 
-                        d.push("src");
-                        d.push("lib.rs");
-
-                        Some(d)
+                        // TODO: this is not necessarily correct
+                        dir.push("src");
+                        dir.push("lib.rs");
+                        Some(dir)
                     },
                     _ => return None
                 };
 
-                result.push(PackageInfo{
-                    name: package_name.to_owned(),
+                result.push(PackageInfo {
+                    name: package_name.clone(),
                     version: Some(package_version),
-                    source: package_source
+                    source: package_source,
                 });
             }
         }
@@ -201,120 +194,106 @@ fn get_cargo_packages(cargofile: &Path) -> Option<Vec<PackageInfo>> {
     Some(result)
 }
 
-fn get_package_name(cargofile: &Path) -> String {
-    let lock_table = match parse_toml_file(cargofile) {
-        Some(t) => t,
-        None => return String::new(),
-    };
+/// Extract the package name from a Cargo.toml file.
+fn get_package_name(cargotomlfile: &Path) -> String {
+    if let Some(cargo_table) = parse_toml_file(cargotomlfile) {
+        debug!("get_package_name found cargo_table {}: {:?}", cargotomlfile.display(), cargo_table);
 
-    debug!("get_package_name found lock_table {:?}", lock_table);
-
-    if let Some(&toml::Value::Table(ref lib_table)) = lock_table.get("lib") {
-        if let Some(&toml::Value::String(ref package_name)) = lib_table.get("name") {
-            return package_name.clone();
+        if let Some(&toml::Value::Table(ref lib_table)) = cargo_table.get("lib") {
+            if let Some(&toml::Value::String(ref package_name)) = lib_table.get("name") {
+                return package_name.clone();
+            }
         }
-    }
 
-    if let Some(&toml::Value::Table(ref package_table)) = lock_table.get("package") {
-        if let Some(&toml::Value::String(ref package_name)) = package_table.get("name") {
-            return package_name.replace("-","_");
+        if let Some(&toml::Value::Table(ref package_table)) = cargo_table.get("package") {
+            if let Some(&toml::Value::String(ref package_name)) = package_table.get("name") {
+                return package_name.replace('-', "_");
+            }
         }
     }
 
     String::new()
 }
 
-fn get_cargo_rootdir(cargofile: &Path) -> Option<PathBuf> {
-    debug!("get_cargo_rootdir. {:?}",cargofile);
-
-    if let Some(cargohome) = env::var_os("CARGO_HOME") {
-        debug!("get_cargo_rootdir. CARGO_HOME is set: {:?}",cargohome);
-
-        let d = PathBuf::from(cargohome);
-
-        if d.exists() {
-            return Some(d)
-        } else {
-            return None
-        };
-    }
-
-    let mut d = otry!(env::home_dir());
-
-    d.push(".cargo");
-    if d.exists() {
-        Some(d)
+/// Find the Cargo "root" directory, where Cargo dependencies are unpacked/checked out.
+fn get_cargo_rootdir() -> Option<PathBuf> {
+    let dir = if let Some(cargo_home) = env::var_os("CARGO_HOME") {
+        debug!("get_cargo_rootdir: CARGO_HOME is set: {:?}", cargo_home);
+        PathBuf::from(cargo_home)
+    } else {
+        debug!("get_cargo_rootdir: no CARGO_HOME");
+        otry!(env::home_dir()).join(".cargo")
+    };
+    if dir.exists() {
+        Some(dir)
     } else {
         None
     }
 }
 
-fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> Option<PathBuf> {
-    trace!("get_versioned_cratefile searching for {}", kratename);
-    let mut d = otry!(get_cargo_rootdir(cargofile));
+/// Find the main package file for a crate with given name/version from CARGO_HOME.
+fn get_versioned_cratefile(cratename: &str, version: &str) -> Option<PathBuf> {
+    trace!("get_versioned_cratefile searching for {}", cratename);
+    let mut dir = otry!(get_cargo_rootdir());
 
-    debug!("get_versioned_cratefile: cargo rootdir is {:?}",d);
-    d.push("registry");
-    d.push("src");
+    debug!("get_versioned_cratefile: cargo rootdir is {:?}", dir);
+    dir.push("registry");
+    dir.push("src");
 
-    for mut d in find_cratesio_src_dirs(d) {
-
-        // if version=* then search for the first matching folder
+    for mut src in find_cratesio_src_dirs(&dir) {
+        // if version = * then search for the first matching folder
         if version == "*" {
-            use std::fs::read_dir;
-            let mut start_path = d.clone();
-            start_path.push(kratename);
-            let start_name = start_path.to_str().unwrap();
+            let start = format!("{}-", cratename);
 
-            if let Ok(reader) = read_dir(d) {
-                if let Some(path) = reader
-                    .map(|entry| entry.unwrap().path())
-                    .find(|path| path.to_str().unwrap().starts_with(start_name)) {
-                        d = path.clone();
-                    } else {
-                        continue;
-                    }
+            if let Some(entry) = fs::read_dir(&src).ok().and_then(|reader| {
+                reader
+                    .filter_map(|entry| entry.ok())
+                    .find(|e| e.file_name().to_str().unwrap().starts_with(&start))
+            }) {
+                src = entry.path();
             } else {
                 continue;
             }
         } else {
-            d.push(kratename.to_owned() + "-" + version);
+            src.push(format!("{}-{}", cratename, version));
         }
 
-        d.push("src");
-        debug!("crate path {:?}",d);
+        debug!("crate path {:?}", src);
 
-        // First, check for package name at root (src/kratename/lib.rs)
-        d.push(kratename);
-        d.push("lib.rs");
-        if let Err(_) = File::open(&d) {
+        // TODO: this doesn't catch all possible cases
+
+        // First, check for package name at root (src/cratename/lib.rs)
+        src.push("src");
+        src.push(cratename);
+        src.push("lib.rs");
+        if !src.exists() {
             // It doesn't exist, so assume src/lib.rs
-            d.pop();
-            d.pop();
-            d.push("lib.rs");
+            src.pop();
+            src.pop();
+            src.push("lib.rs");
         }
-        debug!("crate path with lib.rs {:?}",d);
+        debug!("crate path with lib.rs {:?}", src);
 
-        if let Err(_) = File::open(&d) {
-            trace!("failed to open crate path {:?}", d);
+        if !src.exists() {
+            trace!("failed to open crate path {:?}", src);
             // It doesn't exist, so try /lib.rs
-            d.pop();
-            d.pop();
-            d.push("lib.rs");
+            src.pop();
+            src.pop();
+            src.push("lib.rs");
         }
 
-        if let Err(_) = File::open(&d) {
-            trace!("failed to open crate path {:?}", d);
+        if !src.exists() {
+            trace!("failed to open crate path {:?}", src);
             continue;
         }
 
-        return Some(d)
+        return Some(src);
     }
     None
  }
 
-/// Return path to library source if the Cargo.toml name matches crate_name
-fn path_if_desired_lib(crate_name: &str, path: &Path, cargo_toml: &toml::Value) -> Option<PathBuf> {
+/// Return path to library source if the Cargo.toml name matches cratename.
+fn path_if_desired_lib(cratename: &str, path: &Path, cargo_toml: &toml::Value) -> Option<PathBuf> {
     let parent = otry!(path.parent());
 
     // is it this lib?  (e.g. you're searching from tests to find the main library crate)
@@ -323,7 +302,7 @@ fn path_if_desired_lib(crate_name: &str, path: &Path, cargo_toml: &toml::Value) 
         .and_then(|package| package.get("name"))
         .and_then(|name| name.as_str()));
 
-    let mut lib_name = package_name.replace("-", "_");
+    let mut lib_name = package_name.replace('-', "_");
     let mut lib_path = parent.join("src").join("lib.rs");
 
     if let Some(&toml::Value::Table(ref t)) = cargo_toml.get("lib") {
@@ -337,10 +316,10 @@ fn path_if_desired_lib(crate_name: &str, path: &Path, cargo_toml: &toml::Value) 
         }
     }
 
-    if lib_name == crate_name {
-        debug!("found {} as lib entry in Cargo.toml", crate_name);
+    if lib_name == cratename {
+        debug!("found {} as lib entry in Cargo.toml", cratename);
 
-        if ::std::fs::metadata(&lib_path).ok().map_or(false, |m| m.is_file()) {
+        if fs::metadata(&lib_path).ok().map_or(false, |m| m.is_file()) {
             return Some(lib_path);
         }
     }
@@ -348,20 +327,21 @@ fn path_if_desired_lib(crate_name: &str, path: &Path, cargo_toml: &toml::Value) 
     None
 }
 
-fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
-    trace!("find_src_via_tomlfile looking for {}", kratename);
+/// Find the main package file for a given crate, given a Cargo.toml file location.
+fn find_src_via_tomlfile(cratename: &str, cargotomlfile: &Path) -> Option<PathBuf> {
+    trace!("find_src_via_tomlfile looking for {}", cratename);
     // only look for 'path' references here.
     // We find the git and crates.io stuff via the lockfile
-    let table = otry!(parse_toml_file(cargofile));
+    let table = otry!(parse_toml_file(cargotomlfile));
 
-    // Check if current cargo file is for requested library
-    if let Some(lib_path) = path_if_desired_lib(kratename, cargofile, &table) {
+    // check if current cargo file is for requested library
+    if let Some(lib_path) = path_if_desired_lib(cratename, cargotomlfile, &table) {
         return Some(lib_path);
     }
 
     // otherwise search the dependencies
-    let local_packages = get_local_packages(&table, cargofile, "dependencies").unwrap_or_default();
-    let local_packages_dev = get_local_packages(&table, cargofile, "dev-dependencies").unwrap_or_default();
+    let local_packages = get_local_packages(&table, cargotomlfile, "dependencies").unwrap_or_default();
+    let local_packages_dev = get_local_packages(&table, cargotomlfile, "dev-dependencies").unwrap_or_default();
 
     // if no dependencies are found
     if local_packages.is_empty() && local_packages_dev.is_empty() {
@@ -374,13 +354,13 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
 
     for package in local_packages.into_iter().chain(local_packages_dev) {
         if let Some(package_source) = package.source {
-            if let Some(tomlfile) = find_cargo_tomlfile(package_source.clone()) {
-                let package_name = get_package_name(tomlfile.as_path());
+            if let Some(tomlfile) = find_cargo_tomlfile(package_source) {
+                let package_name = get_package_name(&tomlfile);
 
                 debug!("find_src_via_tomlfile package_name: {}", package_name);
 
-                if package_name == kratename {
-                    return find_src_via_tomlfile(kratename, &tomlfile)
+                if package_name == cratename {
+                    return find_src_via_tomlfile(cratename, &tomlfile)
                 }
             }
         }
@@ -388,11 +368,12 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     None
 }
 
-fn get_local_packages(table: &toml::Value, cargofile: &Path, section_name: &str) -> Option<Vec<PackageInfo>> {
-    debug!("get_local_packages found table {:?};\
-           getting packages for section '{}'", table, section_name);
+/// Find dependencies given a Cargo.toml section (dependencies or dev-dependencies).
+fn get_local_packages(table: &toml::Value, cargotomlfile: &Path, section_name: &str) -> Option<Vec<PackageInfo>> {
+    debug!("get_local_packages found table {:?}; \
+            getting packages for section '{}'", table, section_name);
 
-    let t = match table.get(section_name) {
+    let dep_table = match table.get(section_name) {
         Some(&toml::Value::Table(ref t)) => t,
         _ => {
             trace!("get_local_packages didn't find section {}", section_name);
@@ -401,24 +382,26 @@ fn get_local_packages(table: &toml::Value, cargofile: &Path, section_name: &str)
     };
 
     let mut result = Vec::new();
+    let parent = otry!(cargotomlfile.parent());
 
-    let parent = otry!(cargofile.parent());
-
-    for (package_name, value) in t.iter() {
+    for (package_name, value) in dep_table {
         let mut package_version = None;
 
         let package_source = match *value {
             toml::Value::Table(ref t) => {
                 if let Some(relative_path) = getstr(t, "path") {
+                    // TODO: this path isn't necessarily correct
                     Some(parent.join(relative_path).join("src").join("lib.rs"))
                 } else {
+                    // TODO: can also contain "git" references checked out
+                    // in CARGO_HOME
                     continue
                 }
             },
             toml::Value::String(ref version) => {
                 // versioned crate
                 package_version = Some(version.to_owned());
-                get_versioned_cratefile(package_name, version, cargofile)
+                get_versioned_cratefile(package_name, version)
             },
             _ => {
                 trace!("get_local_packages couldn't find package_source for {}", package_name);
@@ -429,81 +412,81 @@ fn get_local_packages(table: &toml::Value, cargofile: &Path, section_name: &str)
         result.push(PackageInfo {
             name: package_name.to_owned(),
             version: package_version,
-            source: package_source
+            source: package_source,
         });
     }
 
     Some(result)
 }
 
-fn find_cratesio_src_dirs(d: PathBuf) -> Vec<PathBuf> {
+/// Find all directories with unpacked sources from crates.io.
+fn find_cratesio_src_dirs(dir: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
-    for entry in vectry!(read_dir(d)) {
+    for entry in vectry!(fs::read_dir(dir)) {
         let path = vectry!(entry).path();
         if path.is_dir() {
-            if let Some(fname) = path.file_name().and_then(|s| s.to_str()) {
-                if fname.starts_with("github.com-") {
-                    out.push(path.clone());
-                }
+            if path.file_name()
+                .and_then(|s| s.to_str())
+                .map_or(false, |fname| fname.starts_with("github.com-"))
+            {
+                out.push(path);
             }
         }
     }
     out
 }
 
-fn find_git_src_dir(d: PathBuf, name: &str, sha1: &str, branch: Option<&str>) -> Option<PathBuf> {
-    for entry in otry2!(read_dir(d)) {
-        let path = otry2!(entry).path();
-        if path.is_dir() {
-            if let Some(fname) = path.file_name().and_then(|s| s.to_str()) {
-                if fname.starts_with(name) {
-                    let mut d = path.clone();
+/// Find a checked out Git repository under CARGO_HOME.
+fn find_git_src_dir(name: &str, sha1: &str, branch: Option<&str>) -> Option<PathBuf> {
+    let mut dir = otry!(get_cargo_rootdir());
+    dir.push("git");
+    dir.push("checkouts");
+    for entry in otry2!(fs::read_dir(&dir)) {
+        let mut dir = otry2!(entry).path();
+        if !dir.is_dir() {
+            continue;
+        }
+        if dir.file_name().and_then(|s| s.to_str()).map_or(false, |fname| fname.starts_with(name)) {
+            // dirname can be the sha1 or master.
+            dir.push(sha1);
 
-                    // dirname can be the sha1 or master.
-                    d.push(sha1);
+            if !dir.is_dir() {
+                dir.pop();
+                dir.push(&sha1[0..7]);
+            }
 
-                    if !d.is_dir() {
-                        d.pop();
-                        d.push(&sha1[0..7]);
-                    }
+            if !dir.is_dir() && branch.is_some() {
+                dir.pop();
+                dir.push(branch.unwrap());
+            }
 
-                    if !d.is_dir() && branch.is_some() {
-                        d.pop();
-                        d.push(branch.unwrap());
-                    }
+            if !dir.is_dir() {
+                dir.pop();
+                dir.push("master");
+            }
 
-                    if !d.is_dir() {
-                        d.pop();
-                        d.push("master");
-                    }
+            // check that the checkout matches the commit sha1
+            let mut check_file = dir.clone();
+            check_file.push(".git");
+            check_file.push("refs");
+            check_file.push("heads");
+            check_file.push("master");
 
-                    let retval = d.clone();
+            let mut headref = String::new();
+            // TODO: use fs::read_to_string when available
+            otry2!(otry2!(File::open(&check_file)).read_to_string(&mut headref));
 
-                    // check that the checkout matches the commit sha1
-                    d.push(".git");
-                    d.push("refs");
-                    d.push("heads");
-                    d.push("master");
+            debug!("git headref is {:?}", headref);
 
-                    let mut headref = String::new();
-                    otry2!(otry2!(File::open(d)).read_to_string(&mut headref));
-
-                    debug!("git headref is {:?}", headref);
-
-                    if headref.ends_with('\n') {
-                        headref.pop();
-                    }
-
-                    if sha1 == headref {
-                        return Some(retval);
-                    }
-                }
+            if sha1 == headref.trim_right() {
+                return Some(dir);
             }
         }
     }
     None
 }
 
+/// Get and clone a string from a TOML table.
 fn getstr(t: &toml::value::Table, k: &str) -> Option<String> {
     match t.get(k) {
         Some(&toml::Value::String(ref s)) => Some(s.clone()),
@@ -511,14 +494,22 @@ fn getstr(t: &toml::value::Table, k: &str) -> Option<String> {
     }
 }
 
-#[inline]
-fn find_cargo_tomlfile<P>(file: P) -> Option<PathBuf>
+/// Find Cargo.toml in crate root by traversing up the directory tree searching.
+///
+/// Any directory that contains a Cargo.toml is considered to be a crate root.
+/// If the provided `path` contains a Cargo.toml, that path is returned.
+fn find_cargo_tomlfile<P>(path: P) -> Option<PathBuf>
     where P: Into<PathBuf>
 {
-    find_next_crate_root(file).map(|mut f| {
-        f.push("Cargo.toml");
-        f
-    })
+    let mut path = path.into();
+    path.push("Cargo.toml");
+    if path.exists() {
+        Some(path)
+    } else if path.pop() && path.pop() {
+        find_cargo_tomlfile(path)
+    } else {
+        None
+    }
 }
 
 /// Find workspace root by traversing up the directory tree
@@ -545,46 +536,17 @@ fn find_workspace_root<P>(path: P) -> Option<PathBuf>
     }
 }
 
-/// Find crate root by traversing up the directory tree searching
-///
-/// Any directory that contains a Cargo.toml is considered to be a crate root.
-/// If the provided `path` contains a Cargo.toml, that path is returned.
-fn find_next_crate_root<P>(path: P) -> Option<PathBuf>
-    where P: Into<PathBuf>
-{
-    let mut path = path.into();
-    path.push("Cargo.toml");
-    if path.exists() {
-        path.pop();
-        Some(path)
-    } else if path.pop() && path.pop() {
-        find_next_crate_root(path)
-    } else {
-        None
-    }
-}
-
+/// Retrieve the Cargo override paths from a TOML config file at the given path.
 fn get_override_paths(path: &Path) -> Vec<String> {
-    macro_rules! vtry {
-        ($opt:expr) => {
-            match $opt {
-                Some(thing) => thing,
-                None => return Vec::new(),
-            }
-        }
-    }
-
-    let config = vtry!(parse_toml_file(path));
-    let paths = vtry!(config.get("paths"));
-    let paths = vtry!(paths.as_array());
-
-    paths
-        .iter()
-        .map(|v| v.as_str())
-        .filter(|s| s.is_some())
-        .map(|s| s.unwrap())
-        .map(String::from)
-        .collect()
+    parse_toml_file(path)
+        .as_ref()
+        .and_then(|config| config.get("paths"))
+        .and_then(|paths| paths.as_array())
+        .map(|paths| paths.iter()
+                          .filter_map(|v| v.as_str())
+                          .map(String::from)
+                          .collect())
+        .unwrap_or_default()
 }
 
 /// An iterator yielding PathBuf for cargo override files
@@ -629,16 +591,16 @@ impl Iterator for CargoOverrides {
 ///
 /// The path to `crate_name`'s library root will be returned if a match is
 /// found.
-fn get_crate_file_from_overrides<P>(crate_name: &str, path: P) -> Option<PathBuf>
+fn get_crate_file_from_overrides<P>(cratename: &str, path: P) -> Option<PathBuf>
     where P: Into<PathBuf>
 {
     let path = path.into();
-    trace!("get_crate_file_from_overrides; crate_name={:?}, path={:?}", crate_name, path);
+    trace!("get_crate_file_from_overrides; cratename={:?}, path={:?}", cratename, path);
 
     // For each .cargo/config file
     for cargo_config in CargoOverrides(path) {
         // For each path in .cargo/config `paths`
-        for override_path in get_override_paths(cargo_config.as_path()).into_iter() {
+        for override_path in get_override_paths(&cargo_config) {
             trace!("examining override_path={:?}", override_path);
             let mut path = PathBuf::from(override_path);
 
@@ -667,7 +629,7 @@ fn get_crate_file_from_overrides<P>(crate_name: &str, path: P) -> Option<PathBuf
 
             // Read cargo file and see if it's the crate we need.
             if let Some(toml) = parse_toml_file(path.as_path()) {
-                if let Some(lib_path) = path_if_desired_lib(crate_name, path.as_path(), &toml) {
+                if let Some(lib_path) = path_if_desired_lib(cratename, path.as_path(), &toml) {
                     return Some(lib_path);
                 } else {
                     trace!("not desired lib");
@@ -681,36 +643,31 @@ fn get_crate_file_from_overrides<P>(crate_name: &str, path: P) -> Option<PathBuf
     None
 }
 
-/// Find the library root for kratename
-///
-/// The library is searched for by checking
-///
-/// 1. overrides
-/// 2. lock file
-/// 3. toml file
-pub fn get_crate_file(kratename: &str, from_path: &Path) -> Option<PathBuf> {
+/// Main public entry point: Retrieve the main crate file for a given crate,
+/// in the context of the crate at from_path.
+pub fn get_crate_file(cratename: &str, from_path: &Path) -> Option<PathBuf> {
     debug!("get_crate_file: from_path={:?}", from_path);
-    if let Some(src) = get_crate_file_from_overrides(kratename, from_path) {
+
+    let from_path = from_path.canonicalize().unwrap_or_else(|_| from_path.into());
+
+    if let Some(src) = get_crate_file_from_overrides(cratename, &from_path) {
         return Some(src);
     }
 
-    if let Some(tomlfile) = find_cargo_tomlfile(from_path.to_path_buf()) {
+    if let Some(cargotomlfile) = find_cargo_tomlfile(&from_path) {
         // look in the lockfile first, if there is one
         // also search workspaces for a lockfile
-        trace!("get_crate_file tomlfile is {:?}", tomlfile);
+        trace!("get_crate_file tomlfile is {:?}", cargotomlfile);
 
-        let absolute_path = env::current_dir().unwrap().join(from_path);
-        let workspace = find_workspace_root(absolute_path);
-
-        let mut lockfile = tomlfile.clone();
-        lockfile.pop();
-        if let Some(workspace) = workspace {
-            lockfile = workspace;
-            trace!("get_crate_file workspace is {:?}", lockfile);
-        }
+        let mut lockfile = find_workspace_root(&from_path).unwrap_or_else(|| {
+            let mut dir = cargotomlfile.clone();
+            dir.pop();
+            dir
+        });
         lockfile.push("Cargo.lock");
+
         if lockfile.exists() {
-            if let Some(f) = find_src_via_lockfile(kratename, &lockfile) {
+            if let Some(f) = find_src_via_lockfile(cratename, &lockfile) {
                 return Some(f);
             }
         } else {
@@ -718,7 +675,7 @@ pub fn get_crate_file(kratename: &str, from_path: &Path) -> Option<PathBuf> {
         }
 
         // oh, no luck with the lockfile. Try the tomlfile
-        return find_src_via_tomlfile(kratename, &tomlfile);
+        return find_src_via_tomlfile(cratename, &cargotomlfile);
     }
     None
 }
@@ -744,5 +701,33 @@ mod tests {
             .expect("finds arst/src/lib.rs");
         assert_eq!(actual.canonicalize().expect("canonicalize path"),
          expected.canonicalize().expect("canonicalize path"));
+    }
+
+    #[test]
+    fn gets_repository_name_from_source() {
+        let source = "git+https://github.com/phildawes/racer.git?branch=dev#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1";
+        let repository_name = super::get_repository_name_from_source(source);
+        assert_eq!(repository_name, Some("racer"));
+    }
+
+    #[test]
+    fn gets_branch_from_git_source_with_hash() {
+        let source = "git+https://github.com/phildawes/racer.git?branch=dev#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1";
+        let branch = super::get_branch_from_source(source);
+        assert_eq!(branch, Some("dev"));
+    }
+
+    #[test]
+    fn gets_branch_from_git_source_without_hash() {
+        let source = "git+https://github.com/phildawes/racer.git?branch=dev";
+        let branch = super::get_branch_from_source(source);
+        assert_eq!(branch, Some("dev"));
+    }
+
+    #[test]
+    fn empty_if_no_branch() {
+        let source = "git+https://github.com/phildawes/racer.git#9e04f91f0426c1cf8ec5e5023f74d7261f5a9dd1";
+        let branch = super::get_branch_from_source(source);
+        assert_eq!(branch, None);
     }
 }

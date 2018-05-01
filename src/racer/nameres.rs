@@ -1,5 +1,8 @@
 // Name resolution
 
+use std::{self, vec};
+use std::path::{Path, PathBuf};
+
 use {core, ast, matchers, scopes, typeinf};
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{Match, Src, Session, Coordinate, SessionExt, Ty, Point};
@@ -7,13 +10,9 @@ use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField,
     Impl, TraitImpl, MatchArm, Builtin};
 use core::Namespace;
 
-
 use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches,
-    find_ident_end, get_rust_src_path};
+           find_ident_end, get_rust_src_path};
 use matchers::find_doc;
-use cargo;
-use std::path::{Path, PathBuf};
-use std::{self, vec, iter};
 use matchers::PendingImports;
 
 lazy_static! {
@@ -31,7 +30,7 @@ fn search_struct_fields(searchstr: &str, structmatch: &Match,
 
     let mut out = Vec::new();
 
-    for (field, field_point, ty) in fields.into_iter() {
+    for (field, field_point, ty) in fields {
         if symbol_matches(search_type, searchstr, &field) {
             let contextstr = if let Some(t) = ty {
                 t.to_string()
@@ -737,7 +736,7 @@ pub fn search_next_scope(mut startpoint: Point, pathseg: &core::PathSegment,
 
 pub fn get_crate_file(name: &str, from_path: &Path, session: &Session) -> Option<PathBuf> {
     debug!("get_crate_file {}, {:?}", name, from_path);
-    if let Some(p) = cargo::get_crate_file(name, from_path) {
+    if let Some(p) = session.get_crate_file(name, from_path) {
         debug!("get_crate_file  - found the crate file! {:?}", p);
         return Some(p);
     }
@@ -833,7 +832,7 @@ pub fn search_scope(start: Point, point: Point, src: Src,
         for m in matchers::match_let(&src, start+blobstart,
                                      start+blobend,
                                      searchstr,
-                                     filepath, search_type, local).into_iter() {
+                                     filepath, search_type, local) {
             out.push(m);
             if let ExactMatch = search_type {
                 return out.into_iter();
@@ -937,7 +936,7 @@ pub fn search_scope(start: Point, point: Point, src: Src,
         // There's a good chance of a match. Run the matchers
         for m in run_matchers_on_blob(src, start+blobstart, start+blobend,
                                       searchstr, filepath, search_type,
-                                      local, namespace, session, pending_imports).into_iter() {
+                                      local, namespace, session, pending_imports) {
             out.push(m);
             if let ExactMatch = search_type {
                 return out.into_iter();
@@ -1414,7 +1413,7 @@ pub fn resolve_method(point: Point, msrc: Src, searchstr: &str,
         scopestart,
         msrc.src.point_to_coords(scopestart));
 
-    if let Some(stmtstart) = scopes::find_stmt_start(msrc, (scopestart - 1)) {
+    if let Some(stmtstart) = scopes::find_stmt_start(msrc, scopestart - 1) {
         let preblock = &msrc[stmtstart..scopestart];
         debug!("search_scope_headers preblock is |{}|", preblock);
 

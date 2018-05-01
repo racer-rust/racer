@@ -1,6 +1,5 @@
 // Small functions of utility
-use std::cmp;
-use std::path;
+use std::{cmp, error, fmt, path};
 use std::rc::Rc;
 
 use core::{IndexedSource, Session, SessionExt, Location, LocationExt, Point};
@@ -36,15 +35,11 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
                 return true;
             }
 
-            // PD: switch to use .match_indices() when that stabilizes
-            let mut n=0;
-            while let Some(n1) = haystack[n..].find(needle) {
-                n += n1;
-                if (n == 0  || !is_ident_char(char_at(haystack, n-1))) &&
+            for (n, _) in haystack.match_indices(needle) {
+                if (n == 0 || !is_ident_char(char_before(haystack, n))) &&
                     (n+n_len == h_len || !is_ident_char(char_at(haystack, n+n_len))) {
                     return true;
                 }
-                n += 1;
             }
             false
         },
@@ -53,14 +48,10 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
                 return true;
             }
 
-            // PD: switch to use .match_indices() when that stabilizes
-            let mut n=0;
-            while let Some(n1) = haystack[n..].find(needle) {
-                n += n1;
-                if n == 0  || !is_ident_char(char_at(haystack, n-1)) {
+            for (n, _) in haystack.match_indices(needle) {
+                if n == 0 || !is_ident_char(char_before(haystack, n)) {
                     return true;
                 }
-                n += 1;
             }
             false
         }
@@ -125,12 +116,14 @@ pub fn closure_valid_arg_scope(scope_src: &str) -> Option<(usize, usize, &str)> 
 
 #[test]
 fn txt_matches_matches_stuff() {
-    assert_eq!(true, txt_matches(ExactMatch, "Vec","Vec"));
-    assert_eq!(true, txt_matches(StartsWith, "Vec","Vector"));
-    assert_eq!(false, txt_matches(ExactMatch, "Vec","use Vector"));
-    assert_eq!(true, txt_matches(StartsWith, "Vec","use Vector"));
-    assert_eq!(false, txt_matches(StartsWith, "Vec","use aVector"));
-    assert_eq!(true, txt_matches(ExactMatch, "Vec","use Vec"));
+    assert_eq!(true, txt_matches(ExactMatch, "Vec", "Vec"));
+    assert_eq!(true, txt_matches(ExactMatch, "Vec", "use Vec"));
+    assert_eq!(false, txt_matches(ExactMatch, "Vec", "use Vecä"));
+
+    assert_eq!(true, txt_matches(StartsWith, "Vec", "Vector"));
+    assert_eq!(true, txt_matches(StartsWith, "Vec", "use Vector"));
+    assert_eq!(true, txt_matches(StartsWith, "Vec", "use Vec"));
+    assert_eq!(false, txt_matches(StartsWith, "Vec", "use äVector"));
 }
 
 #[test]
@@ -170,7 +163,7 @@ pub fn expand_ident<P, C>(
     cursor: C,
     session: &Session
 ) -> Option<ExpandedIdent>
-    where P: AsRef<::std::path::Path>,
+    where P: AsRef<path::Path>,
           C: Into<Location>
 {
     let cursor = cursor.into();
@@ -254,15 +247,30 @@ fn find_ident_end_unicode() {
     assert_eq!(10, find_ident_end("ends_in_µ", 0));
 }
 
-// PD: short term replacement for .char_at() function. Should be replaced once
-// that stabilizes
+fn char_before(src: &str, i: usize) -> char {
+    let mut prev = '\0';
+    for (ii, ch) in src.char_indices() {
+        if ii >= i {
+            return prev;
+        }
+        prev = ch;
+    }
+    return prev;
+}
+
+#[test]
+fn test_char_before() {
+    assert_eq!('ä', char_before("täst", 3));
+    assert_eq!('ä', char_before("täst", 2));
+    assert_eq!('s', char_before("täst", 4));
+    assert_eq!('t', char_before("täst", 100));
+}
+
 pub fn char_at(src: &str, i: usize) -> char {
     src[i..].chars().next().unwrap()
 }
 
-/// Error type returned from [`check_rust_src_env_var()`]
-///
-/// [`check_rust_src_env_var()`]: fn.check_rust_src_env_var.html
+/// Error type returned from validate_rust_src_path()
 #[derive(Debug, PartialEq)]
 pub enum RustSrcPathError {
     Missing,
@@ -270,8 +278,8 @@ pub enum RustSrcPathError {
     NotRustSourceTree(path::PathBuf),
 }
 
-impl ::std::error::Error for RustSrcPathError {
-    fn cause(&self) -> Option<&::std::error::Error> {
+impl error::Error for RustSrcPathError {
+    fn cause(&self) -> Option<&error::Error> {
         None
     }
 
@@ -284,8 +292,8 @@ impl ::std::error::Error for RustSrcPathError {
     }
 }
 
-impl ::std::fmt::Display for RustSrcPathError {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+impl fmt::Display for RustSrcPathError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             RustSrcPathError::Missing => {
                 write!(f, "RUST_SRC_PATH environment variable must be set to \
@@ -311,7 +319,7 @@ impl ::std::fmt::Display for RustSrcPathError {
 }
 
 fn check_rust_sysroot() -> Option<path::PathBuf> {
-    use ::std::process::Command;
+    use std::process::Command;
     let mut cmd = Command::new("rustc");
     cmd.arg("--print").arg("sysroot");
 
@@ -362,7 +370,7 @@ fn check_rust_sysroot() -> Option<path::PathBuf> {
 ///     }
 /// }
 /// ```
-pub fn get_rust_src_path() -> ::std::result::Result<path::PathBuf, RustSrcPathError> {
+pub fn get_rust_src_path() -> Result<path::PathBuf, RustSrcPathError> {
     use std::env;
 
     debug!("Getting rust source path. Trying env var RUST_SRC_PATH.");
@@ -399,7 +407,7 @@ pub fn get_rust_src_path() -> ::std::result::Result<path::PathBuf, RustSrcPathEr
     return Err(RustSrcPathError::Missing)
 }
 
-fn validate_rust_src_path(path: path::PathBuf) -> ::std::result::Result<path::PathBuf, RustSrcPathError> {
+fn validate_rust_src_path(path: path::PathBuf) -> Result<path::PathBuf, RustSrcPathError> {
     if !path.exists() {
         Err(RustSrcPathError::DoesNotExist(path.to_path_buf()))
     } else if !path.join("libstd").exists() {
@@ -411,7 +419,7 @@ fn validate_rust_src_path(path: path::PathBuf) -> ::std::result::Result<path::Pa
 
 #[cfg(test)]
 lazy_static! {
-    static ref TEST_SEMAPHORE: ::std::sync::Mutex<()> = ::std::sync::Mutex::new(());
+    static ref TEST_SEMAPHORE: ::std::sync::Mutex<()> = Default::default();
 }
 
 #[test]
