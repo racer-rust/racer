@@ -54,6 +54,7 @@ impl MethodInfo {
         let trim: &[_] = &['\n', '\r', '{', ' '];
         let decorated = format!("{} {{}}()", source.trim_right_matches(trim));
 
+        trace!("MethodInfo::from_source_str: {:?}", decorated);
         with_error_checking_parse(decorated, |p| {
             if let Ok(method) = p.parse_impl_item() {
                 if let ImplItemKind::Method(ref msig, _) = method.node {
