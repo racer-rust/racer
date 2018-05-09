@@ -94,9 +94,9 @@ fn read_file<P>(path: P) -> io::Result<String>
     where P: AsRef<Path>
 {
     let mut res = String::new();
-    let mut f = try!(File::open(path));
+    let mut f = File::open(path)?;
 
-    try!(f.read_to_string(&mut res));
+    f.read_to_string(&mut res)?;
     Ok(res)
 }
 
