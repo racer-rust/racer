@@ -4181,6 +4181,20 @@ fn completes_for_let_destracted_var_over_comment() {
     assert_eq!(get_only_completion(src, None).matchstr, "variable");
 }
 
+// For Issue #815
+#[test]
+fn completes_methods_after_raw_string() {
+    let _lock = sync!();
+    let src = r##"
+    fn main() {
+        let s = r#"""#;
+        let v = Vec::<u32>::new();
+        v.l~
+    }
+    "##;
+    assert!(get_all_completions(src, None).iter().any(|ma| ma.matchstr == "len"));
+}
+
 // For issue 826
 #[test]
 fn find_crate_doc() {
