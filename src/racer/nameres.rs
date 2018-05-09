@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use {core, ast, matchers, scopes, typeinf};
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{Match, Src, Session, Coordinate, SessionExt, Ty, Point};
-use core::MatchType::{Module, Function, Struct, Enum, FnArg, Trait, StructField,
+use core::MatchType::{Module, Function, Struct, Enum, EnumVariant, FnArg, Trait, StructField,
     Impl, TraitImpl, MatchArm, Builtin};
 use core::Namespace;
 use ast::{GenericsVisitor, ImplVisitor};
@@ -1339,17 +1339,18 @@ pub fn resolve_path(path: &core::Path, filepath: &Path, pos: Point,
                 Enum => {
                     let pathseg = &path.segments[len-1];
                     debug!("searching an enum '{}' (whole path: {:?}) searchtype: {:?}", m.matchstr, path, search_type);
-
                     let filesrc = session.load_file(&m.filepath);
                     let scopestart = scopes::find_stmt_start(filesrc.as_src(), m.point).unwrap();
                     let scopesrc = filesrc.from(scopestart);
                     scopesrc.iter_stmts().nth(0).map(|(blobstart,blobend)| {
-                        for m in matchers::match_enum_variants(&filesrc,
+                        for mut enum_var in matchers::match_enum_variants(&filesrc,
                                                                scopestart+blobstart,
                                                                scopestart+blobend,
                                                       &pathseg.name, &m.filepath, search_type, true) {
-                            debug!("Found enum variant: {}", m.matchstr);
-                            out.push(m);
+                            debug!("Found enum variant {} with enum type {}", enum_var.matchstr, m.matchstr);
+                            // return Match which has enum simultaneously, for method completion
+                            enum_var.mtype = EnumVariant(Some(Box::new(m.clone())));
+                            out.push(enum_var);
                         }
                     });
 

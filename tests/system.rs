@@ -4181,6 +4181,37 @@ fn completes_for_let_destracted_var_over_comment() {
     assert_eq!(get_only_completion(src, None).matchstr, "variable");
 }
 
+// For issue 785
+#[test]
+fn completes_methods_for_global_enum() {
+    let _lock = sync!();
+    let src = r#"
+    fn main() {
+        let bar = Some("Hello");
+        bar.unwrap_or_def~
+    }
+    "#;
+    assert_eq!(get_only_completion(src, None).matchstr, "unwrap_or_default");
+}
+
+#[test]
+fn completes_methods_for_local_enum() {
+    let _lock = sync!();
+    let src = "
+    fn main() {
+        enum MyEnum {
+            A
+        }
+        impl MyEnum {
+            fn method(&self) {}
+        }
+        let bar = MyEnum::A;
+        bar.met~
+    }
+    ";
+    assert_eq!(get_only_completion(src, None).matchstr, "method");
+}
+
 // For Issue #815
 #[test]
 fn completes_methods_after_raw_string() {
