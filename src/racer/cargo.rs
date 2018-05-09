@@ -2,7 +2,6 @@ use std::fs::File;
 use std::io::Read;
 use std::env;
 use std::path::{Path,PathBuf};
-use std::collections::BTreeMap;
 use std::fs::{read_dir};
 use toml;
 
@@ -124,14 +123,12 @@ fn find_src_via_lockfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     None
 }
 
-fn parse_toml_file(toml_file: &Path) -> Option<BTreeMap<String, toml::Value>> {
+fn parse_toml_file(toml_file: &Path) -> Option<toml::Value> {
     trace!("parse_toml_file: {:?}", toml_file);
     let mut file = otry2!(File::open(toml_file));
     let mut string = String::new();
     otry2!(file.read_to_string(&mut string));
-    let mut parser = toml::Parser::new(&string);
-
-    parser.parse()
+    toml::from_str(&string).ok()
 }
 
 fn get_cargo_packages(cargofile: &Path) -> Option<Vec<PackageInfo>> {
@@ -317,7 +314,7 @@ fn get_versioned_cratefile(kratename: &str, version: &str, cargofile: &Path) -> 
  }
 
 /// Return path to library source if the Cargo.toml name matches crate_name
-fn path_if_desired_lib(crate_name: &str, path: &Path, cargo_toml: &toml::Table) -> Option<PathBuf> {
+fn path_if_desired_lib(crate_name: &str, path: &Path, cargo_toml: &toml::Value) -> Option<PathBuf> {
     let parent = otry!(path.parent());
 
     // is it this lib?  (e.g. you're searching from tests to find the main library crate)
@@ -391,7 +388,7 @@ fn find_src_via_tomlfile(kratename: &str, cargofile: &Path) -> Option<PathBuf> {
     None
 }
 
-fn get_local_packages(table: &BTreeMap<String, toml::Value>, cargofile: &Path, section_name: &str) -> Option<Vec<PackageInfo>> {
+fn get_local_packages(table: &toml::Value, cargofile: &Path, section_name: &str) -> Option<Vec<PackageInfo>> {
     debug!("get_local_packages found table {:?};\
            getting packages for section '{}'", table, section_name);
 
@@ -507,7 +504,7 @@ fn find_git_src_dir(d: PathBuf, name: &str, sha1: &str, branch: Option<&str>) ->
     None
 }
 
-fn getstr(t: &toml::Table, k: &str) -> Option<String> {
+fn getstr(t: &toml::value::Table, k: &str) -> Option<String> {
     match t.get(k) {
         Some(&toml::Value::String(ref s)) => Some(s.clone()),
         _ => None
@@ -579,7 +576,7 @@ fn get_override_paths(path: &Path) -> Vec<String> {
 
     let config = vtry!(parse_toml_file(path));
     let paths = vtry!(config.get("paths"));
-    let paths = vtry!(paths.as_slice());
+    let paths = vtry!(paths.as_array());
 
     paths
         .iter()

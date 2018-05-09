@@ -39,6 +39,7 @@ pub fn with_error_checking_parse<F, T>(s: String, f: F) -> Option<T>
 
 // parse a string, return a stmt
 pub fn string_to_stmt(source_str: String) -> Option<ast::Stmt> {
+    trace!("string_to_stmt: {:?}", source_str);
     with_error_checking_parse(source_str, |p| {
         match p.parse_stmt() {
             Ok(Some(stmt)) => Some(stmt),
@@ -49,6 +50,7 @@ pub fn string_to_stmt(source_str: String) -> Option<ast::Stmt> {
 
 // parse a string, return a crate.
 pub fn string_to_crate(source_str: String) -> Option<ast::Crate> {
+    trace!("string_to_crate: {:?}", source_str);
     with_error_checking_parse(source_str.clone(), |p| {
         use std::result::Result::{Ok, Err};
         match p.parse_crate_mod() {
@@ -1067,6 +1069,16 @@ pub fn parse_generics(s: String) -> GenericsVisitor {
         visit::walk_stmt(&mut v, &stmt);
     }
     v
+}
+
+pub fn parse_generics_and_impl(s: String) -> (GenericsVisitor, ImplVisitor) {
+    let mut v = GenericsVisitor { generic_args: Vec::new() };
+    let mut w = ImplVisitor { name_path: None, trait_path: None };
+    if let Some(stmt) = string_to_stmt(s) {
+        visit::walk_stmt(&mut v, &stmt);
+        visit::walk_stmt(&mut w, &stmt);
+    }
+    (v, w)
 }
 
 pub fn parse_type(s: String) -> TypeVisitor {

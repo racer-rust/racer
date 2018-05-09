@@ -293,6 +293,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: Point, blobend: Point,
 
             let realname = extern_crate.realname.as_ref().unwrap_or(name);
             get_crate_file(realname, filepath, session).map(|cratepath| {
+                let crate_src = session.load_file(&cratepath);
                 res = Some(Match { matchstr: name.clone(),
                                   filepath: cratepath.to_path_buf(),
                                   point: 0,
@@ -302,7 +303,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: Point, blobend: Point,
                                   contextstr: cratepath.to_str().unwrap().to_owned(),
                                   generic_args: Vec::new(),
                                   generic_types: Vec::new(),
-                                  docs: String::new(),
+                                  docs: find_mod_doc(&crate_src, 0),
                 });
             });
         }
@@ -367,7 +368,6 @@ pub fn match_mod(msrc: Src, blobstart: Point, blobend: Point,
             if let Some(modpath) = get_module_file(l, &searchdir, session) {
                 let msrc = session.load_file(&modpath);
                 let context = modpath.to_str().unwrap().to_owned();
-
                 return Some(Match {
                     matchstr: l.to_owned(),
                     filepath: modpath,
