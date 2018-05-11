@@ -3692,12 +3692,12 @@ fn literal_string_method() {
     let _lock = sync!();
     let src = r#"
         fn check() {
-            "hello".st~arts_with("he");
+            "hello".to_lowerca~se();
         }
     "#;
 
     let got = get_definition(src, None);
-    assert_eq!("starts_with", got.matchstr);
+    assert_eq!("to_lowercase", got.matchstr);
 }
 
 #[test]
@@ -3706,13 +3706,12 @@ fn literal_string_completes() {
     let src = r#"
     fn in_let() {
         let foo = "hello";
-        foo.end~s_with("lo");
+        foo.to_lowerc~
     }
     "#;
 
-    let got = get_all_completions(src, None);
-    assert_eq!(1, got.len());
-    assert_eq!("ends_with", got[0].matchstr);
+    let got = get_only_completion(src, None);
+    assert_eq!("to_lowercase", got.matchstr);
 }
 
 #[test]
