@@ -7,7 +7,7 @@ use core::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, En
                       Const, Static, IfLet, WhileLet, For, Macro};
 use core::Namespace;
 use std::path::Path;
-use std::{iter, option, str, vec};
+use std::{str, vec};
 
 /// The location of an import (`use` item) currently being resolved.
 #[derive(PartialEq, Eq)]
@@ -20,15 +20,11 @@ pub struct PendingImport<'fp> {
 /// A stack of imports (`use` items) currently being resolved.
 pub type PendingImports<'stack, 'fp> = StackLinkedListNode<'stack, PendingImport<'fp>>;
 
-pub type MIter = option::IntoIter<Match>;
-pub type MChain<T> = iter::Chain<T, MIter>;
-
-// TODO change return type to `impl Iterator<Item = Match>`
 pub fn match_types(src: Src, blobstart: Point, blobend: Point,
                    searchstr: &str, filepath: &Path,
                    search_type: SearchType,
                    local: bool, session: &Session,
-                   pending_imports: &PendingImports) -> iter::Chain<MChain<MChain<MChain<MChain<MChain<MIter>>>>>, vec::IntoIter<Match>> {
+                   pending_imports: &PendingImports) -> impl Iterator<Item=Match> {
     let it = match_extern_crate(&src, blobstart, blobend, searchstr, filepath, search_type, session).into_iter();
     let it = it.chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local, session).into_iter());
     let it = it.chain(match_struct(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
@@ -40,7 +36,7 @@ pub fn match_types(src: Src, blobstart: Point, blobend: Point,
 
 pub fn match_values(src: Src, blobstart: Point, blobend: Point,
                     searchstr: &str, filepath: &Path, search_type: SearchType,
-                    local: bool) -> MChain<MChain<MChain<MIter>>> {
+                    local: bool) -> impl Iterator<Item=Match> {
     let it = match_const(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
     let it = it.chain(match_static(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
     let it = it.chain(match_fn(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
