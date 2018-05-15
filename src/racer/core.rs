@@ -813,7 +813,7 @@ impl<'c> Session<'c> {
     /// 1. overrides
     /// 2. lock file
     /// 3. toml file
-    pub fn get_crate_file(&self, kratename: &str, from_path: &path::Path) -> Option<path::PathBuf> {
+    pub(crate) fn get_crate_file(&self, kratename: &str, from_path: &path::Path) -> Option<path::PathBuf> {
         self.cargo_roots.borrow_mut().entry((kratename.into(), from_path.into()))
             .or_insert_with(|| cargo::get_crate_file(kratename, from_path))
             .clone()
