@@ -25,22 +25,22 @@ pub fn match_types(src: Src, blobstart: Point, blobend: Point,
                    search_type: SearchType,
                    local: bool, session: &Session,
                    pending_imports: &PendingImports) -> impl Iterator<Item=Match> {
-    let it = match_extern_crate(&src, blobstart, blobend, searchstr, filepath, search_type, session).into_iter();
-    let it = it.chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local, session).into_iter());
-    let it = it.chain(match_struct(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    let it = it.chain(match_type(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    let it = it.chain(match_trait(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    let it = it.chain(match_enum(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    it.chain(match_use(&src, blobstart, blobend, searchstr, filepath, search_type, local, session, pending_imports).into_iter())
+    match_extern_crate(&src, blobstart, blobend, searchstr, filepath, search_type, session).into_iter()
+        .chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local, session))
+        .chain(match_struct(&src, blobstart, blobend, searchstr, filepath, search_type, local))
+        .chain(match_type(&src, blobstart, blobend, searchstr, filepath, search_type, local))
+        .chain(match_trait(&src, blobstart, blobend, searchstr, filepath, search_type, local))
+        .chain(match_enum(&src, blobstart, blobend, searchstr, filepath, search_type, local))
+        .chain(match_use(&src, blobstart, blobend, searchstr, filepath, search_type, local, session, pending_imports))
 }
 
 pub fn match_values(src: Src, blobstart: Point, blobend: Point,
                     searchstr: &str, filepath: &Path, search_type: SearchType,
                     local: bool) -> impl Iterator<Item=Match> {
-    let it = match_const(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter();
-    let it = it.chain(match_static(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    let it = it.chain(match_fn(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter());
-    it.chain(match_macro(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter())
+    match_const(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter()
+        .chain(match_static(&src, blobstart, blobend, searchstr, filepath, search_type, local))
+        .chain(match_fn(&src, blobstart, blobend, searchstr, filepath, search_type, local))
+        .chain(match_macro(&src, blobstart, blobend, searchstr, filepath, search_type, local))
 }
 
 fn strip_keyword_prefix(src: &str, keyword: &str) -> Option<Point> {
@@ -427,7 +427,7 @@ pub fn match_struct(msrc: &str, blobstart: Point, blobend: Point,
             local: local,
             mtype: Struct,
             contextstr: get_context(blob, "{"),
-            generic_args: generics.generic_args.into_iter().map(|arg| {arg.name}).collect(),
+            generic_args: generics.generic_args.into_iter().map(|arg| arg.name).collect(),
             generic_types: Vec::new(),
             docs: find_doc(msrc, blobstart + start),
         })
@@ -500,7 +500,7 @@ pub fn match_enum_variants(msrc: &str, blobstart: Point, blobend: Point,
         // parse the enum
         let parsed_enum = ast::parse_enum(blob.to_owned());
 
-        for (name, offset) in parsed_enum.values.into_iter() {
+        for (name, offset) in parsed_enum.values {
             if name.starts_with(searchstr) {
                 let m = Match {
                     matchstr: name,
@@ -544,7 +544,7 @@ pub fn match_enum(msrc: &str, blobstart: Point, blobend: Point,
             local: local,
             mtype: Enum,
             contextstr: first_line(blob),
-            generic_args: generics.generic_args.into_iter().map(|arg| {arg.name}).collect(),
+            generic_args: generics.generic_args.into_iter().map(|arg| arg.name).collect(),
             generic_types: Vec::new(),
             docs: find_doc(msrc, blobstart + start),
         })
@@ -604,7 +604,7 @@ pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
         let use_item = ast::parse_use(blob.to_owned());
 
         let ident = use_item.ident.unwrap_or("".into());
-        for path in use_item.paths.into_iter() {
+        for path in use_item.paths {
             let len = path.path.segments.len();
             if symbol_matches(search_type, searchstr, &path.ident) { // i.e. 'use foo::bar as searchstr'
                 if len == 1 && path.path.segments[0].name == searchstr {

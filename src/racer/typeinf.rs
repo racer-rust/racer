@@ -225,7 +225,7 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match, session: &Ses
     let structsrc = scopes::end_of_next_scope(&src[opoint..]);
 
     let fields = ast::parse_struct_fields(structsrc.to_owned(), Scope::from_match(structmatch));
-    for (field, _, ty) in fields.into_iter() {
+    for (field, _, ty) in fields {
         if fieldname == field {
             return ty;
         }
