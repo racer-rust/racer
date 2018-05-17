@@ -8,8 +8,19 @@ project adheres to [Semantic Versioning](http://semver.org/).
 
 No changes, yet!
 
-## 2.0.12
+## 2.0.14
+- Cache generic impls #839
+- Cache parsed TOML file and cargo crate roots #838
+- Skip `pub` keyword as a temporary fix for #624 #850
+- Remove complex generic type by impl trait # 848
+- Fix bug for array expression #841
+- Support completion for enum variants without type annotation #825
+- Fix bug for raw string #822
 
+## 2.0.13
+- Fix bug for finding the start of match statement #819
+
+## 2.0.12
 - Fix bug that broke completions in previous release #807
 
 ## 2.0.11
