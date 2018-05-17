@@ -12,7 +12,7 @@ No changes, yet!
 - Cache generic impls #839
 - Cache parsed TOML file and cargo crate roots #838
 - Skip `pub` keyword as a temporary fix for #624 #850
-- Remove complex generic type by impl trait # 848
+- Remove complex generic type by impl trait #848
 - Fix bug for array expression #841
 - Support completion for enum variants without type annotation #825
 - Fix bug for raw string #822
