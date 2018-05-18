@@ -4273,3 +4273,44 @@ fn completes_methods_for_tuple_struct() {
             .any(|ma| ma.matchstr == "append")
     );
 }
+
+// for use_nested_groups
+#[test]
+fn follows_use_nested_from_std() {
+    let _lock = sync!();
+
+    let src = r"
+    use std::collections::{hash_map::*, HashMap};
+    fn main() {
+         let h = HashMap::n~ew();
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "new");
+
+    let src = r"
+    use std::collections::{hash_map::*, HashMap};
+    fn main() {
+         let h = HashMap::new();
+         let a = DefaultHasher::ne~w();
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "new");
+}
+
+// for use_nested_groups
+#[test]
+fn follows_use_aliased_self() {
+    let src = r"
+    use std::collections::{self as col, hash_map::*, HashMap};
+    fn main() {
+        let heap = col::BinaryHeap::ne~w();
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "new");
+}
