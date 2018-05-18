@@ -217,12 +217,26 @@ fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<core:
 }
 
 pub fn get_struct_field_type(fieldname: &str, structmatch: &Match, session: &Session) -> Option<core::Ty> {
-    assert!(structmatch.mtype == core::MatchType::Struct);
+    // temporary fix for https://github.com/rust-lang-nursery/rls/issues/783
+    if structmatch.mtype != core::MatchType::Struct {
+        warn!("get_struct_filed_type is called for {:?}", structmatch.mtype);
+        return None;
+    }
+
+    debug!("[get_struct_filed_type]{}, {:?}", fieldname, structmatch);
 
     let src = session.load_file(&structmatch.filepath);
 
     let opoint = scopes::expect_stmt_start(src.as_src(), structmatch.point);
     let structsrc = scopes::end_of_next_scope(&src[opoint..]);
+
+    // HACK: if scopes::end_of_next_scope returns empty struct, it's maybe tuple struct
+    // TODO: remove this hack
+    let structsrc = if structsrc == "" {
+        (*get_first_stmt(src.as_src().from(opoint))).to_owned()
+    } else {
+        structsrc.to_owned()
+    };
 
     let fields = ast::parse_struct_fields(structsrc.to_owned(), Scope::from_match(structmatch));
     for (field, _, ty) in fields {

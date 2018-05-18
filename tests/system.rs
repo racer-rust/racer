@@ -4256,3 +4256,20 @@ fn main {
         assert_eq!(doc_str, got.docs);
     })
 }
+
+#[test]
+fn completes_methods_for_tuple_struct() {
+    let _lock = sync!();
+    let src = r"
+        fn main() {
+            struct A(i32, Vec<i32>);
+            let mut a = A(0, vec![3, 4]);
+            a.1.appen~
+        }
+    ";
+    assert!(
+        get_all_completions(src, None)
+            .into_iter()
+            .any(|ma| ma.matchstr == "append")
+    );
+}
