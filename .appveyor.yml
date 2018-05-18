@@ -2,19 +2,19 @@
 environment:
   matrix:
     # Stable channel
-    - TARGET: i686-pc-windows-gnu
-      CHANNEL: stable
-    - TARGET: i686-pc-windows-msvc
-      CHANNEL: stable
-    - TARGET: x86_64-pc-windows-gnu
-      CHANNEL: stable
-    - TARGET: x86_64-pc-windows-msvc
-      CHANNEL: stable
+    # - TARGET: i686-pc-windows-gnu
+    #   CHANNEL: stable
+    # - TARGET: i686-pc-windows-msvc
+    #   CHANNEL: stable
+    # - TARGET: x86_64-pc-windows-gnu
+    #   CHANNEL: stable
+    # - TARGET: x86_64-pc-windows-msvc
+    #   CHANNEL: stable
     # Beta channel
-    - TARGET: i686-pc-windows-gnu
-      CHANNEL: beta
-    - TARGET: i686-pc-windows-msvc
-      CHANNEL: beta
+    # - TARGET: i686-pc-windows-gnu
+    #   CHANNEL: beta
+    # - TARGET: i686-pc-windows-msvc
+    #   CHANNEL: beta
     # Commented out because AppVeyor builds jobs serially
     # so building all targets would be very slow.
     # - TARGET: x86_64-pc-windows-gnu
