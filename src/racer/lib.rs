@@ -9,8 +9,7 @@
 #[macro_use] extern crate log;
 #[macro_use] extern crate lazy_static;
 
-extern crate syntex_syntax;
-extern crate syntex_errors;
+extern crate syntax;
 extern crate toml;
 
 #[macro_use]

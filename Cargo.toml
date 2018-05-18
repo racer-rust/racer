@@ -22,8 +22,7 @@ debug = true
 
 [dependencies]
 log = "0.4"
-syntex_syntax = "0.52.0"
-syntex_errors = "0.52.0"
+rustc-ap-syntax = "133.0.0"
 toml = "0.4"
 env_logger = "0.5"
 clap = "2.19"

@@ -2,7 +2,7 @@ use ast::with_error_checking_parse;
 use core::{Match, MatchType, Session};
 use typeinf::get_function_declaration;
 
-use syntex_syntax::ast::ImplItemKind;
+use syntax::ast::ImplItemKind;
 
 /// Returns completion snippets usable by some editors
 ///
@@ -56,7 +56,8 @@ impl MethodInfo {
 
         trace!("MethodInfo::from_source_str: {:?}", decorated);
         with_error_checking_parse(decorated, |p| {
-            if let Ok(method) = p.parse_impl_item() {
+            let mut at_end = false;
+            if let Ok(method) = p.parse_impl_item(&mut at_end) {
                 if let ImplItemKind::Method(ref msig, _) = method.node {
                         let decl = &msig.decl;
                         return Some(MethodInfo {
