@@ -277,6 +277,11 @@ impl Path {
             .collect::<Vec<_>>();
         Path{ global: global, segments: segs }
     }
+
+    pub fn extend(&mut self, path: Path) -> &mut Self {
+        self.segments.extend(path.segments);
+        self
+    }
 }
 
 impl fmt::Debug for Path {

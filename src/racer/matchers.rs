@@ -577,91 +577,93 @@ pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
 
     let mut out = Vec::new();
 
-    if find_keyword(blob, "use", "", StartsWith, local).is_none() { return out; }
+    if find_keyword(blob, "use", "", StartsWith, local).is_none() {
+        return out;
+    }
 
-    if blob.contains('*') {
-        // uh oh! a glob. Need to search the module for the searchstr
-        let use_item = ast::parse_use(blob.to_owned());
-        debug!("found a glob!! {:?}", use_item);
-
-        if use_item.is_glob {
-            let basepath = use_item.paths.into_iter().nth(0).unwrap().path;
-            let seg = PathSegment{ name: searchstr.to_owned(), types: Vec::new() };
-            let mut path = basepath.clone();
-            path.segments.push(seg);
-            debug!("found a glob: now searching for {:?}", path);
-            let iter_path = resolve_path(&path, filepath, blobstart, search_type, Namespace::Both, session, pending_imports);
-            if let StartsWith = search_type {
-                return iter_path.collect();
-            }
-            for m in iter_path {
+    let use_item = ast::parse_use(blob.to_owned());
+    debug!(
+        "[match_use] found item: {:?}, searchstr: {}",
+        use_item, searchstr
+    );
+    // for speed up!
+    if !use_item.contains_glob && !txt_matches(search_type, searchstr, blob) {
+        return out;
+    }
+    // common utilities
+    macro_rules! with_match {
+        ($path:expr, $f:expr) => {
+            if let Some(mut m) = resolve_path(
+                $path,
+                filepath,
+                blobstart,
+                ExactMatch,
+                Namespace::Both,
+                session,
+                pending_imports,
+            ).nth(0)
+            {
+                $f(&mut m);
                 out.push(m);
-                break;
-            }
-        }
-    } else if txt_matches(search_type, searchstr, blob) {
-        debug!("found use: {} in |{}|", searchstr, blob);
-        let use_item = ast::parse_use(blob.to_owned());
-
-        let ident = use_item.ident.unwrap_or("".into());
-        for path in use_item.paths {
-            let len = path.path.segments.len();
-            if symbol_matches(search_type, searchstr, &path.ident) { // i.e. 'use foo::bar as searchstr'
-                if len == 1 && path.path.segments[0].name == searchstr {
-                    // is an exact match of a single use stmt.
-                    // Do nothing because this will be picked up by the module
-                    // search in a bit.
-                } else {
-                    for mut m in resolve_path(path.as_ref(), filepath, blobstart, ExactMatch, Namespace::Both, session, pending_imports) {
-                        
-                        // If the match was imported by a `use as` statement, racer
-                        // should return the alias so that completions will produce
-                        // valid code.
-                        if m.matchstr != path.ident {
-                            m.matchstr = path.ident.clone();
-                        }
-
-                        out.push(m);
-                        if let ExactMatch = search_type  {
-                            return out;
-                        } else {
-                            break;
-                        }
-                    }
+                if search_type == ExactMatch {
+                    return out;
                 }
-            } else if ident == "" || ident == "self" {   // i.e. no 'as'. e.g. 'use foo::{bar, baz}'
-                // `use foo::bar::self;` is parsed as path = foo::bar, ident = self
-
-                // if searching for a symbol and the last path segment
-                // matches the symbol then find the fqn
-                if len == 1 && path.path.segments[0].name == searchstr {
-                    // is an exact match of a single use stmt.
-                    // Do nothing because this will be picked up by the module
-                    // search in a bit.
-                } else {
-                    let path = if &path.path.segments.last().unwrap().name == "self" {
-                        // `use foo::bar::self` -> `use foo::bar`
-                        let mut path = path;
-                        path.path.segments.pop();
-                        path
-                    } else {
-                        path
-                    };
-
-                    if path.path.segments.len() > 1 {
-                        if symbol_matches(search_type, searchstr, &path.path.segments.last().unwrap().name) {
-                            // last path segment matches the path. find it!
-                            for m in resolve_path(path.as_ref(), filepath, blobstart,
-                                                  ExactMatch, Namespace::Both, session, pending_imports) {
-                                out.push(m);
-                                if let ExactMatch = search_type  {
-                                    return out;
-                                } else {
-                                    break;
-                                }
-                            }
-                        }
+            }
+        };
+    }
+    // let's find searchstr using path_aliases
+    for path_alias in use_item.path_list {
+        match path_alias.kind {
+            ast::PathAliasKind::Ident(ref ident) => {
+                if !symbol_matches(search_type, searchstr, ident) {
+                    continue;
+                }
+                with_match!(path_alias.as_ref(), |m: &mut Match| {
+                    debug!("[match_use] PathAliasKind::Ident {:?} was found", ident);
+                    if m.matchstr != *ident {
+                        m.matchstr = ident.clone();
                     }
+                });
+            }
+            ast::PathAliasKind::Self_(ref ident) => {
+                if let Some(last_seg) = path_alias.path.segments.last() {
+                    let is_aliased = ident != "self";
+                    let search_name = if is_aliased { ident } else { &last_seg.name };
+                    if !symbol_matches(search_type, searchstr, search_name) {
+                        continue;
+                    }
+                    with_match!(path_alias.as_ref(), |m: &mut Match| {
+                        debug!("[match_use] PathAliasKind::Self_ {:?} was found", ident);
+                        if is_aliased && m.matchstr != *ident {
+                            m.matchstr = ident.clone();
+                        }
+                    });
+                }
+            }
+            ast::PathAliasKind::Glob => {
+                let mut search_path = path_alias.path;
+                search_path.segments.push(PathSegment {
+                    name: searchstr.to_owned(),
+                    types: vec![],
+                });
+                let mut path_iter = resolve_path(
+                    &search_path,
+                    filepath,
+                    blobstart,
+                    search_type,
+                    Namespace::Both,
+                    session,
+                    pending_imports,
+                );
+                if search_type == StartsWith {
+                    return path_iter.collect();
+                }
+                debug!(
+                    "[match_use] resolve_path returned {:?} for PathAliasKind::Glob",
+                    path_iter
+                );
+                if let Some(m) = path_iter.nth(0) {
+                    out.push(m);
                 }
             }
         }
