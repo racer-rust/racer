@@ -740,15 +740,18 @@ pub trait SessionExt {
 /// dependencies info of a package
 #[derive(Clone, Debug, Default)]
 pub struct Dependencies {
-    /// dependencies of a package(libname -> src_path)
+    /// dependencies of a package(library name -> src_path)
     inner: HashMap<String, path::PathBuf>,
 }
 
 impl Dependencies {
-     pub fn get_src_path(&self, query: &str) -> Option<path::PathBuf> {
+    /// Get src path from a library name.
+    /// e.g. from query string `bit_set` it returns
+    /// `~/.cargo/registry/src/github.com-1ecc6299db9ec823/bit-set-0.4.0`
+    pub fn get_src_path(&self, query: &str) -> Option<path::PathBuf> {
         let p = self.inner.get(query)?;
         Some(p.to_owned())
-     }
+    }
 }
 
 /// Context for a Racer operation
@@ -762,7 +765,7 @@ pub struct Session<'c> {
     pub generic_impls: RefCell<HashMap<(path::PathBuf, usize),
                                        Rc<Vec<(usize, String,
                                                ast::GenericsVisitor, ast::ImplVisitor)>>>>,
-    /// cached dependencies(manifest_path -> DepsInfo)
+    /// cached dependencies(manifest_path -> Dependencies)
     cached_deps: RefCell<HashMap<path::PathBuf, Rc<Dependencies>>>,
 }
 
@@ -824,7 +827,7 @@ impl<'c> Session<'c> {
         raw.contains_key(path) && masked.contains_key(path)
     }
 
-    /// get cached dependencies if they exist
+    /// Get cached dependencies from manifest path(abs path of Cargo.toml) if they exist.
     pub fn get_deps<P: AsRef<path::Path>>(&self, manifest: P) -> Option<Rc<Dependencies>> {
         let manifest = manifest.as_ref();
         let deps = self.cached_deps.borrow();
@@ -835,7 +838,7 @@ impl<'c> Session<'c> {
         }
     }
 
-    /// cache dependencies into session
+    /// Cache dependencies into session.
     pub fn cache_deps<P: AsRef<path::Path>>(
         &self,
         manifest: P,
