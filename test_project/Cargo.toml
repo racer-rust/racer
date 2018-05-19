@@ -5,3 +5,4 @@ authors = ["Joe Wilm <joe@jwilm.com>"]
 
 [dependencies]
 test_fixtures = { path = "./test_fixtures" }
+test-crate2 = { path = "./test-crate2"}
