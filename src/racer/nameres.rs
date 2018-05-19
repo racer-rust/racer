@@ -11,7 +11,7 @@ use core::MatchType::{Module, Function, Struct, Enum, EnumVariant, FnArg, Trait,
     Impl, TraitImpl, MatchArm, Builtin};
 use core::Namespace;
 use ast::{GenericsVisitor, ImplVisitor};
-
+use fileres::{get_crate_file, get_module_file};
 use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches,
            find_ident_end, get_rust_src_path};
 use matchers::find_doc;
@@ -770,54 +770,6 @@ pub fn search_next_scope(mut startpoint: Point, pathseg: &core::PathSegment,
         }
     }
     search_scope(startpoint, startpoint, filesrc.as_src(), pathseg, filepath, search_type, local, namespace, session, pending_imports)
-}
-
-pub fn get_crate_file(name: &str, from_path: &Path, session: &Session) -> Option<PathBuf> {
-
-    // Either try the local files
-    debug!("get_crate_file {}, {:?}", name, from_path);
-    if let Some(p) = session.get_crate_file(name, from_path) {
-        debug!("get_crate_file  - found the crate file! {:?}", p);
-        return Some(p);
-    }
-
-    // Or if not found, try standard library
-    if let Some(ref std_path) = *RUST_SRC_PATH {
-        {
-            // try lib<name>/lib.rs, like in the rust source dir
-            let cratelibname = format!("lib{}", name);
-            let filepath = std_path.join(cratelibname).join("lib.rs");
-            if filepath.exists() || session.contains_file(&filepath) {
-                return Some(filepath);
-            }
-        }
-        {
-            // try <name>/lib.rs
-            let filepath = std_path.join(name).join("lib.rs");
-            if filepath.exists() || session.contains_file(&filepath) {
-                return Some(filepath);
-            }
-        }
-    }
-    None
-}
-
-pub fn get_module_file(name: &str, parentdir: &Path, session: &Session) -> Option<PathBuf> {
-    {
-        // try just <name>.rs
-        let filepath = parentdir.join(format!("{}.rs", name));
-        if filepath.exists() || session.contains_file(&filepath) {
-            return Some(filepath);
-        }
-    }
-    {
-        // try <name>/mod.rs
-        let filepath = parentdir.join(name).join("mod.rs");
-        if filepath.exists() || session.contains_file(&filepath) {
-            return Some(filepath);
-        }
-    }
-    None
 }
 
 pub fn search_scope(start: Point, point: Point, src: Src,

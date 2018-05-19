@@ -18,7 +18,6 @@ use nameres;
 use ast;
 use codecleaner;
 use util;
-use cargo;
 
 /// Within a [`Match`], specifies what was matched
 ///
@@ -738,6 +737,20 @@ pub trait SessionExt {
     fn load_file_and_mask_comments(&self, &path::Path) -> Rc<IndexedSource>;
 }
 
+/// dependencies info of a package
+#[derive(Clone, Debug, Default)]
+pub struct Dependencies {
+    /// dependencies of a package(libname -> src_path)
+    inner: HashMap<String, path::PathBuf>,
+}
+
+impl Dependencies {
+     pub fn get_src_path(&self, query: &str) -> Option<path::PathBuf> {
+        let p = self.inner.get(query)?;
+        Some(p.to_owned())
+     }
+}
+
 /// Context for a Racer operation
 pub struct Session<'c> {
     /// Cache for files
@@ -749,8 +762,8 @@ pub struct Session<'c> {
     pub generic_impls: RefCell<HashMap<(path::PathBuf, usize),
                                        Rc<Vec<(usize, String,
                                                ast::GenericsVisitor, ast::ImplVisitor)>>>>,
-    /// Cache for crate roots
-    cargo_roots: RefCell<HashMap<(String, path::PathBuf), Option<path::PathBuf>>>,
+    /// cached dependencies(manifest_path -> DepsInfo)
+    cached_deps: RefCell<HashMap<path::PathBuf, Rc<Dependencies>>>,
 }
 
 impl<'c> fmt::Debug for Session<'c> {
@@ -779,7 +792,7 @@ impl<'c> Session<'c> {
         Session {
             cache,
             generic_impls: Default::default(),
-            cargo_roots: Default::default(),
+            cached_deps: Default::default(),
         }
     }
 
@@ -811,17 +824,28 @@ impl<'c> Session<'c> {
         raw.contains_key(path) && masked.contains_key(path)
     }
 
-    /// Find the library root for kratename
-    ///
-    /// The library is searched for by checking
-    ///
-    /// 1. overrides
-    /// 2. lock file
-    /// 3. toml file
-    pub(crate) fn get_crate_file(&self, kratename: &str, from_path: &path::Path) -> Option<path::PathBuf> {
-        self.cargo_roots.borrow_mut().entry((kratename.into(), from_path.into()))
-            .or_insert_with(|| cargo::get_crate_file(kratename, from_path))
-            .clone()
+    /// get cached dependencies if they exist
+    pub fn get_deps<P: AsRef<path::Path>>(&self, manifest: P) -> Option<Rc<Dependencies>> {
+        let manifest = manifest.as_ref();
+        let deps = self.cached_deps.borrow();
+        if let Some(dep) = deps.get(manifest) {
+            Some(Rc::clone(dep))
+        } else {
+            None
+        }
+    }
+
+    /// cache dependencies into session
+    pub fn cache_deps<P: AsRef<path::Path>>(
+        &self,
+        manifest: P,
+        cache: HashMap<String, path::PathBuf>,
+    ) {
+        let manifest = manifest.as_ref().to_owned();
+        let deps = Dependencies {
+            inner: cache,
+        };
+        self.cached_deps.borrow_mut().insert(manifest, Rc::new(deps));
     }
 }
 
