@@ -58,8 +58,10 @@ pub fn get_module_file(name: &str, parentdir: &Path, session: &Session) -> Optio
 }
 
 /// try to get outer crates
+/// if we have dependencies in cache, use it.
+/// else, call cargo's function to resolve depndencies.
 fn get_outer_crates(libname: &str, from_path: &Path, session: &Session) -> Option<PathBuf> {
-    macro_rules! cargo_res {
+    macro_rules! cargo_try {
         ($r:expr) => {
             match $r {
                 Ok(val) => val,
@@ -74,33 +76,35 @@ fn get_outer_crates(libname: &str, from_path: &Path, session: &Session) -> Optio
         "[get_outer_crates] lib name: {:?}, from_path: {:?}",
         libname, from_path
     );
+
     // we have to try 2 names(e.g. crate a-b has a target name a_b by rustc)
-    let libname_hyphened = {
-        let tmp_str = libname.to_owned();
-        tmp_str.replace("_", "-")
+    let libname_hyphenated = if libname.contains('-') {
+        Some(libname.replace("_", "-"))
+    } else {
+        None
     };
-    let manifest = cargo_res!(find_root_manifest_for_wd(from_path));
+    let manifest = cargo_try!(find_root_manifest_for_wd(from_path));
 
     if let Some(deps_info) = session.get_deps(&manifest) {
         debug!("[get_outer_crates] cache exists");
         if let Some(p) = deps_info.get_src_path(libname) {
             Some(p)
-        } else if let Some(p) = deps_info.get_src_path(&libname_hyphened) {
+        } else if let Some(p) = deps_info.get_src_path(&libname_hyphenated?) {
             Some(p)
         } else {
             None
         }
     } else {
         debug!("[get_outer_crates] cache doesn't exist");
-        let config = cargo_res!(Config::default());
-        let ws = cargo_res!(Workspace::new(&manifest, &config));
+        let config = cargo_try!(Config::default());
+        let ws = cargo_try!(Workspace::new(&manifest, &config));
         let pkg_cur = ws.current_opt()?;
         // what we need is only packages in Cargo.toml
         // so, we cache only those packages
         let toml_deps: HashSet<_> = pkg_cur.dependencies().iter().map(|d| d.name()).collect();
-        let specs = cargo_res!(Packages::All.into_package_id_specs(&ws));
+        let specs = cargo_try!(Packages::All.into_package_id_specs(&ws));
         // now we resolve dependncies with 'all_features=true'
-        let (packages, _) = cargo_res!(resolve_ws_precisely(&ws, None, &[], true, false, &specs));
+        let (packages, _) = cargo_try!(resolve_ws_precisely(&ws, None, &[], true, false, &specs));
         let mut deps_map = HashMap::new();
         let mut res = None;
         for package_id in packages.package_ids() {
@@ -116,8 +120,12 @@ fn get_outer_crates(libname: &str, from_path: &Path, session: &Session) -> Optio
             if let Some(target) = lib_target {
                 let name = target.name();
                 let src_path = target.src_path().to_owned();
-                if name == libname || name == libname_hyphened {
+                if name == libname {
                     res = Some(src_path.clone());
+                } else if let Some(ref hyphnated) = libname_hyphenated {
+                    if name == hyphnated {
+                        res = Some(src_path.clone());
+                    }
                 }
                 deps_map.insert(name.to_owned(), src_path);
             }
