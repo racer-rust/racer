@@ -2716,6 +2716,48 @@ fn finds_self_param_when_fn_has_generic_closure_arg() {
 }
 
 #[test]
+fn works_with_character_literals_containing_one_character() {
+    // issue #628
+    let src = "
+    struct Foo {
+        bar: char,
+    }
+
+    impl Foo {
+        pub fn baz(&self) {
+        }
+    }
+
+    let foo = Foo { bar: 'a', };
+    foo.~baz
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("baz", got.matchstr);
+}
+
+#[test]
+fn works_with_character_literals_containing_more_than_one_character() {
+    // issue #628
+    let src = "
+    struct Foo {
+        bar: char,
+    }
+
+    impl Foo {
+        pub fn baz(&self) {
+        }
+    }
+
+    let foo = Foo { bar: '\\n', };
+    foo.~baz
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("baz", got.matchstr);
+}
+
+#[test]
 fn completes_methods_on_deref_generic_type() {
     let _lock = sync!();
 
