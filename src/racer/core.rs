@@ -864,7 +864,11 @@ impl<'c> Session<'c> {
                 let contents = match self.cache.loader.load_file(path.as_ref()) {
                     Ok(f) => f,
                     Err(e) => {
-                        warn!("[Session::load_lock_file] Failed to load lock file: {}", e);
+                        info!(
+                            "[Session::load_lock_file] Failed to load {:?}: {}",
+                            path.as_ref(),
+                            e
+                        );
                         return None;
                     }
                 };

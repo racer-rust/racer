@@ -18,25 +18,23 @@ pub fn get_crate_file(name: &str, from_path: &Path, session: &Session) -> Option
     debug!("get_crate_file {}, {:?}", name, from_path);
 
     if let Some(path) = get_outer_crates(name, from_path, session) {
-        debug!("get_outer_crates returned {:?} for {}", path, name);
+        info!("get_outer_crates returned {:?} for {}", path, name);
         return Some(path);
     } else {
-        debug!("get_outer_crates returned None");
+        info!("get_outer_crates returned None, try RUST_SRC_PATH");
     }
 
     // TODO: cache std libs
-    let srcpath = &*RUST_SRC_PATH;
-    {
+    if let Some(ref std_path) = *RUST_SRC_PATH {
         // try lib<name>/lib.rs, like in the rust source dir
         let cratelibname = format!("lib{}", name);
-        let filepath = srcpath.join(cratelibname).join("lib.rs");
+        let filepath = std_path.join(cratelibname).join("lib.rs");
         if filepath.exists() || session.contains_file(&filepath) {
             return Some(filepath);
         }
-    }
-    {
+
         // try <name>/lib.rs
-        let filepath = srcpath.join(name).join("lib.rs");
+        let filepath = std_path.join(name).join("lib.rs");
         if filepath.exists() || session.contains_file(&filepath) {
             return Some(filepath);
         }
