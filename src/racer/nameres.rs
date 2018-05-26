@@ -18,7 +18,7 @@ use matchers::find_doc;
 use matchers::PendingImports;
 
 lazy_static! {
-    pub static ref RUST_SRC_PATH: PathBuf = get_rust_src_path().unwrap();
+    pub static ref RUST_SRC_PATH: Option<PathBuf> = get_rust_src_path().ok();
 }
 
 fn search_struct_fields(searchstr: &str, structmatch: &Match,
@@ -593,14 +593,28 @@ fn search_fn_args(fnstart: Point, open_brace_pos: Point, msrc: &str,
 }
 
 #[test]
-fn test_do_file_search() {
+fn test_do_file_search_std() {
+
     let cache = core::FileCache::default();
     let session = Session::new(&cache);
     let mut matches = do_file_search("std", &Path::new("."), &session);
 
     assert!(matches.len() > 1);
 
-    assert!(matches.any(|ma| ma.filepath.ends_with("src/libstd/lib.rs")));
+    let stdlib = matches.find(|m| m.filepath.ends_with("src/libstd/lib.rs"));
+
+    assert!(stdlib.is_some());
+}
+
+#[test]
+fn test_do_file_search_local() {
+    let cache = core::FileCache::default();
+    let session = Session::new(&cache);
+    let mut matches = do_file_search("submodule", &Path::new("fixtures/arst/src"), &session);
+
+    let system = matches.find(|m| m.filepath.ends_with("fixtures/arst/src/submodule/mod.rs"));
+
+    assert!(system.is_some());
 }
 
 pub fn do_file_search(
@@ -611,9 +625,18 @@ pub fn do_file_search(
     debug!("do_file_search with search string \"{}\"", searchstr);
     let mut out = Vec::new();
 
-    let srcpath = RUST_SRC_PATH.as_ref();
-    debug!("do_file_search srcpath: {:?}", srcpath);
-    let v = &[srcpath, currentdir][..];
+    let std_path = RUST_SRC_PATH.as_ref();
+    debug!("do_file_search std_path: {:?}", std_path);
+
+    let (v_1, v_2);
+    let v = if let Some(std_path) = std_path {
+        v_2 = [std_path, currentdir];
+        &v_2[..]
+    } else {
+        v_1 = [currentdir];
+        &v_1[..]
+    };
+
     debug!("do_file_search v: {:?}", v);
     for srcpath in v {
         if let Ok(iter) = std::fs::read_dir(srcpath) {
@@ -645,7 +668,6 @@ pub fn do_file_search(
                 if fname.starts_with(searchstr) {
                     for name in &[&format!("{}.rs", fname)[..], "mod.rs", "lib.rs"] {
                         let filepath = fpath_buf.join(name);
-
                         if filepath.exists() || session.contains_file(&filepath) {
                             let m = Match {
                                 matchstr: fname.to_owned(),
@@ -751,26 +773,30 @@ pub fn search_next_scope(mut startpoint: Point, pathseg: &core::PathSegment,
 }
 
 pub fn get_crate_file(name: &str, from_path: &Path, session: &Session) -> Option<PathBuf> {
+
+    // Either try the local files
     debug!("get_crate_file {}, {:?}", name, from_path);
     if let Some(p) = session.get_crate_file(name, from_path) {
         debug!("get_crate_file  - found the crate file! {:?}", p);
         return Some(p);
     }
 
-    let srcpath = &*RUST_SRC_PATH;
-    {
-        // try lib<name>/lib.rs, like in the rust source dir
-        let cratelibname = format!("lib{}", name);
-        let filepath = srcpath.join(cratelibname).join("lib.rs");
-        if filepath.exists() || session.contains_file(&filepath) {
-            return Some(filepath);
+    // Or if not found, try standard library
+    if let Some(ref std_path) = *RUST_SRC_PATH {
+        {
+            // try lib<name>/lib.rs, like in the rust source dir
+            let cratelibname = format!("lib{}", name);
+            let filepath = std_path.join(cratelibname).join("lib.rs");
+            if filepath.exists() || session.contains_file(&filepath) {
+                return Some(filepath);
+            }
         }
-    }
-    {
-        // try <name>/lib.rs
-        let filepath = srcpath.join(name).join("lib.rs");
-        if filepath.exists() || session.contains_file(&filepath) {
-            return Some(filepath);
+        {
+            // try <name>/lib.rs
+            let filepath = std_path.join(name).join("lib.rs");
+            if filepath.exists() || session.contains_file(&filepath) {
+                return Some(filepath);
+            }
         }
     }
     None
@@ -1115,13 +1141,14 @@ pub fn search_prelude_file(pathseg: &core::PathSegment, search_type: SearchType,
     let mut out : Vec<Match> = Vec::new();
 
     // find the prelude file from the search path and scan it
-    let srcpath = &*RUST_SRC_PATH;
-    let filepath = srcpath.join("libstd").join("prelude").join("v1.rs");
-    if filepath.exists() || session.contains_file(&filepath) {
-        let msrc = session.load_file_and_mask_comments(&filepath);
-        let is_local = true;
-        for m in search_scope(0, 0, msrc.as_src(), pathseg, &filepath, search_type, is_local, namespace, session, pending_imports) {
-            out.push(m);
+    if let Some(ref std_path) = *RUST_SRC_PATH {
+        let filepath = std_path.join("libstd").join("prelude").join("v1.rs");
+        if filepath.exists() || session.contains_file(&filepath) {
+            let msrc = session.load_file_and_mask_comments(&filepath);
+            let is_local = true;
+            for m in search_scope(0, 0, msrc.as_src(), pathseg, &filepath, search_type, is_local, namespace, session, pending_imports) {
+                out.push(m);
+            }
         }
     }
     out.into_iter()

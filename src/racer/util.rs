@@ -383,7 +383,7 @@ pub fn get_rust_src_path() -> Result<path::PathBuf, RustSrcPathError> {
         }
     };
 
-    debug!("Nope. Trying rustc --sysroot and appending lib/rustlib/src/rust/src to that.");
+    debug!("Nope. Trying rustc --print sysroot and appending lib/rustlib/src/rust/src to that.");
 
     if let Some(path) = check_rust_sysroot() {
         return validate_rust_src_path(path);
@@ -402,7 +402,7 @@ pub fn get_rust_src_path() -> Result<path::PathBuf, RustSrcPathError> {
         }
     }
 
-    debug!("Nope. Rust source path not found!");
+    warn!("Rust stdlib source path not found!");
 
     return Err(RustSrcPathError::Missing)
 }
