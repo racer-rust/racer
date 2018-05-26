@@ -402,7 +402,7 @@ pub fn get_rust_src_path() -> Result<path::PathBuf, RustSrcPathError> {
         }
     }
 
-    debug!("Nope. Rust source path not found!");
+    warn!("Rust stdlib source path not found!");
 
     return Err(RustSrcPathError::Missing)
 }
