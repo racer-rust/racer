@@ -164,7 +164,8 @@ fn completes_pub_fn_from_local_package() {
     ";
 
     with_test_project(|dir| {
-        let got = get_one_completion(src, Some(dir));
+        let srcdir = dir.nested_dir("src");
+        let got = get_one_completion(src, Some(srcdir));
         assert_eq!("test", got.matchstr);
     })
 }
@@ -182,7 +183,8 @@ fn completes_pub_fn_from_local_submodule_package() {
     ";
 
     with_test_project(|dir| {
-        let got = get_one_completion(src, Some(dir));
+        let srcdir = dir.nested_dir("src");
+        let got = get_one_completion(src, Some(srcdir));
         assert_eq!("bartest", got.matchstr);
     })
 }
@@ -1115,7 +1117,8 @@ fn follows_use_local_package() {
     ";
 
     with_test_project(|dir| {
-        let got = get_all_completions(src, Some(dir));
+        let srcdir = dir.nested_dir("src");
+        let got = get_all_completions(src, Some(srcdir));
         assert!(got.into_iter().any(|ma| ma.matchstr == "foo"));
     })
 }
@@ -1276,7 +1279,8 @@ fn finds_extern_crate() {
     ";
 
     with_test_project(|dir| {
-        let got = get_definition(src, Some(dir));
+        let srcdir = dir.nested_dir("src");
+        let got = get_definition(src, Some(srcdir));
         assert_eq!(got.matchstr, "fixtures");
     })
 }
@@ -3715,7 +3719,8 @@ fn main {
 - We should check racer can parse rust doc style comments
 - and some comments..."#;
     with_test_project(|dir| {
-        let got = get_one_completion(src, Some(dir));
+        let srcdir = dir.nested_dir("src");
+        let got = get_one_completion(src, Some(srcdir));
         assert_eq!(doc_str, got.docs);
     })
 }
@@ -3773,4 +3778,68 @@ fn follows_use_aliased_self() {
 
     let got = get_definition(src, None);
     assert_eq!(got.matchstr, "new");
+}
+
+// test for re-export
+#[test]
+fn follows_use_for_reexport() {
+    let src = "
+    extern crate fixtures;
+
+    use fixtures::use~;
+    ";
+    with_test_project(|dir| {
+        let srcdir = dir.nested_dir("src");
+        let got = get_only_completion(src, Some(srcdir));
+        assert_eq!(got.matchstr, "useless_func");
+    })
+}
+
+// test for patch.crates-io
+// in test-crate3, we patches rand0.5.0 to
+// https://github.com/rust-lang-nursery/rand/commit/ea9fc2e5357dcf5d0497aa332cd0f8050017e3ec
+// , where doc for `gen_range` was modified, so if racer returns modified doc, it recognizes
+// patches.crates-io correctly
+#[test]
+fn check_work_with_cratesio_patch() {
+    let src = "
+    extern crate rand;
+    use rand::{Rng, thread_rng};
+    fn main() {
+        let mut rng: Box<Rng> = Box::new(thread_rng());
+        rng.gen_rang~
+    }
+    ";
+
+    let doc = r#"Generate a random value in the range [`low`, `high`), i.e. inclusive of
+`low` and exclusive of `high`.
+
+This function is optimised for the case that only a single sample is
+made from the given range. See also the [`Uniform`] distribution
+type which may be faster if sampling from the same range repeatedly.
+
+# Panics
+
+Panics if `low >= high`.
+
+# Example
+
+```
+use rand::{thread_rng, Rng};
+
+let mut rng = thread_rng();
+let n: u32 = rng.gen_range(0, 10);
+println!("{}", n);
+let m: f64 = rng.gen_range(-40.0f64, 1.3e5f64);
+println!("{}", m);
+```
+
+[`Uniform`]: distributions/uniform/struct.Uniform.html"#;
+    with_test_project(|dir| {
+        let src_dir = dir.nested_dir("test-crate3").nested_dir("src");
+        println!("{:?}", src_dir);
+        let got = get_only_completion(src, Some(src_dir));
+        assert_eq!(got.matchstr, "gen_range");
+        assert_eq!(got.docs, doc);
+    })
 }

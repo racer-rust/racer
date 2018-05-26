@@ -171,8 +171,7 @@ fn setup_test_project() -> TmpDir {
 pub fn with_test_project<F: FnOnce(TmpDir)>(test: F)
 {
     let dir = setup_test_project();
-    let srcdir = dir.nested_dir("src");
-    test(srcdir)
+    test(dir)
 }
 
 /// get position where you want to test completion and source code
