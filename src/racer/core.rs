@@ -843,7 +843,7 @@ impl<'c> Session<'c> {
         manifest: P,
         cache: HashMap<String, path::PathBuf>,
     ) {
-         let manifest = manifest.as_ref().to_owned();
+        let manifest = manifest.as_ref().to_owned();
         let deps = Dependencies {
             inner: cache,
         };

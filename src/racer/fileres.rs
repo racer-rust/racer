@@ -165,7 +165,7 @@ fn resolve_dependencies(
     let packages = get_resolved_packages(&resolved_with_overrides, registry);
     // cache depedencies and get the src_path we're searching, if it exists
     let mut res = None;
-    // we have caches for each packages, so only depth1 depedencies are necessary
+    // we have caches for each packages, so only need depth1 depedencies
     let depth1_dependencies = match ws.current_opt() {
         Some(cur) => cur.dependencies().iter().map(|p| p.name()).collect(),
         None => HashSet::new(),
