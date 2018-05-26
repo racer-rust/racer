@@ -1,10 +1,11 @@
+use cargo::core::Resolve;
 use std::fs::File;
 use std::io::Read;
 use std::{vec, fmt};
 use std::{str, path};
 use std::io;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{hash_map, HashMap};
 use std::ops::Deref;
 use std::slice;
 use std::cmp::{min, max};
@@ -697,7 +698,6 @@ impl FileCache {
         self.masked_map.borrow_mut().insert(pathbuf, Rc::new(masked_src));
     }
 
-
     fn load_file(&self, filepath: &path::Path) -> Rc<IndexedSource> {
         if let Some(src) = self.raw_map.borrow().get(filepath) {
             return src.clone();
@@ -765,8 +765,10 @@ pub struct Session<'c> {
     pub generic_impls: RefCell<HashMap<(path::PathBuf, usize),
                                        Rc<Vec<(usize, String,
                                                ast::GenericsVisitor, ast::ImplVisitor)>>>>,
-    /// cached dependencies(manifest_path -> Dependencies)
+    /// Cached dependencie (path to Cargo.toml -> Depedencies)
     cached_deps: RefCell<HashMap<path::PathBuf, Rc<Dependencies>>>,
+    /// Cached lockfiles
+    cached_lockfile: RefCell<HashMap<path::PathBuf, Rc<Resolve>>>,
 }
 
 impl<'c> fmt::Debug for Session<'c> {
@@ -796,6 +798,7 @@ impl<'c> Session<'c> {
             cache,
             generic_impls: Default::default(),
             cached_deps: Default::default(),
+            cached_lockfile: Default::default(),
         }
     }
 
@@ -831,11 +834,7 @@ impl<'c> Session<'c> {
     pub fn get_deps<P: AsRef<path::Path>>(&self, manifest: P) -> Option<Rc<Dependencies>> {
         let manifest = manifest.as_ref();
         let deps = self.cached_deps.borrow();
-        if let Some(dep) = deps.get(manifest) {
-            Some(Rc::clone(dep))
-        } else {
-            None
-        }
+        deps.get(manifest).map(|rc| Rc::clone(&rc))
     }
 
     /// Cache dependencies into session.
@@ -844,11 +843,35 @@ impl<'c> Session<'c> {
         manifest: P,
         cache: HashMap<String, path::PathBuf>,
     ) {
-        let manifest = manifest.as_ref().to_owned();
+         let manifest = manifest.as_ref().to_owned();
         let deps = Dependencies {
             inner: cache,
         };
         self.cached_deps.borrow_mut().insert(manifest, Rc::new(deps));
+    }
+
+    /// load `Cargo.lock` file using fileloader
+    // TODO: use result
+    pub fn load_lock_file<P, F>(&self, path: P, resolver: F) -> Option<Rc<Resolve>>
+    where
+        P: AsRef<path::Path>,
+        F: FnOnce(&str) -> Option<Resolve>
+    {
+        let pathbuf = path.as_ref().to_owned();
+        match self.cached_lockfile.borrow_mut().entry(pathbuf) {
+            hash_map::Entry::Occupied(occupied) => Some(Rc::clone(occupied.get())),
+            hash_map::Entry::Vacant(vacant) => {
+                let contents = match self.cache.loader.load_file(path.as_ref()) {
+                    Ok(f) => f,
+                    Err(e) => {
+                        warn!("[Session::load_lock_file] Failed to load lock file: {}", e);
+                        return None;
+                    }
+                };
+                resolver(&contents)
+                    .map(|res| Rc::clone(vacant.insert(Rc::new(res))))
+            }
+        }
     }
 }
 
