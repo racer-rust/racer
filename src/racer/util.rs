@@ -198,8 +198,8 @@ pub fn expand_ident<P, C>(
 
     Some(ExpandedIdent {
         src: indexed_source,
-        start: start,
-        pos: pos,
+        start,
+        pos,
     })
 }
 
@@ -255,7 +255,7 @@ fn char_before(src: &str, i: usize) -> char {
         }
         prev = ch;
     }
-    return prev;
+    prev
 }
 
 #[test]
@@ -377,7 +377,7 @@ pub fn get_rust_src_path() -> Result<path::PathBuf, RustSrcPathError> {
 
     if let Ok(ref srcpaths) = env::var("RUST_SRC_PATH") {
          if !srcpaths.is_empty() {
-            for path in srcpaths.split(PATH_SEP) {
+            if let Some(path) = srcpaths.split(PATH_SEP).next() {
                 return validate_rust_src_path(path::PathBuf::from(path));
             }
         }
@@ -396,7 +396,7 @@ pub fn get_rust_src_path() -> Result<path::PathBuf, RustSrcPathError> {
         "/usr/src/rust/src",
     ];
 
-    for path in default_paths.iter() {
+    for path in &default_paths {
         if let Ok(path) = validate_rust_src_path(path::PathBuf::from(path)) {
             return Ok(path);
         }
@@ -404,7 +404,7 @@ pub fn get_rust_src_path() -> Result<path::PathBuf, RustSrcPathError> {
 
     warn!("Rust stdlib source path not found!");
 
-    return Err(RustSrcPathError::Missing)
+    Err(RustSrcPathError::Missing)
 }
 
 fn validate_rust_src_path(path: path::PathBuf) -> Result<path::PathBuf, RustSrcPathError> {
@@ -413,7 +413,7 @@ fn validate_rust_src_path(path: path::PathBuf) -> Result<path::PathBuf, RustSrcP
     } else if !path.join("libstd").exists() {
         Err(RustSrcPathError::NotRustSourceTree(path.join("libstd")))
     } else {
-        Ok(path.to_path_buf())
+        Ok(path)
     }
 }
 
@@ -551,7 +551,7 @@ impl<'stack, T> StackLinkedListNode<'stack, T>
     /// Pushes a new node on the stack. Returns the new node.
     pub fn push(&'stack self, item: T) -> Self {
         StackLinkedListNode(Some(StackLinkedListNodeData {
-            item: item,
+            item,
             previous: self,
         }))
     }
@@ -564,7 +564,7 @@ impl<'stack, T> StackLinkedListNode<'stack, T>
     /// Returns `true` if the item is found, or `false` if it's not found.
     pub fn contains(&self, item: &T) -> bool {
         let mut current = self;
-        while let &StackLinkedListNode(Some(StackLinkedListNodeData { item: ref current_item, previous })) = current {
+        while let StackLinkedListNode(Some(StackLinkedListNodeData { item: ref current_item, previous })) = *current {
             if current_item == item {
                 return true;
             }
@@ -583,7 +583,7 @@ pub fn trim_visibility(blob: &str) -> &str {
     if !blob.trim_left().starts_with("pub") {
         return blob
     }
-    
+
     let mut level = 0;
     let mut skip_restricted = 0;
     for (i, c) in blob[3..].char_indices() {

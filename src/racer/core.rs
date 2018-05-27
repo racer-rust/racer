@@ -263,19 +263,19 @@ impl Path {
     }
 
     pub fn from_vec(global: bool, v: Vec<&str>) -> Path {
-        let segs = v
+        let segments = v
             .into_iter()
             .map(|x| PathSegment{ name: x.to_owned(), types: Vec::new() })
             .collect::<Vec<_>>();
-        Path{ global: global, segments: segs }
+        Path { global, segments }
     }
 
     pub fn from_svec(global: bool, v: Vec<String>) -> Path {
-        let segs = v
+        let segments = v
             .into_iter()
             .map(PathSegment::from)
             .collect::<Vec<_>>();
-        Path{ global: global, segments: segs }
+        Path { global, segments }
     }
 
     pub fn extend(&mut self, path: Path) -> &mut Self {
@@ -352,7 +352,7 @@ pub struct PathSegment {
 impl From<String> for PathSegment {
     fn from(name: String) -> Self {
         PathSegment {
-            name: name,
+            name,
             types: Vec::new(),
         }
     }
@@ -777,7 +777,7 @@ impl<'c> Session<'c> {
     /// [`FileCache`]: struct.FileCache.html
     pub fn new(cache: &'c FileCache) -> Session<'c> {
         Session {
-            cache: cache,
+            cache,
             generic_impls: Default::default(),
             cargo_roots: Default::default(),
         }
@@ -836,26 +836,26 @@ impl<'c> SessionExt for Session<'c> {
 }
 
 /// Get the racer point of a line/character number pair for a file.
-pub fn to_point<'c, P>(
-    coords: Coordinate, 
-    path: P, 
-    session: &'c Session
-) -> Option<Point> 
-    where 
+pub fn to_point<P>(
+    coords: Coordinate,
+    path: P,
+    session: &Session
+) -> Option<Point>
+    where
         P: AsRef<path::Path> {
     Location::from(coords).to_point(&session.load_file(path.as_ref()))
 }
 
 /// Get the racer point of a line/character number pair for a file.
-pub fn to_coords<'c, P>(
-    point: Point, 
-    path: P, 
-    session: &'c Session
-) -> Option<Coordinate> 
-    where 
+pub fn to_coords<P>(
+    point: Point,
+    path: P,
+    session: &Session
+) -> Option<Coordinate>
+    where
         P: AsRef<path::Path> {
     Location::from(point).to_coords(&session.load_file(path.as_ref()))
-} 
+}
 
 /// Find completions for a fully qualified name like `std::io::`
 ///
@@ -892,10 +892,10 @@ pub fn complete_fully_qualified_name<'c, S, P>(
 {
     let mut matches = complete_fully_qualified_name_(query.as_ref(), path.as_ref(), session);
     matches.dedup_by(|a, b| a.is_same_as(b));
-    
+
     MatchIter {
         matches: matches.into_iter(),
-        session: session
+        session,
     }
 }
 
@@ -980,7 +980,7 @@ pub fn complete_from_file<'c, P, C>(
 
     MatchIter {
         matches: matches.into_iter(),
-        session: session,
+        session,
     }
 }
 
@@ -1065,12 +1065,12 @@ fn complete_from_file_(
         CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("complete_from_file context is {:?}", context);
-            context.map(|ty| {
+            if let Some(ty) = context {
                 complete_field_for_ty(ty, searchstr, SearchType::StartsWith, session, &mut out);
-            });
+            }
         }
     }
-    
+
     out
 }
 
@@ -1185,11 +1185,11 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
                 v.remove(0);
             }
 
-            let segs = v
+            let segments = v
                 .into_iter()
                 .map(|x| PathSegment{ name: x.to_owned(), types: Vec::new() })
                 .collect::<Vec<_>>();
-            let path = Path{ global: global, segments: segs };
+            let path = Path { global, segments };
 
             nameres::resolve_path(&path, filepath, pos,
                                   SearchType::ExactMatch, Namespace::Both,

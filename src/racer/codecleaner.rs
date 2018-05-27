@@ -99,7 +99,7 @@ impl<'a> CodeIndicesIter<'a> {
         for &b in &src_bytes[pos..] {
             pos += 1;
             if b == b'\n' {
-                if pos + 2 <= src_bytes.len() && &src_bytes[pos..pos+2] == &[b'/', b'/'] {
+                if pos + 2 <= src_bytes.len() && src_bytes[pos..pos+2] == [b'/', b'/'] {
                     continue;
                 }
                 break;
@@ -224,7 +224,7 @@ impl<'a> CodeIndicesIter<'a> {
 
 /// Returns indices of chunks of code (minus comments and string contents)
 pub fn code_chunks(src: &str) -> CodeIndicesIter {
-    CodeIndicesIter { src: src, state: State::Code, pos: 0 }
+    CodeIndicesIter { src, state: State::Code, pos: 0 }
 }
 
 /// Reverse Iterator for reading the source bytes skipping comments.

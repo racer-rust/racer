@@ -17,7 +17,7 @@ use syntax::{self, symbol, visit};
 
 /// construct parser from string
 // From syntax/util/parser_testing.rs
-pub fn string_to_parser<'a>(ps: &'a ParseSess, source_str: String) -> Parser<'a> {
+pub fn string_to_parser(ps: &ParseSess, source_str: String) -> Parser {
     parse::new_parser_from_source_str(ps, FileName::Custom("racer-file".to_owned()), source_str)
 }
 
@@ -132,8 +132,8 @@ impl<'ast> visit::Visitor<'ast> for UseVisitor {
                         path.segments.pop();
                     }
                     res.push(PathAlias {
-                        kind: kind,
-                        path: path,
+                        kind,
+                        path,
                     });
                 }
                 UseTreeKind::Nested(ref nested) => {
@@ -146,7 +146,7 @@ impl<'ast> visit::Visitor<'ast> for UseVisitor {
                 UseTreeKind::Glob => {
                     res.push(PathAlias {
                         kind: PathAliasKind::Glob,
-                        path: path,
+                        path,
                     });
                     contains_glob = true;
                 }
@@ -448,7 +448,7 @@ fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: Point, session: &Ses
 }
 
 fn to_racer_path(path: &ast::Path) -> core::Path {
-    let mut v = Vec::new();
+    let mut segments = Vec::new();
     let mut global = false;
     for seg in &path.segments {
         let name = seg.ident.name;
@@ -470,14 +470,14 @@ fn to_racer_path(path: &ast::Path) -> core::Path {
                 }
             });
         }
-        v.push(core::PathSegment {
+        segments.push(core::PathSegment {
             name: name.to_string(),
-            types: types,
+            types,
         });
     }
     core::Path {
-        global: global,
-        segments: v,
+        global,
+        segments,
     }
 }
 
@@ -497,7 +497,7 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: Point, session: &Sessio
     let res = resolve_path_with_str(path, fpath, pos, core::SearchType::ExactMatch,
                core::Namespace::Type, session).nth(0).and_then(|m| {
                    match m.mtype {
-                       MatchType::Type => get_type_of_typedef(m, session, fpath),
+                       MatchType::Type => get_type_of_typedef(&m, session, fpath),
                        _ => Some(m)
                    }
                });
@@ -516,7 +516,7 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: Point, session: &Sessio
     })
 }
 
-fn get_type_of_typedef(m: Match, session: &Session, fpath: &Path) -> Option<Match> {
+fn get_type_of_typedef(m: &Match, session: &Session, fpath: &Path) -> Option<Match> {
     debug!("get_type_of_typedef match is {:?}", m);
     let msrc = session.load_file_and_mask_comments(&m.filepath);
     let blobstart = m.point - 5;  // - 5 because 'type '
@@ -960,9 +960,9 @@ impl<'ast> visit::Visitor<'ast> for ImplVisitor {
                 }
                 _ => {}
             }
-            otrait.as_ref().map(|t| {
+            if let Some(ref t) = otrait {
                 self.trait_path = Some(to_racer_path(&t.path));
-            });
+            }
         }
     }
 }
@@ -1008,11 +1008,11 @@ pub struct GenericsVisitor {
 
 impl<'ast> visit::Visitor<'ast> for GenericsVisitor {
     fn visit_generics(&mut self, g: &ast::Generics) {
-        for ty in g.params.iter() {
+        for ty in &g.params {
             if let GenericParam::Type(ty) = ty {
                 let generic_ty_name = ty.ident.name.to_string();
                 let mut generic_bounds = Vec::new();
-                for trait_bound in ty.bounds.iter() {
+                for trait_bound in &ty.bounds {
                     let bound_path = match *trait_bound {
                         TyParamBound::TraitTyParamBound(ref ptrait_ref, _)
                             => Some(&ptrait_ref.trait_ref.path),
@@ -1066,13 +1066,13 @@ pub fn parse_use(s: String) -> UseVisitor {
 }
 
 pub fn parse_pat_bind_stmt(s: String) -> Vec<SourceByteRange> {
-    let mut v = PatBindVisitor{ ident_points: Vec::new() };
+    let mut v = PatBindVisitor { ident_points: Vec::new() };
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.ident_points
 }
 
 pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, Point, Option<core::Ty>)> {
-    let mut v = StructVisitor{ scope: scope, fields: Vec::new() };
+    let mut v = StructVisitor { scope, fields: Vec::new() };
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.fields
 }
@@ -1124,15 +1124,14 @@ pub fn parse_pat_idents(s: String) -> Vec<SourceByteRange> {
 
 
 pub fn parse_fn_output(s: String, scope: Scope) -> Option<core::Ty> {
-    let mut v = FnOutputVisitor { result: None, scope: scope };
+    let mut v = FnOutputVisitor { result: None, scope };
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.result
 }
 
 pub fn parse_fn_arg_type(s: String, argpos: Point, scope: Scope, session: &Session) -> Option<core::Ty> {
     debug!("parse_fn_arg {} |{}|", argpos, s);
-    let mut v = FnArgTypeVisitor { argpos: argpos, scope: scope, result: None,
-                                   session: session };
+    let mut v = FnArgTypeVisitor { argpos, scope, result: None, session };
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.result
 }
@@ -1161,7 +1160,7 @@ pub fn get_type_of(s: String, fpath: &Path, pos: Point, session: &Session) -> Op
         point: pos
     };
 
-    let mut v = ExprTypeVisitor{ scope: startscope, result: None, session: session };
+    let mut v = ExprTypeVisitor { scope: startscope, result: None, session };
 
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.result
@@ -1170,10 +1169,10 @@ pub fn get_type_of(s: String, fpath: &Path, pos: Point, session: &Session) -> Op
 // pos points to an ident in the lhs of the stmtstr
 pub fn get_let_type(s: String, pos: Point, scope: Scope, session: &Session) -> Option<Ty> {
     let mut v = LetTypeVisitor {
-        scope: scope,
-        session: session,
+        scope,
+        session,
         srctxt: s.clone(),
-        pos: pos,
+        pos,
         result: None
     };
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
@@ -1182,9 +1181,9 @@ pub fn get_let_type(s: String, pos: Point, scope: Scope, session: &Session) -> O
 
 pub fn get_match_arm_type(s: String, pos: Point, scope: Scope, session: &Session) -> Option<Ty> {
     let mut v = MatchTypeVisitor {
-        scope: scope,
-        session: session,
-        pos: pos,
+        scope,
+        session,
+        pos,
         result: None
     };
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));

@@ -424,13 +424,11 @@ fn find_cratesio_src_dirs(dir: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
     for entry in vectry!(fs::read_dir(dir)) {
         let path = vectry!(entry).path();
-        if path.is_dir() {
-            if path.file_name()
-                .and_then(|s| s.to_str())
-                .map_or(false, |fname| fname.starts_with("github.com-"))
-            {
-                out.push(path);
-            }
+        if path.is_dir() && path.file_name()
+            .and_then(|s| s.to_str())
+            .map_or(false, |fname| fname.starts_with("github.com-"))
+        {
+            out.push(path);
         }
     }
     out
