@@ -109,9 +109,10 @@ fn method_info_test() {
     assert_eq!(info.args.len(), 0);
     assert_eq!(info.snippet(), "new()");
 
-    let info = MethodInfo::from_source_str("pub fn reserve(&mut self, additional: uint)").unwrap();
+    let info = MethodInfo::from_source_str("pub fn reserve(&mut self, additional: usize)").unwrap();
     assert_eq!(info.name, "reserve");
     assert_eq!(info.args.len(), 2);
-    assert_eq!(info.args[0], "&mut self");
-    assert_eq!(info.snippet(), "reserve(${1:additional: uint})");
+    // it looks odd, but no problme because what our clients see is only snippet
+    assert_eq!(info.args[0], "&mut self: &mut self");
+    assert_eq!(info.snippet(), "reserve(${1:additional: usize})");
 }
