@@ -67,9 +67,13 @@ impl MethodInfo {
                                       .iter()
                                       .map(|arg| {
                                           let codemap = &p.sess.codemap();
-                                          match codemap.span_to_snippet(arg.pat.span) {
+                                          let var_name = match codemap.span_to_snippet(arg.pat.span) {
                                               Ok(name) => name,
                                               _ => "".into()
+                                          };
+                                          match codemap.span_to_snippet(arg.ty.span) {
+                                              Ok(ref type_name) if !type_name.is_empty() => format!("{}: {}", var_name, type_name),
+                                              _ => var_name
                                           }
                                       })
                                       .collect()
@@ -109,5 +113,5 @@ fn method_info_test() {
     assert_eq!(info.name, "reserve");
     assert_eq!(info.args.len(), 2);
     assert_eq!(info.args[0], "&mut self");
-    assert_eq!(info.snippet(), "reserve(${1:additional})");
+    assert_eq!(info.snippet(), "reserve(${1:additional: uint})");
 }
