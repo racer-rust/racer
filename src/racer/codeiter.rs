@@ -130,7 +130,7 @@ impl<'a, I> StmtIndicesIter<'a,I>
     where I: Iterator<Item=SourceByteRange>
 {
     pub fn from_parts(src: &str, it: I) -> Fuse<StmtIndicesIter<I>> {
-        StmtIndicesIter{ src: src, it: it, pos: 0, end: 0 }.fuse()
+        StmtIndicesIter{ src, it, pos: 0, end: 0 }.fuse()
     }
 }
 

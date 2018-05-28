@@ -86,7 +86,7 @@ fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType,
     let mut start = 0usize;
 
     // optional (pub\s+)?(unsafe\s+)?
-    for pat in ["pub", "unsafe"].into_iter() {
+    for pat in &["pub", "unsafe"] {
         if let Some(prefix_len) = strip_keyword_prefix(&src[start..], pat) {
             start += prefix_len;
         }
@@ -302,7 +302,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: Point, blobend: Point,
             debug!("extern crate {}", name);
 
             let realname = extern_crate.realname.as_ref().unwrap_or(name);
-            get_crate_file(realname, filepath, session).map(|cratepath| {
+            if let Some(cratepath) = get_crate_file(realname, filepath, session) {
                 let crate_src = session.load_file(&cratepath);
                 res = Some(Match { matchstr: name.clone(),
                                   filepath: cratepath.to_path_buf(),
@@ -315,7 +315,7 @@ pub fn match_extern_crate(msrc: &str, blobstart: Point, blobend: Point,
                                   generic_types: Vec::new(),
                                   docs: find_mod_doc(&crate_src, 0),
                 });
-            });
+            }
         }
     }
     res
@@ -408,7 +408,7 @@ pub fn match_struct(msrc: &str, blobstart: Point, blobend: Point,
         debug!("found a struct |{}|", l);
 
         // Parse generics
-        let end = match blob.find('{').or(blob.find(';')) {
+        let end = match blob.find('{').or_else(|| blob.find(';')) {
             Some(e) => e,
             None => {
                 error!("Can't find end of struct header");
@@ -532,7 +532,7 @@ pub fn match_enum(msrc: &str, blobstart: Point, blobend: Point,
         };
         debug!("found!! an enum |{}|", l);
         // Parse generics
-        let end = blob.find('{').or(blob.find(';'))
+        let end = blob.find('{').or_else(|| blob.find(';'))
             .expect("Can't find end of enum header");
         let generics = ast::parse_generics(format!("{}{{}}", &blob[..end]));
 
@@ -558,9 +558,9 @@ pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
                  local: bool, session: &Session,
                  pending_imports: &PendingImports) -> Vec<Match> {
     let import = PendingImport {
-        filepath: &filepath,
-        blobstart: blobstart,
-        blobend: blobend,
+        filepath,
+        blobstart,
+        blobend,
     };
 
     let blob = &msrc[blobstart..blobend];

@@ -65,7 +65,7 @@ pub fn first_param_is_self(blob: &str) -> bool {
                 },
                 Some(..) => 0,
             };
-            while let Some(start) = blob[skip_generic..].find('(') {
+            if let Some(start) = blob[skip_generic..].find('(') {
                 let end = scopes::find_closing_paren(blob, start + 1);
                 let is_self = txt_matches(ExactMatch, "self", &blob[(start + 1)..end]);
                 trace!("searching fn args for self: |{}| {}",
@@ -153,7 +153,7 @@ fn get_type_of_let_expr(m: &Match, msrc: Src, session: &Session) -> Option<core:
         debug!("get_type_of_let_expr calling parse_let |{}|", blob);
 
         let pos = m.point - point - start;
-        let scope = Scope{ filepath: m.filepath.clone(), point: point };
+        let scope = Scope { filepath: m.filepath.clone(), point };
         ast::get_let_type(blob.to_owned(), pos, scope, session)
     } else {
         None

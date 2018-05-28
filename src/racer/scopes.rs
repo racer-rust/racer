@@ -119,12 +119,12 @@ fn get_local_module_path_(msrc: Src, point: Point, out: &mut Vec<String>) {
             let blob = msrc.from_to(start, end);
             if blob.starts_with("pub mod ") || blob.starts_with("mod ") {
                 let p = typeinf::generate_skeleton_for_parsing(&blob);
-                ast::parse_mod(p).name.map(|name| {
+                if let Some(name) = ast::parse_mod(p).name {
                     out.push(name);
                     let newstart = blob.find('{').unwrap() + 1;
                     get_local_module_path_(blob.from(newstart),
                                            point - start - newstart, out);
-                });
+                }
             }
         }
     }

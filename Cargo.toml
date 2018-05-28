@@ -29,13 +29,10 @@ clap = "2.19"
 lazy_static = "1.0"
 humantime = "1.1"
 
-[dependencies.clippy]
-version = "0.0.103"
-optional = true
-
 [dev-dependencies]
 rand = "0.4"
 lazy_static = "1.0"
 
 [features]
 nightly = []
+clippy = []
