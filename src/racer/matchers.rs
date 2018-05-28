@@ -678,7 +678,6 @@ pub fn match_fn(msrc: &str, blobstart: Point, blobend: Point,
     let blob = &msrc[blobstart..blobend];
     let keyword = if is_const_fn(msrc, blobstart, blobend) { "const fn" } else { "fn" };
     if let Some(start) = find_keyword(blob, keyword, searchstr, search_type, local) {
-        info!("{:?}", start);
         if !typeinf::first_param_is_self(blob) {
             debug!("found a fn starting {}", searchstr);
             let l = match search_type {
