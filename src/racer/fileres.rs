@@ -40,19 +40,15 @@ pub fn get_crate_file(name: &str, from_path: &Path, session: &Session) -> Option
 
 /// get module file from current path & crate name
 pub fn get_module_file(name: &str, parentdir: &Path, session: &Session) -> Option<PathBuf> {
-    {
-        // try just <name>.rs
-        let filepath = parentdir.join(format!("{}.rs", name));
-        if filepath.exists() || session.contains_file(&filepath) {
-            return Some(filepath);
-        }
+    // try just <name>.rs
+    let filepath = parentdir.join(format!("{}.rs", name));
+    if filepath.exists() || session.contains_file(&filepath) {
+        return Some(filepath);
     }
-    {
-        // try <name>/mod.rs
-        let filepath = parentdir.join(name).join("mod.rs");
-        if filepath.exists() || session.contains_file(&filepath) {
-            return Some(filepath);
-        }
+    // try <name>/mod.rs
+    let filepath = parentdir.join(name).join("mod.rs");
+    if filepath.exists() || session.contains_file(&filepath) {
+        return Some(filepath);
     }
     None
 }
