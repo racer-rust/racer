@@ -21,7 +21,7 @@ doc = false
 debug = true
 
 [dependencies]
-cargo = { git = "https://github.com/rust-lang/cargo", rev = "22c0f22f5621f1b68558d80a0966d073b9b68932" }
+cargo = { git = "https://github.com/rust-lang/cargo", rev = "d775dddd31ce56a78e2f368f546311bfd94135b6" }
 log = "0.4"
 rustc-ap-syntax = "151.0.0"
 env_logger = "0.5"
