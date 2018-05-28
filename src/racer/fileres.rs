@@ -1,10 +1,7 @@
-use cargo::core::{registry::PackageRegistry,
-                  resolver::{EncodableResolve, Method, Resolve},
-                  PackageId,
-                  PackageSet,
-                  Source,
-                  SourceId,
-                  Workspace};
+use cargo::core::{
+    registry::PackageRegistry, resolver::{EncodableResolve, Method, Resolve}, PackageId,
+    PackageSet, Source, SourceId, Workspace,
+};
 use cargo::ops::resolve_with_previous;
 use cargo::util::{errors::CargoResult, important_paths::find_root_manifest_for_wd, toml};
 use cargo::{sources::PathSource, Config};
@@ -18,10 +15,10 @@ pub fn get_crate_file(name: &str, from_path: &Path, session: &Session) -> Option
     debug!("get_crate_file {}, {:?}", name, from_path);
 
     if let Some(path) = get_outer_crates(name, from_path, session) {
-        info!("get_outer_crates returned {:?} for {}", path, name);
+        debug!("get_outer_crates returned {:?} for {}", path, name);
         return Some(path);
     } else {
-        info!("get_outer_crates returned None, try RUST_SRC_PATH");
+        debug!("get_outer_crates returned None, try RUST_SRC_PATH");
     }
 
     // TODO: cache std libs
@@ -73,17 +70,6 @@ macro_rules! cargo_try {
     };
 }
 
-macro_rules! cargo_warn {
-    ($r:expr) => {
-        match $r {
-            Ok(_) => {}
-            Err(err) => {
-                warn!("Error in cargo: {}", err);
-            }
-        }
-    };
-}
-
 /// try to get outer crates
 /// if we have dependencies in cache, use it.
 /// else, call cargo's function to resolve depndencies.
@@ -93,51 +79,27 @@ fn get_outer_crates(libname: &str, from_path: &Path, session: &Session) -> Optio
         libname, from_path
     );
 
-    // we have to try 2 names(e.g. crate a-b has a target name a_b by rustc)
-    let libname_hyphenated = if libname.contains('_') {
-        Some(libname.replace('_', "-"))
-    } else {
-        None
-    };
     let manifest = cargo_try!(find_root_manifest_for_wd(from_path));
     if let Some(deps_info) = session.get_deps(&manifest) {
         // cache exists
         debug!("[get_outer_crates] cache exists for manifest",);
-        if let Some(p) = deps_info.get_src_path(libname) {
-            Some(p)
-        } else if let Some(p) = deps_info.get_src_path(&libname_hyphenated?) {
-            Some(p)
-        } else {
-            None
-        }
+        deps_info.get_src_path(libname)
     } else {
+        // cache doesn't exist
         let manifest = cargo_try!(find_root_manifest_for_wd(from_path));
-        debug!("[get_outer_crates] cache doesn't exist");
-        resolve_dependencies(&manifest, session, |name| {
-            if libname == name {
-                return true;
-            }
-            if let Some(ref hyphnated) = libname_hyphenated {
-                if name == hyphnated {
-                    return true;
-                }
-            }
-            false
-        })
+        // calucurating depedencies can be bottleneck so used info! here(kngwyu)
+        info!("[get_outer_crates] cache doesn't exist");
+        resolve_dependencies(&manifest, session, libname)
     }
 }
 
-fn resolve_dependencies(
-    manifest: &Path,
-    session: &Session,
-    matches_libname: impl Fn(&str) -> bool,
-) -> Option<PathBuf> {
+fn resolve_dependencies(manifest: &Path, session: &Session, libname: &str) -> Option<PathBuf> {
     let config = cargo_try!(Config::default());
     let ws = cargo_try!(Workspace::new(&manifest, &config));
     // get resolve from lock file
     let lock_path = ws.root().to_owned().join("Cargo.lock");
-    let lock_file = session.load_lock_file(&lock_path, |lock_file| {
-        let resolve = cargo_try!(toml::parse(&lock_file, &lock_path, ws.config()));
+    let lock_file = session.load_lockfile(&lock_path, |lockfile| {
+        let resolve = cargo_try!(toml::parse(&lockfile, &lock_path, ws.config()));
         let v: EncodableResolve = cargo_try!(resolve.try_into());
         Some(cargo_try!(v.into_resolve(&ws)))
     });
@@ -148,7 +110,8 @@ fn resolve_dependencies(
         Some(prev) => resolve_with_prev(&mut registry, &ws, Some(&*prev)),
         None => resolve_with_prev(&mut registry, &ws, None),
     });
-    cargo_warn!(add_overrides(&mut registry, &ws));
+    add_overrides(&mut registry, &ws)
+        .unwrap_or_else(|e| warn!("[resolve_dependencies] error in add_override: {}", e));
     // get depedency with overrides
     let resolved_with_overrides = cargo_try!(resolve_with_previous(
         &mut registry,
@@ -178,12 +141,13 @@ fn resolve_dependencies(
             let targets = pkg.manifest().targets();
             // we only need library target
             let lib_target = targets.into_iter().find(|target| target.is_lib())?;
-            let name = lib_target.name();
+            // crate_name returns target.name.replace("-", "_")
+            let crate_name = lib_target.crate_name();
             let src_path = lib_target.src_path().to_owned();
-            if matches_libname(name) {
+            if crate_name == libname {
                 res = Some(src_path.clone());
             }
-            Some((name.to_owned(), src_path))
+            Some((crate_name, src_path))
         })
         .collect();
     session.cache_deps(manifest, deps_map);

@@ -767,7 +767,7 @@ pub struct Session<'c> {
                                                ast::GenericsVisitor, ast::ImplVisitor)>>>>,
     /// Cached dependencie (path to Cargo.toml -> Depedencies)
     cached_deps: RefCell<HashMap<path::PathBuf, Rc<Dependencies>>>,
-    /// Cached lockfiles
+    /// Cached lockfiles (path to Cargo.lock -> Resolve)
     cached_lockfile: RefCell<HashMap<path::PathBuf, Rc<Resolve>>>,
 }
 
@@ -831,14 +831,14 @@ impl<'c> Session<'c> {
     }
 
     /// Get cached dependencies from manifest path(abs path of Cargo.toml) if they exist.
-    pub fn get_deps<P: AsRef<path::Path>>(&self, manifest: P) -> Option<Rc<Dependencies>> {
+    pub(crate) fn get_deps<P: AsRef<path::Path>>(&self, manifest: P) -> Option<Rc<Dependencies>> {
         let manifest = manifest.as_ref();
         let deps = self.cached_deps.borrow();
         deps.get(manifest).map(|rc| Rc::clone(&rc))
     }
 
     /// Cache dependencies into session.
-    pub fn cache_deps<P: AsRef<path::Path>>(
+    pub(crate) fn cache_deps<P: AsRef<path::Path>>(
         &self,
         manifest: P,
         cache: HashMap<String, path::PathBuf>,
@@ -852,7 +852,7 @@ impl<'c> Session<'c> {
 
     /// load `Cargo.lock` file using fileloader
     // TODO: use result
-    pub fn load_lock_file<P, F>(&self, path: P, resolver: F) -> Option<Rc<Resolve>>
+    pub(crate) fn load_lockfile<P, F>(&self, path: P, resolver: F) -> Option<Rc<Resolve>>
     where
         P: AsRef<path::Path>,
         F: FnOnce(&str) -> Option<Resolve>
@@ -864,7 +864,7 @@ impl<'c> Session<'c> {
                 let contents = match self.cache.loader.load_file(path.as_ref()) {
                     Ok(f) => f,
                     Err(e) => {
-                        info!(
+                        debug!(
                             "[Session::load_lock_file] Failed to load {:?}: {}",
                             path.as_ref(),
                             e
