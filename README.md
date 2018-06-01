@@ -34,15 +34,21 @@ As mentioned in the command output, don't forget to add the installation directo
 
     1. automatically via [rustup](https://www.rustup.rs/) and run `rustup component add rust-src` in order to install the source to `$(rustc --print sysroot)/lib/rustlib/src/rust/src`. Rustup will keep the sources in sync with the toolchain if you run `rustup update`.
 
-    2. manually from git, or download from https://www.rust-lang.org/install.html (the 'rustc' source download behind the 'source' link is the right one).
+    2. manually from git: https://github.com/rust-lang/rust
 
-    Ensure to download sources for any rust version you have installed (e.g. a common configuration is to have the `stable` and many `nightly` installed).
+    *Note*
 
-2. (OPTIONAL) Set the ```RUST_SRC_PATH``` environment variable to point to the 'src' dir in the Rust source installation
+     If you want to use `racer` with multiple release channels (Rust has 3 release channels: `stable`, `beta` and `nightly`), you have to also download Rust source code for each release channel you install.
+
+    e.g. (rustup case) Add a nightly toolchain build and install nightly sources too
+
+    `rustup toolchain add nightly`
+
+    `rustup component add rust-src`
+
+2. (Only needed if downloaded the sources) Set the ```RUST_SRC_PATH``` environment variable to point to the 'src' dir in the Rust source installation
 
    (e.g. ```% export RUST_SRC_PATH=/usr/local/src/rust/src``` or ```% export RUST_SRC_PATH="$(rustc --print sysroot)/lib/rustlib/src/rust/src"``` )
-
-   This is not mandatory anymore to use `racer`.
 
 3. Test on the command line:
 
