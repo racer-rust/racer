@@ -88,10 +88,10 @@ Vim integration has been moved to a separate project: [vim-racer](https://github
 
 Racer recommends the [`vscode-rust` extension](https://github.com/editor-rs/vscode-rust). This is an actively-maintained fork of the now-deprecated [`RustyCode` extension](https://github.com/saviorisdead/RustyCode).
 
-### Atom integration 
+### Atom integration
 
 You can find the racer package for Atom [here](https://atom.io/packages/autocomplete-racer)
 
-### Kakoune integration 
+### Kakoune integration
 
 [Kakoune](https://github.com/mawww/kakoune) comes with a builtin integration for racer auto completion.
