@@ -36,10 +36,14 @@ As mentioned in the command output, don't forget to add the installation directo
 
     2. manually from git, or download from https://www.rust-lang.org/install.html (the 'rustc' source download behind the 'source' link is the right one).
 
-2. Set the ```RUST_SRC_PATH``` environment variable to point to the 'src' dir in the Rust source installation
+    Ensure to download sources for any rust version you have installed (e.g. a common configuration is to have the `stable` and many `nightly` installed).
+
+2. (OPTIONAL) Set the ```RUST_SRC_PATH``` environment variable to point to the 'src' dir in the Rust source installation
 
    (e.g. ```% export RUST_SRC_PATH=/usr/local/src/rust/src``` or ```% export RUST_SRC_PATH="$(rustc --print sysroot)/lib/rustlib/src/rust/src"``` )
-   
+
+   This is not mandatory anymore to use `racer`.
+
 3. Test on the command line:
 
    ```racer complete std::io::B ```  (should show some completions)
