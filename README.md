@@ -34,12 +34,22 @@ As mentioned in the command output, don't forget to add the installation directo
 
     1. automatically via [rustup](https://www.rustup.rs/) and run `rustup component add rust-src` in order to install the source to `$(rustc --print sysroot)/lib/rustlib/src/rust/src`. Rustup will keep the sources in sync with the toolchain if you run `rustup update`.
 
-    2. manually from git, or download from https://www.rust-lang.org/install.html (the 'rustc' source download behind the 'source' link is the right one).
+    2. manually from git: https://github.com/rust-lang/rust
 
-2. Set the ```RUST_SRC_PATH``` environment variable to point to the 'src' dir in the Rust source installation
+    *Note*
+
+     If you want to use `racer` with multiple release channels (Rust has 3 release channels: `stable`, `beta` and `nightly`), you have to also download Rust source code for each release channel you install.
+
+    e.g. (rustup case) Add a nightly toolchain build and install nightly sources too
+
+    `rustup toolchain add nightly`
+
+    `rustup component add rust-src`
+
+2. (Only needed if downloaded the sources) Set the ```RUST_SRC_PATH``` environment variable to point to the 'src' dir in the Rust source installation
 
    (e.g. ```% export RUST_SRC_PATH=/usr/local/src/rust/src``` or ```% export RUST_SRC_PATH="$(rustc --print sysroot)/lib/rustlib/src/rust/src"``` )
-   
+
 3. Test on the command line:
 
    ```racer complete std::io::B ```  (should show some completions)
@@ -84,10 +94,10 @@ Vim integration has been moved to a separate project: [vim-racer](https://github
 
 Racer recommends the [`vscode-rust` extension](https://github.com/editor-rs/vscode-rust). This is an actively-maintained fork of the now-deprecated [`RustyCode` extension](https://github.com/saviorisdead/RustyCode).
 
-### Atom integration 
+### Atom integration
 
 You can find the racer package for Atom [here](https://atom.io/packages/autocomplete-racer)
 
-### Kakoune integration 
+### Kakoune integration
 
 [Kakoune](https://github.com/mawww/kakoune) comes with a builtin integration for racer auto completion.
