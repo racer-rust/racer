@@ -231,7 +231,7 @@ fn to_racer_ty(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
         }
         TyKind::Array(ref ty, ref expr) => {
             to_racer_ty(ty, scope).map(|racer_ty| {
-                Ty::FixedLengthVec(Box::new(racer_ty), pprust::expr_to_string(expr))
+                Ty::FixedLengthVec(Box::new(racer_ty), pprust::expr_to_string(&expr.value))
             })
         }
         TyKind::Slice(ref ty) => {
