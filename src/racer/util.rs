@@ -69,50 +69,50 @@ pub fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bo
 pub fn closure_valid_arg_scope(scope_src: &str) -> Option<(usize, usize, &str)> {
     // Try to find the left and right pipe, if one or both are not present, this is not a valid
     // closure definition
-    let left_pipe = if let Some(pos) = scope_src.find('|') { pos } else { return None; };
-    let rest_scope = &scope_src[left_pipe + 1..];
-    let right_pipe = if let Some(pos) = rest_scope.find('|') {
-        left_pipe + 1 + pos
-    } else {
-        return None;
-    };
-
-    let pipe_scope = &scope_src[left_pipe..right_pipe+1];
-
-    // For each '{' increase the counter by one and for each '}' decrease the counter by one
-    // If we have a equal number of curly brackets, we should get 0 as result
-    let curly_brackets = pipe_scope.chars().fold(0,
-                           |count, c| {
-                               if c == '{' {
-                                   count + 1
-                               } else if c == '}' {
-                                   count - 1
-                               } else {
-                                   count
-                               }
-                           });
-
-    // If we found an unequal number of curly brackets in the scope, this can not be a valid
-    // closure definition
-    if curly_brackets != 0 {
-        return None;
+    let left_pipe = scope_src.find('|')?;
+    let candidate = &scope_src[left_pipe..];
+    let mut brace_level = 0;
+    for (i, c) in candidate.chars().skip(1).enumerate() {
+        match c {
+            '{' => brace_level += 1,
+            '}' => brace_level -= 1,
+            '|' => {
+                let right_pipe = left_pipe + 1 + i;
+                // now we find right |
+                if brace_level == 0  {
+                    return Some((left_pipe, right_pipe, &scope_src[left_pipe..=right_pipe]));
+                }
+                break;
+            }
+            ';' => break,
+            _ => {}
+        }
+        if brace_level < 0 {
+            break;
+        }
     }
-
-    // If we find a ';' --> no closure definition
-    if pipe_scope.contains(';') {
-        return None;
-    }
-
-    Some((left_pipe, right_pipe, pipe_scope))
+    None
 }
 
-// pub fn get_backtrace() -> String {
-//     let mut m = std::old_io::MemWriter::new();
-//     let s = std::rt::backtrace::write(&mut m)
-//         .ok().map_or("NO backtrace".to_string(),
-//                      |_| String::from_utf8_lossy(m.get_ref()).to_string());
-//     return s;
-// }
+#[test]
+fn test_closure_valid_arg_scope() {
+    let valid = r#"
+    let a = |int, int| int * int;
+"#;
+    assert_eq!(closure_valid_arg_scope(valid), Some((13, 22, "|int, int|")));
+
+    let confusing = r#"
+    match a {
+        EnumA::A => match b {
+            EnumB::A(u) | EnumB::B(u) => println!("u: {}", u),
+        },
+        EnumA::B => match b {
+            EnumB::A(u) | EnumB::B(u) => println!("u: {}", u),
+        },
+    }
+"#;
+    assert_eq!(closure_valid_arg_scope(confusing), None);
+}
 
 #[test]
 fn txt_matches_matches_stuff() {

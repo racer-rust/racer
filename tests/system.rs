@@ -3780,6 +3780,7 @@ fn follows_use_aliased_self() {
     assert_eq!(got.matchstr, "new");
 }
 
+
 // test for re-export
 #[test]
 fn follows_use_for_reexport() {
@@ -3842,4 +3843,33 @@ println!("{}", m);
         assert_eq!(got.matchstr, "gen_range");
         assert_eq!(got.docs, doc);
     })
+}
+
+// for issue 847
+#[test]
+fn match_statements_confusing_closure_args() {
+    let src = r#"
+fn main() {
+    enum EnumA {
+        A,
+        B,
+    }
+    enum EnumB {
+        A,
+        B,
+    }
+    let a = EnumA::A;
+    let b = EnumB::A;
+    match a {
+        EnumA::A => match b {
+            EnumB::A | Enu~mB::B  => {},
+        },
+        EnumA::B => match b {
+            EnumB::A | EnumB::B => {},
+        },
+    }
+}
+"#;
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "EnumB");
 }
