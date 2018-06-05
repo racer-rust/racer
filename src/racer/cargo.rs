@@ -389,8 +389,16 @@ fn get_local_packages(table: &toml::Value, cargotomlfile: &Path, section_name: &
 
         let package_source = match *value {
             toml::Value::Table(ref t) => {
-                if let Some(relative_path) = getstr(t, "path") {
+                if let Some(mut relative_path) = getstr(t, "path") {
                     // TODO: this path isn't necessarily correct
+                    let mut parent: PathBuf = parent.into();
+                    if relative_path.starts_with("./") {
+                        relative_path = relative_path.replacen("./", "", 1);
+                    }
+                    while relative_path.starts_with("../") {
+                        relative_path = relative_path.replacen("../", "", 1);
+                        parent.pop();
+                    }
                     Some(parent.join(relative_path).join("src").join("lib.rs"))
                 } else {
                     // TODO: can also contain "git" references checked out
