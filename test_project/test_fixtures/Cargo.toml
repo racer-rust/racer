@@ -6,3 +6,6 @@ authors = ["jaxx"]
 [lib]
 name = "fixtures"
 path = "src/lib.rs"
+
+[dependencies]
+test-crate2 = { path = "../test-crate2"}

@@ -1,10 +1,11 @@
+use cargo::core::Resolve;
 use std::fs::File;
 use std::io::Read;
 use std::{vec, fmt};
 use std::{str, path};
 use std::io;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{hash_map, HashMap};
 use std::ops::Deref;
 use std::slice;
 use std::cmp::{min, max};
@@ -18,7 +19,6 @@ use nameres;
 use ast;
 use codecleaner;
 use util;
-use cargo;
 
 /// Within a [`Match`], specifies what was matched
 ///
@@ -698,7 +698,6 @@ impl FileCache {
         self.masked_map.borrow_mut().insert(pathbuf, Rc::new(masked_src));
     }
 
-
     fn load_file(&self, filepath: &path::Path) -> Rc<IndexedSource> {
         if let Some(src) = self.raw_map.borrow().get(filepath) {
             return src.clone();
@@ -738,6 +737,23 @@ pub trait SessionExt {
     fn load_file_and_mask_comments(&self, &path::Path) -> Rc<IndexedSource>;
 }
 
+/// dependencies info of a package
+#[derive(Clone, Debug, Default)]
+pub struct Dependencies {
+    /// dependencies of a package(library name -> src_path)
+    inner: HashMap<String, path::PathBuf>,
+}
+
+impl Dependencies {
+    /// Get src path from a library name.
+    /// e.g. from query string `bit_set` it returns
+    /// `~/.cargo/registry/src/github.com-1ecc6299db9ec823/bit-set-0.4.0`
+    pub fn get_src_path(&self, query: &str) -> Option<path::PathBuf> {
+        let p = self.inner.get(query)?;
+        Some(p.to_owned())
+    }
+}
+
 /// Context for a Racer operation
 pub struct Session<'c> {
     /// Cache for files
@@ -749,8 +765,10 @@ pub struct Session<'c> {
     pub generic_impls: RefCell<HashMap<(path::PathBuf, usize),
                                        Rc<Vec<(usize, String,
                                                ast::GenericsVisitor, ast::ImplVisitor)>>>>,
-    /// Cache for crate roots
-    cargo_roots: RefCell<HashMap<(String, path::PathBuf), Option<path::PathBuf>>>,
+    /// Cached dependencie (path to Cargo.toml -> Depedencies)
+    cached_deps: RefCell<HashMap<path::PathBuf, Rc<Dependencies>>>,
+    /// Cached lockfiles (path to Cargo.lock -> Resolve)
+    cached_lockfile: RefCell<HashMap<path::PathBuf, Rc<Resolve>>>,
 }
 
 impl<'c> fmt::Debug for Session<'c> {
@@ -779,7 +797,8 @@ impl<'c> Session<'c> {
         Session {
             cache,
             generic_impls: Default::default(),
-            cargo_roots: Default::default(),
+            cached_deps: Default::default(),
+            cached_lockfile: Default::default(),
         }
     }
 
@@ -811,17 +830,52 @@ impl<'c> Session<'c> {
         raw.contains_key(path) && masked.contains_key(path)
     }
 
-    /// Find the library root for kratename
-    ///
-    /// The library is searched for by checking
-    ///
-    /// 1. overrides
-    /// 2. lock file
-    /// 3. toml file
-    pub(crate) fn get_crate_file(&self, kratename: &str, from_path: &path::Path) -> Option<path::PathBuf> {
-        self.cargo_roots.borrow_mut().entry((kratename.into(), from_path.into()))
-            .or_insert_with(|| cargo::get_crate_file(kratename, from_path))
-            .clone()
+    /// Get cached dependencies from manifest path(abs path of Cargo.toml) if they exist.
+    pub(crate) fn get_deps<P: AsRef<path::Path>>(&self, manifest: P) -> Option<Rc<Dependencies>> {
+        let manifest = manifest.as_ref();
+        let deps = self.cached_deps.borrow();
+        deps.get(manifest).map(|rc| Rc::clone(&rc))
+    }
+
+    /// Cache dependencies into session.
+    pub(crate) fn cache_deps<P: AsRef<path::Path>>(
+        &self,
+        manifest: P,
+        cache: HashMap<String, path::PathBuf>,
+    ) {
+        let manifest = manifest.as_ref().to_owned();
+        let deps = Dependencies {
+            inner: cache,
+        };
+        self.cached_deps.borrow_mut().insert(manifest, Rc::new(deps));
+    }
+
+    /// load `Cargo.lock` file using fileloader
+    // TODO: use result
+    pub(crate) fn load_lockfile<P, F>(&self, path: P, resolver: F) -> Option<Rc<Resolve>>
+    where
+        P: AsRef<path::Path>,
+        F: FnOnce(&str) -> Option<Resolve>
+    {
+        let pathbuf = path.as_ref().to_owned();
+        match self.cached_lockfile.borrow_mut().entry(pathbuf) {
+            hash_map::Entry::Occupied(occupied) => Some(Rc::clone(occupied.get())),
+            hash_map::Entry::Vacant(vacant) => {
+                let contents = match self.cache.loader.load_file(path.as_ref()) {
+                    Ok(f) => f,
+                    Err(e) => {
+                        debug!(
+                            "[Session::load_lock_file] Failed to load {:?}: {}",
+                            path.as_ref(),
+                            e
+                        );
+                        return None;
+                    }
+                };
+                resolver(&contents)
+                    .map(|res| Rc::clone(vacant.insert(Rc::new(res))))
+            }
+        }
     }
 }
 

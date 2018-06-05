@@ -1,7 +1,8 @@
 use {scopes, typeinf, ast};
 use core::{Match, PathSegment, Src, Session, Coordinate, SessionExt, Point};
 use util::{StackLinkedListNode, symbol_matches, txt_matches, find_ident_end, is_ident_char, char_at};
-use nameres::{get_module_file, get_crate_file, resolve_path};
+use fileres::{get_crate_file, get_module_file};
+use nameres::resolve_path;
 use core::SearchType::{self, StartsWith, ExactMatch};
 use core::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant,
                       Const, Static, IfLet, WhileLet, For, Macro};

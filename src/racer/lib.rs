@@ -5,8 +5,8 @@
 #[macro_use] extern crate log;
 #[macro_use] extern crate lazy_static;
 
+extern crate cargo;
 extern crate syntax;
-extern crate toml;
 
 #[macro_use]
 mod testutils;
@@ -21,7 +21,7 @@ mod codeiter;
 mod codecleaner;
 mod matchers;
 mod snippets;
-mod cargo;
+mod fileres;
 
 pub use core::{find_definition, complete_from_file, complete_fully_qualified_name, to_point, to_coords};
 pub use snippets::snippet_for_match;
