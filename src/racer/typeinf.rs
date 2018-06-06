@@ -122,25 +122,63 @@ pub fn get_type_of_self(point: Point, filepath: &Path, local: bool, msrc: Src, s
     })
 }
 
+fn is_closure(src: &str) -> Option<bool> {
+    let s = src.matches(|c| c == '{' || c == '|').nth(0)?;
+    Some(s == "|")
+}
+
+fn find_start_of_closure_body(src: &str) -> Option<Point> {
+    let mut cnt = 0;
+    for (i, c) in src.chars().enumerate() {
+        if c == '|' {
+            cnt += 1;
+        }
+        if cnt == 2 {
+            return Some(i + 1);
+        }
+    }
+    warn!(
+        "[find_start_of_closure_body] start of closure body not found!: {}",
+        src
+    );
+    None
+}
+
 fn get_type_of_fnarg(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty> {
     if m.matchstr == "self" {
         return get_type_of_self_arg(m, msrc, session);
     }
 
-    let stmtstart = scopes::expect_stmt_start(msrc, m.point);
+    let stmtstart = match scopes::find_stmt_start(msrc, m.point) {
+        Some(s) => s,
+        None => {
+            warn!(
+                "[get_type_of_fnarg] start of statement was not found for {:?}",
+                m
+            );
+            return None;
+        }
+    };
     let block = msrc.from(stmtstart);
-    if let Some((start, end)) = block.iter_stmts().next() {
-        let blob = &msrc[(stmtstart+start)..(stmtstart+end)];
+    let (start, end) = block.iter_stmts().nth(0)?;
+    let blob = &msrc[(stmtstart + start)..(stmtstart + end)];
+    let is_closure = is_closure(blob)?;
+    if is_closure {
+        let start_of_body = find_start_of_closure_body(blob)?;
+        let s = format!("{}{{}}", &blob[..start_of_body]);
+        let argpos = m.point - (stmtstart + start);
+        ast::parse_fn_arg_type(s, argpos, Scope::from_match(m), session)
+    } else {
         // wrap in "impl blah { }" so that methods get parsed correctly too
-        let mut s = String::new();
-        s.push_str("impl blah {");
-        let impl_header_len = s.len();
-        s.push_str(&blob[..(find_start_of_function_body(blob)+1)]);
-        s.push_str("}}");
-        let argpos = m.point - (stmtstart+start) + impl_header_len;
-        return ast::parse_fn_arg_type(s, argpos, Scope::from_match(m), session);
+        let start_blah = "impl blah {";
+        let s = format!(
+            "{}{}}}}}",
+            start_blah,
+            &blob[..(find_start_of_function_body(blob) + 1)]
+        );
+        let argpos = m.point - (stmtstart + start) + start_blah.len();
+        ast::parse_fn_arg_type(s, argpos, Scope::from_match(m), session)
     }
-    None
 }
 
 fn get_type_of_let_expr(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty> {

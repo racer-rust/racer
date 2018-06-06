@@ -103,8 +103,9 @@ impl<'a,I> Iterator for StmtIndicesIter<'a,I>
                     }
                     _ => {}
                 }
-
-                if enddelim == b && bracelevel == 0 && parenlevel == 0 && bracketlevel == 0 {
+                if parenlevel < 0 || bracelevel < 0 || bracketlevel < 0
+                    || (enddelim == b && bracelevel == 0 && parenlevel == 0 && bracketlevel == 0)
+                {
                     self.pos = pos;
                     return Some((start, pos));
                 }
