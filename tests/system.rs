@@ -3888,6 +3888,21 @@ fn completes_methods_for_closure_arg() {
             .into_iter()
             .any(|ma| ma.matchstr == "append")
     );
+    let src = r"
+        fn main() {
+            let mut v = Vec::new();
+            v.push(3);
+            let s = Some(v);
+            let x = s.map(|v: Vec<i32>| {
+                v.appen~
+            });
+        }
+    ";
+    assert!(
+        get_all_completions(src, None)
+            .into_iter()
+            .any(|ma| ma.matchstr == "append")
+    );
 }
 
 // for #856
