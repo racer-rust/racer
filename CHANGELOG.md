@@ -5,8 +5,11 @@ All notable changes to this project will be documented in this file. This
 project adheres to [Semantic Versioning](http://semver.org/).
 
 ## HEAD
-
-No changes, yet!
+- Fix bug in search_closure_args #862
+- Replace cargo.rs with cargo crate #855
+- Migrate over to rustc_ap_syntax #854
+- Make RUST_SRC_PATH optional #808
+- Refactor based on clippy #860
 
 ## 2.0.14
 - Cache generic impls #839
