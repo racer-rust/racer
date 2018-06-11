@@ -3780,7 +3780,6 @@ fn follows_use_aliased_self() {
     assert_eq!(got.matchstr, "new");
 }
 
-
 // test for re-export
 #[test]
 fn follows_use_for_reexport() {
@@ -3872,4 +3871,51 @@ fn main() {
 "#;
     let got = get_definition(src, None);
     assert_eq!(got.matchstr, "EnumB");
+}
+
+#[test]
+fn completes_methods_for_closure_arg() {
+    let src = r"
+        fn main() {
+            let mut v = Vec::new();
+            v.push(3);
+            let s = Some(v);
+            let x = s.map(|v: Vec<i32>| v.appen~);
+        }
+    ";
+    assert!(
+        get_all_completions(src, None)
+            .into_iter()
+            .any(|ma| ma.matchstr == "append")
+    );
+    let src = r"
+        fn main() {
+            let mut v = Vec::new();
+            v.push(3);
+            let s = Some(v);
+            let x = s.map(|v: Vec<i32>| {
+                v.appen~
+            });
+        }
+    ";
+    assert!(
+        get_all_completions(src, None)
+            .into_iter()
+            .any(|ma| ma.matchstr == "append")
+    );
+}
+
+// for #856
+#[test]
+fn finds_method_definition_in_1line_closure() {
+    let src = r"
+        fn main() {
+            let mut v = Vec::new();
+            v.push(3);
+            let s = Some(v);
+            let x = s.map(|v: Vec<i32>| v.pus~h(2));
+        }
+    ";
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "push");
 }
