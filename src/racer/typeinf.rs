@@ -167,7 +167,8 @@ fn get_type_of_fnarg(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty
         let start_of_body = find_start_of_closure_body(blob)?;
         let s = format!("{}{{}}", &blob[..start_of_body]);
         let argpos = m.point - (stmtstart + start);
-        ast::parse_fn_arg_type(s, argpos, Scope::from_match(m), session)
+        let offset = (stmtstart + start) as i32;
+        ast::parse_fn_arg_type(s, argpos, Scope::from_match(m), session, offset)
     } else {
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let start_blah = "impl blah {";
@@ -177,7 +178,8 @@ fn get_type_of_fnarg(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty
             &blob[..(find_start_of_function_body(blob) + 1)]
         );
         let argpos = m.point - (stmtstart + start) + start_blah.len();
-        ast::parse_fn_arg_type(s, argpos, Scope::from_match(m), session)
+        let offset = (stmtstart + start) as i32 - start_blah.len() as i32;
+        ast::parse_fn_arg_type(s, argpos, Scope::from_match(m), session, offset)
     }
 }
 

@@ -1,5 +1,5 @@
+#![feature(iterator_flatten)]
 #![cfg_attr(all(feature = "clippy", not(test)), deny(print_stdout))]
-
 #![cfg_attr(feature = "nightly", feature(test))]
 
 #[macro_use] extern crate log;

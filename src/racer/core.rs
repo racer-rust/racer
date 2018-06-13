@@ -47,6 +47,8 @@ pub enum MatchType {
     Static,
     Macro,
     Builtin,
+    /// fn f<T: Clone> or fn f(a: impl Clone) with its trait bounds
+    TypeParameter(ast::TraitBounds),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -764,7 +766,7 @@ pub struct Session<'c> {
     /// Cache for generic impls
     pub generic_impls: RefCell<HashMap<(path::PathBuf, usize),
                                        Rc<Vec<(usize, String,
-                                               ast::GenericsVisitor, ast::ImplVisitor)>>>>,
+                                               ast::GenericsArgs, ast::ImplVisitor)>>>>,
     /// Cached dependencie (path to Cargo.toml -> Depedencies)
     cached_deps: RefCell<HashMap<path::PathBuf, Rc<Dependencies>>>,
     /// Cached lockfiles (path to Cargo.lock -> Resolve)

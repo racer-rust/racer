@@ -1,6 +1,7 @@
 // Name resolution
 
 use std::{self, vec};
+use std::collections::HashSet;
 use std::rc::Rc;
 use std::path::{Path, PathBuf};
 
@@ -8,12 +9,12 @@ use {core, ast, matchers, scopes, typeinf};
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{Match, Src, Session, Coordinate, SessionExt, Ty, Point};
 use core::MatchType::{Module, Function, Struct, Enum, EnumVariant, FnArg, Trait, StructField,
-    Impl, TraitImpl, MatchArm, Builtin};
+    Impl, TraitImpl, MatchArm, Builtin, TypeParameter};
 use core::Namespace;
-use ast::{GenericsVisitor, ImplVisitor};
+use ast::{GenericsArgs, ImplVisitor};
 use fileres::{get_crate_file, get_module_file};
 use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches,
-           find_ident_end, get_rust_src_path};
+           find_ident_end, get_rust_src_path, calculate_str_hash};
 use matchers::find_doc;
 use matchers::PendingImports;
 
@@ -322,7 +323,7 @@ pub fn search_for_impls(pos: Point, searchstr: &str, filepath: &Path, local: boo
 }
 
 fn cached_generic_impls(filepath: &Path, session: &Session, scope_start: usize)
-                        -> Rc<Vec<(usize, String, GenericsVisitor, ImplVisitor)>> {
+                        -> Rc<Vec<(usize, String, GenericsArgs, ImplVisitor)>> {
     // the cache is keyed by path and the scope we search in
     session.generic_impls.borrow_mut().entry((filepath.into(), scope_start))
         .or_insert_with(|| {
@@ -342,7 +343,7 @@ fn cached_generic_impls(filepath: &Path, session: &Session, scope_start: usize)
                         }
                         let mut decl = decl.to_owned();
                         decl.push_str("}");
-                        let (generics, impls) = ast::parse_generics_and_impl(decl);
+                        let (generics, impls) = ast::parse_generics_and_impl(decl, filepath);
                         out.push((start, blob.into(), generics, impls));
                     });
                 }
@@ -361,10 +362,9 @@ pub fn search_for_generic_impls(pos: Point, searchstr: &str, contextm: &Match, f
     for &(start, ref blob, ref generics, ref implres) in cached_generic_impls(filepath, session, scope_start).iter() {
         if let (Some(name_path), Some(trait_path)) = (implres.name_path.as_ref(), implres.trait_path.as_ref()) {
             if let (Some(name), Some(trait_name)) = (name_path.segments.last(), trait_path.segments.last()) {
-                for gen_arg in &generics.generic_args {
-                    if symbol_matches(ExactMatch, &gen_arg.name, &name.name)
-                        && gen_arg.bounds.len() == 1
-                        && gen_arg.bounds[0] == searchstr {
+                for gen_arg in &generics.0 {
+                    if symbol_matches(ExactMatch, gen_arg.name(), &name.name)
+                        && gen_arg.bounds.find_by_name(searchstr).is_some() {
                             debug!("generic impl decl {}", blob);
 
                             let trait_pos = blob.find(&trait_name.name).unwrap();
@@ -374,7 +374,6 @@ pub fn search_for_generic_impls(pos: Point, searchstr: &str, contextm: &Match, f
                                 filepath: contextm.filepath.clone(),
                                 point: contextm.point
                             };
-
                             let m = Match {
                                 matchstr: trait_name.name.clone(),
                                 filepath: filepath.to_path_buf(),
@@ -383,7 +382,7 @@ pub fn search_for_generic_impls(pos: Point, searchstr: &str, contextm: &Match, f
                                 local: true,
                                 mtype: TraitImpl,
                                 contextstr: "".into(),
-                                generic_args: vec![gen_arg.name.clone()],
+                                generic_args: vec![gen_arg.name().to_owned()],
                                 generic_types: vec![self_pathsearch],
                                 docs: String::new(),
                             };
@@ -1530,10 +1529,72 @@ pub fn do_external_search(path: &[&str], filepath: &Path, pos: Point, search_typ
     out.into_iter()
 }
 
+/// collect inherited traits by Depth First Search
+fn collect_inherited_traits(trait_match: Match, s: &Session) -> Vec<Match> {
+    // search node
+    struct Node {
+        target_str: String,
+        offset: i32,
+        filepath: PathBuf,
+    }
+    impl Node {
+        fn from_match(m: &Match) -> Self {
+            let mut target_str = m.contextstr.to_owned();
+            target_str.push_str("{}");
+            let offset = m.point as i32 - "trait ".len() as i32;
+            Node {
+                target_str: target_str,
+                offset: offset,
+                filepath: m.filepath.clone(),
+            }
+        }
+    }
+    // DFS stack
+    let mut stack = vec![Node::from_match(&trait_match)];
+    // we have to store hashes of trait names to prevent infinite loop!
+    let mut trait_names = HashSet::new();
+    trait_names.insert(calculate_str_hash(&trait_match.matchstr));
+    let mut res = vec![trait_match];
+    // DFS
+    while let Some(t) = stack.pop() {
+        if let Some(bounds) = ast::parse_inherited_traits(t.target_str, t.filepath, t.offset) {
+            let traits = bounds.get_traits(s);
+            let filtered = traits.into_iter().filter(|tr| {
+                let hash = calculate_str_hash(&tr.matchstr);
+                if trait_names.contains(&hash) {
+                    return false;
+                }
+                trait_names.insert(hash);
+                let tr_info = Node::from_match(&tr);
+                stack.push(tr_info);
+                true
+            });
+            res.extend(filtered);
+        }
+    }
+    res
+}
+
 pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: SearchType,
                                   session: &Session) -> vec::IntoIter<Match> {
     let m = context;
     let mut out = Vec::new();
+    // for Trait and TypeParameter
+    let find_inherited_traits = |m: Match| {
+        let traits = collect_inherited_traits(m, session);
+        traits.into_iter().filter_map(|tr| {
+            let src = session.load_file(&tr.filepath);
+            src[tr.point..].find('{').map(|start| {
+                search_scope_for_methods(
+                    tr.point + start + 1,
+                    src.as_src(),
+                    searchstr,
+                    &tr.filepath,
+                    search_type,
+                )
+            })
+        }).flatten()
+    };
     match m.mtype {
         Struct => {
             debug!("got a struct, looking for fields and impl methods!! {}", m.matchstr);
@@ -1575,13 +1636,14 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
         },
         Trait => {
             debug!("got a trait, looking for methods {}", m.matchstr);
-            let src = session.load_file(&m.filepath);
-            if let Some(n) = src[m.point..].find('{') {
-                let point = m.point + n + 1;
-                for m in search_scope_for_methods(point, src.as_src(), searchstr, &m.filepath, search_type) {
-                    out.push(m);
-                }
-            }
+            out.extend(find_inherited_traits(m));
+        }
+        TypeParameter(bounds) => {
+            debug!("got a trait bound, looking for methods {}", m.matchstr);
+            let traits = bounds.get_traits(session);
+            traits.into_iter().for_each(|m| {
+                out.extend(find_inherited_traits(m));
+            });
         }
         _ => { debug!("WARN!! context wasn't a Struct, Enum, Builtin or Trait {:?}",m);}
     };
