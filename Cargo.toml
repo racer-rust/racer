@@ -30,8 +30,11 @@ lazy_static = "1.0"
 humantime = "1.1"
 
 [dev-dependencies]
-tempfile = "3.0"
+racer-testutils = { path = "testutils" }
 
 [features]
 nightly = []
 clippy = []
+
+[workspace]
+members = ["testutils"]

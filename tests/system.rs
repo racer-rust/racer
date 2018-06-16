@@ -1,11 +1,10 @@
 extern crate racer;
-extern crate tempfile;
-mod utils;
+extern crate racer_testutils;
+
 use racer::{complete_from_file, Coordinate, MatchType};
 use std::path::Path;
 
-use utils::*;
-
+use racer_testutils::*;
 
 #[test]
 fn completes_fn() {
