@@ -135,7 +135,7 @@ impl fmt::Debug for TmpDir {
 /// copy test_project/* into TempDir
 fn setup_test_project() -> TmpDir {
     let tmp_dir = TmpDir::new();
-    let test_project = Path::new(env!("CARGO_MANIFEST_DIR")).join("test_project");
+    let test_project = Path::new(env!("CARGO_MANIFEST_DIR")).join("../test_project");
     // copy test project to temp dir recursively
     fn copy_dirs(abs_path: &Path, tmp_path: &Path) -> io::Result<()> {
         if !abs_path.is_dir() {
