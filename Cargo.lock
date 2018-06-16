@@ -705,7 +705,15 @@ dependencies = [
  "humantime 1.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "racer-testutils 0.1.0",
  "rustc-ap-syntax 151.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "racer-testutils"
+version = "0.1.0"
+dependencies = [
+ "racer 2.0.14",
  "tempfile 3.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 

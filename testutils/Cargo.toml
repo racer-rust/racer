@@ -1,0 +1,10 @@
+[package]
+publish = false
+workspace = ".."
+name = "racer-testutils"
+version = "0.1.0"
+authors = ["Yuji Kanagawa <yuji.kngw.80s.revive@gmail.com>"]
+
+[dependencies]
+racer = { path = "../" }
+tempfile = "3.0"
