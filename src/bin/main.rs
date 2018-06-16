@@ -269,12 +269,12 @@ impl Interface {
             Message::Match(mstr, linenum, charnum, path, mtype, context) => match *self {
                 Interface::Text => {
                     let context = context.split_whitespace().collect::<Vec<&str>>().join(" ");
-                    println!("MATCH {},{},{},{},{:?},{}",
+                    println!("MATCH {},{},{},{},{},{}",
                              mstr, linenum, charnum, path.display(), mtype, context);
                 }
                 Interface::TabText => {
                     let context = context.split_whitespace().collect::<Vec<&str>>().join(" ");
-                    println!("MATCH\t{}\t{}\t{}\t{}\t{:?}\t{}",
+                    println!("MATCH\t{}\t{}\t{}\t{}\t{}\t{}",
                              mstr, linenum, charnum, path.display(), mtype, context);
                 }
             },
@@ -284,13 +284,13 @@ impl Interface {
                     let context = context.replace(";", "\\;").split_whitespace()
                                                              .collect::<Vec<&str>>().join(" ");
                     let docs = format!("{:?}", docs).replace(";", "\\;");
-                    println!("MATCH {};{};{};{};{};{:?};{};{}",
+                    println!("MATCH {};{};{};{};{};{};{};{}",
                              mstr, snippet, linenum, charnum, path.display(), mtype, context, docs);
                 }
                 Interface::TabText => {
                     let context = context.replace("\t", "\\t").split_whitespace()
                                                               .collect::<Vec<&str>>().join(" ");
-                    println!("MATCH\t{}\t{}\t{}\t{}\t{}\t{:?}\t{}\t{:?}",
+                    println!("MATCH\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:?}",
                              mstr, snippet, linenum, charnum, path.display(), mtype, context, docs);
                 }
             }

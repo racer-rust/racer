@@ -23,7 +23,7 @@ use util;
 /// Within a [`Match`], specifies what was matched
 ///
 /// [`Match`]: struct.Match.html
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum MatchType {
     Struct,
     Module,
@@ -49,6 +49,16 @@ pub enum MatchType {
     Builtin,
     /// fn f<T: Clone> or fn f(a: impl Clone) with its trait bounds
     TypeParameter(ast::TraitBounds),
+}
+
+impl fmt::Display for MatchType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            MatchType::EnumVariant(_) => write!(f, "EnumVariant"),
+            MatchType::TypeParameter(_) => write!(f, "TypeParameter"),
+            _ => fmt::Debug::fmt(self, f),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
