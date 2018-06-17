@@ -3973,7 +3973,6 @@ mod trait_bounds {
 
     // test for checking racer don't cause INF loop
     #[test]
-    #[ignore]
     fn completes_inherited_methods_with_cycle() {
         let src = "
         fn main() {
