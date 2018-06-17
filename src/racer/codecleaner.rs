@@ -235,7 +235,7 @@ pub struct CommentSkipIterRev<'a> {
 }
 
 /// This produce CommentSkipIterRev for range [0, start)
-pub fn comment_skip_iter_rev(s: &str, start: Point) -> CommentSkipIterRev {
+pub fn comment_skip_iter_rev(s: &str, start: BytePos) -> CommentSkipIterRev {
     let start = if start > s.len() { 0 } else { start };
     CommentSkipIterRev { src: s, pos: start }
 }

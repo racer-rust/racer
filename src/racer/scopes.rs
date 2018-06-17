@@ -1,5 +1,5 @@
 use {ast, typeinf, util};
-use core::{Src, CompletionType, Point, SourceByteRange};
+use core::{Src, CompletionType, BytePos, ByteRange};
 #[cfg(test)]
 use core::{self, Coordinate};
 
@@ -9,11 +9,14 @@ use std::str::from_utf8;
 use util::{closure_valid_arg_scope, char_at};
 use codecleaner::comment_skip_iter_rev;
 
-fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<Point> where A: Iterator<Item=&'a u8> {
+fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<BytePos>
+where
+    A: Iterator<Item = &'a u8>
+{
     let mut levels = 0u32;
     for (count, &b) in iter.enumerate() {
         if b == close {
-            if levels == level_end { return Some(count); }
+            if levels == level_end { return Some(count.into()); }
             if levels == 0 { return None; }
             levels -= 1;
         } else if b == open { levels += 1; }
@@ -21,39 +24,42 @@ fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<Poi
     None
 }
 
-pub fn find_closing_paren(src: &str, pos: Point) -> Point {
-    find_close(src.as_bytes()[pos..].iter(), b'(', b')', 0)
-    .map_or(src.len(), |count| pos + count)
+pub fn find_closing_paren(src: &str, pos: BytePos) -> BytePos {
+    find_close(src.as_bytes()[pos.0..].iter(), b'(', b')', 0)
+        .map_or(src.len().into(), |count| pos + count)
 }
 
-pub fn find_closure_scope_start(src: Src, point: Point, parentheses_open_pos: Point) -> Option<Point> {
+pub fn find_closure_scope_start(
+    src: Src,
+    point: BytePos,
+    parentheses_open_pos: BytePos
+) -> Option<BytePos> {
     let masked_src = mask_comments(src.from(point));
-
-    let closing_paren_pos = find_closing_paren(masked_src.as_str(), 0) + point;
-
+    let closing_paren_pos = find_closing_paren(masked_src.as_str(), 0.into()) + point;
     let src_between_parent = mask_comments(src.from_to(parentheses_open_pos, closing_paren_pos));
+    closure_valid_arg_scope(&src_between_parent).map(|_ |parentheses_open_pos)
+}
 
-    closure_valid_arg_scope(&src_between_parent).map(|_ |parentheses_open_pos)}
-
-pub fn scope_start(src: Src, point: Point) -> Point {
+pub fn scope_start(src: Src, point: BytePos) -> BytePos {
     let masked_src = mask_comments(src.to(point));
 
     let mut curly_parent_open_pos = find_close(masked_src.as_bytes().iter().rev(), b'}', b'{', 0)
-        .map_or(0, |count| point - count);
+        .map_or(BytePos::zero(), |count| point - count);
 
     // We've found a multi-use statement, such as `use foo::{bar, baz};`, so we shouldn't consider
     // the brace to be the start of the scope.
-    if curly_parent_open_pos > 0 && masked_src[..curly_parent_open_pos].ends_with("::{") {
-        trace!("scope_start landed in a use statement for {}; broadening search", point);
+    if curly_parent_open_pos > BytePos(0) && masked_src[..curly_parent_open_pos.0].ends_with("::{") {
+        trace!("scope_start landed in a use statement for {:?}; broadening search", point);
         curly_parent_open_pos = find_close(
-            mask_comments(src.to(curly_parent_open_pos - 1)).as_bytes().iter().rev(), 
+            mask_comments(src.to(curly_parent_open_pos - 1.into())).as_bytes().iter().rev(), 
             b'}', 
-            b'{', 
-            0).map_or(0, |count| point - count);
+            b'{',
+            0,
+        ).map_or(BytePos::zero(), |count| point - count);
     }
 
     let parent_open_pos = find_close(masked_src.as_bytes().iter().rev(), b')', b'(', 0)
-        .map_or(0, |count| point - count);
+        .map_or(BytePos::zero(), |count| point - count);
 
     if curly_parent_open_pos > parent_open_pos {
         curly_parent_open_pos
@@ -64,89 +70,97 @@ pub fn scope_start(src: Src, point: Point) -> Point {
     }
 }
 
-pub fn find_stmt_start(msrc: Src, point: Point) -> Option<Point> {
+pub fn find_stmt_start(msrc: Src, point: BytePos) -> Option<BytePos> {
     let scopestart = scope_start(msrc, point);
     // Iterate the scope to find the start of the statement that surrounds the point.
     debug!(
-        "[find_stmt_start] now we are in scope {} ~ {}, {}",
+        "[find_stmt_start] now we are in scope {:?} ~ {:?}, {}",
         scopestart,
         point,
-        &msrc[scopestart..point + 1]
+        &msrc[scopestart.0..point.increment().0]
     );
-    msrc.from(scopestart).iter_stmts()
-        .find(|&(start, end)| scopestart + start < point && point < scopestart + end)
-        .map(|(start, _)| scopestart + start)
+    msrc.shift_start(scopestart).iter_stmts()
+        .find(|&range| scopestart + range.start < point && point < scopestart + range.end)
+        .map(|range| scopestart + range.start)
 }
 
 /// Finds a statement start or panics.
-pub fn expect_stmt_start(msrc: Src, point: Point) -> Point {
+pub fn expect_stmt_start(msrc: Src, point: BytePos) -> BytePos {
     find_stmt_start(msrc, point).expect("Statement does not have a beginning")
 }
 
 /// Finds the start of a `let` statement; includes handling of struct pattern matches in the
 /// statement.
-pub fn find_let_start(msrc: Src, point: Point) -> Option<Point> {
+pub fn find_let_start(msrc: Src, point: BytePos) -> Option<BytePos> {
     let mut scopestart = scope_start(msrc, point);
     let mut let_start = None;
 
     // To avoid infinite loops, we cap the number of times we'll 
     // expand the search in an attempt to find statements.
+    // TODO: it's too hacky, and, 1..6 is appropriate?
     for step in 1..6 {
         let_start = msrc.from(scopestart).iter_stmts()
-            .find(|&(_, end)| scopestart + end > point);
+            .find(|&range| scopestart + range.end > point);
 
-        if let Some((ref start, ref end)) = let_start {
+        if let Some(ref range) = let_start {
             // Check if we've actually reached the start of the "let" stmt.
-            let stmt = &msrc.src.code[(scopestart+start)..(scopestart+end)];
+            let stmt = &msrc.src.code[range.shift(scopestart).to_range()];
             if stmt.starts_with("let") {
                 break;
             }
         }
         
-        debug!("find_let_start failed to find start on attempt {}: Restarting search from {} ({:?})",
+        debug!(
+            "find_let_start failed to find start on attempt {}: Restarting search from {:?} ({:?})",
             step,
-            scopestart - 1,
-            msrc.src.point_to_coords(scopestart - 1));
-        scopestart = scope_start(msrc, scopestart - 1);
+            scopestart.decrement(),
+            msrc.src.point_to_coords(scopestart.decrement()),
+        );
+        scopestart = scope_start(msrc, scopestart.decrement());
     }
 
-    let_start.map(|(start, _)| scopestart + start)
+    let_start.map(|range| scopestart + range.start)
 }
 
-pub fn get_local_module_path(msrc: Src, point: Point) -> Vec<String> {
+pub fn get_local_module_path(msrc: Src, point: BytePos) -> Vec<String> {
     let mut v = Vec::new();
     get_local_module_path_(msrc, point, &mut v);
     v
 }
 
-fn get_local_module_path_(msrc: Src, point: Point, out: &mut Vec<String>) {
-    for (start, end) in msrc.iter_stmts() {
-        if start < point && end > point {
-            let blob = msrc.from_to(start, end);
+fn get_local_module_path_(msrc: Src, point: BytePos, out: &mut Vec<String>) {
+    for range in msrc.iter_stmts() {
+        // FIX_BEFORE_PR: changed from original
+        if range.contains(point) {
+            let blob = msrc.shift_range(range);
             if blob.starts_with("pub mod ") || blob.starts_with("mod ") {
                 let p = typeinf::generate_skeleton_for_parsing(&blob);
                 if let Some(name) = ast::parse_mod(p).name {
                     out.push(name);
                     let newstart = blob.find('{').unwrap() + 1;
-                    get_local_module_path_(blob.from(newstart),
-                                           point - start - newstart, out);
+                    get_local_module_path_(
+                        blob.shift_start(newstart.into()),
+                        point - range.start - newstart.into(),
+                        out,
+                    );
                 }
             }
         }
     }
 }
 
-pub fn get_module_file_from_path(msrc: Src, point: Point, parentdir: &Path) -> Option<PathBuf> {
+pub fn get_module_file_from_path(msrc: Src, point: BytePos, parentdir: &Path) -> Option<PathBuf> {    
     let mut iter = msrc.iter_stmts();
-    while let Some((start, end)) = iter.next() {
-        let blob = msrc.from_to(start, end);
+    while let Some(range) = iter.next() {
+        let blob = msrc.shift_range(range);
+        let start = range.start;
         if blob.starts_with("#[path ")  {
-            if let Some((_,modend)) = iter.next(){
+            if let Some(ByteRange { start: _, end: modend }) = iter.next() {
+                // FIX_BEFORE_PR: not same as get_local_module_path
                 if start < point && modend > point {
-                    let pathstart = blob.find('"').unwrap() + 1;
+                    let pathstart = blob.find('"')? + 1;
                     let pathend = blob[pathstart..].find('"').unwrap();
-                    let path = &blob[pathstart..pathstart+pathend];
-
+                    let path = &blob[pathstart..pathstart + pathend];
                     debug!("found a path attribute, path = |{}|", path);
                     let filepath = parentdir.join(path);
                     if filepath.exists() {
@@ -159,22 +173,24 @@ pub fn get_module_file_from_path(msrc: Src, point: Point, parentdir: &Path) -> O
     None
 }
 
-pub fn find_impl_start(msrc: Src, point: Point, scopestart: Point) -> Option<Point> {
-    let len = point-scopestart;
-    match msrc.from(scopestart).iter_stmts().find(|&(_, end)| end > len) {
-        Some((start, _)) => {
-            let blob = msrc.from(scopestart + start);
+pub fn find_impl_start(msrc: Src, point: BytePos, scopestart: BytePos) -> Option<BytePos> {
+    let len = point - scopestart;
+    msrc
+        .shift_start(scopestart)
+        .iter_stmts()
+        .find(|range| range.end > len)
+        .and_then(|range| {
+            let blob = msrc.shift_start(scopestart + range.start);
             // TODO:: the following is a bit weak at matching traits. make this better
             if blob.starts_with("impl") || blob.starts_with("trait") || blob.starts_with("pub trait") {
-                Some(scopestart + start)
+                Some(scopestart + range.start)
             } else {
-                let newstart = blob.find('{').unwrap() + 1;
-                find_impl_start(msrc, point, scopestart+start+newstart)
+                let newstart = blob.find('{').expect("[find_impl_start] { was not found.") + 1;
+                find_impl_start(msrc, point, scopestart + range.start + newstart.into())
             }
-        },
-        None => None
-    }
+        })
 }
+
 #[test]
 fn finds_subnested_module() {
     use core;
@@ -195,6 +211,7 @@ fn finds_subnested_module() {
     assert_eq!("foo", &v[0][..]);
 }
 
+// TODO: This function can't handle use_nested_groups
 pub fn split_into_context_and_completion(s: &str) -> (&str, &str, CompletionType) {
     match s.char_indices().rev().find(|&(_, c)| !util::is_ident_char(c)) {
         Some((i,c)) => {
@@ -208,21 +225,19 @@ pub fn split_into_context_and_completion(s: &str) -> (&str, &str, CompletionType
     }
 }
 
-pub fn get_line(src: &str, point: Point) -> Point {
-    let mut i = point;
-    for &b in src.as_bytes()[..point].iter().rev() {
-        i-=1;
-        if b == b'\n' {
-            return i+1;
-        }
-    }
-    0
+pub fn get_line(src: &str, point: BytePos) -> BytePos {
+    src.as_bytes()[..point.0]
+        .iter()
+        .enumerate()
+        .rev()
+        .find(|(i, byte)| **byte == b'\n')
+        .map(|t| t.0.into())
+        .unwrap_or_else(BytePos::zero)
 }
 
 /// search in reverse for the start of the current expression 
 /// allow . and :: to be surrounded by white chars to enable multi line call chains 
-pub fn get_start_of_search_expr(src: &str, point: Point) -> Point {
-
+pub fn get_start_of_search_expr(src: &str, point: BytePos) -> BytePos {
     enum State {
         /// In parentheses; the value inside identifies depth.
         Levels(usize),
@@ -232,10 +247,10 @@ pub fn get_start_of_search_expr(src: &str, point: Point) -> Point {
         MustEndsWithDot(usize),
         StartsWithCol(usize),
         None,
-        Result(Point),
+        Result(usize),
     }
     let mut ws_ok = State::None;
-    for (i, c) in src.as_bytes()[..point].iter().enumerate().rev() {
+    for (i, c) in src.as_bytes()[..point.0].iter().enumerate().rev() {
         ws_ok = match (*c,ws_ok) {
             (b'(', State::None) => State::Result(i+1),
             (b'(', State::Levels(1)) =>  State::None,
@@ -266,13 +281,13 @@ pub fn get_start_of_search_expr(src: &str, point: Point) -> Point {
             ( _ , State::Result(_)) => unreachable!() ,
         };
         if let State::Result(index) = ws_ok {
-            return index;
+            return index.into();
         }
     }
-    0
+    BytePos::zero()
 }
 
-pub fn get_start_of_pattern(src: &str, point: Point) -> Point {
+pub fn get_start_of_pattern(src: &str, point: BytePos) -> BytePos {
     let mut levels = 0u32;
     for (c, i) in comment_skip_iter_rev(src, point) {
         match c {
@@ -290,7 +305,7 @@ pub fn get_start_of_pattern(src: &str, point: Point) -> Point {
             }
         }
     }
-    0
+    BytePos::zero()
 }
 
 #[test]
@@ -308,7 +323,7 @@ fn get_start_of_pattern_with_block_comments() {
     assert_eq!(6, get_start_of_pattern("break, Some(b) /* if expr is Some */ => {", 36));
 }
 
-pub fn expand_search_expr(msrc: &str, point: Point) -> SourceByteRange {
+pub fn expand_search_expr(msrc: &str, point: BytePos) -> ByteRange {
     let start = get_start_of_search_expr(msrc, point);
     (start, util::find_ident_end(msrc, point))
 }
@@ -386,16 +401,16 @@ pub fn mask_comments(src: Src) -> String {
     let mut result = String::with_capacity(src.len());
     let buf_byte = &[b' '; 128];
     let buffer = from_utf8(buf_byte).unwrap();
-    let mut prev: usize = 0;
-    for (start, end) in src.chunk_indices() {
-        fill_gaps(buffer, &mut result, start, prev);
-        result.push_str(&src[start..end]);
-        prev = end;
+    let mut prev = BytePos::zero();
+    for range in src.chunk_indices() {
+        fill_gaps(buffer, &mut result, range.start.0, prev.0);
+        result.push_str(&src[range.to_range()]);
+        prev = range.end;
     }
 
     // Fill up if the comment was at the end
-    if src.len() > prev {
-        fill_gaps(buffer, &mut result, src.len(), prev);
+    if src.len() > prev.0 {
+        fill_gaps(buffer, &mut result, src.len(), prev.0);
     }
 
     result
@@ -448,7 +463,7 @@ pub fn mask_sub_scopes(src: &str) -> String {
 
 pub fn end_of_next_scope(src: &str) -> &str {
     match find_close(src.as_bytes().iter(), b'{', b'}', 1) {
-        Some(count) => &src[..count+1],
+        Some(count) => &src[..count.0 + 1],
         None => ""
     }
 }

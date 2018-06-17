@@ -1,5 +1,5 @@
 use {scopes, typeinf, ast};
-use core::{Match, PathSegment, Src, Session, Coordinate, SessionExt, Point};
+use core::{Match, PathSegment, Src, Session, Coordinate, SessionExt, BytePos, ByteRange};
 use util::{StackLinkedListNode, symbol_matches, txt_matches, find_ident_end, is_ident_char, char_at};
 use fileres::{get_crate_file, get_module_file};
 use nameres::resolve_path;
@@ -7,25 +7,35 @@ use core::SearchType::{self, StartsWith, ExactMatch};
 use core::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant,
                       Const, Static, IfLet, WhileLet, For, Macro};
 use core::Namespace;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::{str, vec};
+use std::collections::HashSet;
 
 /// The location of an import (`use` item) currently being resolved.
 #[derive(PartialEq, Eq)]
 pub struct PendingImport<'fp> {
     filepath: &'fp Path,
-    blobstart: Point,
-    blobend: Point,
+    blob_range: ByteRange,
 }
 
 /// A stack of imports (`use` items) currently being resolved.
 pub type PendingImports<'stack, 'fp> = StackLinkedListNode<'stack, PendingImport<'fp>>;
 
-pub fn match_types(src: Src, blobstart: Point, blobend: Point,
-                   searchstr: &str, filepath: &Path,
-                   search_type: SearchType,
-                   local: bool, session: &Session,
-                   pending_imports: &PendingImports) -> impl Iterator<Item=Match> {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MatchCxt<'s, 'p> {
+    pub filepath: &'p Path,
+    pub search_str: &'s str,
+    pub range: ByteRange,
+    pub search_type: SearchType,
+    pub is_local: bool,
+}
+
+pub fn match_types(
+    src: Src,
+    context: &MatchCxt,
+    session: &Session,
+    pending_imports: &PendingImports
+) -> impl Iterator<Item = Match> {
     match_extern_crate(&src, blobstart, blobend, searchstr, filepath, search_type, session).into_iter()
         .chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local, session))
         .chain(match_struct(&src, blobstart, blobend, searchstr, filepath, search_type, local))
@@ -35,16 +45,14 @@ pub fn match_types(src: Src, blobstart: Point, blobend: Point,
         .chain(match_use(&src, blobstart, blobend, searchstr, filepath, search_type, local, session, pending_imports))
 }
 
-pub fn match_values(src: Src, blobstart: Point, blobend: Point,
-                    searchstr: &str, filepath: &Path, search_type: SearchType,
-                    local: bool) -> impl Iterator<Item=Match> {
+pub fn match_values(src: Src, context: &MatchCxt) -> impl Iterator<Item=Match> {
     match_const(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter()
         .chain(match_static(&src, blobstart, blobend, searchstr, filepath, search_type, local))
         .chain(match_fn(&src, blobstart, blobend, searchstr, filepath, search_type, local))
         .chain(match_macro(&src, blobstart, blobend, searchstr, filepath, search_type, local))
 }
 
-fn strip_keyword_prefix(src: &str, keyword: &str) -> Option<Point> {
+fn strip_keyword_prefix(src: &str, keyword: &str) -> Option<BytePos> {
     let mut start = 0usize;
     if src.starts_with(keyword) {
         // Rust added support for `pub(in codegen)`; we need to consume the visibility
@@ -72,35 +80,34 @@ fn strip_keyword_prefix(src: &str, keyword: &str) -> Option<Point> {
                 _ => break
             }
         }
-        if start != oldstart { return Some(start); }
+        if start != oldstart { return Some(start.into()); }
     }
     None
 }
 
-fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType, local: bool)
--> Option<Point> {
+fn find_keyword(src: &str, pattern: &str, context: &MatchCxt) -> Option<BytePos> {
     // search for "^(pub\s+)?(unsafe\s+)?pattern\s+search"
 
     // if not local must start with pub
-    if !local && !src.starts_with("pub") { return None; }
+    if !context.is_local && !src.starts_with("pub") { return None; }
 
-    let mut start = 0usize;
+    let mut start = BytePos::zero();
 
     // optional (pub\s+)?(unsafe\s+)?
     for pat in &["pub", "unsafe"] {
-        if let Some(prefix_len) = strip_keyword_prefix(&src[start..], pat) {
+        if let Some(prefix_len) = strip_keyword_prefix(&src[start.0..], pat) {
             start += prefix_len;
         }
     }
 
     // mandatory pattern\s+
-    if src[start..].starts_with(pattern) {
+    if src[start.0..].starts_with(pattern) {
         // remove whitespaces ... must have one at least
-        start += pattern.len();
+        start += pattern.len().into();
         let oldstart = start;
-        for &b in src[start..].as_bytes() {
+        for &b in src[start.0..].as_bytes() {
             match b {
-                b' '|b'\r'|b'\n'|b'\t' => start += 1,
+                b' '|b'\r'|b'\n'|b'\t' => start = start.increment(),
                 _ => break
             }
         }
@@ -109,12 +116,13 @@ fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType,
         return None;
     }
 
-    if src[start..].starts_with(search) {
-        match search_type {
+    let search_str_len = context.search_str.len();
+    if src[start.0..].starts_with(context.search_str) {
+        match context.search_type {
             StartsWith => Some(start),
             ExactMatch => {
-                if src.len() > start+search.len() &&
-                    !is_ident_char(char_at(src, start + search.len())) {
+                if src.len() > start.0 + search_str_len &&
+                    !is_ident_char(char_at(src, start.0 + search_str_len)) {
                     Some(start)
                 } else {
                     None
@@ -126,26 +134,29 @@ fn find_keyword(src: &str, pattern: &str, search: &str, search_type: SearchType,
     }
 }
 
-fn is_const_fn(src: &str, blobstart: Point, blobend: Point) -> bool {
-    src[blobstart..blobend].contains("const fn")
+fn is_const_fn(src: &str, blob_range: ByteRange) -> bool {
+    src[blob_range.to_range()].contains("const fn")
 }
 
-fn match_pattern_start(src: &str, blobstart: Point, blobend: Point,
-                       searchstr: &str, filepath: &Path, search_type: SearchType,
-                       local: bool, pattern: &str, mtype: MatchType) -> Option<Match> {
+fn match_pattern_start(
+    src: &str,
+    context: &MatchCxt,
+    pattern: &str,
+    mtype: MatchType
+) -> Option<Match> {
     // ast currently doesn't contain the ident coords, so match them with a hacky
     // string search
 
-    let blob = &src[blobstart..blobend];
-    if let Some(start) = find_keyword(blob, pattern, searchstr, search_type, local) {
-        if let Some(end) = blob[start..].find(':') {
-            let s = blob[start..start+end].trim_right();
+    let blob = &src[context.range.to_range()];
+    if let Some(start) = find_keyword(blob, pattern, context) {
+        if let Some(end) = blob[start.0..].find(':') {
+            let s = blob[start.0..start.0 + end].trim_right();
             return Some(Match {
                 matchstr: s.to_owned(),
-                filepath: filepath.to_path_buf(),
-                point: blobstart+start,
+                filepath: context.filepath.to_path_buf(),
+                point: context.range.start + start,
                 coords: None,
-                local: local,
+                local: context.is_local,
                 mtype: mtype,
                 contextstr: first_line(blob),
                 generic_args: Vec::new(),
@@ -157,46 +168,40 @@ fn match_pattern_start(src: &str, blobstart: Point, blobend: Point,
     None
 }
 
-pub fn match_const(msrc: &str, blobstart: Point, blobend: Point,
-                   searchstr: &str, filepath: &Path, search_type: SearchType,
-                   local: bool) -> Option<Match> {
-    if is_const_fn(msrc, blobstart, blobend) {
+pub fn match_const(msrc: &str, context: &MatchCxt) -> Option<Match> {
+    if is_const_fn(msrc, context.range) {
         return None;
     }
-    match_pattern_start(msrc, blobstart, blobend, searchstr, filepath,
-                        search_type, local, "const", Const)
+    match_pattern_start(msrc, context, "const", Const)
 }
 
-pub fn match_static(msrc: &str, blobstart: Point, blobend: Point,
-                    searchstr: &str, filepath: &Path, search_type: SearchType,
-                    local: bool) -> Option<Match> {
-    match_pattern_start(msrc, blobstart, blobend, searchstr, filepath,
-                        search_type, local, "static", Static)
+pub fn match_static(msrc: &str, context: &MatchCxt) -> Option<Match> {
+    match_pattern_start(msrc, context, "static", Static)
 }
 
-fn match_pattern_let(msrc: &str, blobstart: Point, blobend: Point,
-                     searchstr: &str, filepath: &Path, search_type: SearchType,
-                     local: bool, pattern: &str, mtype: MatchType) -> Vec<Match> {
+fn match_pattern_let(msrc: &str, context: &MatchCxt, pattern: &str, mtype: MatchType) -> Vec<Match> {
     let mut out = Vec::new();
-    let blob = &msrc[blobstart..blobend];
-    if blob.starts_with(pattern) && txt_matches(search_type, searchstr, blob) {
+    let blob = &msrc[context.range.to_range()];
+    if blob.starts_with(pattern) && txt_matches(context.search_type, context.search_str, blob) {
         let coords = ast::parse_pat_bind_stmt(blob.to_owned());
-        for (start, end) in coords {
-            let s = &blob[start..end];
-            if symbol_matches(search_type, searchstr, s) {
-                debug!("match_pattern_let point is {}", blobstart + start);
-                out.push(Match { matchstr: s.to_owned(),
-                                   filepath: filepath.to_path_buf(),
-                                   point: blobstart + start,
-                                   coords: None,
-                                   local: local,
-                                   mtype: mtype.clone(),
-                                   contextstr: first_line(blob),
-                                   generic_args: Vec::new(),
-                                   generic_types: Vec::new(),
-                                   docs: String::new(),
-                         });
-                if let ExactMatch = search_type {
+        for pat_range in coords {
+            let s = &blob[pat_range.to_range()];
+            if symbol_matches(context.search_type, context.search_str, s) {
+                let start = context.range.start + pat_range.start;
+                debug!("match_pattern_let point is {:?}", start);
+                out.push(Match {
+                    matchstr: s.to_owned(),
+                    filepath: context.filepath.to_path_buf(),
+                    point: start,
+                    coords: None,
+                    local: context.is_local,
+                    mtype: mtype.clone(),
+                    contextstr: first_line(blob),
+                    generic_args: Vec::new(),
+                    generic_types: Vec::new(),
+                    docs: String::new(),
+                });
+                if context.search_type == ExactMatch {
                     break;
                 }
             }
@@ -205,25 +210,16 @@ fn match_pattern_let(msrc: &str, blobstart: Point, blobend: Point,
     out
 }
 
-pub fn match_if_let(msrc: &str, blobstart: Point, blobend: Point,
-                    searchstr: &str, filepath: &Path, search_type: SearchType,
-                    local: bool) -> Vec<Match> {
-    match_pattern_let(msrc, blobstart, blobend, searchstr, filepath,
-                      search_type, local, "if let ", IfLet)
+pub fn match_if_let(msrc: &str, context: &MatchCxt) -> Vec<Match> {
+    match_pattern_let(msrc, context, "if let ", IfLet)
 }
 
-pub fn match_while_let(msrc: &str, blobstart: Point, blobend: Point,
-                 searchstr: &str, filepath: &Path, search_type: SearchType,
-                 local: bool) -> Vec<Match> {
-    match_pattern_let(msrc, blobstart, blobend, searchstr, filepath,
-                      search_type, local, "while let ", WhileLet)
+pub fn match_while_let(msrc: &str, context: &MatchCxt) -> Vec<Match> {
+    match_pattern_let(msrc, context, "while let ", WhileLet)
 }
 
-pub fn match_let(msrc: &str, blobstart: Point, blobend: Point,
-                 searchstr: &str, filepath: &Path, search_type: SearchType,
-                 local: bool) -> Vec<Match> {
-    match_pattern_let(msrc, blobstart, blobend, searchstr, filepath,
-                      search_type, local, "let ", Let)
+pub fn match_let(msrc: &str, context: &MatchCxt) -> Vec<Match> {
+    match_pattern_let(msrc, context, "let ", Let)
 }
 
 pub fn match_for(msrc: &str, blobstart: Point, blobend: Point,

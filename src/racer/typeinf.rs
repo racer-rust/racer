@@ -1,6 +1,6 @@
 // Type inference
 
-use core::{Match, Src, Scope, Session, SessionExt, Point};
+use core::{Match, Src, Scope, Session, SessionExt, BytePos};
 use nameres::resolve_path_with_str;
 use core::Namespace;
 use core;
@@ -11,9 +11,12 @@ use core::SearchType::ExactMatch;
 use util::{self, txt_matches};
 use std::path::Path;
 
-fn find_start_of_function_body(src: &str) -> Point {
+// FIX_BEFORE_PR: Option
+fn find_start_of_function_body(src: &str) -> BytePos {
     // TODO: this should ignore anything inside parens so as to skip the arg list
-    src.find('{').expect("Function body should have a beginning")
+    src.find('{')
+        .map(|u| BytePos::from(u))
+        .expect("Function body should have a beginning")
 }
 
 // Removes the body of the statement (anything in the braces {...}), leaving just
@@ -22,7 +25,7 @@ fn find_start_of_function_body(src: &str) -> Point {
 pub fn generate_skeleton_for_parsing(src: &str) -> String {
     let mut s = String::new();
     let n = find_start_of_function_body(src);
-    s.push_str(&src[..n+1]);
+    s.push_str(&src[..n.0 + 1]);
     s.push_str("};");
     s
 }
@@ -66,10 +69,11 @@ pub fn first_param_is_self(blob: &str) -> bool {
                 Some(..) => 0,
             };
             if let Some(start) = blob[skip_generic..].find('(') {
-                let end = scopes::find_closing_paren(blob, start + 1);
-                let is_self = txt_matches(ExactMatch, "self", &blob[(start + 1)..end]);
+                let start = BytePos::from(start).increment();
+                let end = scopes::find_closing_paren(blob, start);
+                let is_self = txt_matches(ExactMatch, "self", &blob[start.0..end.0]);
                 trace!("searching fn args for self: |{}| {}",
-                       &blob[(start + 1)..end],
+                       &blob[start.0..end.0],
                        is_self);
                 return is_self;
             }
@@ -90,9 +94,15 @@ fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<core:
     get_type_of_self(m.point, &m.filepath, m.local, msrc, session)
 }
 
-pub fn get_type_of_self(point: Point, filepath: &Path, local: bool, msrc: Src, session: &Session) -> Option<core::Ty> {
-    scopes::find_impl_start(msrc, point, 0).and_then(|start| {
-        let decl = generate_skeleton_for_parsing(&msrc.from(start));
+pub fn get_type_of_self(
+    point: BytePos,
+    filepath: &Path,
+    local: bool,
+    msrc: Src,
+    session: &Session
+) -> Option<core::Ty> {
+    scopes::find_impl_start(msrc, point, BytePos::zero()).and_then(|start| {
+        let decl = generate_skeleton_for_parsing(&msrc.shift_start(start));
         debug!("get_type_of_self_arg impl skeleton |{}|", decl);
 
         if decl.starts_with("impl") {
@@ -112,7 +122,7 @@ pub fn get_type_of_self(point: Point, filepath: &Path, local: bool, msrc: Src, s
                     coords: None,
                     local: local,
                     mtype: core::MatchType::Trait,
-                    contextstr: matchers::first_line(&msrc[start..]),
+                    contextstr: matchers::first_line(&msrc[start.0..]),
                     generic_args: Vec::new(),
                     generic_types: Vec::new(),
                     docs: String::new(),
@@ -127,14 +137,14 @@ fn is_closure(src: &str) -> Option<bool> {
     Some(s == "|")
 }
 
-fn find_start_of_closure_body(src: &str) -> Option<Point> {
+fn find_start_of_closure_body(src: &str) -> Option<BytePos> {
     let mut cnt = 0;
     for (i, c) in src.chars().enumerate() {
         if c == '|' {
             cnt += 1;
         }
         if cnt == 2 {
-            return Some(i + 1);
+            return Some(BytePos::from(i).increment());
         }
     }
     warn!(
@@ -159,15 +169,15 @@ fn get_type_of_fnarg(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty
             return None;
         }
     };
-    let block = msrc.from(stmtstart);
-    let (start, end) = block.iter_stmts().nth(0)?;
-    let blob = &msrc[(stmtstart + start)..(stmtstart + end)];
+    let block = msrc.shift_start(stmtstart);
+    let range = block.iter_stmts().nth(0)?;
+    let blob = &msrc[range.shift(stmtstart).to_range()];
     let is_closure = is_closure(blob)?;
     if is_closure {
         let start_of_body = find_start_of_closure_body(blob)?;
-        let s = format!("{}{{}}", &blob[..start_of_body]);
-        let argpos = m.point - (stmtstart + start);
-        let offset = (stmtstart + start) as i32;
+        let s = format!("{}{{}}", &blob[..start_of_body.0]);
+        let argpos = m.point - (stmtstart + range.start);
+        let offset = (stmtstart + range.start).0 as i32;
         ast::parse_fn_arg_type(s, argpos, Scope::from_match(m), session, offset)
     } else {
         // wrap in "impl blah { }" so that methods get parsed correctly too
@@ -175,10 +185,10 @@ fn get_type_of_fnarg(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty
         let s = format!(
             "{}{}}}}}",
             start_blah,
-            &blob[..(find_start_of_function_body(blob) + 1)]
+            &blob[..find_start_of_function_body(blob).increment().0]
         );
-        let argpos = m.point - (stmtstart + start) + start_blah.len();
-        let offset = (stmtstart + start) as i32 - start_blah.len() as i32;
+        let argpos = m.point - (stmtstart + range.start) + start_blah.len().into();
+        let offset = (stmtstart + range.start).0 as i32 - start_blah.len() as i32;
         ast::parse_fn_arg_type(s, argpos, Scope::from_match(m), session, offset)
     }
 }
@@ -186,13 +196,13 @@ fn get_type_of_fnarg(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty
 fn get_type_of_let_expr(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty> {
     // ASSUMPTION: this is being called on a let decl
     let point = scopes::find_let_start(msrc, m.point).expect("`let` should have a beginning");
-    let src = msrc.from(point);
+    let src = msrc.shift_start(point);
 
-    if let Some((start, end)) = src.iter_stmts().next() {
-        let blob = &src[start..end];
+    if let Some(range) = src.iter_stmts().next() {
+        let blob = &src[range.to_range()];
         debug!("get_type_of_let_expr calling parse_let |{}|", blob);
 
-        let pos = m.point - point - start;
+        let pos = m.point - point - range.start;
         let scope = Scope { filepath: m.filepath.clone(), point };
         ast::get_let_type(blob.to_owned(), pos, scope, session)
     } else {
@@ -200,18 +210,18 @@ fn get_type_of_let_expr(m: &Match, msrc: Src, session: &Session) -> Option<core:
     }
 }
 
+// ASSUMPTION: this is being called on an if let or while let decl
 fn get_type_of_let_block_expr(m: &Match, msrc: Src, session: &Session, prefix: &str) -> Option<core::Ty> {
-    // ASSUMPTION: this is being called on an if let or while let decl
     let stmtstart = scopes::find_stmt_start(msrc, m.point).expect("`let` should have a beginning");
-    let stmt = msrc.from(stmtstart);
-    let point = stmt.find(prefix).expect("`prefix` should appear in statement");
-    let src = core::new_source(generate_skeleton_for_parsing(&stmt[point..]));
+    let stmt = msrc.shift_start(stmtstart);
+    let point: BytePos = stmt.find(prefix).expect("`prefix` should appear in statement").into();
+    let src = core::new_source(generate_skeleton_for_parsing(&stmt[point.0..]));
 
-    if let Some((start, end)) = src.as_src().iter_stmts().next() {
-        let blob = &src[start..end];
+    if let Some(range) = src.as_src().iter_stmts().next() {
+        let blob = &src[range.to_range()];
         debug!("get_type_of_let_block_expr calling get_let_type |{}|", blob);
 
-        let pos = m.point - stmtstart - point - start;
+        let pos = m.point - stmtstart - point - range.start;
         let scope = Scope{ filepath: m.filepath.clone(), point: stmtstart };
         ast::get_let_type(blob.to_owned(), pos, scope, session)
     } else {
@@ -221,7 +231,7 @@ fn get_type_of_let_block_expr(m: &Match, msrc: Src, session: &Session, prefix: &
 
 fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty> {
     let stmtstart = scopes::expect_stmt_start(msrc, m.point);
-    let stmt = msrc.from(stmtstart);
+    let stmt = msrc.shift_start(stmtstart);
     let forpos = stmt.find("for ").expect("`for` should appear in for .. in loop");
     let inpos = stmt.find(" in ").expect("`in` should appear in for .. in loop");
     // XXX: this need not be the correct brace, see generate_skeleton_for_parsing
@@ -243,11 +253,18 @@ fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<core:
 
     let src = core::new_source(src);
 
-    if let Some((start, end)) = src.as_src().iter_stmts().next() {
-        let blob = &src[start..end];
-        debug!("get_type_of_for_expr: |{}| {} {} {} {}", blob, m.point, stmtstart, forpos, start);
+    if let Some(range) = src.as_src().iter_stmts().next() {
+        let blob = &src[range.to_range()];
+        debug!(
+            "get_type_of_for_expr: |{}| {:?} {:?} {} {:?}",
+            blob,
+            m.point,
+            stmtstart,
+            forpos,
+            range.start
+        );
 
-        let pos = m.point + 8 - stmtstart - forpos - start;
+        let pos = m.point + BytePos::from(8) - stmtstart - forpos.into() - range.start;
         let scope = Scope{ filepath: m.filepath.clone(), point: stmtstart };
 
         ast::get_let_type(blob.to_owned(), pos, scope, session)
@@ -268,12 +285,12 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match, session: &Ses
     let src = session.load_file(&structmatch.filepath);
 
     let opoint = scopes::expect_stmt_start(src.as_src(), structmatch.point);
-    let structsrc = scopes::end_of_next_scope(&src[opoint..]);
+    let structsrc = scopes::end_of_next_scope(&src[opoint.0..]);
 
     // HACK: if scopes::end_of_next_scope returns empty struct, it's maybe tuple struct
     // TODO: remove this hack
     let structsrc = if structsrc == "" {
-        (*get_first_stmt(src.as_src().from(opoint))).to_owned()
+        (*get_first_stmt(src.as_src().shift_start(opoint))).to_owned()
     } else {
         structsrc.to_owned()
     };
@@ -292,14 +309,14 @@ pub fn get_tuplestruct_field_type(fieldnum: usize, structmatch: &Match, session:
 
     let structsrc = if let core::MatchType::EnumVariant(_) = structmatch.mtype {
         // decorate the enum variant src to make it look like a tuple struct
-        let to = src[structmatch.point..].find('(')
-            .map(|n| scopes::find_closing_paren(&src, structmatch.point + n+1))
+        let to = src[structmatch.point.0..].find('(')
+            .map(|n| scopes::find_closing_paren(&src, structmatch.point + BytePos::from(n).increment()))
             .expect("Tuple enum variant should have `(` in definition");
-        "struct ".to_owned() + &src[structmatch.point..(to+1)] + ";"
+        "struct ".to_owned() + &src[structmatch.point.0..to.increment().0] + ";"
     } else {
         assert!(structmatch.mtype == core::MatchType::Struct);
         let opoint = scopes::expect_stmt_start(src.as_src(), structmatch.point);
-        (*get_first_stmt(src.as_src().from(opoint))).to_owned()
+        (*get_first_stmt(src.as_src().shift_start(opoint))).to_owned()
     };
 
     debug!("get_tuplestruct_field_type structsrc=|{}|", structsrc);
@@ -316,7 +333,7 @@ pub fn get_tuplestruct_field_type(fieldnum: usize, structmatch: &Match, session:
 
 pub fn get_first_stmt(src: Src) -> Src {
     match src.iter_stmts().next() {
-        Some((from, to)) => src.from_to(from, to),
+        Some(range) => src.shift_range(range),
         None => src
     }
 }
@@ -347,32 +364,28 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<core:
     }
 }
 
-macro_rules! otry {
-    ($e:expr) => (match $e { Some(e) => e, None => return None })
-}
-
 pub fn get_type_from_match_arm(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty> {
     // We construct a faux match stmt and then parse it. This is because the
     // match stmt may be incomplete (half written) in the real code
 
     // skip to end of match arm pattern so we can search backwards
-    let arm = otry!(msrc[m.point..].find("=>")) + m.point;
+    let arm = msrc[m.point.0..].find("=>")?.into() + m.point;
     let scopestart = scopes::scope_start(msrc, arm);
 
-    let stmtstart = otry!(scopes::find_stmt_start(msrc, scopestart-1));
-    debug!("PHIL preblock is {} {}", stmtstart, scopestart);
-    let preblock = &msrc[stmtstart..scopestart];
-    let matchstart = otry!(preblock.rfind("match ")) + stmtstart;
+    let stmtstart = scopes::find_stmt_start(msrc, scopestart.decrement())?;
+    debug!("PHIL preblock is {:?} {:?}", stmtstart, scopestart);
+    let preblock = &msrc[stmtstart.0..scopestart.0];
+    let matchstart = stmtstart + preblock.rfind("match ")?.into();
 
     let lhs_start = scopes::get_start_of_pattern(&msrc, arm);
-    let lhs = &msrc[lhs_start..arm];
+    let lhs = &msrc[lhs_start.0..arm.0];
     // construct faux match statement and recreate point
-    let mut fauxmatchstmt = msrc[matchstart..scopestart].to_owned();
-    let faux_prefix_size = fauxmatchstmt.len();
+    let mut fauxmatchstmt = msrc[matchstart.0..scopestart.0].to_owned();
+    let faux_prefix_size = BytePos::from(fauxmatchstmt.len());
     fauxmatchstmt = fauxmatchstmt + lhs + " => () };";
     let faux_point = faux_prefix_size + (m.point - lhs_start);
 
-    debug!("fauxmatchstmt for parsing is pt:{} src:|{}|", faux_point, fauxmatchstmt);
+    debug!("fauxmatchstmt for parsing is pt:{:?} src:|{}|", faux_point, fauxmatchstmt);
 
     ast::get_match_arm_type(fauxmatchstmt, faux_point,
                             // scope is used to locate expression, so send
@@ -387,18 +400,18 @@ pub fn get_function_declaration(fnmatch: &Match, session: &Session) -> String {
     let src = session.load_file(&fnmatch.filepath);
     let start = scopes::expect_stmt_start(src.as_src(), fnmatch.point);
     let def_end: &[_] = &['{', ';'];
-    let end = src[start..].find(def_end).expect("Definition should have an end (`{` or `;`)");
-    src[start..end+start].to_owned()
+    let end = src[start.0..].find(def_end).expect("Definition should have an end (`{` or `;`)");
+    src[start.0..start.0 + end].to_owned()
 }
 
 pub fn get_return_type_of_function(fnmatch: &Match, contextm: &Match, session: &Session) -> Option<core::Ty> {
     let src = session.load_file(&fnmatch.filepath);
     let point = scopes::expect_stmt_start(src.as_src(), fnmatch.point);
-    let out = src[point..].find(|c| {c == '{' || c == ';'}).and_then(|n| {
+    let out = src[point.0..].find(|c| {c == '{' || c == ';'}).and_then(|n| {
         // wrap in "impl blah { }" so that methods get parsed correctly too
         let mut decl = String::new();
         decl.push_str("impl blah {");
-        decl.push_str(&src[point..(point+n+1)]);
+        decl.push_str(&src[point.0..point.0 + n + 1]);
         if decl.ends_with(';') {
             decl.pop();
             decl.push_str("{}}");

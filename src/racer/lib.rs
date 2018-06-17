@@ -1,12 +1,18 @@
 #![feature(iterator_flatten)]
+#![feature(slice_get_slice)]
 #![cfg_attr(all(feature = "clippy", not(test)), deny(print_stdout))]
 #![cfg_attr(feature = "nightly", feature(test))]
 
-#[macro_use] extern crate log;
-#[macro_use] extern crate lazy_static;
+#[macro_use]
+extern crate log;
+#[macro_use]
+extern crate lazy_static;
 
 extern crate cargo;
 extern crate syntax;
+#[macro_use]
+extern crate derive_more;
+extern crate rls_span;
 
 #[macro_use]
 mod testutils;

@@ -1,23 +1,23 @@
 use std::iter::{Fuse, Iterator};
 
-use core::{Point, SourceByteRange};
+use core::{BytePos, ByteRange};
 
 pub struct StmtIndicesIter<'a,I>
-    where I: Iterator<Item=SourceByteRange>
+    where I: Iterator<Item = ByteRange>
 {
     src: &'a str,
     it: I,
-    pos: Point,
-    end: Point
+    pos: BytePos,
+    end: BytePos
 }
 
 impl<'a,I> Iterator for StmtIndicesIter<'a,I>
-    where I: Iterator<Item=SourceByteRange>
+    where I: Iterator<Item = ByteRange>
 {
-    type Item = SourceByteRange;
+    type Item = ByteRange;
 
     #[inline]
-    fn next(&mut self) -> Option<SourceByteRange> {
+    fn next(&mut self) -> Option<Self::Item> {
         let src_bytes = self.src.as_bytes();
         let mut enddelim = b';';
         let mut bracelevel = 0isize;
@@ -32,40 +32,45 @@ impl<'a,I> Iterator for StmtIndicesIter<'a,I>
             if self.end == pos {
                 // get the next chunk of code
                 match self.it.next() {
-                    Some((ch_start, ch_end)) => {
-                        self.end = ch_end;
-                        if start == pos { start = ch_start; }
-                        pos = ch_start;
+                    Some(ch_range) => {
+                        self.end = ch_range.end;
+                        if start == pos {
+                            start = ch_range.start;
+                        }
+                        pos = ch_range.start;
                     }
                     None => {
                         // no more chunks. finished
                         self.pos = pos;
-                        return if start < self.end { Some((start, self.end)) }
-                               else { None }
+                        if start < self.end {
+                            return Some(ByteRange::new(start, self.end));
+                        } else {
+                            return None;
+                        }
                     }
                 }
             }
 
             if start == pos {
                 // if this is a new stmt block, skip the whitespace
-                for &b in &src_bytes[pos..self.end] {
+                for &b in &src_bytes[pos.0..self.end.0] {
                     match b {
-                        b' ' | b'\r' | b'\n' | b'\t' => { pos += 1; },
+                        b' ' | b'\r' | b'\n' | b'\t' => {
+                            pos += BytePos(1);
+                        },
                         _ => { break; }
                     }
                 }
                 start = pos;
-
                 // test attribute   #[foo = bar]
-                if pos < self.end && src_bytes[pos] == b'#' {
+                if pos < self.end && src_bytes[pos.0] == b'#' {
                     enddelim = b']'
                 };
             }
 
             // iterate through the chunk, looking for stmt end
-            for &b in &src_bytes[pos..self.end] {
-                pos += 1;
-
+            for &b in &src_bytes[pos.0..self.end.0] {
+                pos += BytePos(1);
                 match b {
                     b'(' => { parenlevel += 1; },
                     b')' => { parenlevel -= 1; },
@@ -92,8 +97,8 @@ impl<'a,I> Iterator for StmtIndicesIter<'a,I>
                         // macro if followed by at least one space or (
                         // FIXME: test with boolean 'not' expression
                         if parenlevel == 0 && bracelevel == 0
-                            && pos < self.end && (pos-start) > 1 {
-                            match src_bytes[pos] {
+                            && pos < self.end && (pos - start).0 > 1 {
+                            match src_bytes[pos.0] {
                                 b' ' | b'\r' | b'\n' | b'\t' | b'('  => {
                                     enddelim = b')';
                                 },
@@ -107,31 +112,32 @@ impl<'a,I> Iterator for StmtIndicesIter<'a,I>
                     || (enddelim == b && bracelevel == 0 && parenlevel == 0 && bracketlevel == 0)
                 {
                     self.pos = pos;
-                    return Some((start, pos));
+                    return Some(ByteRange::new(start, pos));
                 }
             }
         }
     }
 }
 
-fn is_a_use_stmt(src_bytes: &[u8], start: Point, pos: Point) -> bool {
+fn is_a_use_stmt(src_bytes: &[u8], start: BytePos, pos: BytePos) -> bool {
     let whitespace = b" {\t\r\n";
-    (pos > 3 && &src_bytes[start..start+3] == b"use" &&
-     whitespace.contains(&src_bytes[start+3])) ||
-    (pos > 7 && &src_bytes[start..(start+7)] == b"pub use" &&
-     whitespace.contains(&src_bytes[start+7]))
+    (pos.0 > 3 && &src_bytes[start.0..start.0 + 3] == b"use" &&
+     whitespace.contains(&src_bytes[start.0 + 3])) ||
+    (pos.0 > 7 && &src_bytes[start.0..(start.0 + 7)] == b"pub use" &&
+     whitespace.contains(&src_bytes[start.0 + 7]))
 }
 
-fn is_a_let_stmt(src_bytes: &[u8], start: Point, pos: Point) -> bool {
+fn is_a_let_stmt(src_bytes: &[u8], start: BytePos, pos: BytePos) -> bool {
     let whitespace = b" {\t\r\n";
-    pos > 3 && &src_bytes[start..start+3] == b"let" && whitespace.contains(&src_bytes[start+3])
+    pos.0 > 3 && &src_bytes[start.0..start.0 + 3] == b"let"
+        && whitespace.contains(&src_bytes[start.0 + 3])
 }
 
 impl<'a, I> StmtIndicesIter<'a,I>
-    where I: Iterator<Item=SourceByteRange>
+    where I: Iterator<Item = ByteRange>
 {
     pub fn from_parts(src: &str, it: I) -> Fuse<StmtIndicesIter<I>> {
-        StmtIndicesIter{ src, it, pos: 0, end: 0 }.fuse()
+        StmtIndicesIter{ src, it, pos: BytePos::zero(), end: BytePos::zero() }.fuse()
     }
 }
 
