@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use {core, ast, matchers, scopes, typeinf};
 use core::SearchType::{self, ExactMatch, StartsWith};
-use core::{Match, Src, Session, Coordinate, SessionExt, Ty, BytePos};
+use core::{Match, Src, Session, Coordinate, SessionExt, Ty, BytePos, ByteRange};
 use core::MatchType::{Module, Function, Struct, Enum, EnumVariant, FnArg, Trait, StructField,
     Impl, TraitImpl, MatchArm, Builtin, TypeParameter};
 use core::Namespace;
@@ -15,8 +15,7 @@ use ast::{GenericsArgs, ImplVisitor};
 use fileres::{get_crate_file, get_module_file};
 use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches,
            find_ident_end, get_rust_src_path, calculate_str_hash};
-use matchers::find_doc;
-use matchers::PendingImports;
+use matchers::{find_doc, MatchCxt, PendingImports};
 
 lazy_static! {
     pub static ref RUST_SRC_PATH: Option<PathBuf> = get_rust_src_path().ok();
@@ -449,26 +448,33 @@ fn search_scope_headers(
     point: BytePos,
     scopestart: BytePos,
     msrc: Src,
-    searchstr: &str,
+    search_str: &str,
     filepath: &Path,
     search_type: SearchType
 ) -> vec::IntoIter<Match> {
-    debug!("search_scope_headers for |{}| pt: {:?}", searchstr, scopestart);
+    debug!("search_scope_headers for |{}| pt: {:?}", search_str, scopestart);
 
+    let get_cxt = |len| MatchCxt {
+        filepath,
+        search_type,
+        search_str,
+        range: ByteRange::new(0, len),
+        is_local: true,
+    };
     if let Some(stmtstart) = scopes::find_stmt_start(msrc, scopestart) {
         let preblock = &msrc[stmtstart.0..scopestart.0];
         debug!("search_scope_headers preblock is |{}|", preblock);
 
         if preblock_is_fn(preblock) {
-            return search_fn_args(stmtstart, scopestart, &msrc, searchstr, filepath, search_type, true);
+            return search_fn_args(stmtstart, scopestart, &msrc, search_str, filepath, search_type, true);
 
         // 'if let' can be an expression, so might not be at the start of the stmt
         } else if let Some(n) = preblock.find("if let") {
             let ifletstart = stmtstart + n.into();
             let src = msrc[ifletstart.0..scopestart.increment().0].to_owned() + "}";
-            if txt_matches(search_type, searchstr, &src) {
-                let mut out = matchers::match_if_let(&src, 0, src.len(), searchstr,
-                                                     filepath, search_type, true);
+            if txt_matches(search_type, search_str, &src) {
+                let match_cxt = get_cxt(src.len());
+                let mut out = matchers::match_if_let(&src, &match_cxt);
                 for m in &mut out {
                     m.point += ifletstart;
                 }
@@ -476,9 +482,9 @@ fn search_scope_headers(
             }
         } else if preblock.starts_with("while let") {
             let src = msrc[stmtstart.0..scopestart.increment().0].to_owned() + "}";
-            if txt_matches(search_type, searchstr, &src) {
-                let mut out = matchers::match_while_let(&src, 0, src.len(), searchstr,
-                                                        filepath, search_type, true);
+            if txt_matches(search_type, search_str, &src) {
+                let match_cxt = get_cxt(src.len());
+                let mut out = matchers::match_while_let(&src, &match_cxt);
                 for m in &mut out {
                     m.point += stmtstart;
                 }
@@ -486,9 +492,9 @@ fn search_scope_headers(
             }
         } else if preblock.starts_with("for ") {
             let src = msrc[stmtstart.0..scopestart.increment().0].to_owned() + "}";
-            if txt_matches(search_type, searchstr, &msrc[..scopestart.0]) {
-                let mut out = matchers::match_for(&src, 0, src.len(), searchstr,
-                                                  filepath, search_type, true);
+            if txt_matches(search_type, search_str, &msrc[..scopestart.0]) {
+                let match_cxt = get_cxt(src.len());
+                let mut out = matchers::match_for(&src, &match_cxt);
                 for m in &mut out {
                     m.point += stmtstart;
                 }
@@ -536,18 +542,18 @@ fn search_scope_headers(
                                     lhs_start + pat_range.end - faux_prefix_size);
                 let s = &msrc[start.0..end.0];
 
-                if symbol_matches(search_type, searchstr, s) {
+                if symbol_matches(search_type, search_str, s) {
                     out.push(Match {
-                                    matchstr: s.to_owned(),
-                                    filepath: filepath.to_path_buf(),
-                                    point: start,
-                                    coords: None,
-                                    local: true,
-                                    mtype: MatchArm,
-                                    contextstr: lhs.trim().to_owned(),
-                                    generic_args: Vec::new(),
-                                    generic_types: Vec::new(),
-                                    docs: String::new(),
+                        matchstr: s.to_owned(),
+                        filepath: filepath.to_path_buf(),
+                        point: start,
+                        coords: None,
+                        local: true,
+                        mtype: MatchArm,
+                        contextstr: lhs.trim().to_owned(),
+                        generic_args: Vec::new(),
+                        generic_types: Vec::new(),
+                        docs: String::new(),
                     });
                     if let SearchType::ExactMatch = search_type {
                         break;
@@ -555,7 +561,8 @@ fn search_scope_headers(
                 }
             }
             return out.into_iter();
-        } else if let Some(vec) = search_closure_args(searchstr, preblock, stmtstart, filepath, search_type) {
+            // FIX_BEFORE_PR: should remove
+        } else if let Some(vec) = search_closure_args(search_str, preblock, stmtstart, filepath, search_type) {
             return vec.into_iter();
         }
     }
@@ -632,16 +639,16 @@ fn search_fn_args(
 
             if symbol_matches(search_type, searchstr, s) {
                 let m = Match {
-                                matchstr: s.to_owned(),
-                                filepath: filepath.to_path_buf(),
-                                point: fnstart + arg_range.start - impl_header_len.into(),
-                                coords: None,
-                                local: local,
-                                mtype: FnArg,
-                                contextstr: s.to_owned(),
-                                generic_args: Vec::new(),
-                                generic_types: Vec::new(),
-                                docs: String::new(),
+                    matchstr: s.to_owned(),
+                    filepath: filepath.to_path_buf(),
+                    point: fnstart + arg_range.start - impl_header_len.into(),
+                    coords: None,
+                    local: local,
+                    mtype: FnArg,
+                    contextstr: s.to_owned(),
+                    generic_args: Vec::new(),
+                    generic_types: Vec::new(),
+                    docs: String::new(),
                 };
                 debug!("search_fn_args matched: {:?}", m);
                 out.push(m);
@@ -844,16 +851,16 @@ pub fn search_scope(
     pathseg: &core::PathSegment,
     filepath:&Path,
     search_type: SearchType,
-    local: bool,
+    is_local: bool,
     namespace: Namespace,
     session: &Session,
     pending_imports: &PendingImports
 ) -> vec::IntoIter<Match> {
-    let searchstr = &pathseg.name;
+    let search_str = &pathseg.name;
     let mut out = Vec::new();
 
     debug!("searching scope {:?} start: {:?} point: {:?} '{}' {:?} {:?} local: {}, session: {:?}",
-           namespace, start, point, searchstr, filepath.display(), search_type, local, session);
+           namespace, start, point, search_str, filepath.display(), search_type, is_local, session);
 
     let scopesrc = src.shift_start(start);
     let mut skip_next_block = false;
@@ -893,16 +900,14 @@ pub fn search_scope(
         if (start + blob_range.end) >= point {
             continue;
         }
-
-        for m in matchers::match_let(
-            &src,
-            start + blob_range.start,
-            start+blobend,
-            searchstr,
+        let match_cxt = MatchCxt {
             filepath,
+            search_str,
             search_type,
-            local
-        ) {
+            is_local,
+            range: blob_range.shift(start),
+        };
+        for m in matchers::match_let(&src, &match_cxt) {
             out.push(m);
             if let ExactMatch = search_type {
                 return out.into_iter();
@@ -912,7 +917,7 @@ pub fn search_scope(
 
     // since we didn't find a `let` binding, now search from top of scope for items etc..
     let mut codeit = v.into_iter().chain(codeit);
-    for (blobstart, blobend) in &mut codeit {
+    for blob_range in &mut codeit {
         // sometimes we need to skip blocks of code if the preceeding attribute disables it
         //  (e.g. #[cfg(test)])
         if skip_next_block {
@@ -920,7 +925,7 @@ pub fn search_scope(
             continue;
         }
 
-        let blob = &scopesrc[blobstart..blobend];
+        let blob = &scopesrc[blob_range.to_range()];
 
         // for now skip stuff that's meant for testing. Often the test
         // module hierarchy is incompatible with the non-test
@@ -943,27 +948,27 @@ pub fn search_scope(
             // Optimisation: if the search string is not in the blob and it is not
             // a glob import, this cannot match so fail fast!
             let is_glob_import = blob.contains("::*");
-            if !is_glob_import && !blob.contains(searchstr.trim_right_matches('!')) {
+            if !is_glob_import && !blob.contains(search_str.trim_right_matches('!')) {
                 continue;
             }
 
             if is_glob_import {
-                delayed_glob_imports.push((blobstart, blobend));
+                delayed_glob_imports.push(blob_range);
             } else {
-                delayed_single_imports.push((blobstart, blobend));
+                delayed_single_imports.push(blob_range);
             }
 
             continue;
         }
 
-        if searchstr == "core" && blob.starts_with("#![no_std]") {
+        if search_str == "core" && blob.starts_with("#![no_std]") {
             debug!("Looking for core and found #![no_std], which implicitly imports it");
             if let Some(cratepath) = get_crate_file("core", filepath, session) {
                 let context = cratepath.to_str().unwrap().to_owned();
                 out.push(Match { matchstr: "core".into(),
                                   filepath: cratepath,
-                                  point: 0,
-                                  coords: Some(Coordinate { line: 1, column: 1 }),
+                                  point: BytePos::zero(),
+                                  coords: Some(Coordinate::start()),
                                   local: false,
                                   mtype: Module,
                                   contextstr: context,
@@ -977,7 +982,7 @@ pub fn search_scope(
 
         // Optimisation: if the search string is not in the blob,
         // this cannot match so fail fast!
-        if !blob.contains(searchstr.trim_right_matches('!')) {
+        if !blob.contains(search_str.trim_right_matches('!')) {
             continue;
         }
 
@@ -1074,10 +1079,13 @@ fn search_closure_args(searchstr: &str, scope_src: &str, scope_src_pos: Point,
     None
 }
 
-fn run_matchers_on_blob(src: Src, start: Point, end: Point, searchstr: &str,
-                        filepath: &Path, search_type: SearchType, local: bool,
-                        namespace: Namespace, session: &Session,
-                        pending_imports: &PendingImports) -> Vec<Match> {
+fn run_matchers_on_blob(
+    src: Src,
+    context: &MatchCxt,
+    namespace: Namespace,
+    session: &Session,
+    pending_imports: &PendingImports
+) -> Vec<Match> {
     let mut out = Vec::new();
     match namespace {
         Namespace::Type =>

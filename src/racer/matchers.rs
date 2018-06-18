@@ -7,15 +7,14 @@ use core::SearchType::{self, StartsWith, ExactMatch};
 use core::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant,
                       Const, Static, IfLet, WhileLet, For, Macro};
 use core::Namespace;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::{str, vec};
-use std::collections::HashSet;
 
 /// The location of an import (`use` item) currently being resolved.
 #[derive(PartialEq, Eq)]
 pub struct PendingImport<'fp> {
     filepath: &'fp Path,
-    blob_range: ByteRange,
+    range: ByteRange,
 }
 
 /// A stack of imports (`use` items) currently being resolved.
@@ -30,26 +29,42 @@ pub struct MatchCxt<'s, 'p> {
     pub is_local: bool,
 }
 
+impl<'s, 'p> MatchCxt<'s, 'p> {
+    fn get_keyword(&self, blob: &str, keyword: &str) -> Option<(BytePos, String)> {
+        if let Some(start) = find_keyword(blob, keyword, self) {
+            let s = match self.search_type {
+                ExactMatch => self.search_str.to_owned(),
+                StartsWith => {
+                    let end = find_ident_end(blob, start + BytePos(self.search_str.len()));
+                    blob[start.0..end.0].to_owned()
+                }
+            };
+            return Some((start, s))
+        }
+        None
+    }
+}
+
 pub fn match_types(
     src: Src,
     context: &MatchCxt,
     session: &Session,
     pending_imports: &PendingImports
 ) -> impl Iterator<Item = Match> {
-    match_extern_crate(&src, blobstart, blobend, searchstr, filepath, search_type, session).into_iter()
-        .chain(match_mod(src, blobstart, blobend, searchstr, filepath, search_type, local, session))
-        .chain(match_struct(&src, blobstart, blobend, searchstr, filepath, search_type, local))
-        .chain(match_type(&src, blobstart, blobend, searchstr, filepath, search_type, local))
-        .chain(match_trait(&src, blobstart, blobend, searchstr, filepath, search_type, local))
-        .chain(match_enum(&src, blobstart, blobend, searchstr, filepath, search_type, local))
-        .chain(match_use(&src, blobstart, blobend, searchstr, filepath, search_type, local, session, pending_imports))
+    match_extern_crate(&src, context, session).into_iter()
+        .chain(match_mod(src, context, session))
+        .chain(match_struct(&src, context))
+        .chain(match_type(&src, context))
+        .chain(match_trait(&src, context))
+        .chain(match_enum(&src, context))
+        .chain(match_use(&src, context, session, pending_imports))
 }
 
 pub fn match_values(src: Src, context: &MatchCxt) -> impl Iterator<Item=Match> {
-    match_const(&src, blobstart, blobend, searchstr, filepath, search_type, local).into_iter()
-        .chain(match_static(&src, blobstart, blobend, searchstr, filepath, search_type, local))
-        .chain(match_fn(&src, blobstart, blobend, searchstr, filepath, search_type, local))
-        .chain(match_macro(&src, blobstart, blobend, searchstr, filepath, search_type, local))
+    match_const(&src, context).into_iter()
+        .chain(match_static(&src, context))
+        .chain(match_fn(&src, context))
+        .chain(match_macro(&src, context))
 }
 
 fn strip_keyword_prefix(src: &str, keyword: &str) -> Option<BytePos> {
@@ -222,26 +237,26 @@ pub fn match_let(msrc: &str, context: &MatchCxt) -> Vec<Match> {
     match_pattern_let(msrc, context, "let ", Let)
 }
 
-pub fn match_for(msrc: &str, blobstart: Point, blobend: Point,
-                 searchstr: &str, filepath: &Path, search_type: SearchType,
-                 local: bool) -> Vec<Match> {
+pub fn match_for(msrc: &str, context: &MatchCxt) -> Vec<Match> {
     let mut out = Vec::new();
-    let blob = &msrc[blobstart..blobend];
+    let blob = &msrc[context.range.to_range()];
     let coords = ast::parse_pat_bind_stmt(blob.to_owned());
-    for (start, end) in coords {
-        let s = &blob[start..end];
-        if symbol_matches(search_type, searchstr, s) {
-            debug!("match_for point is {}, found ident {}", blobstart + start, s);
-            out.push(Match { matchstr: s.to_owned(),
-                             filepath: filepath.to_path_buf(),
-                             point: blobstart + start,
-                             coords: None,
-                             local: local,
-                             mtype: For,
-                             contextstr: first_line(blob),
-                             generic_args: Vec::new(),
-                             generic_types: Vec::new(),
-                             docs: String::new(),
+    for pat_range in coords {
+        let s = &blob[pat_range.to_range()];
+        if symbol_matches(context.search_type, context.search_str, s) {
+            let start = pat_range.start + context.range.start;
+            debug!("match_for point is {:?}, found ident {}", start, s);
+            out.push(Match {
+                matchstr: s.to_owned(),
+                filepath: context.filepath.to_path_buf(),
+                point: start,
+                coords: None,
+                local: context.is_local,
+                mtype: For,
+                contextstr: first_line(blob),
+                generic_args: Vec::new(),
+                generic_types: Vec::new(),
+                docs: String::new(),
             });
         }
     }
@@ -263,54 +278,42 @@ pub fn get_context(blob: &str, context_end: &str) -> String {
         .join(" ")
 }
 
-pub fn match_extern_crate(msrc: &str, blobstart: Point, blobend: Point,
-                          searchstr: &str, filepath: &Path, search_type: SearchType,
-                          session: &Session) -> Option<Match> {
+pub fn match_extern_crate(msrc: &str, context: &MatchCxt, session: &Session) -> Option<Match> {
     let mut res = None;
-    let mut blob = &msrc[blobstart..blobend];
+    let mut blob = &msrc[context.range.to_range()];
 
     // Temporary fix to parse reexported crates by skipping pub
     // keyword until racer understands crate visibility.
     if let Some(start) = strip_keyword_prefix(blob, "pub") {
-        blob = &blob[start..];
+        blob = &blob[start.0..];
     }
 
-    if txt_matches(search_type, &format!("extern crate {}", searchstr), blob) &&
-        !(txt_matches(search_type, &format!("extern crate {} as", searchstr), blob))
+    // TODO: later part is really necessary?
+    if txt_matches(context.search_type, &format!("extern crate {}", context.search_str), blob) &&
+        !(txt_matches(context.search_type, &format!("extern crate {} as", context.search_str), blob))
         || (blob.starts_with("extern crate") &&
-            txt_matches(search_type, &format!("as {}", searchstr), blob)) {
+            txt_matches(context.search_type, &format!("as {}", context.search_str), blob)) {
 
         debug!("found an extern crate: |{}|", blob);
 
-        let extern_crate = if blob.contains('\"') {
-            // Annoyingly the extern crate can use a string literal for the
-            // real crate name (e.g. extern crate collections_core = "collections")
-            // so we need to get the source text without scrubbed strings
-
-            let rawsrc = session.load_file(filepath);
-            let rawblob = &rawsrc[blobstart..blobend];
-            debug!("found an extern crate (unscrubbed): |{}|", rawblob);
-            ast::parse_extern_crate(rawblob.to_owned())
-        } else {
-            ast::parse_extern_crate(blob.to_owned())
-        };
+        let extern_crate = ast::parse_extern_crate(blob.to_owned());
 
         if let Some(ref name) = extern_crate.name {
             debug!("extern crate {}", name);
 
             let realname = extern_crate.realname.as_ref().unwrap_or(name);
-            if let Some(cratepath) = get_crate_file(realname, filepath, session) {
+            if let Some(cratepath) = get_crate_file(realname, context.filepath, session) {
                 let crate_src = session.load_file(&cratepath);
                 res = Some(Match { matchstr: name.clone(),
                                   filepath: cratepath.to_path_buf(),
-                                  point: 0,
-                                  coords: Some(Coordinate { line: 1, column: 1 }),
+                                  point: BytePos::zero(),
+                                  coords: Some(Coordinate::start()),
                                   local: false,
                                   mtype: Module,
                                   contextstr: cratepath.to_str().unwrap().to_owned(),
                                   generic_args: Vec::new(),
                                   generic_types: Vec::new(),
-                                  docs: find_mod_doc(&crate_src, 0),
+                                  docs: find_mod_doc(&crate_src, BytePos::zero()),
                 });
             }
         }
@@ -318,198 +321,168 @@ pub fn match_extern_crate(msrc: &str, blobstart: Point, blobend: Point,
     res
 }
 
-pub fn match_mod(msrc: Src, blobstart: Point, blobend: Point,
-                 searchstr: &str, filepath: &Path, search_type: SearchType,
-                 local: bool, session: &Session) -> Option<Match> {
-    let blob = &msrc[blobstart..blobend];
-    if let Some(start) = find_keyword(blob, "mod", searchstr, search_type, local) {
-        let l = match search_type {
-            ExactMatch => searchstr, // already checked in find_keyword
-            StartsWith => &blob[start..find_ident_end(blob, start+searchstr.len())]
-        };
+pub fn match_mod(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Match> {
+    let blob = &msrc[context.range.to_range()];
+    let (start, s) = context.get_keyword(blob, "mod")?;
+    if blob.find('{').is_some() {
+        debug!("found a module inline: |{}|", blob);
+        return Some(Match {
+            matchstr: s,
+            filepath: context.filepath.to_path_buf(),
+            point: context.range.start + start,
+            coords: None,
+            local: false,
+            mtype: Module,
+            contextstr: context.filepath.to_str().unwrap().to_owned(),
+            generic_args: Vec::new(),
+            generic_types: Vec::new(),
+            docs: String::new(),
+        })
+    } else {
+        debug!("found a module declaration: |{}|", blob);
 
-        if blob.find('{').is_some() {
-            debug!("found a module inline: |{}|", blob);
+        let parent_path = context.filepath.parent()?;
+        // get module from path attribute
+        if let Some(modpath) = scopes::get_module_file_from_path(
+            msrc,
+            context.range.start,
+            parent_path,
+        ) {
+            let msrc = session.load_file(&modpath);
 
             return Some(Match {
-                matchstr: l.to_owned(),
-                filepath: filepath.to_path_buf(),
-                point: blobstart + start,
-                coords: None,
+                matchstr: s,
+                filepath: modpath.to_path_buf(),
+                point: BytePos::zero(),
+                coords: Some(Coordinate::start()),
                 local: false,
                 mtype: Module,
-                contextstr: filepath.to_str().unwrap().to_owned(),
+                contextstr: modpath.to_str().unwrap().to_owned(),
                 generic_args: Vec::new(),
                 generic_types: Vec::new(),
-                docs: String::new(),
+                docs: find_mod_doc(&msrc, BytePos::zero()),
             })
-        } else {
-            debug!("found a module declaration: |{}|", blob);
-
-            // get module from path attribute
-            if let Some(modpath) = scopes::get_module_file_from_path(msrc, blobstart,filepath.parent().unwrap()) {
-                let msrc = session.load_file(&modpath);
-
-                return Some(Match {
-                    matchstr: l.to_owned(),
-                    filepath: modpath.to_path_buf(),
-                    point: 0,
-                    coords: Some(Coordinate { line: 1, column: 1 }),
-                    local: false,
-                    mtype: Module,
-                    contextstr: modpath.to_str().unwrap().to_owned(),
-                    generic_args: Vec::new(),
-                    generic_types: Vec::new(),
-                    docs: find_mod_doc(&msrc, 0),
-                })
-            }
-            // get internal module nesting
-            // e.g. is this in an inline submodule?  mod foo{ mod bar; }
-            // because if it is then we need to search further down the
-            // directory hierarchy - e.g. <cwd>/foo/bar.rs
-            let internalpath = scopes::get_local_module_path(msrc, blobstart);
-            let mut searchdir = filepath.parent().unwrap().to_path_buf();
-            for s in internalpath {
-                searchdir.push(&s);
-            }
-            if let Some(modpath) = get_module_file(l, &searchdir, session) {
-                let msrc = session.load_file(&modpath);
-                let context = modpath.to_str().unwrap().to_owned();
-                return Some(Match {
-                    matchstr: l.to_owned(),
-                    filepath: modpath,
-                    point: 0,
-                    coords: Some(Coordinate { line: 1, column: 1 }),
-                    local: false,
-                    mtype: Module,
-                    contextstr: context,
-                    generic_args: Vec::new(),
-                    generic_types: Vec::new(),
-                    docs: find_mod_doc(&msrc, 0),
-                })
-            }
+        }
+        // get internal module nesting
+        // e.g. is this in an inline submodule?  mod foo{ mod bar; }
+        // because if it is then we need to search further down the
+        // directory hierarchy - e.g. <cwd>/foo/bar.rs
+        let internalpath = scopes::get_local_module_path(msrc, context.range.start);
+        let mut searchdir = parent_path.to_owned();
+        for s in internalpath {
+            searchdir.push(&s);
+        }
+        if let Some(modpath) = get_module_file(&s, &searchdir, session) {
+            let msrc = session.load_file(&modpath);
+            let context = modpath.to_str().unwrap().to_owned();
+            return Some(Match {
+                matchstr: s,
+                filepath: modpath,
+                point: BytePos::zero(),
+                coords: Some(Coordinate::start()),
+                local: false,
+                mtype: Module,
+                contextstr: context,
+                generic_args: Vec::new(),
+                generic_types: Vec::new(),
+                docs: find_mod_doc(&msrc, 0),
+            })
         }
     }
     None
 }
 
-pub fn match_struct(msrc: &str, blobstart: Point, blobend: Point,
-                    searchstr: &str, filepath: &Path, search_type: SearchType,
-                    local: bool) -> Option<Match> {
-    let blob = &msrc[blobstart..blobend];
-    if let Some(start) = find_keyword(blob, "struct", searchstr, search_type, local) {
-        let l = match search_type {
-            ExactMatch => searchstr, // already checked in find_keyword
-            StartsWith => &blob[start..find_ident_end(blob, start+searchstr.len())]
-        };
-        debug!("found a struct |{}|", l);
+pub fn match_struct(msrc: &str, context: &MatchCxt) -> Option<Match> {
+    let blob = &msrc[context.range.to_range()];
+    let (start, s) = context.get_keyword(msrc, "struct")?;
 
-        // Parse generics
-        let end = match blob.find('{').or_else(|| blob.find(';')) {
-            Some(e) => e,
-            None => {
-                error!("Can't find end of struct header");
-                return None;
-            }
-        };
+    debug!("found a struct |{}|", s);
 
-        // structs with no values need to end in ';', not '{}'
-        let generics = ast::parse_generics(format!("{};", &blob[..end]), filepath);
+    let end = match blob.find('{').or_else(|| blob.find(';')) {
+        Some(e) => e,
+        None => {
+            error!("Can't find end of struct header");
+            return None;
+        }
+    };
 
-        Some(Match {
-            matchstr: l.to_owned(),
-            filepath: filepath.to_path_buf(),
-            point: blobstart + start,
-            coords: None,
-            local: local,
-            mtype: Struct,
-            contextstr: get_context(blob, "{"),
-            generic_args: generics.get_idents(),
-            generic_types: Vec::new(),
-            docs: find_doc(msrc, blobstart + start),
-        })
-    } else {
-        None
-    }
+    // structs with no values need to end in ';', not '{}'
+    let generics = ast::parse_generics(format!("{};", &blob[..end]), context.filepath);
+    let start = context.range.start + start;
+    Some(Match {
+        matchstr: s,
+        filepath: context.filepath.to_path_buf(),
+        point: start,
+        coords: None,
+        local: context.is_local,
+        mtype: Struct,
+        contextstr: get_context(blob, "{"),
+        generic_args: generics.get_idents(),
+        generic_types: Vec::new(),
+        docs: find_doc(msrc, start),
+    })
 }
 
-pub fn match_type(msrc: &str, blobstart: Point, blobend: Point,
-                  searchstr: &str, filepath: &Path, search_type: SearchType,
-                  local: bool) -> Option<Match> {
-    let blob = &msrc[blobstart..blobend];
-    if let Some(start) = find_keyword(blob, "type", searchstr, search_type, local) {
-        let l = match search_type {
-            ExactMatch => searchstr, // already checked in find_keyword
-            StartsWith => &blob[start..find_ident_end(blob, start+searchstr.len())]
-        };
-        debug!("found!! a type {}", l);
-        Some(Match {
-            matchstr: l.to_owned(),
-            filepath: filepath.to_path_buf(),
-            point: blobstart + start,
-            coords: None,
-            local: local,
-            mtype: Type,
-            contextstr: first_line(blob),
-            generic_args: Vec::new(),
-            generic_types: Vec::new(),
-            docs: find_doc(msrc, blobstart + start),
-        })
-    } else {
-        None
-    }
+pub fn match_type(msrc: &str, context: &MatchCxt) -> Option<Match> {
+    let blob = &msrc[context.range.to_range()];
+    let (start, s) = context.get_keyword(blob, "type")?;
+    debug!("found!! a type {}", s);
+    let start = context.range.start + start;
+    Some(Match {
+        matchstr: s,
+        filepath: context.filepath.to_path_buf(),
+        point: start,
+        coords: None,
+        local: context.is_local,
+        mtype: Type,
+        contextstr: first_line(blob),
+        generic_args: Vec::new(),
+        generic_types: Vec::new(),
+        docs: find_doc(msrc, start),
+    })
 }
 
-pub fn match_trait(msrc: &str, blobstart: Point, blobend: Point,
-                   searchstr: &str, filepath: &Path, search_type: SearchType,
-                   local: bool) -> Option<Match> {
-    let blob = &msrc[blobstart..blobend];
-    if let Some(start) = find_keyword(blob, "trait", searchstr, search_type, local) {
-        let l = match search_type {
-            ExactMatch => searchstr, // already checked in find_keyword
-            StartsWith => &blob[start..find_ident_end(blob, start+searchstr.len())]
-        };
-        debug!("found!! a trait {}", l);
-        Some(Match {
-            matchstr: l.to_owned(),
-            filepath: filepath.to_path_buf(),
-            point: blobstart + start,
-            coords: None,
-            local: local,
-            mtype: Trait,
-            contextstr: get_context(blob, "{"),
-            generic_args: Vec::new(),
-            generic_types: Vec::new(),
-            docs: find_doc(msrc, blobstart + start),
-        })
-    } else {
-        None
-    }
+pub fn match_trait(msrc: &str, context: &MatchCxt) -> Option<Match> {
+    let blob = &msrc[context.range.to_range()];
+    let (start, s) = context.get_keyword(blob, "trait")?;
+    debug!("found!! a trait {}", s);
+    let start = context.range.start + start;
+    Some(Match {
+        matchstr: s,
+        filepath: context.filepath.to_path_buf(),
+        point: start,
+        coords: None,
+        local: context.is_local,
+        mtype: Trait,
+        contextstr: get_context(blob, "{"),
+        generic_args: Vec::new(),
+        generic_types: Vec::new(),
+        docs: find_doc(msrc, start),
+    })
 }
 
-pub fn match_enum_variants(msrc: &str, blobstart: Point, blobend: Point,
-                           searchstr: &str, filepath: &Path, search_type: SearchType,
-                           local: bool) -> vec::IntoIter<Match> {
-    let blob = &msrc[blobstart..blobend];
+pub fn match_enum_variants(msrc: &str, context: &MatchCxt) -> vec::IntoIter<Match> {
+    let blob = &msrc[context.range.to_range()];
     let mut out = Vec::new();
-    if (blob.starts_with("pub enum") || (local && blob.starts_with("enum"))) &&
-       txt_matches(search_type, searchstr, blob) {
+    if (blob.starts_with("pub enum") || (context.is_local && blob.starts_with("enum"))) &&
+       txt_matches(context.search_type, context.search_str, blob) {
         // parse the enum
         let parsed_enum = ast::parse_enum(blob.to_owned());
 
         for (name, offset) in parsed_enum.values {
-            if name.starts_with(searchstr) {
+            if name.starts_with(context.search_str) {
+                let start = context.range.start + offset;
                 let m = Match {
                     matchstr: name,
-                    filepath: filepath.to_path_buf(),
-                    point: blobstart + offset,
+                    filepath: context.filepath.to_path_buf(),
+                    point: start,
                     coords: None,
-                    local: local,
+                    local: context.is_local,
                     mtype: EnumVariant(None),
-                    contextstr: first_line(&blob[offset..]),
+                    contextstr: first_line(&blob[offset.0..]),
                     generic_args: Vec::new(),
                     generic_types: Vec::new(),
-                    docs: find_doc(msrc, blobstart + offset),
+                    docs: find_doc(msrc, start),
                 };
                 out.push(m);
             }
@@ -518,49 +491,42 @@ pub fn match_enum_variants(msrc: &str, blobstart: Point, blobend: Point,
     out.into_iter()
 }
 
-pub fn match_enum(msrc: &str, blobstart: Point, blobend: Point,
-                  searchstr: &str, filepath: &Path, search_type: SearchType,
-                  local: bool) -> Option<Match> {
-    let blob = &msrc[blobstart..blobend];
-    if let Some(start) = find_keyword(blob, "enum", searchstr, search_type, local) {
-        let l = match search_type {
-            ExactMatch => searchstr, // already checked in find_keyword
-            StartsWith => &blob[start..find_ident_end(blob, start+searchstr.len())]
-        };
-        debug!("found!! an enum |{}|", l);
-        // Parse generics
-        let end = blob.find('{').or_else(|| blob.find(';'))
-            .expect("Can't find end of enum header");
-        let generics = ast::parse_generics(format!("{}{{}}", &blob[..end]), filepath);
+pub fn match_enum(msrc: &str, context: &MatchCxt) -> Option<Match> {
+    let blob = &msrc[context.range.to_range()];
+    let (start, s) = context.get_keyword(blob, "enum")?;
 
-        Some(Match {
-            matchstr: l.to_owned(),
-            filepath: filepath.to_path_buf(),
-            point: blobstart + start,
-            coords: None,
-            local: local,
-            mtype: Enum,
-            contextstr: first_line(blob),
-            generic_args: generics.get_idents(),
-            generic_types: Vec::new(),
-            docs: find_doc(msrc, blobstart + start),
-        })
-    } else {
-        None
-    }
+    debug!("found!! an enum |{}|", s);
+    // Parse generics
+    let end = blob.find('{').or_else(|| blob.find(';'))
+                            .expect("Can't find end of enum header");
+    let generics = ast::parse_generics(format!("{}{{}}", &blob[..end]), context.filepath);
+    let start = context.range.start + start;
+    Some(Match {
+        matchstr: s,
+        filepath: context.filepath.to_path_buf(),
+        point: start,
+        coords: None,
+        local: context.is_local,
+        mtype: Enum,
+        contextstr: first_line(blob),
+        generic_args: generics.get_idents(),
+        generic_types: Vec::new(),
+        docs: find_doc(msrc, start),
+    })
 }
 
-pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
-                 searchstr: &str, filepath: &Path, search_type: SearchType,
-                 local: bool, session: &Session,
-                 pending_imports: &PendingImports) -> Vec<Match> {
+pub fn match_use(
+    msrc: &str,
+    context: &MatchCxt,
+    session: &Session,
+    pending_imports: &PendingImports
+) -> Vec<Match> {
     let import = PendingImport {
-        filepath,
-        blobstart,
-        blobend,
+        filepath: context.filepath,
+        range: context.range,
     };
 
-    let blob = &msrc[blobstart..blobend];
+    let blob = &msrc[context.range.to_range()];
 
     // If we're trying to resolve the same import recursively,
     // do not return any matches this time.
@@ -574,17 +540,17 @@ pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
 
     let mut out = Vec::new();
 
-    if find_keyword(blob, "use", "", StartsWith, local).is_none() {
+    if find_keyword(blob, "use", context).is_none() {
         return out;
     }
 
     let use_item = ast::parse_use(blob.to_owned());
     debug!(
         "[match_use] found item: {:?}, searchstr: {}",
-        use_item, searchstr
+        use_item, context.search_str
     );
     // for speed up!
-    if !use_item.contains_glob && !txt_matches(search_type, searchstr, blob) {
+    if !use_item.contains_glob && !txt_matches(context.search_type, context.search_str, blob) {
         return out;
     }
     // common utilities
@@ -592,8 +558,8 @@ pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
         ($path:expr, $f:expr) => {
             if let Some(mut m) = resolve_path(
                 $path,
-                filepath,
-                blobstart,
+                context.filepath,
+                context.range.start,
                 ExactMatch,
                 Namespace::Both,
                 session,
@@ -602,7 +568,7 @@ pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
             {
                 $f(&mut m);
                 out.push(m);
-                if search_type == ExactMatch {
+                if context.search_type == ExactMatch {
                     return out;
                 }
             }
@@ -612,7 +578,7 @@ pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
     for path_alias in use_item.path_list {
         match path_alias.kind {
             ast::PathAliasKind::Ident(ref ident) => {
-                if !symbol_matches(search_type, searchstr, ident) {
+                if !symbol_matches(context.search_type, context.search_str, ident) {
                     continue;
                 }
                 with_match!(path_alias.as_ref(), |m: &mut Match| {
@@ -626,7 +592,7 @@ pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
                 if let Some(last_seg) = path_alias.path.segments.last() {
                     let is_aliased = ident != "self";
                     let search_name = if is_aliased { ident } else { &last_seg.name };
-                    if !symbol_matches(search_type, searchstr, search_name) {
+                    if !symbol_matches(context.search_type, context.search_str, search_name) {
                         continue;
                     }
                     with_match!(path_alias.as_ref(), |m: &mut Match| {
@@ -640,19 +606,19 @@ pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
             ast::PathAliasKind::Glob => {
                 let mut search_path = path_alias.path;
                 search_path.segments.push(PathSegment {
-                    name: searchstr.to_owned(),
+                    name: context.search_str.to_owned(),
                     types: vec![],
                 });
                 let mut path_iter = resolve_path(
                     &search_path,
-                    filepath,
-                    blobstart,
-                    search_type,
+                    context.filepath,
+                    context.range.start,
+                    context.search_type,
                     Namespace::Both,
                     session,
                     pending_imports,
                 );
-                if search_type == StartsWith {
+                if context.search_type == StartsWith {
                     return path_iter.collect();
                 }
                 debug!(
@@ -668,73 +634,55 @@ pub fn match_use(msrc: &str, blobstart: Point, blobend: Point,
     out
 }
 
-pub fn match_fn(msrc: &str, blobstart: Point, blobend: Point,
-                searchstr: &str, filepath: &Path, search_type: SearchType,
-                local: bool) -> Option<Match> {
-
-    let blob = &msrc[blobstart..blobend];
-    let keyword = if is_const_fn(msrc, blobstart, blobend) { "const fn" } else { "fn" };
-    if let Some(start) = find_keyword(blob, keyword, searchstr, search_type, local) {
-        if !typeinf::first_param_is_self(blob) {
-            debug!("found a fn starting {}", searchstr);
-            let l = match search_type {
-                ExactMatch => searchstr, // already checked in find_keyword
-                StartsWith => &blob[start..find_ident_end(blob, start+searchstr.len())]
-            };
-            debug!("found a fn {}", l);
-            Some(Match {
-                matchstr: l.to_owned(),
-                filepath: filepath.to_path_buf(),
-                point: blobstart + start,
-                coords: None,
-                local: local,
-                mtype: Function,
-                contextstr: get_context(blob, "{"),
-                generic_args: Vec::new(),
-                generic_types: Vec::new(),
-                docs: find_doc(msrc, blobstart + start),
-            })
-        } else {
-            None
-        }
-    } else {
-        None
+pub fn match_fn(msrc: &str, context: &MatchCxt) -> Option<Match> {
+    let blob = &msrc[context.range.to_range()];
+    if typeinf::first_param_is_self(blob) {
+        return None;
     }
+    // TODO: too hacky
+    let keyword = if is_const_fn(msrc, context.range) { "const fn" } else { "fn" };
+    let (start, s) = context.get_keyword(blob, keyword)?;
+    debug!("found a fn {}", s);
+    let start = context.range.start + start;
+    Some(Match {
+        matchstr: s,
+        filepath: context.filepath.to_path_buf(),
+        point: start,
+        coords: None,
+        local: context.is_local,
+        mtype: Function,
+        contextstr: get_context(blob, "{"),
+        generic_args: Vec::new(),
+        generic_types: Vec::new(),
+        docs: find_doc(msrc, start),
+    })
 }
 
-pub fn match_macro(msrc: &str, blobstart: Point, blobend: Point,
-                   searchstr: &str, filepath: &Path, search_type: SearchType,
-                   local: bool) -> Option<Match> {
-    let blob = &msrc[blobstart..blobend];
-    let searchstr = searchstr.trim_right_matches('!');
-    if let Some(start) = find_keyword(blob, "macro_rules!", searchstr, search_type, local) {
-        debug!("found a macro starting {}", searchstr);
-        let l = match search_type {
-            ExactMatch => searchstr, // already checked in find_keyword
-            StartsWith => &blob[start..find_ident_end(blob, start+searchstr.len())]
-        };
-        let l = format!("{}!", l);
-        debug!("found a macro {}", l);
-        Some(Match {
-            matchstr: l.to_owned(),
-            filepath: filepath.to_path_buf(),
-            point: blobstart + start,
-            coords: None,
-            local: local,
-            mtype: Macro,
-            contextstr: first_line(blob),
-            generic_args: Vec::new(),
-            generic_types: Vec::new(),
-            docs: String::new(),
-        })
-    } else {
-        None
-    }
+pub fn match_macro(msrc: &str, context: &MatchCxt) -> Option<Match> {
+    let trimed = context.search_str.trim_right_matches('!');
+    let mut context = context.clone();
+    context.search_str = trimed;
+    let blob = &msrc[context.range.to_range()];
+    let (start, mut s) = context.get_keyword(blob, "macro_rules!")?;
+    s.push('!');
+    debug!("found a macro {}", s);
+    Some(Match {
+        matchstr: s,
+        filepath: context.filepath.to_owned(),
+        point: context.range.start + start,
+        coords: None,
+        local: context.is_local,
+        mtype: Macro,
+        contextstr: first_line(blob),
+        generic_args: Vec::new(),
+        generic_types: Vec::new(),
+        docs: String::new(),
+    })
+
 }
 
-pub fn find_doc(msrc: &str, match_point: Point) -> String {
-    let blob = &msrc[0..match_point];
-
+pub fn find_doc(msrc: &str, match_point: BytePos) -> String {
+    let blob = &msrc[0..match_point.0];
     blob.lines()
         .rev()
         .skip(1) // skip the line that the match is on
@@ -749,8 +697,8 @@ pub fn find_doc(msrc: &str, match_point: Point) -> String {
         .join("\n")
 }
 
-fn find_mod_doc(msrc: &str, blobstart: Point) -> String {
-    let blob = &msrc[blobstart..];
+fn find_mod_doc(msrc: &str, blobstart: BytePos) -> String {
+    let blob = &msrc[blobstart.0..];
     let mut doc = String::new();
 
     let mut iter = blob.lines()

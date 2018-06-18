@@ -1152,7 +1152,7 @@ fn complete_from_file_(
     };
 
     let start = scopes::get_start_of_search_expr(src_text, pos);
-    let expr = &src_text[start..pos];
+    let expr = &src_text[start.0..pos.0];
 
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
@@ -1171,7 +1171,7 @@ fn complete_from_file_(
 
             // step 1, get full line, take the rightmost part split by semicolon
             //   prevent the case that someone write multiple line in one line
-            let line = src_text[linestart..pos].trim().rsplit(';').nth(0).unwrap();
+            let line = src_text[linestart.0..pos.0].trim().rsplit(';').nth(0).unwrap();
             debug!("Complete path with line: {:?}", line);
 
             // Test if the **path expression** starts with `::`, in which case the path
@@ -1321,8 +1321,8 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
     };
 
     // Make sure `src` is in the cache
-    let (start, end) = scopes::expand_search_expr(src, pos);
-    let expr = &src[start..end];
+    let range = scopes::expand_search_expr(src, pos);
+    let expr = &src[range.to_range()];
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
     debug!("find_definition_ for |{:?}| |{:?}| {:?}", contextstr, searchstr, completetype);
@@ -1349,7 +1349,7 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("context is {:?}", context);
 
-            let match_type:MatchType = if src[end..].starts_with('(') { MatchType::Function } else { MatchType::StructField };
+            let match_type:MatchType = if src[range.end.0..].starts_with('(') { MatchType::Function } else { MatchType::StructField };
             context.and_then(|ty| {
                 // for now, just handle matches
                 if let Ty::Match(m) = ty {
