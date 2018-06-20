@@ -109,10 +109,10 @@ fn completes_fn_with_substitute_file() {
     let real_file = Path::new("not_real.rs");
     let session = racer::Session::new(&cache);
     session.cache_file_contents(&real_file, src);
-    let cursor = Coordinate { line: 6, column: 18 };
+    let cursor = Coordinate::new(6, 18);
     let got = complete_from_file(real_file, cursor, &session).nth(0).unwrap();
 
-    assert_eq!(Some(Coordinate { line: 2, column: 8 }), got.coords);
+    assert_eq!(Some(Coordinate::new(2, 8)), got.coords);
     assert_eq!("apple", got.matchstr);
 }
 
@@ -212,7 +212,7 @@ fn completes_local_scope_let() {
 
     let got = get_one_completion(src, None);
     assert_eq!("apple", got.matchstr);
-    assert_eq!(29, got.point);
+    assert_eq!(29, got.point.0);
 }
 
 #[test]
@@ -227,7 +227,7 @@ fn completes_via_parent_scope_let() {
 
     let got = get_one_completion(src, None);
     assert_eq!("apple", got.matchstr);
-    assert_eq!(33, got.point);
+    assert_eq!(33, got.point.0);
 }
 
 #[test]
@@ -295,11 +295,11 @@ fn completes_for_vec_field_and_method() {
     let path = dir.write_file("src.rs", src);
     let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
-    let cursor1 = Coordinate { line: 22, column: 18 };
+    let cursor1 = Coordinate::new(22, 18);
     let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
     println!("{:?}", got1);
     assert_eq!("stfield", got1.matchstr);
-    let cursor2 = Coordinate { line: 23, column: 18 };
+    let cursor2 = Coordinate::new(23, 18);
     let got2 = complete_from_file(&path, cursor2, &session).nth(0).unwrap();
     println!("{:?}", got2);
     assert_eq!("stmethod", got2.matchstr);
@@ -332,11 +332,11 @@ fn completes_trait_methods() {
     let path = f.path();
     let cache1 = racer::FileCache::default();
     let session1 = racer::Session::new(&cache1);
-    let cursor1 = Coordinate { line: 18, column: 18};
+    let cursor1 = Coordinate::new(18, 18);
     let got1 = complete_from_file(&path, cursor1, &session1).nth(0).unwrap();
     let cache2 = racer::FileCache::default();
     let session2 = racer::Session::new(&cache2);
-    let cursor2 = Coordinate { line: 19, column: 11};
+    let cursor2 = Coordinate::new(19, 11);
     let got2 = complete_from_file(&path, cursor2, &session2).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
@@ -374,11 +374,11 @@ fn completes_trait_bounded_methods() {
     let path = f.path();
     let cache1 = racer::FileCache::default();
     let session1 = racer::Session::new(&cache1);
-    let cursor1 = Coordinate { line: 20, column: 16 };
+    let cursor1 = Coordinate::new(20, 16);
     let got1 = complete_from_file(&path, cursor1, &session1).nth(0).unwrap();
     let cache2 = racer::FileCache::default();
     let session2 = racer::Session::new(&cache2);
-    let cursor2 = Coordinate { line: 21, column: 12 };
+    let cursor2 = Coordinate::new(21, 12);
     let got2 = complete_from_file(&path, cursor2, &session2).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
@@ -421,8 +421,8 @@ fn completes_trait_bounded_methods_generic_return() {
     let path = f.path();
     let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
-    let cursor1 = Coordinate { line: 24, column: 24 };
-    let cursor2 = Coordinate { line: 25, column: 25 };
+    let cursor1 = Coordinate::new(24, 24);
+    let cursor2 = Coordinate::new(25, 25);
     let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
     let got2 = complete_from_file(&path, cursor2, &session).nth(0).unwrap();
     println!("{:?}", got1);
@@ -594,11 +594,11 @@ fn completes_for_vec_iter_field_and_method() {
     let path = dir.write_file("src.rs", src);
     let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
-    let cursor1 = Coordinate { line: 22, column: 18 };
+    let cursor1 = Coordinate::new(22, 18);
     let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
     println!("{:?}", got1);
     assert_eq!("stfield", got1.matchstr);
-    let cursor2 = Coordinate { line: 23, column: 18 };
+    let cursor2 = Coordinate::new(23, 18);
     let got2 = complete_from_file(&path, cursor2, &session).nth(0).unwrap();
     println!("{:?}", got2);
     assert_eq!("stmethod", got2.matchstr);
@@ -632,9 +632,9 @@ fn completes_trait_methods_when_at_scope_end() {
     let path = f.path();
     let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
-    let cursor1 = Coordinate { line: 18, column: 18 };
+    let cursor1 = Coordinate::new(18, 18);
     let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
-    let cursor2 = Coordinate { line: 19, column: 11 };
+    let cursor2 = Coordinate::new(19, 11);
     let got2 = complete_from_file(&path, cursor2, &session).nth(0).unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
@@ -828,8 +828,8 @@ fn single_import_shadows_glob_import() {
     let got = get_definition(src, None);
     assert_eq!(got.matchstr, "Foo");
     println!("{}", got.filepath.display());
-    println!("{}", got.point);
-    assert_eq!(got.coords, Some(Coordinate { line: 10, column: 19 }));
+    println!("{:?}", got.point);
+    assert_eq!(got.coords, Some(Coordinate::new(10, 19)));
 }
 
 #[test]
@@ -1349,7 +1349,7 @@ fn follows_self_use() {
     let got = get_definition(src, Some(dir));
     assert_eq!(got.matchstr, "myfn");
     assert_eq!(src4file.path(), got.filepath);
-    assert_eq!(28, got.point);
+    assert_eq!(28, got.point.0);
 }
 
 #[test]
@@ -1421,7 +1421,7 @@ fn follows_use_to_impl() {
     let mod_path = dir.write_file("mymod.rs", modsrc);
     let got = get_definition(src, Some(dir));
     assert_eq!(got.matchstr, "new");
-    assert_eq!(90, got.point);
+    assert_eq!(90, got.point.0);
     assert_eq!(mod_path.path(), got.filepath);
 }
 
@@ -2054,7 +2054,7 @@ fn doesnt_find_if_let_if_not_in_the_subscope() {
 
     let got = get_definition(src, None);
     assert_eq!("myvar", got.matchstr);
-    assert_eq!(9, got.point);
+    assert_eq!(9, got.point.0);
 }
 
 #[test]
@@ -2067,7 +2067,7 @@ fn finds_rebound_var_in_iflet() {
     ";
 
     let got = get_definition(src, None);
-    assert_eq!(56, got.point);
+    assert_eq!(56, got.point.0);
 }
 
 #[test]
@@ -2190,7 +2190,7 @@ fn handles_default_arm() {
 
     let got = get_definition(src, None);
     assert_eq!("o", got.matchstr);
-    assert_eq!(9, got.point);
+    assert_eq!(9, got.point.0);
 }
 
 #[test]
@@ -2202,7 +2202,7 @@ fn doesnt_match_rhs_of_let_in_same_stmt() {
 
     let got = get_definition(src, None);
     assert_eq!("a", got.matchstr);
-    assert_eq!(9, got.point);
+    assert_eq!(9, got.point.0);
 }
 
 #[test]
@@ -2217,7 +2217,7 @@ fn finds_unsafe_fn() {
 
     let got = get_definition(src, None);
     assert_eq!(got.matchstr, "foo");
-    assert_eq!(got.point, 15);
+    assert_eq!(got.point.0, 15);
 }
 
 #[test]
@@ -2861,7 +2861,7 @@ fn closure_scope_dont_match_type_annotations() {
     let got = get_definition(src, None);
     println!("{:?}", got);
     assert_eq!(MatchType::Struct, got.mtype);
-    assert_eq!(2, got.coords.unwrap().line);
+    assert_eq!(2, got.coords.unwrap().row.0);
 }
 
 /// The variable `i` doesn't exist in `foo`, so trying to get the definition should

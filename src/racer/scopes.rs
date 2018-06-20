@@ -34,32 +34,32 @@ pub fn find_closure_scope_start(
     point: BytePos,
     parentheses_open_pos: BytePos
 ) -> Option<BytePos> {
-    let masked_src = mask_comments(src.from(point));
-    let closing_paren_pos = find_closing_paren(masked_src.as_str(), 0.into()) + point;
-    let src_between_parent = mask_comments(src.from_to(parentheses_open_pos, closing_paren_pos));
+    let masked_src = mask_comments(src.shift_start(point));
+    let closing_paren_pos = find_closing_paren(masked_src.as_str(), BytePos::ZERO) + point;
+    let src_between_parent = mask_comments(src.shift_range(ByteRange::new(parentheses_open_pos, closing_paren_pos)));
     closure_valid_arg_scope(&src_between_parent).map(|_ |parentheses_open_pos)
 }
 
 pub fn scope_start(src: Src, point: BytePos) -> BytePos {
-    let masked_src = mask_comments(src.to(point));
+    let masked_src = mask_comments(src.change_length(point));
 
     let mut curly_parent_open_pos = find_close(masked_src.as_bytes().iter().rev(), b'}', b'{', 0)
-        .map_or(BytePos::zero(), |count| point - count);
+        .map_or(BytePos::ZERO, |count| point - count);
 
     // We've found a multi-use statement, such as `use foo::{bar, baz};`, so we shouldn't consider
     // the brace to be the start of the scope.
     if curly_parent_open_pos > BytePos(0) && masked_src[..curly_parent_open_pos.0].ends_with("::{") {
         trace!("scope_start landed in a use statement for {:?}; broadening search", point);
         curly_parent_open_pos = find_close(
-            mask_comments(src.to(curly_parent_open_pos - 1.into())).as_bytes().iter().rev(), 
+            mask_comments(src.change_length(curly_parent_open_pos.decrement())).as_bytes().iter().rev(), 
             b'}', 
             b'{',
             0,
-        ).map_or(BytePos::zero(), |count| point - count);
+        ).map_or(BytePos::ZERO, |count| point - count);
     }
 
     let parent_open_pos = find_close(masked_src.as_bytes().iter().rev(), b')', b'(', 0)
-        .map_or(BytePos::zero(), |count| point - count);
+        .map_or(BytePos::ZERO, |count| point - count);
 
     if curly_parent_open_pos > parent_open_pos {
         curly_parent_open_pos
@@ -99,7 +99,7 @@ pub fn find_let_start(msrc: Src, point: BytePos) -> Option<BytePos> {
     // expand the search in an attempt to find statements.
     // TODO: it's too hacky, and, 1..6 is appropriate?
     for step in 1..6 {
-        let_start = msrc.from(scopestart).iter_stmts()
+        let_start = msrc.shift_start(scopestart).iter_stmts()
             .find(|&range| scopestart + range.end > point);
 
         if let Some(ref range) = let_start {
@@ -130,8 +130,7 @@ pub fn get_local_module_path(msrc: Src, point: BytePos) -> Vec<String> {
 
 fn get_local_module_path_(msrc: Src, point: BytePos, out: &mut Vec<String>) {
     for range in msrc.iter_stmts() {
-        // FIX_BEFORE_PR: changed from original
-        if range.contains(point) {
+        if range.contains_exclusive(point) {
             let blob = msrc.shift_range(range);
             if blob.starts_with("pub mod ") || blob.starts_with("mod ") {
                 let p = typeinf::generate_skeleton_for_parsing(&blob);
@@ -156,7 +155,6 @@ pub fn get_module_file_from_path(msrc: Src, point: BytePos, parentdir: &Path) ->
         let start = range.start;
         if blob.starts_with("#[path ")  {
             if let Some(ByteRange { start: _, end: modend }) = iter.next() {
-                // FIX_BEFORE_PR: not same as get_local_module_path
                 if start < point && modend > point {
                     let pathstart = blob.find('"')? + 1;
                     let pathend = blob[pathstart..].find('"').unwrap();
@@ -201,12 +199,12 @@ fn finds_subnested_module() {
         }
     }";
     let src = core::new_source(String::from(src));
-    let point = src.coords_to_point(&Coordinate { line: 4, column: 12}).unwrap();
+    let point = src.coords_to_point(&Coordinate::new(4, 12)).unwrap();
     let v = get_local_module_path(src.as_src(), point);
     assert_eq!("foo", &v[0][..]);
     assert_eq!("bar", &v[1][..]);
 
-    let point = src.coords_to_point(&Coordinate { line: 3, column: 8}).unwrap();
+    let point = src.coords_to_point(&Coordinate::new(3, 8)).unwrap();
     let v = get_local_module_path(src.as_src(), point);
     assert_eq!("foo", &v[0][..]);
 }
@@ -230,9 +228,9 @@ pub fn get_line(src: &str, point: BytePos) -> BytePos {
         .iter()
         .enumerate()
         .rev()
-        .find(|(i, byte)| **byte == b'\n')
+        .find(|(_, byte)| **byte == b'\n')
         .map(|t| t.0.into())
-        .unwrap_or_else(BytePos::zero)
+        .unwrap_or(BytePos::ZERO)
 }
 
 /// search in reverse for the start of the current expression 
@@ -284,7 +282,7 @@ pub fn get_start_of_search_expr(src: &str, point: BytePos) -> BytePos {
             return index.into();
         }
     }
-    BytePos::zero()
+    BytePos::ZERO
 }
 
 pub fn get_start_of_pattern(src: &str, point: BytePos) -> BytePos {
@@ -293,104 +291,122 @@ pub fn get_start_of_pattern(src: &str, point: BytePos) -> BytePos {
         match c {
             '(' => {
                 if levels == 0 {
-                    return i + 1;
+                    return i.increment();
                 }
                 levels -= 1;
             },
             ')' => { levels += 1; },
             _ => {
                 if levels == 0 && !util::is_pattern_char(c) {
-                    return i + 1;
+                    return i.increment();
                 }
             }
         }
     }
-    BytePos::zero()
+    BytePos::ZERO
 }
 
-#[test]
-fn get_start_of_pattern_handles_variant() {
-    assert_eq!(4, get_start_of_pattern("foo, Some(a) =>",13));
+#[cfg(test)]
+mod test_get_start_of_pattern {
+    use super::{get_start_of_pattern, BytePos};
+    fn get_start_of_pattern_(s: &str, u: usize) -> usize {
+        get_start_of_pattern(s, BytePos(u)).0
+    }
+    #[test]
+    fn handles_variant() {
+        assert_eq!(4, get_start_of_pattern_("foo, Some(a) =>", 13));
+    }
+
+    #[test]
+    fn handles_variant2() {
+        assert_eq!(4, get_start_of_pattern_("bla, ast::PatTup(ref tuple_elements) => {", 36));
+    }
+
+    #[test]
+    fn with_block_comments() {
+        assert_eq!(6, get_start_of_pattern_("break, Some(b) /* if expr is Some */ => {", 36));
+    }
 }
 
-#[test]
-fn get_start_of_pattern_handles_variant2() {
-    assert_eq!(4, get_start_of_pattern("bla, ast::PatTup(ref tuple_elements) => {",36));
-}
-
-#[test]
-fn get_start_of_pattern_with_block_comments() {
-    assert_eq!(6, get_start_of_pattern("break, Some(b) /* if expr is Some */ => {", 36));
-}
 
 pub fn expand_search_expr(msrc: &str, point: BytePos) -> ByteRange {
     let start = get_start_of_search_expr(msrc, point);
-    (start, util::find_ident_end(msrc, point))
+    ByteRange::new(start, util::find_ident_end(msrc, point))
 }
 
-#[test]
-fn expand_search_expr_finds_ident() {
-    assert_eq!((0, 7), expand_search_expr("foo.bar", 5))
+#[cfg(test)]
+mod test_expand_seacrh_expr {
+    use super::{BytePos, expand_search_expr};
+    fn expand_search_expr_(s: &str, u: usize) -> (usize, usize) {
+        let res = expand_search_expr(s, BytePos(u));
+        (res.start.0, res.end.0)
+    }
+    #[test]
+    fn finds_ident() {
+        assert_eq!((0, 7), expand_search_expr_("foo.bar", 5))
+    }
+
+    #[test]
+    fn ignores_bang_at_start() {
+        assert_eq!((1, 4), expand_search_expr_("!foo", 1))
+    }
+
+    #[test]
+    fn handles_chained_calls() {
+        assert_eq!((0, 20), expand_search_expr_("yeah::blah.foo().bar", 18))
+    }
+
+    #[test]
+    fn handles_inline_closures() {
+        assert_eq!((0, 29), expand_search_expr_("yeah::blah.foo(|x:foo|{}).bar", 27))
+    }
+    #[test]
+    fn handles_a_function_arg() {
+        assert_eq!((5, 25), expand_search_expr_("myfn(foo::new().baz().com)", 23))
+    }
+
+    #[test]
+    fn handles_macros() {
+        assert_eq!((0, 9), expand_search_expr_("my_macro!()", 8))
+    }
+
+    #[test]
+    fn handles_pos_at_end_of_search_str() {
+        assert_eq!((0, 7), expand_search_expr_("foo.bar", 7))
+    }
+
+    #[test]
+    fn handles_type_definition() {
+        assert_eq!((4, 7), expand_search_expr_("x : foo", 7))
+    }
+
+    #[test]
+    fn handles_ws_before_dot() {
+        assert_eq!((0, 8), expand_search_expr_("foo .bar", 7))
+    }
+
+    #[test]
+    fn handles_ws_after_dot() {
+        assert_eq!((0, 8), expand_search_expr_("foo. bar", 7))
+    }
+
+    #[test]
+    fn handles_ws_dot() {
+        assert_eq!((0, 13), expand_search_expr_("foo. bar .foo", 12))
+    }
+
+    #[test]
+    fn handles_let() {
+        assert_eq!((8, 11), expand_search_expr_("let b = foo", 10))
+    }
+
+    #[test]
+    fn handles_double_dot() {
+        assert_eq!((2, 5), expand_search_expr_("..foo", 4))
+    }
 }
 
-#[test]
-fn expand_search_expr_ignores_bang_at_start() {
-    assert_eq!((1, 4), expand_search_expr("!foo", 1))
-}
 
-#[test]
-fn expand_search_expr_handles_chained_calls() {
-    assert_eq!((0, 20), expand_search_expr("yeah::blah.foo().bar", 18))
-}
-
-#[test]
-fn expand_search_expr_handles_inline_closures() {
-    assert_eq!((0, 29), expand_search_expr("yeah::blah.foo(|x:foo|{}).bar", 27))
-}
-#[test]
-fn expand_search_expr_handles_a_function_arg() {
-    assert_eq!((5, 25), expand_search_expr("myfn(foo::new().baz().com)", 23))
-}
-
-#[test]
-fn expand_search_expr_handles_macros() {
-    assert_eq!((0, 9), expand_search_expr("my_macro!()", 8))
-}
-
-#[test]
-fn expand_search_expr_handles_pos_at_end_of_search_str() {
-    assert_eq!((0, 7), expand_search_expr("foo.bar", 7))
-}
-
-#[test]
-fn expand_search_expr_handles_type_definition() {
-    assert_eq!((4, 7), expand_search_expr("x : foo", 7))
-}
-
-#[test]
-fn expand_search_expr_handles_ws_before_dot() {
-    assert_eq!((0, 8), expand_search_expr("foo .bar", 7))
-}
-
-#[test]
-fn expand_search_expr_handles_ws_after_dot() {
-    assert_eq!((0, 8), expand_search_expr("foo. bar", 7))
-}
-
-#[test]
-fn expand_search_expr_handles_ws_dot() {
-    assert_eq!((0, 13), expand_search_expr("foo. bar .foo", 12))
-}
-
-#[test]
-fn expand_search_expr_handles_let() {
-    assert_eq!((8, 11), expand_search_expr("let b = foo", 10))
-}
-
-#[test]
-fn expand_search_expr_handles_double_dot() {
-    assert_eq!((2, 5), expand_search_expr("..foo", 4))
-}
 
 fn fill_gaps(buffer: &str, result: &mut String, start: usize, prev: usize) {
     for _ in 0..((start-prev)/buffer.len()) { result.push_str(buffer); }
@@ -401,7 +417,7 @@ pub fn mask_comments(src: Src) -> String {
     let mut result = String::with_capacity(src.len());
     let buf_byte = &[b' '; 128];
     let buffer = from_utf8(buf_byte).unwrap();
-    let mut prev = BytePos::zero();
+    let mut prev = BytePos::ZERO;
     for range in src.chunk_indices() {
         fill_gaps(buffer, &mut result, range.start.0, prev.0);
         result.push_str(&src[range.to_range()]);
@@ -478,9 +494,9 @@ fn myfn() {
 }
 ");
     let src = core::new_source(src);
-    let point = src.coords_to_point(&Coordinate { line: 4, column: 10}).unwrap();
+    let point = src.coords_to_point(&Coordinate::new(4, 10)).unwrap();
     let start = scope_start(src.as_src(), point);
-    assert!(start == 12);
+    assert_eq!(start, BytePos(12));
 }
 
 #[test]
@@ -495,9 +511,9 @@ fn myfn() {
 }
 ");
     let src = core::new_source(src);
-    let point = src.coords_to_point(&Coordinate { line: 7, column: 10}).unwrap();
+    let point = src.coords_to_point(&Coordinate::new(7, 10)).unwrap();
     let start = scope_start(src.as_src(), point);
-    assert!(start == 12);
+    assert_eq!(start, BytePos(12));
 }
 
 #[test]
@@ -514,11 +530,11 @@ some more
     // characters at the start are the same
     assert!(src.as_bytes()[5] == r.as_bytes()[5]);
     // characters in the comments are masked
-    let commentoffset = src.coords_to_point(&Coordinate { line: 3, column: 23}).unwrap();
-    assert!(char_at(&r, commentoffset) == ' ');
-    assert!(src.as_bytes()[commentoffset] != r.as_bytes()[commentoffset]);
+    let commentoffset = src.coords_to_point(&Coordinate::new(3, 23)).unwrap();
+    assert!(char_at(&r, commentoffset.0) == ' ');
+    assert!(src.as_bytes()[commentoffset.0] != r.as_bytes()[commentoffset.0]);
     // characters afterwards are the same
-    assert!(src.as_bytes()[src.len()-3] == r.as_bytes()[src.len()-3]);
+    assert!(src.as_bytes()[src.len() - 3] == r.as_bytes()[src.len() - 3]);
 }
 
 #[test]

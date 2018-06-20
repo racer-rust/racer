@@ -137,7 +137,7 @@ impl<'a, I> StmtIndicesIter<'a,I>
     where I: Iterator<Item = ByteRange>
 {
     pub fn from_parts(src: &str, it: I) -> Fuse<StmtIndicesIter<I>> {
-        StmtIndicesIter{ src, it, pos: BytePos::zero(), end: BytePos::zero() }.fuse()
+        StmtIndicesIter{ src, it, pos: BytePos::ZERO, end: BytePos::ZERO }.fuse()
     }
 }
 
@@ -153,7 +153,7 @@ mod test {
 
     fn iter_stmts(src: &str) -> Fuse<StmtIndicesIter<codecleaner::CodeIndicesIter>> {
         let it = codecleaner::code_chunks(src);
-        StmtIndicesIter{ src: src, it: it, pos: 0, end: 0 }.fuse()
+        StmtIndicesIter{ src: src, it: it, pos: BytePos::ZERO, end: BytePos::ZERO }.fuse()
     }
 
 

@@ -95,13 +95,11 @@ impl From<u32> for BytePos {
 }
 
 impl BytePos {
-    pub fn zero() -> Self {
-        BytePos(0)
-    }
-    pub fn decrement(self) -> Self {
+    pub const ZERO: BytePos = BytePos(0);
+    pub fn decrement(&self) -> Self {
         BytePos(self.0 - 1)
     }
-    pub fn increment(self) -> Self {
+    pub fn increment(&self) -> Self {
         BytePos(self.0 + 1)
     }
 }
@@ -127,17 +125,18 @@ impl ByteRange {
     pub fn contains(&self, point: BytePos) -> bool {
         self.start <= point && point < self.end
     }
+    pub fn contains_exclusive(&self, point: BytePos) -> bool {
+        self.start < point && point < self.end
+    }
     pub fn shift<P: Into<BytePos>>(&self, shift: P) -> Self {
+        let shift = shift.into();
         ByteRange {
-            start: self.start + shift.into(),
-            end: self.end + shift.into(),
+            start: self.start + shift,
+            end: self.end + shift,
         }
     }
     pub fn to_range(&self) -> Range<usize> {
         self.start.0..self.end.0
-    }
-    pub fn to_tuple(&self) -> (BytePos, BytePos) {
-        (self.start, self.end)
     }
 }
 
@@ -494,10 +493,10 @@ impl IndexedSource {
     }
 
     pub fn as_src(&self) -> Src {
-        self.src_from_start(BytePos::zero())
+        self.get_src_from_start(BytePos::ZERO)
     }
 
-    pub fn src_from_start(&self, new_start: BytePos) -> Src {
+    pub fn get_src_from_start(&self, new_start: BytePos) -> Src {
         Src {
             src: self,
             range: ByteRange::new(new_start, self.len().into())
@@ -575,7 +574,7 @@ fn myfn() {
     print(a);
 }";
     let src = new_source(src.into());
-    assert_eq!(src.coords_to_point(&Coordinate { line: 3, column: 5}), Some(18));
+    assert_eq!(src.coords_to_point(&Coordinate::new(3, 5)), Some(BytePos(18)));
 }
 
 #[test]
@@ -592,12 +591,9 @@ fn myfn(b:usize) {
 ";
     fn round_trip_point_and_coords(src: &str, lineno: usize, charno: usize) {
         let src = new_source(src.into());
-        let point = src.coords_to_point(&Coordinate {
-            line: lineno,
-            column: charno
-        }).unwrap();
+        let point = src.coords_to_point(&Coordinate::new(lineno as u32, charno as u32)).unwrap();
         let coords = src.point_to_coords(point).unwrap();
-        assert_eq!(coords, Coordinate { line: lineno, column: charno });
+        assert_eq!(coords, Coordinate::new(lineno as u32, charno as u32));
     }
     round_trip_point_and_coords(src, 4, 5);
 }

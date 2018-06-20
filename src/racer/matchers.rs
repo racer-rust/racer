@@ -106,7 +106,7 @@ fn find_keyword(src: &str, pattern: &str, context: &MatchCxt) -> Option<BytePos>
     // if not local must start with pub
     if !context.is_local && !src.starts_with("pub") { return None; }
 
-    let mut start = BytePos::zero();
+    let mut start = BytePos::ZERO;
 
     // optional (pub\s+)?(unsafe\s+)?
     for pat in &["pub", "unsafe"] {
@@ -306,14 +306,14 @@ pub fn match_extern_crate(msrc: &str, context: &MatchCxt, session: &Session) -> 
                 let crate_src = session.load_file(&cratepath);
                 res = Some(Match { matchstr: name.clone(),
                                   filepath: cratepath.to_path_buf(),
-                                  point: BytePos::zero(),
+                                  point: BytePos::ZERO,
                                   coords: Some(Coordinate::start()),
                                   local: false,
                                   mtype: Module,
                                   contextstr: cratepath.to_str().unwrap().to_owned(),
                                   generic_args: Vec::new(),
                                   generic_types: Vec::new(),
-                                  docs: find_mod_doc(&crate_src, BytePos::zero()),
+                                  docs: find_mod_doc(&crate_src, BytePos::ZERO),
                 });
             }
         }
@@ -353,14 +353,14 @@ pub fn match_mod(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Mat
             return Some(Match {
                 matchstr: s,
                 filepath: modpath.to_path_buf(),
-                point: BytePos::zero(),
+                point: BytePos::ZERO,
                 coords: Some(Coordinate::start()),
                 local: false,
                 mtype: Module,
                 contextstr: modpath.to_str().unwrap().to_owned(),
                 generic_args: Vec::new(),
                 generic_types: Vec::new(),
-                docs: find_mod_doc(&msrc, BytePos::zero()),
+                docs: find_mod_doc(&msrc, BytePos::ZERO),
             })
         }
         // get internal module nesting
@@ -378,14 +378,14 @@ pub fn match_mod(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Mat
             return Some(Match {
                 matchstr: s,
                 filepath: modpath,
-                point: BytePos::zero(),
+                point: BytePos::ZERO,
                 coords: Some(Coordinate::start()),
                 local: false,
                 mtype: Module,
                 contextstr: context,
                 generic_args: Vec::new(),
                 generic_types: Vec::new(),
-                docs: find_mod_doc(&msrc, 0),
+                docs: find_mod_doc(&msrc, BytePos::ZERO),
             })
         }
     }

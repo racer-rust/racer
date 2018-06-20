@@ -3,7 +3,7 @@ use std::{cmp, error, fmt, path};
 use std::rc::Rc;
 use std::{collections::hash_map::DefaultHasher, hash::{Hash, Hasher}};
 
-use core::{IndexedSource, Session, SessionExt, Location, LocationExt, BytePos};
+use core::{IndexedSource, Session, SessionExt, Location, LocationExt, BytePos, ByteRange};
 use core::SearchType::{self, ExactMatch, StartsWith};
 
 #[cfg(unix)]
@@ -68,7 +68,7 @@ pub fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bo
 }
 
 /// Try to valid if the given scope contains a valid closure arg scope.
-pub fn closure_valid_arg_scope(scope_src: &str) -> Option<(usize, usize, &str)> {
+pub fn closure_valid_arg_scope(scope_src: &str) -> Option<(ByteRange, &str)> {
     // Try to find the left and right pipe, if one or both are not present, this is not a valid
     // closure definition
     let left_pipe = scope_src.find('|')?;
@@ -82,7 +82,8 @@ pub fn closure_valid_arg_scope(scope_src: &str) -> Option<(usize, usize, &str)> 
                 let right_pipe = left_pipe + 1 + i;
                 // now we find right |
                 if brace_level == 0  {
-                    return Some((left_pipe, right_pipe, &scope_src[left_pipe..=right_pipe]));
+                    let range = ByteRange::new(left_pipe, right_pipe + 1);
+                    return Some((range, &scope_src[range.to_range()]));
                 }
                 break;
             }
@@ -101,7 +102,10 @@ fn test_closure_valid_arg_scope() {
     let valid = r#"
     let a = |int, int| int * int;
 "#;
-    assert_eq!(closure_valid_arg_scope(valid), Some((13, 22, "|int, int|")));
+    assert_eq!(
+        closure_valid_arg_scope(valid),
+        Some((ByteRange::new(BytePos(13), BytePos(23)), "|int, int|"))
+    );
 
     let confusing = r#"
     match a {
@@ -236,18 +240,25 @@ pub fn find_ident_end(s: &str, pos: BytePos) -> BytePos {
     s.len().into()
 }
 
-#[test]
-fn find_ident_end_ascii() {
-    assert_eq!(5, find_ident_end("ident", 0));
-    assert_eq!(6, find_ident_end("(ident)", 1));
-    assert_eq!(17, find_ident_end("let an_identifier = 100;", 4));
+#[cfg(test)]
+mod test_find_ident_end {
+    use super::{BytePos, find_ident_end};
+    fn find_ident_end_(s: &str, pos: usize) -> usize {
+        find_ident_end(s, BytePos(pos)).0
+    }
+    #[test]
+    fn ascii() {
+        assert_eq!(5, find_ident_end_("ident", 0));
+        assert_eq!(6, find_ident_end_("(ident)", 1));
+        assert_eq!(17, find_ident_end_("let an_identifier = 100;", 4));
+    }
+    #[test]
+    fn unicode() {
+        assert_eq!(7, find_ident_end_("num_µs", 0));
+        assert_eq!(10, find_ident_end_("ends_in_µ", 0));
+    }
 }
 
-#[test]
-fn find_ident_end_unicode() {
-    assert_eq!(7, find_ident_end("num_µs", 0));
-    assert_eq!(10, find_ident_end("ends_in_µ", 0));
-}
 
 fn char_before(src: &str, i: usize) -> char {
     let mut prev = '\0';

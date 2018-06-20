@@ -11,7 +11,7 @@ use core::SearchType::ExactMatch;
 use util::{self, txt_matches};
 use std::path::Path;
 
-// FIX_BEFORE_PR: Option
+// TODO: Option
 fn find_start_of_function_body(src: &str) -> BytePos {
     // TODO: this should ignore anything inside parens so as to skip the arg list
     src.find('{')
@@ -101,7 +101,7 @@ pub fn get_type_of_self(
     msrc: Src,
     session: &Session
 ) -> Option<core::Ty> {
-    scopes::find_impl_start(msrc, point, BytePos::zero()).and_then(|start| {
+    scopes::find_impl_start(msrc, point, BytePos::ZERO).and_then(|start| {
         let decl = generate_skeleton_for_parsing(&msrc.shift_start(start));
         debug!("get_type_of_self_arg impl skeleton |{}|", decl);
 
@@ -264,7 +264,7 @@ fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<core:
             range.start
         );
 
-        let pos = m.point + BytePos::from(8) - stmtstart - forpos.into() - range.start;
+        let pos = m.point + BytePos(8) - stmtstart - forpos.into() - range.start;
         let scope = Scope{ filepath: m.filepath.clone(), point: stmtstart };
 
         ast::get_let_type(blob.to_owned(), pos, scope, session)
@@ -369,7 +369,7 @@ pub fn get_type_from_match_arm(m: &Match, msrc: Src, session: &Session) -> Optio
     // match stmt may be incomplete (half written) in the real code
 
     // skip to end of match arm pattern so we can search backwards
-    let arm = msrc[m.point.0..].find("=>")?.into() + m.point;
+    let arm = BytePos(msrc[m.point.0..].find("=>")?) + m.point;
     let scopestart = scopes::scope_start(msrc, arm);
 
     let stmtstart = scopes::find_stmt_start(msrc, scopestart.decrement())?;

@@ -32,7 +32,7 @@ mod fileres;
 pub use core::{find_definition, complete_from_file, complete_fully_qualified_name, to_point, to_coords};
 pub use snippets::snippet_for_match;
 pub use core::{Match, MatchType, PathSearch};
-pub use core::{FileCache, Session, Coordinate, Location, FileLoader, Point, SourceByteRange};
+pub use core::{FileCache, Session, Coordinate, Location, FileLoader, BytePos, ByteRange};
 pub use util::expand_ident;
 
 pub use util::{RustSrcPathError, get_rust_src_path};

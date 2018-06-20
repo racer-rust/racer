@@ -523,8 +523,8 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: BytePos, session: &Sess
 fn get_type_of_typedef(m: &Match, session: &Session, fpath: &Path) -> Option<Match> {
     debug!("get_type_of_typedef match is {:?}", m);
     let msrc = session.load_file_and_mask_comments(&m.filepath);
-    let blobstart = m.point - 5.into();  // - 5 because 'type '
-    let blob = msrc.from(blobstart);
+    let blobstart = m.point - BytePos(5);  // 5 == "type ".len()
+    let blob = msrc.get_src_from_start(blobstart);
 
     blob.iter_stmts().nth(0).and_then(|range| {
         let blob = msrc[range.shift(blobstart).to_range()].to_owned();
@@ -540,7 +540,7 @@ fn get_type_of_typedef(m: &Match, session: &Session, fpath: &Path) -> Option<Mat
         let outer_scope_start = scope_start.0.checked_sub(1)
             .map(|sub| scopes::scope_start(src.as_src(), sub.into()))
             .and_then(|s| {
-                let blob = src.from(s);
+                let blob = src.get_src_from_start(s);
                 let blob = blob.trim_left();
                 if blob.starts_with("impl") || blob.starts_with("trait") || blob.starts_with("pub trait") {
                     Some(s)
