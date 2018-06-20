@@ -222,6 +222,12 @@ impl From<BytePos> for Location {
     }
 }
 
+impl From<usize> for Location {
+    fn from(val: usize) -> Location {
+        Location::Point(BytePos(val))
+    }
+}
+
 impl From<Coordinate> for Location {
     fn from(val: Coordinate) -> Location {
         Location::Coords(val)
@@ -656,25 +662,20 @@ impl<'c> Iterator for CodeChunkIter<'c> {
     type Item = ByteRange;
 
     fn next(&mut self) -> Option<ByteRange> {
-        loop {
-            match self.iter.next() {
-                None => return None,
-                Some(&range) => {
-                    let (start, end) = (range.start, range.end);
-                    if end < self.src.start() {
-                        continue;
-                    }
-                    if start > self.src.end() {
-                        return None;
-                    } else {
-                        return Some(ByteRange::new(
-                            max(start, self.src.start()) - self.src.start(),
-                            min(end, self.src.end()) - self.src.start()
-                        ));
-                    }
-                }
+        while let Some(range) = self.iter.next() {
+            let (start, end) = (range.start, range.end);
+            if end < self.src.start() {
+                continue;
             }
+            if start > self.src.end() {
+                return None;
+            } 
+            return Some(ByteRange::new(
+                max(start, self.src.start()) - self.src.start(),
+                min(end, self.src.end()) - self.src.start()
+            ));
         }
+        None
     }
 }
 
@@ -1112,7 +1113,7 @@ fn complete_fully_qualified_name_(
 ///
 /// session.cache_file_contents("lib.rs", src);
 ///
-/// let got = racer::complete_from_file("lib.rs", racer::Location::Point(42), &session)
+/// let got = racer::complete_from_file("lib.rs", racer::Location::from(42), &session)
 ///     .nth(0).unwrap();
 /// assert_eq!("apple", got.matchstr);
 /// assert_eq!(got.mtype, racer::MatchType::Function);
@@ -1278,7 +1279,7 @@ fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &S
 /// // Search for the definition. 45 is the byte offset
 /// // in `src` after stringify! runs. Specifically, this asks
 /// // for the definition of `foo()`.
-/// let m = racer::find_definition("lib.rs", racer::Location::Point(45), &session)
+/// let m = racer::find_definition("lib.rs", racer::Location::from(45), &session)
 ///               .expect("find definition returns a match");
 ///
 /// // Should have found definition in the "sub.rs" file

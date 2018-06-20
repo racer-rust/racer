@@ -561,7 +561,6 @@ fn search_scope_headers(
                 }
             }
             return out.into_iter();
-            // FIX_BEFORE_PR: should remove
         } else if let Some(vec) = search_closure_args(search_str, preblock, stmtstart, filepath, search_type) {
             return vec.into_iter();
         }
@@ -1088,6 +1087,12 @@ fn run_matchers_on_blob(
     session: &Session,
     pending_imports: &PendingImports
 ) -> Vec<Match> {
+    debug!(
+        "[run_matchers_on_blob] src: {}, cxt: {:?}, namespace: {:?}",
+        &src[context.range.to_range()],
+        context,
+        namespace
+    );
     let mut out = Vec::new();
     match namespace {
         Namespace::Type =>
@@ -1290,8 +1295,6 @@ pub fn resolve_name(
     let mut out = Vec::new();
     let searchstr = &pathseg.name;
 
-    debug!("resolve_name {} {:?} {:?} {:?} {:?}", searchstr, filepath.display(), pos, search_type, namespace);
-
     let msrc = session.load_file(filepath);
     let is_exact_match = match search_type { ExactMatch => true, StartsWith => false };
 
@@ -1458,7 +1461,7 @@ pub fn resolve_path(
                     let scopesrc = filesrc.get_src_from_start(scopestart);
                     if let Some(blob_range) = scopesrc.iter_stmts().nth(0) {
                         let match_cxt = MatchCxt {
-                            filepath,
+                            filepath: &m.filepath,
                             search_str: &pathseg.name,
                             search_type,
                             range: blob_range.shift(scopestart),

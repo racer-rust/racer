@@ -97,7 +97,7 @@ impl<'a> CodeIndicesIter<'a> {
         for &b in &src_bytes[pos.0..] {
             pos = pos.increment();
             if b == b'\n' {
-                if pos.0 + 1 < src_bytes.len() && src_bytes[pos.0..=pos.increment().0] == [b'/', b'/'] {
+                if pos.0 + 2 <= src_bytes.len() && src_bytes[pos.0..pos.0 + 2] == [b'/', b'/'] {
                     continue;
                 }
                 break;

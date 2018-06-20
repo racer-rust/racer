@@ -48,7 +48,7 @@ pub fn scope_start(src: Src, point: BytePos) -> BytePos {
 
     // We've found a multi-use statement, such as `use foo::{bar, baz};`, so we shouldn't consider
     // the brace to be the start of the scope.
-    if curly_parent_open_pos > BytePos(0) && masked_src[..curly_parent_open_pos.0].ends_with("::{") {
+    if curly_parent_open_pos > BytePos::ZERO && masked_src[..curly_parent_open_pos.0].ends_with("::{") {
         trace!("scope_start landed in a use statement for {:?}; broadening search", point);
         curly_parent_open_pos = find_close(
             mask_comments(src.change_length(curly_parent_open_pos.decrement())).as_bytes().iter().rev(), 
@@ -428,7 +428,7 @@ pub fn mask_comments(src: Src) -> String {
     if src.len() > prev.0 {
         fill_gaps(buffer, &mut result, src.len(), prev.0);
     }
-
+    assert_eq!(src.len(), result.len());
     result
 }
 

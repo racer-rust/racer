@@ -31,7 +31,9 @@ pub struct MatchCxt<'s, 'p> {
 
 impl<'s, 'p> MatchCxt<'s, 'p> {
     fn get_keyword(&self, blob: &str, keyword: &str) -> Option<(BytePos, String)> {
-        if let Some(start) = find_keyword(blob, keyword, self) {
+        // let tmp = find_keyword(blob, keyword, self);
+        // println!("blob: {}, key: {}, res: {:?}, self: {:?}", blob, keyword, tmp, self);
+        find_keyword(blob, keyword, self).map(|start| {
             let s = match self.search_type {
                 ExactMatch => self.search_str.to_owned(),
                 StartsWith => {
@@ -39,9 +41,8 @@ impl<'s, 'p> MatchCxt<'s, 'p> {
                     blob[start.0..end.0].to_owned()
                 }
             };
-            return Some((start, s))
-        }
-        None
+            (start, s)
+        })
     }
 }
 
@@ -101,10 +102,27 @@ fn strip_keyword_prefix(src: &str, keyword: &str) -> Option<BytePos> {
 }
 
 fn find_keyword(src: &str, pattern: &str, context: &MatchCxt) -> Option<BytePos> {
+    find_keyword_impl(
+        src,
+        pattern,
+        context.search_str,
+        context.search_type,
+        context.is_local,
+    )
+}
+
+fn find_keyword_impl(
+    src: &str,
+    pattern: &str,
+    search_str: &str,
+    search_type: SearchType,
+    is_local: bool,
+) -> Option<BytePos> {
     // search for "^(pub\s+)?(unsafe\s+)?pattern\s+search"
 
     // if not local must start with pub
-    if !context.is_local && !src.starts_with("pub") { return None; }
+    // TODO: we should add support for crate_visibility_modifier(kngwyu)
+    if !is_local && !src.starts_with("pub") { return None; }
 
     let mut start = BytePos::ZERO;
 
@@ -131,9 +149,9 @@ fn find_keyword(src: &str, pattern: &str, context: &MatchCxt) -> Option<BytePos>
         return None;
     }
 
-    let search_str_len = context.search_str.len();
-    if src[start.0..].starts_with(context.search_str) {
-        match context.search_type {
+    let search_str_len = search_str.len();
+    if src[start.0..].starts_with(search_str) {
+        match search_type {
             StartsWith => Some(start),
             ExactMatch => {
                 if src.len() > start.0 + search_str_len &&
@@ -394,7 +412,7 @@ pub fn match_mod(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Mat
 
 pub fn match_struct(msrc: &str, context: &MatchCxt) -> Option<Match> {
     let blob = &msrc[context.range.to_range()];
-    let (start, s) = context.get_keyword(msrc, "struct")?;
+    let (start, s) = context.get_keyword(blob, "struct")?;
 
     debug!("found a struct |{}|", s);
 
@@ -540,7 +558,7 @@ pub fn match_use(
 
     let mut out = Vec::new();
 
-    if find_keyword(blob, "use", context).is_none() {
+    if find_keyword_impl(blob, "use", "", StartsWith, context.is_local).is_none() {
         return out;
     }
 

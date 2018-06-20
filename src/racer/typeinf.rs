@@ -266,7 +266,6 @@ fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<core:
 
         let pos = m.point + BytePos(8) - stmtstart - forpos.into() - range.start;
         let scope = Scope{ filepath: m.filepath.clone(), point: stmtstart };
-
         ast::get_let_type(blob.to_owned(), pos, scope, session)
     } else {
         None
@@ -306,7 +305,6 @@ pub fn get_struct_field_type(fieldname: &str, structmatch: &Match, session: &Ses
 
 pub fn get_tuplestruct_field_type(fieldnum: usize, structmatch: &Match, session: &Session) -> Option<core::Ty> {
     let src = session.load_file(&structmatch.filepath);
-
     let structsrc = if let core::MatchType::EnumVariant(_) = structmatch.mtype {
         // decorate the enum variant src to make it look like a tuple struct
         let to = src[structmatch.point.0..].find('(')

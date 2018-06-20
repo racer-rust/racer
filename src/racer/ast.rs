@@ -1420,7 +1420,6 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for FnArgTypeVisitor<'c, 's> {
                     .map(destruct_ty_refptr)?;
                 if let Ty::PathSearch(ref path, ref scope) = ty {
                     let segments = &path.segments;
-                    println!("{:?}", segments);
                     // now we want to get 'T' from fn f<T>(){}, so segments.len() == 1
                     if segments.len() == 1 {
                         let name = &segments[0].name;

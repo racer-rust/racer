@@ -153,7 +153,7 @@ fn txt_matches_matches_methods() {
 /// extern crate racer;
 ///
 /// let src = "let x = this_is_an_identifier;";
-/// let pos = racer::Location::Point(29);
+/// let pos = racer::Location::from(29);
 /// let path = "lib.rs";
 ///
 /// let cache = racer::FileCache::default();
