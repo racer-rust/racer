@@ -5,7 +5,7 @@ extern crate env_logger;
 extern crate racer;
 extern crate humantime;
 
-use racer::{Match, MatchType, FileCache, Session, Coordinate, Point};
+use racer::{Match, MatchType, FileCache, Session, Coordinate, BytePos};
 use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::io::{self, BufRead, Read};
@@ -33,21 +33,32 @@ fn coord(cfg: &Config) {
 }
 
 fn match_with_snippet_fn(m: Match, session: &Session, interface: Interface) {
-    let Coordinate { line: linenum, column: charnum } = m.coords.unwrap();
+    let cd = m.coords.expect("[match_with_snipper_fn] failed to get coordinate");
     if m.matchstr == "" {
         panic!("MATCHSTR is empty - waddup?");
     }
 
     let snippet = racer::snippet_for_match(&m, session);
-    interface.emit(Message::MatchWithSnippet(m.matchstr, snippet, linenum, charnum,
-                                             m.filepath.as_path(), m.mtype, m.contextstr, m.docs));
+    interface.emit(Message::MatchWithSnippet(
+        m.matchstr,
+        snippet,
+        cd,
+        m.filepath.as_path(),
+        m.mtype,
+        m.contextstr,
+        m.docs
+    ));
 }
 
 fn match_fn(m: Match, interface: Interface) {
     if let Some(coords) = m.coords {
-        let Coordinate { line: linenum, column: charnum } = coords;
-        interface.emit(Message::Match(m.matchstr, linenum, charnum, m.filepath.as_path(),
-                                      m.mtype, m.contextstr));
+        interface.emit(Message::Match(
+            m.matchstr,
+            coords,
+            m.filepath.as_path(),
+            m.mtype,
+            m.contextstr
+        ));
     } else {
         error!("Could not resolve file coords for match {:?}", m);
     }
@@ -217,10 +228,10 @@ fn daemon(cfg: &Config) {
 
 enum Message<'a> {
     End,
-    Prefix(Point, Point, &'a str),
-    Match(String, Point, Point, &'a Path, MatchType, String),
-    MatchWithSnippet(String, String, Point, Point, &'a Path, MatchType, String, String),
-    Point(Point),
+    Prefix(BytePos, BytePos, &'a str),
+    Match(String, Coordinate, &'a Path, MatchType, String),
+    MatchWithSnippet(String, String, Coordinate, &'a Path, MatchType, String, String),
+    Point(BytePos),
     Coords(Coordinate),
 }
 
@@ -261,37 +272,37 @@ impl Interface {
             Message::Point(point) => println!("POINT{}{}", self.leading_space(), point),
             Message::Coords(coord) => {
                 println!("COORD{lead}{}{field}{}", 
-                    coord.line,
-                    coord.column,
+                    coord.row.0,
+                    coord.col.0,
                     lead = self.leading_space(),
                     field = self.field_separator());
             }
-            Message::Match(mstr, linenum, charnum, path, mtype, context) => match *self {
+            Message::Match(mstr, cd, path, mtype, context) => match *self {
                 Interface::Text => {
                     let context = context.split_whitespace().collect::<Vec<&str>>().join(" ");
                     println!("MATCH {},{},{},{},{},{}",
-                             mstr, linenum, charnum, path.display(), mtype, context);
+                             mstr, cd.row.0, cd.col.0, path.display(), mtype, context);
                 }
                 Interface::TabText => {
                     let context = context.split_whitespace().collect::<Vec<&str>>().join(" ");
                     println!("MATCH\t{}\t{}\t{}\t{}\t{}\t{}",
-                             mstr, linenum, charnum, path.display(), mtype, context);
+                             mstr, cd.row.0, cd.col.0, path.display(), mtype, context);
                 }
             },
-            Message::MatchWithSnippet(mstr, snippet, linenum, charnum, path,
+            Message::MatchWithSnippet(mstr, snippet, cd, path,
                                       mtype, context, docs) => match *self {
                 Interface::Text => {
                     let context = context.replace(";", "\\;").split_whitespace()
                                                              .collect::<Vec<&str>>().join(" ");
                     let docs = format!("{:?}", docs).replace(";", "\\;");
                     println!("MATCH {};{};{};{};{};{};{};{}",
-                             mstr, snippet, linenum, charnum, path.display(), mtype, context, docs);
+                             mstr, snippet, cd.row.0, cd.col.0, path.display(), mtype, context, docs);
                 }
                 Interface::TabText => {
                     let context = context.replace("\t", "\\t").split_whitespace()
                                                               .collect::<Vec<&str>>().join(" ");
                     println!("MATCH\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{:?}",
-                             mstr, snippet, linenum, charnum, path.display(), mtype, context, docs);
+                             mstr, snippet, cd.row.0, cd.col.0, path.display(), mtype, context, docs);
                 }
             }
         }
@@ -306,15 +317,12 @@ struct Config {
     fn_name: Option<PathBuf>,
     substitute_file: Option<PathBuf>,
     interface: Interface,
-    point: usize,
+    point: BytePos,
 }
 
 impl Config {
     fn coords(&self) -> Coordinate {
-        Coordinate {
-            line: self.linenum,
-            column: self.charnum
-        }
+        Coordinate::new(self.linenum as u32, self.charnum as u32)
     }
 
     fn expect_file(&self) -> &PathBuf {
@@ -328,7 +336,7 @@ impl<'a> From<&'a ArgMatches<'a>> for Config {
         // being asked to convert from point to coordinates
         if m.is_present("point") && m.is_present("path") {
             return Config {
-                point: value_t_or_exit!(m.value_of("point"), usize),
+                point: value_t_or_exit!(m.value_of("point"), usize).into(),
                 fn_name: m.value_of("path").map(PathBuf::from),
                 ..Default::default()
             }

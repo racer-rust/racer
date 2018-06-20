@@ -104,6 +104,12 @@ impl BytePos {
     }
 }
 
+impl fmt::Display for BytePos {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
 /// 0-based byte range in a file.
 /// start: inclusive end: exclusive i.e. [start, end)
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
@@ -1298,7 +1304,6 @@ pub fn find_definition<P, C>(
                 let src = session.load_file(m.filepath.as_path());
                 m.coords = src.point_to_coords(point);
             }
-
             m
         })
 }
