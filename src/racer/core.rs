@@ -96,9 +96,11 @@ impl From<u32> for BytePos {
 
 impl BytePos {
     pub const ZERO: BytePos = BytePos(0);
+    /// returns self - 1
     pub fn decrement(&self) -> Self {
         BytePos(self.0 - 1)
     }
+    /// returns self + 1
     pub fn increment(&self) -> Self {
         BytePos(self.0 + 1)
     }
@@ -111,29 +113,36 @@ impl fmt::Display for BytePos {
 }
 
 /// 0-based byte range in a file.
-/// start: inclusive end: exclusive i.e. [start, end)
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Default, Eq, PartialEq, Hash)]
 pub struct ByteRange {
+    /// start of byte position in codes(inclusive)
     pub start: BytePos,
+    /// end of byte position in codes(exclusive)
     pub end: BytePos,
 }
 
 impl ByteRange {
+    /// returns new ByteRange from start and end
     pub fn new<P: Into<BytePos>>(start: P, end: P) -> Self {
         ByteRange {
             start: start.into(),
             end: end.into(),
         }
     }
+    /// returns the length of the range
     pub fn len(&self) -> usize {
         (self.end - self.start).0
     }
+    /// returns if the range contains `point` or not
     pub fn contains(&self, point: BytePos) -> bool {
         self.start <= point && point < self.end
     }
+    /// returns if the range contains `point` (except its start point)
     pub fn contains_exclusive(&self, point: BytePos) -> bool {
         self.start < point && point < self.end
     }
+    /// returns the new range with which its start is `self.start + shift`,
+    /// its end is `self.end + shift`
     pub fn shift<P: Into<BytePos>>(&self, shift: P) -> Self {
         let shift = shift.into();
         ByteRange {
@@ -141,6 +150,7 @@ impl ByteRange {
             end: self.end + shift,
         }
     }
+    /// convert the range to `std::ops::Range`
     pub fn to_range(&self) -> Range<usize> {
         self.start.0..self.end.0
     }
@@ -153,8 +163,14 @@ impl From<codemap::Span> for ByteRange {
     }
 }
 
+impl fmt::Debug for ByteRange {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ByteRange({}..{})", self.start.0, self.end.0)
+    }
+}
+
 /// Row and Column position in a file
-// TODO: to use ZeroIndexed row is better?
+// for backward compatibility, we use 1-index row and 0-indexed column here
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Coordinate {
     pub row: rls_span::Row<rls_span::OneIndexed>,
@@ -162,18 +178,14 @@ pub struct Coordinate {
 }
 
 impl Coordinate {
+    /// construct new Coordinate
     pub fn new(row: u32, col: u32) -> Self {
         Coordinate {
             row: rls_span::Row::<rls_span::OneIndexed>::new_one_indexed(row),
             col: rls_span::Column::<rls_span::ZeroIndexed>::new_zero_indexed(col),
         }
     }
-    pub fn from_zero_indexed(row: u32, col: u32) -> Self {
-        Coordinate {
-            row: rls_span::Row::<rls_span::ZeroIndexed>::new_zero_indexed(row).one_indexed(),
-            col: rls_span::Column::<rls_span::ZeroIndexed>::new_zero_indexed(col),
-        }
-    }
+    /// start point of the file
     pub fn start() -> Self {
         Coordinate::new(0, 1)
     }
@@ -548,7 +560,7 @@ impl IndexedSource {
         // TODO: binary search is better?
         for (i, &range) in self.lines.borrow().iter().enumerate() {
             if range.contains(point) {
-                return Some(Coordinate::from_zero_indexed(i as u32, (point - range.start).0 as u32))
+                return Some(Coordinate::new(i as u32 + 1, (point - range.start).0 as u32))
             }
         }
         None
