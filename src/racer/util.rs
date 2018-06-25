@@ -543,24 +543,20 @@ fn test_get_rust_src_path_rustup_ok() {
 
 
 /// An immutable stack implemented as a linked list backed by a thread's stack.
-pub struct StackLinkedListNode<'stack, T>(Option<StackLinkedListNodeData<'stack, T>>)
-    where T: 'stack;
+// TODO: this implementation is fast, but if we want to run racer in multiple threads,
+// we have to rewrite it using std::sync::Arc.
+pub struct StackLinkedListNode<'stack, T: 'stack>(Option<StackLinkedListNodeData<'stack, T>>);
 
-struct StackLinkedListNodeData<'stack, T>
-    where T: 'stack
-{
+struct StackLinkedListNodeData<'stack, T: 'stack> {
     item: T,
     previous: &'stack StackLinkedListNode<'stack, T>,
 }
 
-impl<'stack, T> StackLinkedListNode<'stack, T>
-    where T: 'stack
-{
+impl<'stack, T> StackLinkedListNode<'stack, T> {
     /// Returns an empty node.
     pub fn empty() -> Self {
         StackLinkedListNode(None)
     }
-
     /// Pushes a new node on the stack. Returns the new node.
     pub fn push(&'stack self, item: T) -> Self {
         StackLinkedListNode(Some(StackLinkedListNodeData {
@@ -570,9 +566,7 @@ impl<'stack, T> StackLinkedListNode<'stack, T>
     }
 }
 
-impl<'stack, T> StackLinkedListNode<'stack, T>
-    where T: 'stack + PartialEq
-{
+impl<'stack, T: PartialEq> StackLinkedListNode<'stack, T> {
     /// Check if the stack contains the specified item.
     /// Returns `true` if the item is found, or `false` if it's not found.
     pub fn contains(&self, item: &T) -> bool {
@@ -581,10 +575,8 @@ impl<'stack, T> StackLinkedListNode<'stack, T>
             if current_item == item {
                 return true;
             }
-
             current = previous;
         }
-
         false
     }
 }

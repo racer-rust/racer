@@ -3779,6 +3779,25 @@ fn follows_use_aliased_self() {
     assert_eq!(got.matchstr, "new");
 }
 
+// for use_nested_groups
+#[test]
+fn use_tree_complete_all() {
+    let src = r"
+    mod MyMod {
+        pub enum MyEnum {
+            ErrorKind1,
+            ErrorKind2,
+        }
+        pub struct ErrorInfo;
+    }
+    use self::MyMod::{MyEnum::*, ErrorInfo};
+    let a = Erro~
+    ";
+    let got = get_all_completions(src, None);
+    assert!(got.iter().any(|ma| ma.matchstr == "ErrorKind1"));
+    assert!(got.iter().any(|ma| ma.matchstr == "ErrorInfo"));
+}
+
 // test for re-export
 #[test]
 fn follows_use_for_reexport() {
@@ -3991,3 +4010,4 @@ mod trait_bounds {
         assert_eq!(get_only_completion(src, None).matchstr, "inherited");
     }
 }
+
