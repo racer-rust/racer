@@ -1,7 +1,7 @@
 //! system test utilities for racer
 extern crate racer;
 extern crate tempfile;
-use racer::{complete_from_file, find_definition, Match, Point};
+use racer::{complete_from_file, find_definition, Match, BytePos};
 use std::fmt;
 use std::fs;
 use std::io::{self, Write};
@@ -175,9 +175,9 @@ pub fn with_test_project<F: FnOnce(TmpDir)>(test: F)
 }
 
 /// get position where you want to test completion and source code
-pub fn get_pos_and_source(src: &str) -> (Point, String) {
+pub fn get_pos_and_source(src: &str) -> (BytePos, String) {
     let point = src.find('~').unwrap();
-    (point, src.replace('~', ""))
+    (point.into(), src.replace('~', ""))
 }
 
 /// Return the completions for the given source.

@@ -1,4 +1,6 @@
 use cargo::core::Resolve;
+use rls_span;
+use syntax::codemap;
 use std::fs::File;
 use std::io::Read;
 use std::{vec, fmt};
@@ -6,7 +8,7 @@ use std::{str, path};
 use std::io;
 use std::cell::RefCell;
 use std::collections::{hash_map, HashMap};
-use std::ops::Deref;
+use std::ops::{Deref, Range};
 use std::slice;
 use std::cmp::{min, max};
 use std::iter::{Fuse, Iterator};
@@ -81,20 +83,112 @@ pub enum CompletionType {
     Path
 }
 
-/// A byte offset in a file.
-pub type Point = usize;
+/// 0-based byte offset in a file.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash,
+         Index, From, Add, Sub, AddAssign, SubAssign)]
+pub struct BytePos(pub usize);
 
-/// A range of text between two positions.
-pub type SourceByteRange = (Point, Point);
+impl From<u32> for BytePos {
+    fn from(u: u32) -> Self {
+        BytePos(u as usize)
+    }
+}
 
-/// Line and Column position in a file
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+impl BytePos {
+    pub const ZERO: BytePos = BytePos(0);
+    /// returns self - 1
+    pub fn decrement(&self) -> Self {
+        BytePos(self.0 - 1)
+    }
+    /// returns self + 1
+    pub fn increment(&self) -> Self {
+        BytePos(self.0 + 1)
+    }
+}
+
+impl fmt::Display for BytePos {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+/// 0-based byte range in a file.
+#[derive(Clone, Copy, Default, Eq, PartialEq, Hash)]
+pub struct ByteRange {
+    /// start of byte position in codes(inclusive)
+    pub start: BytePos,
+    /// end of byte position in codes(exclusive)
+    pub end: BytePos,
+}
+
+impl ByteRange {
+    /// returns new ByteRange from start and end
+    pub fn new<P: Into<BytePos>>(start: P, end: P) -> Self {
+        ByteRange {
+            start: start.into(),
+            end: end.into(),
+        }
+    }
+    /// returns the length of the range
+    pub fn len(&self) -> usize {
+        (self.end - self.start).0
+    }
+    /// returns if the range contains `point` or not
+    pub fn contains(&self, point: BytePos) -> bool {
+        self.start <= point && point < self.end
+    }
+    /// returns if the range contains `point` (except its start point)
+    pub fn contains_exclusive(&self, point: BytePos) -> bool {
+        self.start < point && point < self.end
+    }
+    /// returns the new range with which its start is `self.start + shift`,
+    /// its end is `self.end + shift`
+    pub fn shift<P: Into<BytePos>>(&self, shift: P) -> Self {
+        let shift = shift.into();
+        ByteRange {
+            start: self.start + shift,
+            end: self.end + shift,
+        }
+    }
+    /// convert the range to `std::ops::Range`
+    pub fn to_range(&self) -> Range<usize> {
+        self.start.0..self.end.0
+    }
+}
+
+impl From<codemap::Span> for ByteRange {
+    fn from(span: codemap::Span) -> Self {
+        let (lo, hi) = ast::destruct_span(span);
+        ByteRange::new(lo, hi)
+    }
+}
+
+impl fmt::Debug for ByteRange {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "ByteRange({}..{})", self.start.0, self.end.0)
+    }
+}
+
+/// Row and Column position in a file
+// for backward compatibility, we use 1-index row and 0-indexed column here
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Coordinate {
-    /// Line number, 1 based
-    pub line: usize,
+    pub row: rls_span::Row<rls_span::OneIndexed>,
+    pub col: rls_span::Column<rls_span::ZeroIndexed>,
+}
 
-    /// Column number - 1 based
-    pub column: usize,
+impl Coordinate {
+    /// construct new Coordinate
+    pub fn new(row: u32, col: u32) -> Self {
+        Coordinate {
+            row: rls_span::Row::<rls_span::OneIndexed>::new_one_indexed(row),
+            col: rls_span::Column::<rls_span::ZeroIndexed>::new_zero_indexed(col),
+        }
+    }
+    /// start point of the file
+    pub fn start() -> Self {
+        Coordinate::new(0, 1)
+    }
 }
 
 /// Context, source, and etc. for detected completion or definition
@@ -102,7 +196,7 @@ pub struct Coordinate {
 pub struct Match {
     pub matchstr: String,
     pub filepath: path::PathBuf,
-    pub point: Point,
+    pub point: BytePos,
     pub coords: Option<Coordinate>,
     pub local: bool,
     pub mtype: MatchType,
@@ -129,15 +223,20 @@ impl Match {
 #[derive(Debug, Clone, Copy)]
 pub enum Location {
     /// A byte offset in the file
-    Point(Point),
-
+    Point(BytePos),
     /// 1-based line and column indices.
     Coords(Coordinate),
 }
 
-impl From<Point> for Location {
-    fn from(val: Point) -> Location {
+impl From<BytePos> for Location {
+    fn from(val: BytePos) -> Location {
         Location::Point(val)
+    }
+}
+
+impl From<usize> for Location {
+    fn from(val: usize) -> Location {
+        Location::Point(BytePos(val))
     }
 }
 
@@ -149,12 +248,12 @@ impl From<Coordinate> for Location {
 
 /// Internal cursor methods
 pub trait LocationExt {
-    fn to_point(&self, src: &IndexedSource) -> Option<Point>;
+    fn to_point(&self, src: &IndexedSource) -> Option<BytePos>;
     fn to_coords(&self, src: &IndexedSource) -> Option<Coordinate>;
 }
 
 impl LocationExt for Location {
-    fn to_point(&self, src: &IndexedSource) -> Option<Point> {
+    fn to_point(&self, src: &IndexedSource) -> Option<BytePos> {
         match *self {
             Location::Point(val) => Some(val),
             Location::Coords(ref coords) => {
@@ -189,7 +288,7 @@ impl fmt::Debug for Match {
 #[derive(Clone)]
 pub struct Scope {
     pub filepath: path::PathBuf,
-    pub point: Point
+    pub point: BytePos
 }
 
 impl Scope {
@@ -375,7 +474,7 @@ impl From<String> for PathSegment {
 pub struct PathSearch {
     pub path: Path,
     pub filepath: path::PathBuf,
-    pub point: Point
+    pub point: BytePos
 }
 
 impl fmt::Debug for PathSearch {
@@ -389,15 +488,14 @@ impl fmt::Debug for PathSearch {
 
 pub struct IndexedSource {
     pub code: String,
-    pub idx: Vec<SourceByteRange>,
-    pub lines: RefCell<Vec<SourceByteRange>>
+    pub idx: Vec<ByteRange>,
+    pub lines: RefCell<Vec<ByteRange>>
 }
 
 #[derive(Clone,Copy)]
 pub struct Src<'c> {
     pub src: &'c IndexedSource,
-    pub from: Point,
-    pub to: Point
+    pub range: ByteRange,
 }
 
 impl IndexedSource {
@@ -409,7 +507,7 @@ impl IndexedSource {
             lines: RefCell::new(Vec::new())
         }
     }
-
+    
     pub fn with_src(&self, new_src: String) -> IndexedSource {
         IndexedSource {
             code: new_src,
@@ -419,48 +517,50 @@ impl IndexedSource {
     }
 
     pub fn as_src(&self) -> Src {
-        self.from(0)
+        self.get_src_from_start(BytePos::ZERO)
     }
 
-    pub fn from(&self, from: Point) -> Src {
+    pub fn get_src_from_start(&self, new_start: BytePos) -> Src {
         Src {
             src: self,
-            from: from,
-            to: self.len()
+            range: ByteRange::new(new_start, self.len().into())
         }
     }
 
     fn cache_lineoffsets(&self) {
-        if self.lines.borrow().len() == 0 {
-            let mut result = Vec::new();
-            let mut point = 0;
-            for line in self.code.split('\n') {
-                result.push((point, line.len() + 1));
-                point += line.len() + 1;
-            }
-            *self.lines.borrow_mut() = result;
+        if self.lines.borrow().len() != 0 {
+            return;
         }
+        let mut before = 0;
+        *self.lines.borrow_mut() = self.code.lines().map(|line| {
+            let len = line.len() + 1;
+            let res = ByteRange::new(before, before + len);
+            before += len;
+            res
+        }).collect();
     }
 
-    pub fn coords_to_point(&self, coords: &Coordinate) -> Option<Point> {
+    pub fn coords_to_point(&self, coords: &Coordinate) -> Option<BytePos> {
         self.cache_lineoffsets();
         self.lines
             .borrow()
-            .get(coords.line - 1)
-            .and_then(|&(i, l)| {
-                if coords.column <= l {
-                    Some(i + coords.column)
+            .get(coords.row.zero_indexed().0 as usize)
+            .and_then(|&range| {
+                let col = coords.col.0 as usize;
+                if col < range.len() {
+                    Some(range.start + col.into())
                 } else {
                     None
                 }
             })
     }
 
-    pub fn point_to_coords(&self, point: Point) -> Option<Coordinate> {
+    pub fn point_to_coords(&self, point: BytePos) -> Option<Coordinate> {
         self.cache_lineoffsets();
-        for (n, &(i, l)) in self.lines.borrow().iter().enumerate() {
-            if i <= point && (point - i) <= l {
-                return Some(Coordinate { line: n + 1, column: point - i });
+        // TODO: binary search is better?
+        for (i, &range) in self.lines.borrow().iter().enumerate() {
+            if range.contains(point) {
+                return Some(Coordinate::new(i as u32 + 1, (point - range.start).0 as u32))
             }
         }
         None
@@ -484,7 +584,6 @@ impl<'c> Iterator for MatchIter<'c> {
                     let src = self.session.load_file(m.filepath.as_path());
                     m.coords = src.point_to_coords(point);
                 }
-
                 m
             })
 
@@ -499,7 +598,7 @@ fn myfn() {
     print(a);
 }";
     let src = new_source(src.into());
-    assert_eq!(src.coords_to_point(&Coordinate { line: 3, column: 5}), Some(18));
+    assert_eq!(src.coords_to_point(&Coordinate::new(3, 5)), Some(BytePos(18)));
 }
 
 #[test]
@@ -516,43 +615,46 @@ fn myfn(b:usize) {
 ";
     fn round_trip_point_and_coords(src: &str, lineno: usize, charno: usize) {
         let src = new_source(src.into());
-        let point = src.coords_to_point(&Coordinate {
-            line: lineno,
-            column: charno
-        }).unwrap();
+        let point = src.coords_to_point(&Coordinate::new(lineno as u32, charno as u32)).unwrap();
         let coords = src.point_to_coords(point).unwrap();
-        assert_eq!(coords, Coordinate { line: lineno, column: charno });
+        assert_eq!(coords, Coordinate::new(lineno as u32, charno as u32));
     }
     round_trip_point_and_coords(src, 4, 5);
 }
 
 
+
 impl<'c> Src<'c> {
+    pub fn start(&self) -> BytePos {
+        self.range.start
+    }
+
+    pub fn end(&self) -> BytePos {
+        self.range.end
+    }
+    
     pub fn iter_stmts(&self) -> Fuse<StmtIndicesIter<CodeChunkIter>> {
         StmtIndicesIter::from_parts(self, self.chunk_indices())
     }
 
-    pub fn from(&self, from: Point) -> Src<'c> {
+    pub fn shift_start(&self, shift: BytePos) -> Src<'c> {
         Src {
             src: self.src,
-            from: self.from + from,
-            to: self.to
+            range: ByteRange::new(self.range.start + shift, self.range.end),
         }
     }
 
-    pub fn to(&self, to: Point) -> Src<'c> {
+    pub fn change_length(&self, new_length: BytePos) -> Src<'c> {
         Src {
             src: self.src,
-            from: self.from,
-            to: self.from + to
+            range: ByteRange::new(self.range.start, self.range.start + new_length),
         }
     }
 
-    pub fn from_to(&self, from: Point, to: Point) -> Src<'c> {
+    pub fn shift_range(&self, new_range: ByteRange) -> Src<'c> {
         Src {
             src: self.src,
-            from: self.from + from,
-            to: self.from + to
+            range: new_range.shift(self.range.start),
         }
     }
 
@@ -565,30 +667,27 @@ impl<'c> Src<'c> {
 // N.b. src can be a substr, so iteration skips chunks that aren't part of the substr
 pub struct CodeChunkIter<'c> {
     src: Src<'c>,
-    iter: slice::Iter<'c, SourceByteRange>
+    iter: slice::Iter<'c, ByteRange>
 }
 
 impl<'c> Iterator for CodeChunkIter<'c> {
-    type Item = SourceByteRange;
+    type Item = ByteRange;
 
-    fn next(&mut self) -> Option<SourceByteRange> {
-        loop {
-            match self.iter.next() {
-                None => return None,
-                Some(&(start, end)) => {
-                    if end < self.src.from {
-                        continue;
-                    }
-                    if start > self.src.to {
-                        return None;
-                    } else {
-                        return Some((
-                            max(start, self.src.from) - self.src.from,
-                            min(end, self.src.to) - self.src.from));
-                    }
-                }
+    fn next(&mut self) -> Option<ByteRange> {
+        while let Some(range) = self.iter.next() {
+            let (start, end) = (range.start, range.end);
+            if end < self.src.start() {
+                continue;
             }
+            if start > self.src.end() {
+                return None;
+            } 
+            return Some(ByteRange::new(
+                max(start, self.src.start()) - self.src.start(),
+                min(end, self.src.end()) - self.src.start()
+            ));
         }
+        None
     }
 }
 
@@ -602,7 +701,7 @@ impl Deref for IndexedSource {
 impl<'c> Deref for Src<'c> {
     type Target = str;
     fn deref(&self) -> &str {
-        &self.src.code[self.from..self.to]
+        &self.src.code[self.range.to_range()]
     }
 }
 
@@ -774,8 +873,8 @@ pub struct Session<'c> {
     /// borrowed here in order to support reuse across Racer operations.
     cache: &'c FileCache,
     /// Cache for generic impls
-    pub generic_impls: RefCell<HashMap<(path::PathBuf, usize),
-                                       Rc<Vec<(usize, String,
+    pub generic_impls: RefCell<HashMap<(path::PathBuf, BytePos),
+                                       Rc<Vec<(BytePos, String,
                                                ast::GenericsArgs, ast::ImplVisitor)>>>>,
     /// Cached dependencie (path to Cargo.toml -> Depedencies)
     cached_deps: RefCell<HashMap<path::PathBuf, Rc<Dependencies>>>,
@@ -906,7 +1005,7 @@ pub fn to_point<P>(
     coords: Coordinate,
     path: P,
     session: &Session
-) -> Option<Point>
+) -> Option<BytePos>
     where
         P: AsRef<path::Path> {
     Location::from(coords).to_point(&session.load_file(path.as_ref()))
@@ -914,7 +1013,7 @@ pub fn to_point<P>(
 
 /// Get the racer point of a line/character number pair for a file.
 pub fn to_coords<P>(
-    point: Point,
+    point: BytePos,
     path: P,
     session: &Session
 ) -> Option<Coordinate>
@@ -1026,7 +1125,7 @@ fn complete_fully_qualified_name_(
 ///
 /// session.cache_file_contents("lib.rs", src);
 ///
-/// let got = racer::complete_from_file("lib.rs", racer::Location::Point(42), &session)
+/// let got = racer::complete_from_file("lib.rs", racer::Location::from(42), &session)
 ///     .nth(0).unwrap();
 /// assert_eq!("apple", got.matchstr);
 /// assert_eq!(got.mtype, racer::MatchType::Function);
@@ -1068,7 +1167,7 @@ fn complete_from_file_(
     };
 
     let start = scopes::get_start_of_search_expr(src_text, pos);
-    let expr = &src_text[start..pos];
+    let expr = &src_text[start.0..pos.0];
 
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
@@ -1087,7 +1186,7 @@ fn complete_from_file_(
 
             // step 1, get full line, take the rightmost part split by semicolon
             //   prevent the case that someone write multiple line in one line
-            let line = src_text[linestart..pos].trim().rsplit(';').nth(0).unwrap();
+            let line = src_text[linestart.0..pos.0].trim().rsplit(';').nth(0).unwrap();
             debug!("Complete path with line: {:?}", line);
 
             // Test if the **path expression** starts with `::`, in which case the path
@@ -1192,7 +1291,7 @@ fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &S
 /// // Search for the definition. 45 is the byte offset
 /// // in `src` after stringify! runs. Specifically, this asks
 /// // for the definition of `foo()`.
-/// let m = racer::find_definition("lib.rs", racer::Location::Point(45), &session)
+/// let m = racer::find_definition("lib.rs", racer::Location::from(45), &session)
 ///               .expect("find definition returns a match");
 ///
 /// // Should have found definition in the "sub.rs" file
@@ -1218,7 +1317,6 @@ pub fn find_definition<P, C>(
                 let src = session.load_file(m.filepath.as_path());
                 m.coords = src.point_to_coords(point);
             }
-
             m
         })
 }
@@ -1237,8 +1335,8 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
     };
 
     // Make sure `src` is in the cache
-    let (start, end) = scopes::expand_search_expr(src, pos);
-    let expr = &src[start..end];
+    let range = scopes::expand_search_expr(src, pos);
+    let expr = &src[range.to_range()];
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
     debug!("find_definition_ for |{:?}| |{:?}| {:?}", contextstr, searchstr, completetype);
@@ -1265,7 +1363,7 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("context is {:?}", context);
 
-            let match_type:MatchType = if src[end..].starts_with('(') { MatchType::Function } else { MatchType::StructField };
+            let match_type:MatchType = if src[range.end.0..].starts_with('(') { MatchType::Function } else { MatchType::StructField };
             context.and_then(|ty| {
                 // for now, just handle matches
                 if let Ty::Match(m) = ty {

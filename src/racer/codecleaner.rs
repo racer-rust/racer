@@ -1,4 +1,4 @@
-use core::{Point, SourceByteRange};
+use core::{BytePos, ByteRange};
 
 /// Type of the string
 #[derive(Clone, Copy, Debug)]
@@ -22,20 +22,19 @@ enum State {
 #[derive(Clone,Copy)]
 pub struct CodeIndicesIter<'a> {
     src: &'a str,
-    pos: Point,
+    pos: BytePos,
     state: State
 }
 
 impl<'a> Iterator for CodeIndicesIter<'a> {
-    type Item = SourceByteRange;
+    type Item = ByteRange;
 
-    #[inline]
-    fn next(&mut self) -> Option<SourceByteRange> {
+    fn next(&mut self) -> Option<ByteRange> {
         match self.state {
             State::Code => Some(self.code()),
             State::Comment => Some(self.comment()),
             State::CommentBlock  => Some(self.comment_block()),
-            State::String(level) => Some(self.string(level)),
+            State::String(style) => Some(self.string(style)),
             State::Char => Some(self.char()),
             State::Finished => None
         }
@@ -43,27 +42,26 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
 }
 
 impl<'a> CodeIndicesIter<'a> {
-    fn code(&mut self) -> SourceByteRange {
+    fn code(&mut self) -> ByteRange {
         let mut pos = self.pos;
         let start = match self.state {
-            State::String(_) |
-            State::Char => { pos-1 }, // include quote
-            _ => { pos }
+            State::String(_) | State::Char => pos.decrement(), // include quote
+            _ => pos,
         };
         let src_bytes = self.src.as_bytes();
-        for &b in &src_bytes[pos..] {
-            pos += 1;
+        for &b in &src_bytes[pos.0..] {
+            pos = pos.increment();
             match b {
-                b'/' if src_bytes.len() > pos => match src_bytes[pos] {
+                b'/' if src_bytes.len() > pos.0 => match src_bytes[pos.0] {
                     b'/' => {
                         self.state = State::Comment;
-                        self.pos = pos + 1;
-                        return (start, pos-1);
+                        self.pos = pos.increment();
+                        return ByteRange::new(start, pos.decrement());
                     },
                     b'*' => {
                         self.state = State::CommentBlock;
-                        self.pos = pos + 1;
-                        return (start, pos-1);
+                        self.pos = pos.increment();
+                        return ByteRange::new(start, pos.decrement());
                     },
                     _ => {}
                 },
@@ -71,18 +69,18 @@ impl<'a> CodeIndicesIter<'a> {
                     let str_type = self.detect_str_type(pos);
                     self.state = State::String(str_type);
                     self.pos = pos;
-                    return (start, pos); // include dblquotes
+                    return ByteRange::new(start, pos); // include dblquotes
                 },
                 b'\'' => {
                     // single quotes are also used for lifetimes, so we need to
                     // be confident that this is not a lifetime.
                     // Look for backslash starting the escape, or a closing quote:
-                    if src_bytes.len() > pos + 1 &&
-                        (src_bytes[pos] == b'\\' ||
-                         src_bytes[pos+1] == b'\'') {
+                    if src_bytes.len() > pos.increment().0 &&
+                        (src_bytes[pos.0] == b'\\' ||
+                         src_bytes[pos.increment().0] == b'\'') {
                         self.state = State::Char;
                         self.pos = pos;
-                        return (start, pos); // include single quote
+                        return ByteRange::new(start, pos); // include single quote
                     }
                 },
                 _ => {}
@@ -90,16 +88,16 @@ impl<'a> CodeIndicesIter<'a> {
         }
 
         self.state = State::Finished;
-        (start, self.src.len())
+        ByteRange::new(start, self.src.len().into())
     }
 
-    fn comment(&mut self) -> SourceByteRange {
+    fn comment(&mut self) -> ByteRange {
         let mut pos = self.pos;
         let src_bytes = self.src.as_bytes();
-        for &b in &src_bytes[pos..] {
-            pos += 1;
+        for &b in &src_bytes[pos.0..] {
+            pos = pos.increment();
             if b == b'\n' {
-                if pos + 2 <= src_bytes.len() && src_bytes[pos..pos+2] == [b'/', b'/'] {
+                if pos.0 + 2 <= src_bytes.len() && src_bytes[pos.0..pos.0 + 2] == [b'/', b'/'] {
                     continue;
                 }
                 break;
@@ -109,12 +107,12 @@ impl<'a> CodeIndicesIter<'a> {
         self.code()
     }
 
-    fn comment_block(&mut self) -> SourceByteRange {
+    fn comment_block(&mut self) -> ByteRange {
         let mut nesting_level = 0usize;
         let mut prev = b' ';
         let mut pos = self.pos;
-        for &b in &self.src.as_bytes()[pos..] {
-            pos += 1;
+        for &b in &self.src.as_bytes()[pos.0..] {
+            pos = pos.increment();
             match b {
                 b'/' if prev == b'*' => {
                     if nesting_level == 0 {
@@ -133,50 +131,65 @@ impl<'a> CodeIndicesIter<'a> {
         self.code()
     }
 
-    fn string(&mut self, str_type: StrStyle) -> SourceByteRange {
+    fn string(&mut self, str_type: StrStyle) -> ByteRange {
         let src_bytes = self.src.as_bytes();
         let mut pos = self.pos;
         match str_type {
             StrStyle::Raw(level) => {
-                // raw string (eg br#"\"#)
-                // detect corresponding end(if start is r##", "##) greedily
+                // raw string (e.g. br#"\"#)
+                #[derive(Debug)]
                 enum SharpState {
-                    Sharp((usize, usize)), // (Num of preceding #s, Pos of end ")
+                    Sharp {
+                        // number of preceding #s
+                        num_sharps: usize,
+                        // Position of last "
+                        quote_pos: BytePos
+                    }, 
                     None, // No preceding "##...
                 }
                 let mut cur_state = SharpState::None;
                 let mut end_was_found = false;
-                for (i, &b) in src_bytes[self.pos..].iter().enumerate() {
+                // detect corresponding end(if start is r##", "##) greedily
+                for (i, &b) in src_bytes[self.pos.0..].iter().enumerate() {
                     match cur_state {
-                        SharpState::Sharp((n_sharp, pos_quote)) => {
+                        SharpState::Sharp { num_sharps, quote_pos } => {
                             cur_state = match b {
-                                b'#' => SharpState::Sharp((n_sharp + 1, pos_quote)),
-                                b'"' => SharpState::Sharp((0, i)),
+                                b'#' => SharpState::Sharp {
+                                    num_sharps: num_sharps + 1,
+                                    quote_pos,
+                                },
+                                b'"' => SharpState::Sharp {
+                                    num_sharps: 0,
+                                    quote_pos: BytePos(i),
+                                },
                                 _ => SharpState::None,
                             }
                         }
                         SharpState::None => {
                             if b == b'"' {
-                                cur_state = SharpState::Sharp((0, i));
+                                cur_state = SharpState::Sharp {
+                                    num_sharps: 0,
+                                    quote_pos: BytePos(i),
+                                };
                             }
                         }
                     }
-                    if let SharpState::Sharp((n_sharp, pos_quote)) = cur_state {
-                        if n_sharp == level {
+                    if let SharpState::Sharp { num_sharps, quote_pos } = cur_state {
+                        if num_sharps == level {
                             end_was_found = true;
-                            pos += pos_quote + 1;
+                            pos += quote_pos.increment();
                             break;
                         }
                     }
                 }
                 if !end_was_found {
-                    pos = src_bytes.len();
+                    pos = src_bytes.len().into();
                 }
             }
             StrStyle::Cooked => {
                 let mut is_not_escaped = true;
-                for &b in &src_bytes[pos..] {
-                    pos += 1;
+                for &b in &src_bytes[pos.0..] {
+                    pos = pos.increment();
                     match b {
                         b'"' if is_not_escaped  => { break; }, // "
                         b'\\' => { is_not_escaped = !is_not_escaped; },
@@ -189,11 +202,11 @@ impl<'a> CodeIndicesIter<'a> {
         self.code()
     }
 
-    fn char(&mut self) -> SourceByteRange {
+    fn char(&mut self) -> ByteRange {
         let mut is_not_escaped = true;
         let mut pos = self.pos;
-        for &b in &self.src.as_bytes()[pos..] {
-            pos += 1;
+        for &b in &self.src.as_bytes()[pos.0..] {
+            pos = pos.increment();
             match b {
                 b'\'' if is_not_escaped  => { break; },
                 b'\\' => { is_not_escaped = !is_not_escaped; },
@@ -204,14 +217,14 @@ impl<'a> CodeIndicesIter<'a> {
         self.code()
     }
 
-    fn detect_str_type(&self, pos: usize) -> StrStyle {
+    fn detect_str_type(&self, pos: BytePos) -> StrStyle {
         let src_bytes = self.src.as_bytes();
         let mut sharp = 0;
-        if pos == 0 {
+        if pos == BytePos::ZERO {
             return StrStyle::Cooked;
         }
         // now pos is at one byte after ", so we have to start at pos - 2
-        for &b in src_bytes[..pos - 1].iter().rev() {
+        for &b in src_bytes[..pos.decrement().0].iter().rev() {
             match b {
                 b'#' => sharp += 1,
                 b'r' => return StrStyle::Raw(sharp),
@@ -224,37 +237,37 @@ impl<'a> CodeIndicesIter<'a> {
 
 /// Returns indices of chunks of code (minus comments and string contents)
 pub fn code_chunks(src: &str) -> CodeIndicesIter {
-    CodeIndicesIter { src, state: State::Code, pos: 0 }
+    CodeIndicesIter { src, state: State::Code, pos: BytePos::ZERO }
 }
 
 /// Reverse Iterator for reading the source bytes skipping comments.
 /// This is written for get_start_of_pattern and maybe not so robust.
 pub struct CommentSkipIterRev<'a> {
     src: &'a str,
-    pos: Point,
+    pos: BytePos,
 }
 
 /// This produce CommentSkipIterRev for range [0, start)
-pub fn comment_skip_iter_rev(s: &str, start: Point) -> CommentSkipIterRev {
-    let start = if start > s.len() { 0 } else { start };
+pub fn comment_skip_iter_rev(s: &str, start: BytePos) -> CommentSkipIterRev {
+    let start = if start.0 > s.len() { BytePos::ZERO } else { start };
     CommentSkipIterRev { src: s, pos: start }
 }
 
 impl<'a> Iterator for CommentSkipIterRev<'a> {
-    type Item = (char, Point);
-    fn next(&mut self) -> Option<(char, Point)> {
+    type Item = (char, BytePos);
+    fn next(&mut self) -> Option<(char, BytePos)> {
         let cur_byte = self.cur_byte()?;
         match cur_byte {
             b'\n' => {
                 let pos = self.pos;
                 self.pos = self.skip_line_comment();
-                Some((cur_byte as char, pos - 1))
+                Some((cur_byte as char, pos.decrement()))
             }
             b'/' => {
-                if let Some(next_byte) = self.get_byte(self.pos - 1) {
+                if let Some(next_byte) = self.get_byte(self.pos.decrement()) {
                     if next_byte == b'*' {
                         self.pos = self.skip_block_comment();
-                        Some((self.cur_byte()? as char, self.pos - 1))
+                        Some((self.cur_byte()? as char, self.pos.decrement()))
                     } else {
                         self.code()
                     }
@@ -273,31 +286,31 @@ impl<'a> CommentSkipIterRev<'a> {
         self.get_byte(self.pos)
     }
 
-    fn code(&mut self) -> Option<(char, Point)> {
+    fn code(&mut self) -> Option<(char, BytePos)> {
         let cur_byte = self.cur_byte()?;
-        self.pos -= 1;
+        self.pos = self.pos.decrement();
         Some((cur_byte as char, self.pos))
     }
 
-    fn get_byte(&self, p: Point) -> Option<u8> {
-        if p == 0 {
+    fn get_byte(&self, p: BytePos) -> Option<u8> {
+        if p == BytePos::ZERO {
             None
         } else {
-            let b = self.src.as_bytes()[p - 1];
+            let b = self.src.as_bytes()[p.0 - 1];
             Some(b)
         }
     }
 
     // return where 'pos' shuld be after skipping block comments
-    fn skip_block_comment(&self) -> Point {
+    fn skip_block_comment(&self) -> BytePos {
         let mut nest_level = 0;
         let mut prev = b' ';
-        for i in (0..self.pos - 2).rev() {
+        for i in (0..self.pos.0 - 2).rev() {
             let b = self.src.as_bytes()[i];
             match b {
                 b'/' if prev == b'*' => {
                     if nest_level == 0 {
-                        return i;
+                        return i.into();
                     } else {
                         nest_level -= 1;
                     }
@@ -310,39 +323,39 @@ impl<'a> CommentSkipIterRev<'a> {
                 }
             }
         }
-        0
+        BytePos::ZERO
     }
 
     // return where 'pos' shuld be after skipping line comments
-    fn skip_line_comment(&self) -> Point {
-        let skip_cr = |p: Point| -> Point {
+    fn skip_line_comment(&self) -> BytePos {
+        let skip_cr = |p: BytePos| -> BytePos {
             if let Some(b) = self.get_byte(p) {
                 if b == b'\r' {
-                    return p - 1;
+                    return p.decrement();
                 }
             }
             p
         };
         let mut pos = self.pos;
         let mut skipped_whole_line = true;
-        while skipped_whole_line && pos > 0 {
+        while skipped_whole_line && pos > BytePos::ZERO {
             // now pos >= 1 && self.src.as_bytes()[pos - 1] == '\n'
             skipped_whole_line = false;
-            let comment_start = if let Some(next_newline) = self.src[..pos - 1].rfind('\n') {
-                if let Some(start) = self.src[next_newline + 1..pos - 1].find("//") {
+            let comment_start = if let Some(next_newline) = self.src[..pos.decrement().0].rfind('\n') {
+                if let Some(start) = self.src[next_newline + 1..pos.decrement().0].find("//") {
                     skipped_whole_line = start == 0;
                     start + next_newline + 1
                 } else {
-                    return skip_cr(pos - 1);
+                    return skip_cr(pos.decrement());
                 }
             } else {
-                if let Some(start) = self.src[..pos - 1].find("//") {
+                if let Some(start) = self.src[..pos.decrement().0].find("//") {
                     start
                 } else {
-                    return skip_cr(pos - 1);
+                    return skip_cr(pos.decrement());
                 }
             };
-            pos = comment_start;
+            pos = BytePos(comment_start);
         }
         pos
     }
@@ -482,10 +495,11 @@ mod code_indices_iter_test {
         more_code(\" skip me \")
     ");
 
-        for (start, end) in code_chunks(src) {
-            println!("BLOB |{}|", &src[start..end]);
-            if src[start..end].contains("skip me") {
-                panic!("{}", &src[start..end]);
+        for range in code_chunks(src) {
+            let range = || range.to_range();
+            println!("BLOB |{}|", &src[range()]);
+            if src[range()].contains("skip me") {
+                panic!("{}", &src[range()]);
             }
         }
     }
@@ -515,7 +529,7 @@ mod comment_skip_iter_rev_test {
     // another comment
     some more code
     ");
-        let result: String = comment_skip_iter_rev(&src, src.len()).map(|c| c.0).collect();
+        let result: String = comment_skip_iter_rev(&src, BytePos(src.len())).map(|c| c.0).collect();
         assert_eq!(&result, "edoc erom emos\n edoc emos si siht");
     }
     #[test]
@@ -525,7 +539,7 @@ mod comment_skip_iter_rev_test {
     /* /* nested comment */ */
     some more code
     ");
-        let result: String = comment_skip_iter_rev(&src, src.len()).map(|c| c.0).collect();
+        let result: String = comment_skip_iter_rev(&src, BytePos(src.len())).map(|c| c.0).collect();
         assert_eq!(&result, "edoc erom emos\n\n\n edoc emos si siht");
     }
     #[test]
@@ -534,7 +548,7 @@ mod comment_skip_iter_rev_test {
     this is some code /* this is a
     \"multiline\" comment */some more code
     ");
-        let result: String = comment_skip_iter_rev(&src, src.len()).map(|c| c.0).collect();
+        let result: String = comment_skip_iter_rev(&src, BytePos(src.len())).map(|c| c.0).collect();
         assert_eq!(&result, "edoc erom emos  edoc emos si siht");
     }
 }

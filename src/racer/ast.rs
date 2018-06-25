@@ -1,4 +1,4 @@
-use core::{self, Match, MatchType, Scope, Ty, Session, SessionExt, Point, SourceByteRange};
+use core::{self, Match, MatchType, Scope, Ty, Session, SessionExt, BytePos, ByteRange};
 use typeinf;
 use nameres::{self, resolve_path_with_str};
 use scopes;
@@ -57,7 +57,7 @@ where
     }).is_some()
 }
 
-fn destruct_span(span: Span) -> (u32, u32) {
+pub(crate) fn destruct_span(span: Span) -> (u32, u32) {
     let codemap::BytePos(lo) = span.lo();
     let codemap::BytePos(hi) = span.hi();
     (lo, hi)
@@ -162,7 +162,7 @@ impl<'ast> visit::Visitor<'ast> for UseVisitor {
 }
 
 pub struct PatBindVisitor {
-    ident_points: Vec<SourceByteRange>
+    ident_points: Vec<ByteRange>
 }
 
 impl<'ast> visit::Visitor<'ast> for PatBindVisitor {
@@ -185,8 +185,7 @@ impl<'ast> visit::Visitor<'ast> for PatBindVisitor {
     fn visit_pat(&mut self, p: &ast::Pat) {
         match p.node {
             PatKind::Ident(_ , ref spannedident, _) => {
-                let (lo, hi) = destruct_span(spannedident.span);
-                self.ident_points.push((lo as usize, hi as usize));
+                self.ident_points.push(spannedident.span.into());
             }
             _ => {
                 visit::walk_pat(self, p);
@@ -196,15 +195,14 @@ impl<'ast> visit::Visitor<'ast> for PatBindVisitor {
 }
 
 pub struct PatVisitor {
-    ident_points: Vec<SourceByteRange>
+    ident_points: Vec<ByteRange>
 }
 
 impl<'ast> visit::Visitor<'ast> for PatVisitor {
     fn visit_pat(&mut self, p: &ast::Pat) {
         match p.node {
             PatKind::Ident(_ , ref spannedident, _) => {
-                let (lo, hi) = destruct_span(spannedident.span);
-                self.ident_points.push((lo as usize, hi as usize));
+                self.ident_points.push(spannedident.span.into());
             }
             _ => { visit::walk_pat(self, p); }
         }
@@ -247,25 +245,26 @@ fn to_racer_ty(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
     }
 }
 
-fn point_is_in_span(point: u32, span: &Span) -> bool {
+fn point_is_in_span(point: BytePos, span: &Span) -> bool {
+    let point: u32 = point.0 as u32;
     let (lo, hi) = destruct_span(*span);
     point >= lo && point < hi
 }
 
 // The point must point to an ident within the pattern.
 fn destructure_pattern_to_ty(pat: &ast::Pat,
-                             point: Point,
+                             point: BytePos,
                              ty: &Ty,
                              scope: &Scope,
                              session: &Session) -> Option<Ty> {
-    debug!("destructure_pattern_to_ty point {} ty {:?}    ||||||||    pat: {:?}", point, ty, pat);
+    debug!("destructure_pattern_to_ty point {:?} ty {:?}    ||||||||    pat: {:?}", point, ty, pat);
     match pat.node {
         PatKind::Ident(_ , ref spannedident, _) => {
-            if point_is_in_span(point as u32, &spannedident.span) {
+            if point_is_in_span(point, &spannedident.span) {
                 debug!("destructure_pattern_to_ty matched an ident!");
                 Some(ty.clone())
             } else {
-                panic!("Expecting the point to be in the patident span. pt: {}", point);
+                panic!("Expecting the point to be in the patident span. pt: {:?}", point);
             }
         }
         PatKind::Tuple(ref tuple_elements, _) => {
@@ -273,7 +272,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
                 Ty::Tuple(ref typeelems) => {
                     let mut res = None;
                     for (i, p) in tuple_elements.iter().enumerate() {
-                        if point_is_in_span(point as u32, &p.span) {
+                        if point_is_in_span(point, &p.span) {
                             let ty = &typeelems[i];
                             res = destructure_pattern_to_ty(p, point, ty, scope, session);
                             break;
@@ -292,7 +291,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
                 let mut res = None;
 
                 for (i, p) in children.iter().enumerate() {
-                    if point_is_in_span(point as u32, &p.span) {
+                    if point_is_in_span(point, &p.span) {
 
                         res = typeinf::get_tuplestruct_field_type(i, &m, session)
                             .and_then(|ty|
@@ -319,7 +318,7 @@ fn destructure_pattern_to_ty(pat: &ast::Pat,
                 let mut res = None;
 
                 for child in children {
-                    if point_is_in_span(point as u32, &child.span) {
+                    if point_is_in_span(point, &child.span) {
                         res = typeinf::get_struct_field_type(&child.node.ident.name.as_str(), &m, session)
                             .and_then(|ty|
                                 if let Some(Ty::Match(ref contextmatch)) = contextty {
@@ -349,7 +348,7 @@ struct LetTypeVisitor<'c: 's, 's> {
     scope: Scope,
     session: &'s Session<'c>,
     srctxt: String,
-    pos: Point,        // pos is relative to the srctxt, scope is global
+    pos: BytePos,        // pos is relative to the srctxt, scope is global
     result: Option<Ty>
 }
 
@@ -402,7 +401,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for LetTypeVisitor<'c, 's> {
             });
         }
 
-        debug!("LetTypeVisitor: ty is {:?}. pos is {}, src is |{}|", ty, self.pos, self.srctxt);
+        debug!("LetTypeVisitor: ty is {:?}. pos is {:?}, src is |{}|", ty, self.pos, self.srctxt);
         self.result = ty.and_then(|ty|
            destructure_pattern_to_ty(&local.pat, self.pos, &ty, &self.scope, self.session))
             .and_then(|ty| path_to_match(ty, self.session));
@@ -412,7 +411,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for LetTypeVisitor<'c, 's> {
 struct MatchTypeVisitor<'c: 's, 's> {
     scope: Scope,
     session: &'s Session<'c>,
-    pos: Point,        // pos is relative to the srctxt, scope is global
+    pos: BytePos,        // pos is relative to the srctxt, scope is global
     result: Option<Ty>
 }
 
@@ -429,7 +428,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for MatchTypeVisitor<'c, 's> {
 
             for arm in arms {
                 for pattern in &arm.pats {
-                    if point_is_in_span(self.pos as u32, &pattern.span) {
+                    if point_is_in_span(self.pos, &pattern.span) {
                         debug!("PHIL point is in pattern |{:?}|", pattern);
                         self.result = v.result.as_ref().and_then(|ty|
                                destructure_pattern_to_ty(pattern, self.pos, ty, &self.scope, self.session))
@@ -441,7 +440,12 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for MatchTypeVisitor<'c, 's> {
     }
 }
 
-fn resolve_ast_path(path: &ast::Path, filepath: &Path, pos: Point, session: &Session) -> Option<Match> {
+fn resolve_ast_path(
+    path: &ast::Path,
+    filepath: &Path,
+    pos: BytePos,
+    session: &Session
+) -> Option<Match> {
     debug!("resolve_ast_path {:?}", to_racer_path(path));
     nameres::resolve_path_with_str(&to_racer_path(path), filepath, pos, core::SearchType::ExactMatch,
                                    core::Namespace::Both, session).nth(0)
@@ -492,7 +496,7 @@ fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
     }
 }
 
-fn find_type_match(path: &core::Path, fpath: &Path, pos: Point, session: &Session) -> Option<Ty> {
+fn find_type_match(path: &core::Path, fpath: &Path, pos: BytePos, session: &Session) -> Option<Ty> {
     debug!("find_type_match {:?}, {:?}", path, fpath);
     let res = resolve_path_with_str(path, fpath, pos, core::SearchType::ExactMatch,
                core::Namespace::Type, session).nth(0).and_then(|m| {
@@ -519,11 +523,11 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: Point, session: &Sessio
 fn get_type_of_typedef(m: &Match, session: &Session, fpath: &Path) -> Option<Match> {
     debug!("get_type_of_typedef match is {:?}", m);
     let msrc = session.load_file_and_mask_comments(&m.filepath);
-    let blobstart = m.point - 5;  // - 5 because 'type '
-    let blob = msrc.from(blobstart);
+    let blobstart = m.point - BytePos(5);  // 5 == "type ".len()
+    let blob = msrc.get_src_from_start(blobstart);
 
-    blob.iter_stmts().nth(0).and_then(|(start, end)| {
-        let blob = msrc[blobstart + start..blobstart+end].to_owned();
+    blob.iter_stmts().nth(0).and_then(|range| {
+        let blob = msrc[range.shift(blobstart).to_range()].to_owned();
         debug!("get_type_of_typedef blob string {}", blob);
         let res = parse_type(blob);
         debug!("get_type_of_typedef parsed type {:?}", res.type_);
@@ -533,10 +537,10 @@ fn get_type_of_typedef(m: &Match, session: &Session, fpath: &Path) -> Option<Mat
         let scope_start = scopes::scope_start(src.as_src(), m.point);
 
         // Type of TypeDef cannot be inside the impl block so look outside
-        let outer_scope_start = scope_start.checked_sub(1)
-            .map(|sub| scopes::scope_start(src.as_src(), sub))
+        let outer_scope_start = scope_start.0.checked_sub(1)
+            .map(|sub| scopes::scope_start(src.as_src(), sub.into()))
             .and_then(|s| {
-                let blob = src.from(s);
+                let blob = src.get_src_from_start(s);
                 let blob = blob.trim_left();
                 if blob.starts_with("impl") || blob.starts_with("trait") || blob.starts_with("pub trait") {
                     Some(s)
@@ -574,7 +578,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 let codemap::BytePos(lo) = path.span.lo();
                 self.result = resolve_ast_path(path,
                                  &self.scope.filepath,
-                                 self.scope.point + lo as usize,
+                                 self.scope.point + lo.into(),
                                  self.session).and_then(|m| {
                                      let msrc = self.session.load_file_and_mask_comments(&m.filepath);
                                      typeinf::get_type_of_match(m, msrc.as_src(), self.session)
@@ -826,7 +830,7 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
 
 fn find_type_match_including_generics(fieldtype: &core::Ty,
                                       filepath: &Path,
-                                      pos: Point,
+                                      pos: BytePos,
                                       structm: &Match,
                                       session: &Session) -> Option<Ty>{
     assert_eq!(&structm.filepath, filepath);
@@ -867,7 +871,7 @@ fn find_type_match_including_generics(fieldtype: &core::Ty,
 
 struct StructVisitor {
     pub scope: Scope,
-    pub fields: Vec<(String, Point, Option<core::Ty>)>
+    pub fields: Vec<(String, BytePos, Option<core::Ty>)>
 }
 
 impl<'ast> visit::Visitor<'ast> for StructVisitor {
@@ -887,7 +891,7 @@ impl<'ast> visit::Visitor<'ast> for StructVisitor {
                 None => format!("{}", self.fields.len()),
             };
 
-            self.fields.push((name, point as usize, ty));
+            self.fields.push((name, point.into(), ty));
         }
     }
 }
@@ -1051,7 +1055,7 @@ impl TraitBounds {
                     let path_search = core::PathSearch {
                         path: path,
                         filepath: filepath.as_ref().to_path_buf(),
-                        point: (point as i32 + offset) as Point,
+                        point: BytePos::from((point as i32 + offset) as u32),
                     };
                     Some(path_search)
                 } else {
@@ -1071,7 +1075,7 @@ pub struct TypeParameter {
     /// the name of type parameter declared in generics, like 'T'
     pub name: String,
     /// The point 'T' appears
-    pub point: usize,
+    pub point: BytePos,
     /// bounds
     pub bounds: TraitBounds,
 }
@@ -1129,7 +1133,7 @@ impl GenericsArgs {
                             TraitBounds::from_ty_param_bounds(&ty_param.bounds, &filepath, offset);
                         Some(TypeParameter {
                             name: param_name,
-                            point: (point as i32 + offset) as Point,
+                            point: BytePos::from((point as i32 + offset) as u32),
                             bounds,
                         })
                     }
@@ -1161,7 +1165,7 @@ impl<'ast, P: AsRef<Path>> visit::Visitor<'ast> for GenericsVisitor<P> {
 
 pub struct EnumVisitor {
     pub name: String,
-    pub values: Vec<(String, Point)>
+    pub values: Vec<(String, BytePos)>
 }
 
 impl<'ast> visit::Visitor<'ast> for EnumVisitor {
@@ -1176,7 +1180,7 @@ impl<'ast> visit::Visitor<'ast> for EnumVisitor {
 
             for variant in &enum_definition.variants {
                 let codemap::BytePos(point) = variant.span.lo();
-                self.values.push((variant.node.ident.to_string(), point as usize));
+                self.values.push((variant.node.ident.to_string(), point.into()));
             }
         }
     }
@@ -1193,13 +1197,13 @@ pub fn parse_use(s: String) -> UseVisitor {
     v
 }
 
-pub fn parse_pat_bind_stmt(s: String) -> Vec<SourceByteRange> {
+pub fn parse_pat_bind_stmt(s: String) -> Vec<ByteRange> {
     let mut v = PatBindVisitor { ident_points: Vec::new() };
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.ident_points
 }
 
-pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, Point, Option<core::Ty>)> {
+pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, BytePos, Option<core::Ty>)> {
     let mut v = StructVisitor { scope, fields: Vec::new() };
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.fields
@@ -1263,11 +1267,11 @@ pub fn parse_type(s: String) -> TypeVisitor {
     v
 }
 
-pub fn parse_fn_args(s: String) -> Vec<SourceByteRange> {
+pub fn parse_fn_args(s: String) -> Vec<ByteRange> {
     parse_pat_idents(s)
 }
 
-pub fn parse_pat_idents(s: String) -> Vec<SourceByteRange> {
+pub fn parse_pat_idents(s: String) -> Vec<ByteRange> {
     let mut v = PatVisitor{ ident_points: Vec::new() };
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     debug!("ident points are {:?}", v.ident_points);
@@ -1283,12 +1287,12 @@ pub fn parse_fn_output(s: String, scope: Scope) -> Option<core::Ty> {
 
 pub fn parse_fn_arg_type(
     s: String,
-    argpos: Point,
+    argpos: BytePos,
     scope: Scope,
     session: &Session,
     offset: i32,
 ) -> Option<core::Ty> {
-    debug!("parse_fn_arg {} |{}|", argpos, s);
+    debug!("parse_fn_arg {:?} |{}|", argpos, s);
     let mut v = FnArgTypeVisitor {
         argpos,
         scope,
@@ -1319,7 +1323,7 @@ pub fn parse_enum(s: String) -> EnumVisitor {
     v
 }
 
-pub fn get_type_of(s: String, fpath: &Path, pos: Point, session: &Session) -> Option<Ty> {
+pub fn get_type_of(s: String, fpath: &Path, pos: BytePos, session: &Session) -> Option<Ty> {
     let startscope = Scope {
         filepath: fpath.to_path_buf(),
         point: pos
@@ -1332,7 +1336,7 @@ pub fn get_type_of(s: String, fpath: &Path, pos: Point, session: &Session) -> Op
 }
 
 // pos points to an ident in the lhs of the stmtstr
-pub fn get_let_type(s: String, pos: Point, scope: Scope, session: &Session) -> Option<Ty> {
+pub fn get_let_type(s: String, pos: BytePos, scope: Scope, session: &Session) -> Option<Ty> {
     let mut v = LetTypeVisitor {
         scope,
         session,
@@ -1344,7 +1348,7 @@ pub fn get_let_type(s: String, pos: Point, scope: Scope, session: &Session) -> O
     v.result
 }
 
-pub fn get_match_arm_type(s: String, pos: Point, scope: Scope, session: &Session) -> Option<Ty> {
+pub fn get_match_arm_type(s: String, pos: BytePos, scope: Scope, session: &Session) -> Option<Ty> {
     let mut v = MatchTypeVisitor {
         scope,
         session,
@@ -1373,7 +1377,7 @@ impl<'ast> visit::Visitor<'ast> for FnOutputVisitor {
 /// Visitor to detect type of fnarg
 pub struct FnArgTypeVisitor<'c: 's, 's> {
     /// the code point arg appears in search string
-    argpos: Point,
+    argpos: BytePos,
     scope: Scope,
     session: &'s Session<'c>,
     generics: GenericsArgs,
@@ -1400,7 +1404,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for FnArgTypeVisitor<'c, 's> {
         let filepath = &self.scope.filepath;
         self.result = fd.inputs
             .iter()
-            .find(|arg| point_is_in_span(self.argpos as u32, &arg.pat.span))
+            .find(|arg| point_is_in_span(self.argpos, &arg.pat.span))
             .and_then(|arg| {
                 debug!("[FnArgTypeVisitor::visit_fn] type {:?} was found", arg.ty);
                 let ty = to_racer_ty(&arg.ty, &self.scope)
@@ -1416,7 +1420,6 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for FnArgTypeVisitor<'c, 's> {
                     .map(destruct_ty_refptr)?;
                 if let Ty::PathSearch(ref path, ref scope) = ty {
                     let segments = &path.segments;
-                    println!("{:?}", segments);
                     // now we want to get 'T' from fn f<T>(){}, so segments.len() == 1
                     if segments.len() == 1 {
                         let name = &segments[0].name;
