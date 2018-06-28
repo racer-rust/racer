@@ -105,7 +105,7 @@ fn resolve_dependencies(manifest: &Path, session: &Session, libname: &str) -> Op
         Some(prev) => resolve_with_prev(&mut registry, &ws, Some(&*prev)),
         None => resolve_with_prev(&mut registry, &ws, None),
     });
-    ops::add_overrides(&mut registry, &ws)
+    add_overrides(&mut registry, &ws)
         .unwrap_or_else(|e| warn!("[resolve_dependencies] error in add_override: {}", e));
     // get depedency with overrides
     let resolved_with_overrides = cargo_try!(resolve_with_previous(
@@ -118,7 +118,7 @@ fn resolve_dependencies(manifest: &Path, session: &Session, libname: &str) -> Op
         false,
         false,
     ));
-    let packages = ops::get_resolved_packages(&resolved_with_overrides, registry);
+    let packages = get_resolved_packages(&resolved_with_overrides, registry);
     // cache depedencies and get the src_path we're searching, if it exists
     let mut res = None;
     // we have caches for each packages, so only need depth1 depedencies
@@ -165,4 +165,36 @@ fn resolve_with_prev<'cfg>(
         true,
         false,
     )
+}
+
+use cargo::core::{PackageSet, PackageId, Source, SourceId};
+use cargo::sources::PathSource;
+
+// until cargo 0.30 is released
+fn get_resolved_packages<'a>(resolve: &Resolve, registry: PackageRegistry<'a>) -> PackageSet<'a> {
+    let ids: Vec<PackageId> = resolve.iter().cloned().collect();
+    registry.get(&ids)
+}
+
+// until cargo 0.30 is released
+fn add_overrides<'a>(registry: &mut PackageRegistry<'a>, ws: &Workspace<'a>) -> CargoResult<()> {
+    let paths = match ws.config().get_list("paths")? {
+        Some(list) => list,
+        None => return Ok(()),
+    };
+
+    let paths = paths.val.iter().map(|&(ref s, ref p)| {
+        // The path listed next to the string is the config file in which the
+        // key was located, so we want to pop off the `.cargo/config` component
+        // to get the directory containing the `.cargo` folder.
+        (p.parent().unwrap().parent().unwrap().join(s), p)
+    });
+
+    for (path, _) in paths {
+        let id = SourceId::for_path(&path)?;
+        let mut source = PathSource::new_recursive(&path, &id, ws.config());
+        source.update()?;
+        registry.add_override(Box::new(source));
+    }
+    Ok(())
 }
