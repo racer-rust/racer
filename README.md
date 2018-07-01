@@ -12,9 +12,33 @@
 
 ## Installation
 
+*NOTE* from 2.1, racer needs nightly rust
+
+### Requirements
+
+#### Current nightly Rust
+
+If you're using rustup, run
+```
+rustup toolchain add nightly
+```
+
+#### Dependencies of `cargo`
+Now racer depends on `cargo`, so you have to install its dependency
+
+On Linux, you will need [cmake](https://cmake.org/), [pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/)
+and [zlib](http://zlib.net/):
+
+- On Ubuntu run: `sudo apt-get install cmake pkg-config zlib1g-dev libssl-dev`
+- On Fedora run: `sudo dnf install cmake pkgconfig zlib-devel openssl-devel`
+
+On Windows, you will need to have [cmake](https://cmake.org/) installed.
+
+It's a bit confusing and we're plannig to remove this dependency in the futute.
+
 ### With `cargo install`
 
-This method requires Rust 1.5. Simply run:
+Simply run:
 
 ```cargo install racer```
 

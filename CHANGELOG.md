@@ -4,7 +4,8 @@ Change Log
 All notable changes to this project will be documented in this file. This
 project adheres to [Semantic Versioning](http://semver.org/).
 
-## HEAD
+## 2.1.0
+- Limit recursion depth through glob imports #875
 - Enable completion based on trait bound for function args #871
 - Fix bug in search_closure_args #862
 - Replace cargo.rs with cargo crate #855
