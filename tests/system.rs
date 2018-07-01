@@ -4038,7 +4038,7 @@ fn recursive_glob_depth5() {
     use mod4::*;
     use Bar::*;
 
-    mod mod1 { pub mod mod2 { pub mod mod3 { pub mod4 {
+    mod mod1 { pub mod mod2 { pub mod mod3 { pub mod mod4 {
         pub enum Bar { MyVariant, MyVariant2 }
     }}}}
     MyVa~riant
