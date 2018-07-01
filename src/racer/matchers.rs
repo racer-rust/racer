@@ -23,14 +23,14 @@ type PendingImports<'stack, 'fp> = StackLinkedListNode<'stack, PendingImport<'fp
 /// Import information(pending imports, glob, and etc.)
 pub struct ImportInfo<'stack, 'fp: 'stack> {
     imports: PendingImports<'stack, 'fp>,
-    skip_glob: bool,
+    glob_depth: Option<usize>,
 }
 
 impl<'stack, 'fp: 'stack> ImportInfo<'stack, 'fp> {
     fn noskip(imports: PendingImports<'stack, 'fp>) -> Self {
         ImportInfo {
             imports,
-            skip_glob: false,
+            glob_depth: None,
         }
     }
 }
@@ -39,7 +39,7 @@ impl<'stack, 'fp: 'stack> Default for ImportInfo<'stack, 'fp> {
     fn default() -> Self {
         ImportInfo {
             imports: PendingImports::empty(),
-            skip_glob: false,
+            glob_depth: None,
         }
     }
 }
@@ -595,7 +595,7 @@ pub fn match_use(
     if !use_item.contains_glob && !txt_matches(context.search_type, context.search_str, blob) {
         return out;
     }
-    let skip_glob = import_info.skip_glob;
+    let glob_depth = import_info.glob_depth;
     let mut import_info = ImportInfo::noskip(pending_imports);
     // common utilities
     macro_rules! with_match {
@@ -648,15 +648,19 @@ pub fn match_use(
                 }
             }
             ast::PathAliasKind::Glob => {
-                if skip_glob {
-                    continue;
+                if let Some(d) = glob_depth {
+                    if d == 0 {
+                        continue;
+                    }
+                    import_info.glob_depth = Some(d - 1);
+                } else {
+                    import_info.glob_depth = Some(3);
                 }
                 let mut search_path = path_alias.path;
                 search_path.segments.push(PathSegment {
                     name: context.search_str.to_owned(),
                     types: vec![],
                 });
-                import_info.skip_glob = true;
                 let mut path_iter = resolve_path(
                     &search_path,
                     context.filepath,
@@ -666,7 +670,7 @@ pub fn match_use(
                     session,
                     &import_info,
                 );
-                import_info.skip_glob = false;
+                import_info.glob_depth = None;
                 debug!(
                     "[match_use] resolve_path returned {:?} for Glob",
                     path_iter,
