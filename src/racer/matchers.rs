@@ -26,15 +26,6 @@ pub struct ImportInfo<'stack, 'fp: 'stack> {
     glob_depth: Option<usize>,
 }
 
-impl<'stack, 'fp: 'stack> ImportInfo<'stack, 'fp> {
-    fn noskip(imports: PendingImports<'stack, 'fp>) -> Self {
-        ImportInfo {
-            imports,
-            glob_depth: None,
-        }
-    }
-}
-
 impl<'stack, 'fp: 'stack> Default for ImportInfo<'stack, 'fp> {
     fn default() -> Self {
         ImportInfo {
@@ -595,8 +586,10 @@ pub fn match_use(
     if !use_item.contains_glob && !txt_matches(context.search_type, context.search_str, blob) {
         return out;
     }
-    let glob_depth = import_info.glob_depth;
-    let mut import_info = ImportInfo::noskip(pending_imports);
+    let mut import_info = ImportInfo {
+        imports: pending_imports,
+        glob_depth: import_info.glob_depth,
+    };
     // common utilities
     macro_rules! with_match {
         ($path:expr, $f:expr) => {
@@ -648,14 +641,17 @@ pub fn match_use(
                 }
             }
             ast::PathAliasKind::Glob => {
-                if let Some(d) = glob_depth {
-                    if d == 0 {
+                let glob_depth_reserved = if let Some(ref mut d) = import_info.glob_depth {
+                    if *d == 0 {
                         continue;
                     }
-                    import_info.glob_depth = Some(d - 1);
+                    *d -= 1;
+                    Some(*d + 1)
                 } else {
+                    // heuristics for issue #844
                     import_info.glob_depth = Some(3);
-                }
+                    None
+                };
                 let mut search_path = path_alias.path;
                 search_path.segments.push(PathSegment {
                     name: context.search_str.to_owned(),
@@ -670,7 +666,7 @@ pub fn match_use(
                     session,
                     &import_info,
                 );
-                import_info.glob_depth = None;
+                import_info.glob_depth = glob_depth_reserved;
                 debug!(
                     "[match_use] resolve_path returned {:?} for Glob",
                     path_iter,
