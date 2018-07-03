@@ -22,15 +22,18 @@ type PendingImports<'stack, 'fp> = StackLinkedListNode<'stack, PendingImport<'fp
 
 /// Import information(pending imports, glob, and etc.)
 pub struct ImportInfo<'stack, 'fp: 'stack> {
+    /// A stack of imports currently being resolved
     imports: PendingImports<'stack, 'fp>,
-    glob_depth: Option<usize>,
+    /// the max number of times where we can go through glob continuously
+    /// if current search path isn't constructed via glob, it's none
+    glob_limit: Option<usize>,
 }
 
 impl<'stack, 'fp: 'stack> Default for ImportInfo<'stack, 'fp> {
     fn default() -> Self {
         ImportInfo {
             imports: PendingImports::empty(),
-            glob_depth: None,
+            glob_limit: None,
         }
     }
 }
@@ -588,7 +591,7 @@ pub fn match_use(
     }
     let mut import_info = ImportInfo {
         imports: pending_imports,
-        glob_depth: import_info.glob_depth,
+        glob_limit: import_info.glob_limit,
     };
     // common utilities
     macro_rules! with_match {
@@ -641,7 +644,7 @@ pub fn match_use(
                 }
             }
             ast::PathAliasKind::Glob => {
-                let glob_depth_reserved = if let Some(ref mut d) = import_info.glob_depth {
+                let glob_depth_reserved = if let Some(ref mut d) = import_info.glob_limit {
                     if *d == 0 {
                         continue;
                     }
@@ -649,7 +652,7 @@ pub fn match_use(
                     Some(*d + 1)
                 } else {
                     // heuristics for issue #844
-                    import_info.glob_depth = Some(3);
+                    import_info.glob_limit = Some(3);
                     None
                 };
                 let mut search_path = path_alias.path;
@@ -666,7 +669,7 @@ pub fn match_use(
                     session,
                     &import_info,
                 );
-                import_info.glob_depth = glob_depth_reserved;
+                import_info.glob_limit = glob_depth_reserved;
                 debug!(
                     "[match_use] resolve_path returned {:?} for Glob",
                     path_iter,
