@@ -6,8 +6,8 @@ use scopes;
 use std::path::Path;
 use std::rc::Rc;
 
-use syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, LitKind, PatKind, TyKind, GenericParam,
-                  TyParamBound, TyParamBounds, UseTree, UseTreeKind};
+use syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, LitKind, PatKind, TyKind, GenericArg, 
+                  GenericArgs, GenericParamKind, GenericBound, GenericBounds, UseTree, UseTreeKind};
 use syntax::codemap::{self, FileName, Span};
 use syntax::errors::{emitter::ColorConfig, Handler};
 use syntax::parse::parser::Parser;
@@ -114,7 +114,7 @@ impl<'ast> visit::Visitor<'ast> for UseVisitor {
             };
             let mut contains_glob = false;
             match use_tree.kind {
-                UseTreeKind::Simple(_) => {
+                UseTreeKind::Simple(_, _, _) => {
                     let ident = use_tree.ident().name.to_string();
                     let kind = if let Some(last_seg) = path.segments.last() {
                         //` self` is treated normaly in libsyntax,
@@ -460,18 +460,17 @@ fn to_racer_path(path: &ast::Path) -> core::Path {
             global = true;
             continue;
         }
-        if let Some(ref params) = seg.parameters {
-            let seg_types: Vec<_> = match **params {
-                ast::PathParameters::AngleBracketed(ref data) => data.types.iter().collect(),
-                ast::PathParameters::Parenthesized(ref data) => {
-                    data.inputs.iter().chain(data.output.iter()).collect()
-                }
-            };
-            seg_types.into_iter().for_each(|ty| {
-                if let TyKind::Path(_, ref path) = ty.node {
-                    types.push(to_racer_path(path));
-                }
-            });
+        // TODO: support GenericArgs::Parenthesized (A path like `Foo(A,B) -> C`)
+        if let Some(ref params) = seg.args {
+            if let GenericArgs::AngleBracketed(ref angle_args) = **params {
+                angle_args.args.iter().for_each(|arg| {
+                    if let GenericArg::Type(ty) = arg {
+                        if let TyKind::Path(_, ref path) = ty.node {
+                            types.push(to_racer_path(path));
+                        }
+                    }
+                })
+            }
         }
         segments.push(core::PathSegment {
             name: name.to_string(),
@@ -1039,15 +1038,15 @@ impl TraitBounds {
     pub fn len(&self) -> usize {
         self.0.len()
     }
-    fn from_ty_param_bounds<P: AsRef<Path>>(
-        bounds: &TyParamBounds,
+    fn from_generic_bounds<P: AsRef<Path>>(
+        bounds: &GenericBounds,
         filepath: P,
         offset: i32,
     ) -> TraitBounds {
         let vec = bounds
             .iter()
             .filter_map(|bound| {
-                if let TyParamBound::TraitTyParamBound(ref ptrait_ref, _) = *bound {
+                if let GenericBound::Trait(ref ptrait_ref, _) = *bound {
                     let ast_path = &ptrait_ref.trait_ref.path;
                     let codemap::BytePos(point) = ast_path.span.lo();
                     let path = to_racer_path(&ast_path);
@@ -1122,14 +1121,15 @@ impl GenericsArgs {
             .params
             .iter()
             .filter_map(|param| {
-                match param {
+                match param.kind {
                     // TODO: lifetime support
-                    GenericParam::Lifetime(_) => None,
-                    GenericParam::Type(ty_param) => {
-                        let param_name = ty_param.ident.name.to_string();
-                        let codemap::BytePos(point) = ty_param.ident.span.lo();
+                    GenericParamKind::Lifetime => None,
+                    // TODO: should we handle default type here?
+                    GenericParamKind::Type { default: _, } => {
+                        let param_name = param.ident.name.to_string();
+                        let codemap::BytePos(point) = param.ident.span.lo();
                         let bounds =
-                            TraitBounds::from_ty_param_bounds(&ty_param.bounds, &filepath, offset);
+                            TraitBounds::from_generic_bounds(&param.bounds, &filepath, offset);
                         Some(TypeParameter {
                             name: param_name,
                             point: BytePos::from((point as i32 + offset) as u32),
@@ -1456,7 +1456,7 @@ pub struct InheritedTraitsVisitor<P> {
 impl<'ast, P: AsRef<Path>> visit::Visitor<'ast> for InheritedTraitsVisitor<P> {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::Trait(_, _, _, ref bounds, _) = item.node {
-            self.result = Some(TraitBounds::from_ty_param_bounds(
+            self.result = Some(TraitBounds::from_generic_bounds(
                 bounds,
                 &self.file_path,
                 self.offset,

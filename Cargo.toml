@@ -23,7 +23,7 @@ debug = true
 [dependencies]
 cargo = "0.28"
 log = "0.4"
-rustc-ap-syntax = "151.0.0"
+rustc-ap-syntax = "184.0.0"
 env_logger = "0.5"
 clap = "2.19"
 lazy_static = "1.0"
