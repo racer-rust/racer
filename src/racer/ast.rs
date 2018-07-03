@@ -63,9 +63,8 @@ pub(crate) fn destruct_span(span: Span) -> (u32, u32) {
     (lo, hi)
 }
 
-/// The leaf of a `use` statement. Extends `core::Path` to support
-/// aliases in `ViewPathList` scenarios.
-#[derive(Debug)]
+/// The leaf of a `use` statement.
+#[derive(Clone, Debug)]
 pub struct PathAlias {
     /// the leaf of Use Tree
     /// it can be one of one of 3 types, e.g.

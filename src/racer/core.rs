@@ -14,7 +14,7 @@ use std::cmp::{min, max};
 use std::iter::{Fuse, Iterator};
 use std::rc::Rc;
 use codeiter::StmtIndicesIter;
-use matchers::PendingImports;
+use matchers::ImportInfo;
 
 use scopes;
 use nameres;
@@ -1207,7 +1207,8 @@ fn complete_from_file_(
                     filepath, 
                     SearchType::StartsWith,
                     session,
-                    &PendingImports::empty());
+                    &ImportInfo::default(),
+                )
             }
 
             let v = (if is_use {
@@ -1221,11 +1222,15 @@ fn complete_from_file_(
             }).split("::").collect::<Vec<_>>();
 
             let path = Path::from_vec(is_global, v);
-            for m in nameres::resolve_path(&path, filepath, pos,
-                                           SearchType::StartsWith, Namespace::Both,
-                                           session, &PendingImports::empty()) {
-                out.push(m);
-            }
+            out.extend(nameres::resolve_path(
+                &path,
+                filepath,
+                pos,
+                SearchType::StartsWith,
+                Namespace::Both,
+                session,
+                &ImportInfo::default(),
+            ));
         },
         CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
@@ -1355,9 +1360,15 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
                 .collect::<Vec<_>>();
             let path = Path { global, segments };
 
-            nameres::resolve_path(&path, filepath, pos,
-                                  SearchType::ExactMatch, Namespace::Both,
-                                  session, &PendingImports::empty()).nth(0)
+            nameres::resolve_path(
+                &path,
+                filepath,
+                pos,
+                SearchType::ExactMatch,
+                Namespace::Both,
+                session,
+                &ImportInfo::default(),
+            ).nth(0)
         },
         CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);

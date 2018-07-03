@@ -15,7 +15,7 @@ use ast::{GenericsArgs, ImplVisitor};
 use fileres::{get_crate_file, get_module_file};
 use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches,
            find_ident_end, get_rust_src_path, calculate_str_hash};
-use matchers::{find_doc, MatchCxt, PendingImports};
+use matchers::{find_doc, MatchCxt, ImportInfo};
 
 lazy_static! {
     pub static ref RUST_SRC_PATH: Option<PathBuf> = get_rust_src_path().ok();
@@ -72,7 +72,7 @@ pub fn search_for_impl_methods(
 
     let mut out = Vec::new();
 
-    for m in search_for_impls(point, implsearchstr, fpath, local, true, session, &PendingImports::empty()) {
+    for m in search_for_impls(point, implsearchstr, fpath, local, true, session, &ImportInfo::default()) {
         debug!("found impl!! |{:?}| looking for methods", m);
 
         if m.matchstr == "Deref" {
@@ -265,7 +265,7 @@ pub fn search_for_impls(
     local: bool,
     include_traits: bool,
     session: &Session,
-    pending_imports: &PendingImports,
+    import_info: &ImportInfo,
 ) -> vec::IntoIter<Match> {
     debug!("search_for_impls {:?}, {}, {:?}", pos, searchstr, filepath.display());
     let s = session.load_file(filepath);
@@ -324,7 +324,7 @@ pub fn search_for_impls(
                             ExactMatch,
                             Namespace::Type,
                             session,
-                            pending_imports
+                            import_info,
                         ).nth(0);
                         debug!("found trait |{:?}| {:?}", trait_path, m);
 
@@ -775,9 +775,14 @@ pub fn do_file_search(
     out.into_iter()
 }
 
-pub fn search_crate_root(pathseg: &core::PathSegment, modfpath: &Path,
-                         searchtype: SearchType, namespace: Namespace,
-                         session: &Session, pending_imports: &PendingImports) -> vec::IntoIter<Match> {
+pub fn search_crate_root(
+    pathseg: &core::PathSegment,
+    modfpath: &Path,
+    searchtype: SearchType,
+    namespace: Namespace,
+    session: &Session,
+    import_info: &ImportInfo,
+) -> vec::IntoIter<Match> {
     debug!("search_crate_root |{:?}| {:?}", pathseg, modfpath.display());
 
     let crateroots = find_possible_crate_root_modules(modfpath.parent().unwrap(), session);
@@ -787,7 +792,15 @@ pub fn search_crate_root(pathseg: &core::PathSegment, modfpath: &Path,
             continue;
         }
         debug!("going to search for {:?} in crateroot {:?}", pathseg, crateroot.display());
-        for m in resolve_name(pathseg, &crateroot, BytePos::ZERO, searchtype, namespace, session, pending_imports) {
+        for m in resolve_name(
+            pathseg,
+            &crateroot,
+            BytePos::ZERO,
+            searchtype,
+            namespace,
+            session,
+            import_info,
+        ) {
             out.push(m);
             if let ExactMatch = searchtype {
                 break;
@@ -827,7 +840,7 @@ pub fn search_next_scope(
     local: bool,
     namespace: Namespace,
     session: &Session,
-    pending_imports: &PendingImports
+    import_info: &ImportInfo,
 ) -> vec::IntoIter<Match> {
     let filesrc = session.load_file(filepath);
     if startpoint != BytePos::ZERO {
@@ -840,7 +853,18 @@ pub fn search_next_scope(
             startpoint += BytePos(n + 1);
         }
     }
-    search_scope(startpoint, startpoint, filesrc.as_src(), pathseg, filepath, search_type, local, namespace, session, pending_imports)
+    search_scope(
+        startpoint,
+        startpoint,
+        filesrc.as_src(),
+        pathseg,
+        filepath,
+        search_type,
+        local,
+        namespace,
+        session,
+        import_info,
+    )
 }
 
 pub fn search_scope(
@@ -853,7 +877,7 @@ pub fn search_scope(
     is_local: bool,
     namespace: Namespace,
     session: &Session,
-    pending_imports: &PendingImports
+    import_info: &ImportInfo,
 ) -> vec::IntoIter<Match> {
     let search_str = &pathseg.name;
     let mut out = Vec::new();
@@ -987,7 +1011,7 @@ pub fn search_scope(
 
         // There's a good chance of a match. Run the matchers
         let match_cxt = get_match_cxt(blob_range.shift(start));
-        out.extend(run_matchers_on_blob(src, &match_cxt, namespace, session, pending_imports));
+        out.extend(run_matchers_on_blob(src, &match_cxt, namespace, session, import_info));
         if let ExactMatch = search_type {
             if !out.is_empty() {
                 return out.into_iter();
@@ -1006,7 +1030,7 @@ pub fn search_scope(
     for blob_range in delayed_single_imports.into_iter().chain(delayed_glob_imports) {
         // There's a good chance of a match. Run the matchers
         let match_cxt = get_match_cxt(blob_range.shift(start));
-        for m in run_matchers_on_blob(src, &match_cxt, namespace, session, pending_imports) {
+        for m in run_matchers_on_blob(src, &match_cxt, namespace, session, import_info) {
             out.push(m);
             if let ExactMatch = search_type {
                 return out.into_iter();
@@ -1085,7 +1109,7 @@ fn run_matchers_on_blob(
     context: &MatchCxt,
     namespace: Namespace,
     session: &Session,
-    pending_imports: &PendingImports
+    import_info: &ImportInfo,
 ) -> Vec<Match> {
     debug!(
         "[run_matchers_on_blob] src: {}, cxt: {:?}, namespace: {:?}",
@@ -1096,7 +1120,7 @@ fn run_matchers_on_blob(
     let mut out = Vec::new();
     match namespace {
         Namespace::Type =>
-            for m in matchers::match_types(src, context, session, pending_imports) {
+            for m in matchers::match_types(src, context, session, import_info) {
                 out.push(m);
                 if context.search_type == ExactMatch {
                     return out;
@@ -1110,7 +1134,7 @@ fn run_matchers_on_blob(
                 }
             },
         Namespace::Both => {
-            for m in matchers::match_types(src, context, session, pending_imports) {
+            for m in matchers::match_types(src, context, session, import_info) {
                 out.push(m);
                 if context.search_type == ExactMatch {
                     return out;
@@ -1135,7 +1159,7 @@ fn search_local_scopes(
     search_type: SearchType,
     namespace: Namespace,
     session: &Session,
-    pending_imports: &PendingImports
+    import_info: &ImportInfo,
 ) -> vec::IntoIter<Match> {
     debug!("search_local_scopes {:?} {:?} {:?} {:?} {:?}", pathseg, filepath.display(), point,
            search_type, namespace);
@@ -1152,7 +1176,7 @@ fn search_local_scopes(
             true,
             namespace,
             session,
-            pending_imports
+            import_info,
         )
     } else {
         let mut out = Vec::new();
@@ -1170,7 +1194,7 @@ fn search_local_scopes(
                 true,
                 namespace,
                 session,
-                pending_imports
+                import_info,
             ) {
                 out.push(m);
                 if search_type == ExactMatch {
@@ -1200,7 +1224,7 @@ pub fn search_prelude_file(
     search_type: SearchType,
     namespace: Namespace,
     session: &Session,
-    pending_imports: &PendingImports
+    import_info: &ImportInfo,
 ) -> vec::IntoIter<Match> {
     debug!("search_prelude file {:?} {:?} {:?}", pathseg, search_type, namespace);
     let mut out : Vec<Match> = Vec::new();
@@ -1221,7 +1245,7 @@ pub fn search_prelude_file(
                 is_local,
                 namespace,
                 session,
-                pending_imports
+                import_info,
             ) {
                 out.push(m);
             }
@@ -1246,9 +1270,15 @@ pub fn resolve_path_with_str(
     if path.segments.len() == 1 && path.segments[0].name == "str" {
         debug!("{:?} == {:?}", path.segments[0], "str");
 
-        if let Some(module) = resolve_path(&core::Path::from_vec(true, vec!["std","str"]),
-                                           filepath, pos, search_type, namespace,
-                                           session, &PendingImports::empty()).nth(0) {
+        if let Some(module) = resolve_path(
+            &core::Path::from_vec(true, vec!["std","str"]),
+            filepath,
+            pos,
+            search_type,
+            namespace,
+            session,
+            &ImportInfo::default(),
+        ).nth(0) {
             out.push(Match {
                 matchstr: "str".into(),
                 filepath: module.filepath,
@@ -1265,7 +1295,7 @@ pub fn resolve_path_with_str(
         }
 
     } else {
-        for m in resolve_path(path, filepath, pos, search_type, namespace, session, &PendingImports::empty()) {
+        for m in resolve_path(path, filepath, pos, search_type, namespace, session, &ImportInfo::default()) {
             out.push(m);
             if let ExactMatch = search_type {
                 break;
@@ -1290,7 +1320,7 @@ pub fn resolve_name(
     search_type: SearchType,
     namespace: Namespace,
     session: &Session,
-    pending_imports: &PendingImports
+    import_info: &ImportInfo,
 ) -> vec::IntoIter<Match> {
     let mut out = Vec::new();
     let searchstr = &pathseg.name;
@@ -1329,21 +1359,21 @@ pub fn resolve_name(
         }
     }
 
-    for m in search_local_scopes(pathseg, filepath, msrc.as_src(), pos, search_type, namespace, session, pending_imports) {
+    for m in search_local_scopes(pathseg, filepath, msrc.as_src(), pos, search_type, namespace, session, import_info) {
         out.push(m);
         if let ExactMatch = search_type {
             return out.into_iter();
         }
     }
 
-    for m in search_crate_root(pathseg, filepath, search_type, namespace, session, pending_imports) {
+    for m in search_crate_root(pathseg, filepath, search_type, namespace, session, import_info) {
         out.push(m);
         if let ExactMatch = search_type {
             return out.into_iter();
         }
     }
 
-    for m in search_prelude_file(pathseg, search_type, namespace, session, pending_imports) {
+    for m in search_prelude_file(pathseg, search_type, namespace, session, import_info) {
         out.push(m);
         if let ExactMatch = search_type {
             return out.into_iter();
@@ -1360,7 +1390,7 @@ pub fn resolve_name(
 
 // Get the scope corresponding to super::
 pub fn get_super_scope(filepath: &Path, pos: BytePos, session: &Session,
-                       pending_imports: &PendingImports) -> Option<core::Scope> {
+                       import_info: &ImportInfo) -> Option<core::Scope> {
     let msrc = session.load_file_and_mask_comments(filepath);
     let mut path = scopes::get_local_module_path(msrc.as_src(), pos);
     debug!("get_super_scope: path: {:?} filepath: {:?} {:?} {:?}", path, filepath, pos, session);
@@ -1388,7 +1418,7 @@ pub fn get_super_scope(filepath: &Path, pos: BytePos, session: &Session,
         let path = core::Path::from_svec(false, path);
         debug!("get_super_scope looking for local scope {:?}", path);
         resolve_path(&path, filepath, BytePos::ZERO, SearchType::ExactMatch,
-                            Namespace::Type, session, pending_imports).nth(0)
+                            Namespace::Type, session, import_info).nth(0)
             .and_then(|m| msrc[m.point.0..].find('{')
                       .map(|p| core::Scope{ filepath: filepath.to_path_buf(),
                                              point: m.point + BytePos(p + 1) }))
@@ -1402,29 +1432,29 @@ pub fn resolve_path(
     search_type: SearchType,
     namespace: Namespace,
     session: &Session,
-    pending_imports: &PendingImports,
+    import_info: &ImportInfo,
 ) -> vec::IntoIter<Match> {
     debug!("resolve_path {:?} {:?} {:?} {:?}", path, filepath.display(), pos, search_type);
     let len = path.segments.len();
     if len == 1 {
         let pathseg = &path.segments[0];
-        resolve_name(pathseg, filepath, pos, search_type, namespace, session, pending_imports)
+        resolve_name(pathseg, filepath, pos, search_type, namespace, session, import_info)
     } else if len != 0 {
         if path.segments[0].name == "self" {
             // just remove self
             let mut newpath: core::Path = path.clone();
             newpath.segments.remove(0);
-            return resolve_path(&newpath, filepath, pos, search_type, namespace, session, pending_imports);
+            return resolve_path(&newpath, filepath, pos, search_type, namespace, session, import_info);
         }
 
         if path.segments[0].name == "super" {
-            if let Some(scope) = get_super_scope(filepath, pos, session, pending_imports) {
+            if let Some(scope) = get_super_scope(filepath, pos, session, import_info) {
                 debug!("PHIL super scope is {:?}", scope);
 
                 let mut newpath: core::Path = path.clone();
                 newpath.segments.remove(0);
                 return resolve_path(&newpath, &scope.filepath,
-                                    scope.point, search_type, namespace, session, pending_imports);
+                                    scope.point, search_type, namespace, session, import_info);
             } else {
                 // can't find super scope. Return no matches
                 debug!("can't resolve path {:?}, returning no matches", path);
@@ -1435,7 +1465,7 @@ pub fn resolve_path(
         let mut out = Vec::new();
         let mut parent_path: core::Path = path.clone();
         parent_path.segments.remove(len-1);
-        let context = resolve_path(&parent_path, filepath, pos, ExactMatch, Namespace::Type, session, pending_imports).nth(0);
+        let context = resolve_path(&parent_path, filepath, pos, ExactMatch, Namespace::Type, session, import_info).nth(0);
         context.map(|m| {
             match m.mtype {
                 Module => {
@@ -1448,9 +1478,16 @@ pub fn resolve_path(
                     }
                     let pathseg = core::PathSegment{name: searchstr.to_owned(), types: Vec::new()};
                     debug!("searching a module '{}' for {} (whole path: {:?})", m.matchstr, pathseg.name, path);
-                    for m in search_next_scope(m.point, &pathseg, &m.filepath, search_type, false, namespace, session, pending_imports) {
-                        out.push(m);
-                    }
+                    out.extend(search_next_scope(
+                        m.point,
+                        &pathseg,
+                        &m.filepath,
+                        search_type,
+                        false,
+                        namespace,
+                        session,
+                        import_info,
+                    ));
                 }
                 Enum => {
                     let pathseg = &path.segments[len-1];
@@ -1479,16 +1516,25 @@ pub fn resolve_path(
 
                     for m_impl in search_for_impls(
                         m.point,
-                        &m.matchstr, &m.filepath, m.local, true, session, pending_imports) {
+                        &m.matchstr, &m.filepath, m.local, true, session, import_info) {
                         debug!("found impl!! {:?}", m_impl);
                         let pathseg = &path.segments[len-1];
                         let src = session.load_file(&m_impl.filepath);
                         // find the opening brace and skip to it.
                         if let Some(n) = src[m_impl.point.0..].find('{') {
                             let point = m_impl.point + BytePos(n + 1);
-                            for m_impl in search_scope(point, point, src.as_src(), pathseg, &m_impl.filepath, search_type, m_impl.local, namespace, session, pending_imports) {
-                                out.push(m_impl);
-                            }
+                            out.extend(search_scope(
+                                point,
+                                point,
+                                src.as_src(),
+                                pathseg,
+                                &m_impl.filepath,
+                                search_type,
+                                m_impl.local,
+                                namespace,
+                                session,
+                                import_info,
+                            ));
                         }
                         for m_gen in search_for_generic_impls(m_impl.point, &m_impl.matchstr, &m, &m_impl.filepath, session) {
                             debug!("found generic impl!! {:?}", m_gen);
@@ -1497,25 +1543,43 @@ pub fn resolve_path(
                             // find the opening brace and skip to it.
                             if let Some(n) = src[m_gen.point.0..].find('{') {
                                 let point = m_gen.point + BytePos(n + 1);
-                                for m_gen in search_scope(point, point, src.as_src(), pathseg, &m_gen.filepath, search_type, m_gen.local, namespace, session, pending_imports) {
-                                    out.push(m_gen);
-                                }
+                                out.extend(search_scope(
+                                    point,
+                                    point,
+                                    src.as_src(),
+                                    pathseg,
+                                    &m_gen.filepath,
+                                    search_type,
+                                    m_gen.local,
+                                    namespace,
+                                    session,
+                                    import_info,
+                                ));
                             }
                         }
                     };
                 }
                 Struct => {
                     debug!("found a struct. Now need to look for impl");
-                    for m_impl in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, true, session, pending_imports) {
+                    for m_impl in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, true, session, import_info) {
                         debug!("found impl!! {:?}", m_impl);
                         let pathseg = &path.segments[len-1];
                         let src = session.load_file(&m_impl.filepath);
                         // find the opening brace and skip to it.
                         if let Some(n) = src[m_impl.point.0..].find('{') {
                             let point = m_impl.point + BytePos(n + 1);
-                            for m_impl in search_scope(point, point, src.as_src(), pathseg, &m_impl.filepath, search_type, m_impl.local, namespace, session, pending_imports) {
-                                out.push(m_impl);
-                            }
+                            out.extend(search_scope(
+                                point,
+                                point,
+                                src.as_src(),
+                                pathseg,
+                                &m_impl.filepath,
+                                search_type,
+                                m_impl.local,
+                                namespace,
+                                session,
+                                import_info,
+                            ));
                         }
                         for m_gen in search_for_generic_impls(m_impl.point, &m_impl.matchstr, &m, &m_impl.filepath, session) {
                             debug!("found generic impl!! {:?}", m_gen);
@@ -1523,10 +1587,19 @@ pub fn resolve_path(
                             let src = session.load_file(&m_gen.filepath);
                             // find the opening brace and skip to it.
                             if let Some(n) = src[m_gen.point.0..].find('{') {
-                                let point = m_gen.point +BytePos(n + 1);
-                                for m_gen in search_scope(point, point, src.as_src(), pathseg, &m_gen.filepath, search_type, m_gen.local, namespace, session, pending_imports) {
-                                    out.push(m_gen);
-                                }
+                                let point = m_gen.point + BytePos(n + 1);
+                                out.extend(search_scope(
+                                    point,
+                                    point,
+                                    src.as_src(),
+                                    pathseg,
+                                    &m_gen.filepath,
+                                    search_type,
+                                    m_gen.local,
+                                    namespace,
+                                    session,
+                                    import_info,
+                                ));
                             }
                         }
                     };
@@ -1550,7 +1623,7 @@ pub fn resolve_method(
     filepath: &Path,
     search_type: SearchType,
     session: &Session,
-    pending_imports: &PendingImports
+    import_info: &ImportInfo
 ) -> Vec<Match> {
     let scopestart = scopes::scope_start(msrc, point);
     debug!("resolve_method for |{}| pt: {:?} ({:?}); scopestart: {:?} ({:?})", 
@@ -1577,7 +1650,7 @@ pub fn resolve_method(
                                      SearchType::ExactMatch,
                                      Namespace::Both,
                                      session,
-                                     pending_imports)
+                                     import_info)
                     .filter(|m| m.mtype == Trait)
                     .nth(0);
                 if let Some(m) = m {
@@ -1625,10 +1698,16 @@ pub fn do_external_search(
         // hack for now
         let pathseg = core::PathSegment{name: searchstr.to_owned(),
                                          types: Vec::new()};
-
-        for m in search_next_scope(pos, &pathseg, filepath, search_type, false, namespace, session, &PendingImports::empty()) {
-            out.push(m);
-        }
+        out.extend(search_next_scope(
+            pos,
+            &pathseg,
+            filepath,
+            search_type,
+            false,
+            namespace,
+            session,
+            &ImportInfo::default(),
+        ));
 
         if let Some(path) = get_module_file(searchstr, filepath.parent().unwrap(), session) {
             let context = path.to_str().unwrap().to_owned();
@@ -1649,7 +1728,7 @@ pub fn do_external_search(
         let parent_path = &path[..(path.len()-1)];
         let context = do_external_search(parent_path, filepath, pos, ExactMatch, Namespace::Type, session).nth(0);
         context.map(|m| {
-            let pending_imports = &PendingImports::empty();
+            let import_info = &ImportInfo::default();
             match m.mtype {
                 Module => {
                     debug!("found an external module {}", m.matchstr);
@@ -1660,14 +1739,14 @@ pub fn do_external_search(
                     };
                     let pathseg = core::PathSegment{name: searchstr.to_owned(),
                                          types: Vec::new()};
-                    for m in search_next_scope(m.point, &pathseg, &m.filepath, search_type, false, namespace, session, pending_imports) {
+                    for m in search_next_scope(m.point, &pathseg, &m.filepath, search_type, false, namespace, session, import_info) {
                         out.push(m);
                     }
                 }
 
                 Struct => {
                     debug!("found a pub struct. Now need to look for impl");
-                    for m in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, false, session, pending_imports) {
+                    for m in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, false, session, import_info) {
                         debug!("found  impl2!! {}", m.matchstr);
                         // deal with started with "{", so that "foo::{bar" will be same as "foo::bar"
                         let searchstr = match path[path.len()-1].chars().next() {
@@ -1677,7 +1756,7 @@ pub fn do_external_search(
                         let pathseg = core::PathSegment{name: searchstr.to_owned(),
                                          types: Vec::new()};
                         debug!("about to search impl scope...");
-                        for m in search_next_scope(m.point, &pathseg, &m.filepath, search_type, m.local, namespace, session, pending_imports) {
+                        for m in search_next_scope(m.point, &pathseg, &m.filepath, search_type, m.local, namespace, session, import_info) {
                             out.push(m);
                         }
                     };

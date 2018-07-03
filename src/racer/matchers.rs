@@ -12,13 +12,31 @@ use std::{str, vec};
 
 /// The location of an import (`use` item) currently being resolved.
 #[derive(PartialEq, Eq)]
-pub struct PendingImport<'fp> {
+struct PendingImport<'fp> {
     filepath: &'fp Path,
     range: ByteRange,
 }
 
 /// A stack of imports (`use` items) currently being resolved.
-pub type PendingImports<'stack, 'fp> = StackLinkedListNode<'stack, PendingImport<'fp>>;
+type PendingImports<'stack, 'fp> = StackLinkedListNode<'stack, PendingImport<'fp>>;
+
+/// Import information(pending imports, glob, and etc.)
+pub struct ImportInfo<'stack, 'fp: 'stack> {
+    /// A stack of imports currently being resolved
+    imports: PendingImports<'stack, 'fp>,
+    /// the max number of times where we can go through glob continuously
+    /// if current search path isn't constructed via glob, it's none
+    glob_limit: Option<usize>,
+}
+
+impl<'stack, 'fp: 'stack> Default for ImportInfo<'stack, 'fp> {
+    fn default() -> Self {
+        ImportInfo {
+            imports: PendingImports::empty(),
+            glob_limit: None,
+        }
+    }
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct MatchCxt<'s, 'p> {
@@ -50,7 +68,7 @@ pub fn match_types(
     src: Src,
     context: &MatchCxt,
     session: &Session,
-    pending_imports: &PendingImports
+    pending_imports: &ImportInfo
 ) -> impl Iterator<Item = Match> {
     match_extern_crate(&src, context, session).into_iter()
         .chain(match_mod(src, context, session))
@@ -537,7 +555,7 @@ pub fn match_use(
     msrc: &str,
     context: &MatchCxt,
     session: &Session,
-    pending_imports: &PendingImports
+    import_info: &ImportInfo,
 ) -> Vec<Match> {
     let import = PendingImport {
         filepath: context.filepath,
@@ -548,13 +566,13 @@ pub fn match_use(
 
     // If we're trying to resolve the same import recursively,
     // do not return any matches this time.
-    if pending_imports.contains(&import) {
+    if import_info.imports.contains(&import) {
         debug!("import {} involved in a cycle; ignoring", blob);
         return Vec::new();
     }
 
     // Push this import on the stack of pending imports.
-    let pending_imports = &pending_imports.push(import);
+    let pending_imports = import_info.imports.push(import);
 
     let mut out = Vec::new();
 
@@ -571,19 +589,23 @@ pub fn match_use(
     if !use_item.contains_glob && !txt_matches(context.search_type, context.search_str, blob) {
         return out;
     }
+    let mut import_info = ImportInfo {
+        imports: pending_imports,
+        glob_limit: import_info.glob_limit,
+    };
     // common utilities
     macro_rules! with_match {
         ($path:expr, $f:expr) => {
-            if let Some(mut m) = resolve_path(
+            let path_iter = resolve_path(
                 $path,
                 context.filepath,
                 context.range.start,
                 ExactMatch,
                 Namespace::Both,
                 session,
-                pending_imports,
-            ).nth(0)
-            {
+                &import_info,
+            );
+            for mut m in path_iter {
                 $f(&mut m);
                 out.push(m);
                 if context.search_type == ExactMatch {
@@ -622,6 +644,17 @@ pub fn match_use(
                 }
             }
             ast::PathAliasKind::Glob => {
+                let glob_depth_reserved = if let Some(ref mut d) = import_info.glob_limit {
+                    if *d == 0 {
+                        continue;
+                    }
+                    *d -= 1;
+                    Some(*d + 1)
+                } else {
+                    // heuristics for issue #844
+                    import_info.glob_limit = Some(3);
+                    None
+                };
                 let mut search_path = path_alias.path;
                 search_path.segments.push(PathSegment {
                     name: context.search_str.to_owned(),
@@ -634,18 +667,14 @@ pub fn match_use(
                     context.search_type,
                     Namespace::Both,
                     session,
-                    pending_imports,
+                    &import_info,
                 );
-                if context.search_type == StartsWith {
-                    return path_iter.collect();
-                }
+                import_info.glob_limit = glob_depth_reserved;
                 debug!(
-                    "[match_use] resolve_path returned {:?} for PathAliasKind::Glob",
-                    path_iter
+                    "[match_use] resolve_path returned {:?} for Glob",
+                    path_iter,
                 );
-                if let Some(m) = path_iter.nth(0) {
-                    out.push(m);
-                }
+                out.extend(path_iter);
             }
         }
     }

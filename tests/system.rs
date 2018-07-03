@@ -3779,6 +3779,25 @@ fn follows_use_aliased_self() {
     assert_eq!(got.matchstr, "new");
 }
 
+// for use_nested_groups
+#[test]
+fn use_tree_complete_all() {
+    let src = r"
+    mod MyMod {
+        pub enum MyEnum {
+            ErrorKind1,
+            ErrorKind2,
+        }
+        pub struct ErrorInfo;
+    }
+    use self::MyMod::{MyEnum::*, ErrorInfo};
+    let a = Erro~
+    ";
+    let got = get_all_completions(src, None);
+    assert!(got.iter().any(|ma| ma.matchstr == "ErrorKind1"));
+    assert!(got.iter().any(|ma| ma.matchstr == "ErrorInfo"));
+}
+
 // test for re-export
 #[test]
 fn follows_use_for_reexport() {
@@ -3990,4 +4009,40 @@ mod trait_bounds {
         ";
         assert_eq!(get_only_completion(src, None).matchstr, "inherited");
     }
+}
+
+#[test]
+fn recursive_glob_depth4() {
+    let src = "
+    use mod1::*;
+    use mod2::*;
+    use mod3::*;
+    use Bar::*;
+
+    mod mod1 { pub mod mod2 { pub mod mod3 {
+        pub enum Bar { MyVariant, MyVariant2 }
+    }}}
+    MyVa~riant
+    ";
+    let got = get_definition(src, None);
+    assert_eq!("MyVariant", got.matchstr);
+}
+
+#[test]
+#[should_panic]
+fn recursive_glob_depth5() {
+    let src = "
+    use mod1::*;
+    use mod2::*;
+    use mod3::*;
+    use mod4::*;
+    use Bar::*;
+
+    mod mod1 { pub mod mod2 { pub mod mod3 { pub mod mod4 {
+        pub enum Bar { MyVariant, MyVariant2 }
+    }}}}
+    MyVa~riant
+    ";
+    let got = get_definition(src, None);
+    assert_eq!("MyVariant", got.matchstr);
 }
