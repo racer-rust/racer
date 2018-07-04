@@ -4046,3 +4046,13 @@ fn recursive_glob_depth5() {
     let got = get_definition(src, None);
     assert_eq!("MyVariant", got.matchstr);
 }
+
+#[test]
+fn completes_const_unsafe_fn() {
+    let src = r"
+    const unsafe fn unsafe_func() {}
+    let var = unsafe_fu~
+";
+    let got = get_only_completion(src, None);
+    assert_eq!("unsafe_func", got.matchstr);
+}

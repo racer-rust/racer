@@ -1,7 +1,7 @@
 use cargo::core::{
     registry::PackageRegistry, resolver::{EncodableResolve, Method, Resolve}, Workspace,
 };
-use cargo::ops::{self, resolve_with_previous};
+use cargo::ops::resolve_with_previous;
 use cargo::util::{errors::CargoResult, important_paths::find_root_manifest_for_wd, toml};
 use cargo::Config;
 use core::Session;

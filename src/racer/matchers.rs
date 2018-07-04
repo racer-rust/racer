@@ -7,6 +7,7 @@ use core::SearchType::{self, StartsWith, ExactMatch};
 use core::MatchType::{self, Let, Module, Function, Struct, Type, Trait, Enum, EnumVariant,
                       Const, Static, IfLet, WhileLet, For, Macro};
 use core::Namespace;
+use regex::Regex;
 use std::path::Path;
 use std::{str, vec};
 
@@ -49,8 +50,6 @@ pub struct MatchCxt<'s, 'p> {
 
 impl<'s, 'p> MatchCxt<'s, 'p> {
     fn get_keyword(&self, blob: &str, keyword: &str) -> Option<(BytePos, String)> {
-        // let tmp = find_keyword(blob, keyword, self);
-        // println!("blob: {}, key: {}, res: {:?}, self: {:?}", blob, keyword, tmp, self);
         find_keyword(blob, keyword, self).map(|start| {
             let s = match self.search_type {
                 ExactMatch => self.search_str.to_owned(),
@@ -150,7 +149,6 @@ fn find_keyword_impl(
             start += prefix_len;
         }
     }
-
     // mandatory pattern\s+
     if src[start.0..].starts_with(pattern) {
         // remove whitespaces ... must have one at least
@@ -185,8 +183,46 @@ fn find_keyword_impl(
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum FnType {
+    Const,
+    ConstUnsafe,
+    Normal,
+}
+
+impl FnType {
+    // TODO: it should return regex
+    fn to_keyword(self) -> &'static str {
+        match self {
+            FnType::Const => "const fn",
+            FnType::ConstUnsafe => "const unsafe fn",
+            FnType::Normal => "fn",
+        }
+    }
+}
+
+fn get_fn_type(src: &str, blob_range: ByteRange) -> Option<FnType> {
+    lazy_static! {
+        static ref RE: Regex = Regex::new(r"(const)?\s*(unsafe)?\s*fn").unwrap();
+    }
+    let cap = RE.captures(&src[blob_range.to_range()])?;
+    if cap.get(0).is_none() {
+        return None;
+    }
+    let has_const = cap.get(1).is_some();
+    let has_unsafe = cap.get(2).is_some();
+    Some(if has_const && has_unsafe {
+        FnType::ConstUnsafe
+    } else if has_const {
+        FnType::Const
+    } else {
+        FnType::Normal
+    })
+}
+
 fn is_const_fn(src: &str, blob_range: ByteRange) -> bool {
-    src[blob_range.to_range()].contains("const fn")
+    let res = get_fn_type(src, blob_range);
+    res == Some(FnType::Const) || res == Some(FnType::ConstUnsafe)
 }
 
 fn match_pattern_start(
@@ -686,8 +722,7 @@ pub fn match_fn(msrc: &str, context: &MatchCxt) -> Option<Match> {
     if typeinf::first_param_is_self(blob) {
         return None;
     }
-    // TODO: too hacky
-    let keyword = if is_const_fn(msrc, context.range) { "const fn" } else { "fn" };
+    let keyword = get_fn_type(msrc, context.range)?.to_keyword();
     let (start, s) = context.get_keyword(blob, keyword)?;
     debug!("found a fn {}", s);
     let start = context.range.start + start;
