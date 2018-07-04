@@ -12,7 +12,8 @@
 
 ## Installation
 
-*NOTE* from 2.1, racer needs nightly rust
+**NOTE**
+From 2.1, racer needs nightly rust
 
 ### Requirements
 
@@ -23,8 +24,8 @@ If you're using rustup, run
 rustup toolchain add nightly
 ```
 
-#### Dependencies of `cargo`
-Now racer depends on `cargo`, so you have to install its dependency
+#### Dependencies of cargo
+From 2.1, racer depends on cargo, so you have to install its dependencies
 
 On Linux, you will need [cmake](https://cmake.org/), [pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/)
 and [zlib](http://zlib.net/):
@@ -40,7 +41,7 @@ It's a bit confusing and we're plannig to remove this dependency in the futute.
 
 Simply run:
 
-```cargo install racer```
+```cargo +nightly install racer```
 
 As mentioned in the command output, don't forget to add the installation directory to your `PATH`.
 
@@ -48,7 +49,7 @@ As mentioned in the command output, don't forget to add the installation directo
 
 1. Clone the repository: ```git clone https://github.com/racer-rust/racer.git```
 
-2. ```cd racer; cargo build --release```.  The binary will now be in ```./target/release/racer```
+2. ```cd racer; cargo +nightly build --release```.  The binary will now be in ```./target/release/racer```
 
 3. Add the binary to your `PATH`. This can be done by moving it to a directory already in your `PATH` (i.e. `/usr/local/bin`) or by adding the `./target/release/` directory to your `PATH`
 
