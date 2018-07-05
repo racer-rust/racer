@@ -49,8 +49,8 @@ pub struct MatchCxt<'s, 'p> {
 }
 
 impl<'s, 'p> MatchCxt<'s, 'p> {
-    fn get_keyword(&self, blob: &str, keyword: &str) -> Option<(BytePos, String)> {
-        find_keyword(blob, keyword, self).map(|start| {
+    fn get_key_ident(&self, blob: &str, keywords: &[&str]) -> Option<(BytePos, String)> {
+        find_keywords(blob, keywords, self).map(|start| {
             let s = match self.search_type {
                 ExactMatch => self.search_str.to_owned(),
                 StartsWith => {
@@ -85,43 +85,25 @@ pub fn match_values(src: Src, context: &MatchCxt) -> impl Iterator<Item=Match> {
         .chain(match_macro(&src, context))
 }
 
-fn strip_keyword_prefix(src: &str, keyword: &str) -> Option<BytePos> {
-    let mut start = 0usize;
-    if src.starts_with(keyword) {
-        // Rust added support for `pub(in codegen)`; we need to consume the visibility
-        // specifier for the rest of the code to keep working.
-        let allow_scope = keyword == "pub";
-        let mut levels = 0;
-
-        // remove whitespaces ... must have one at least AFTER the visibility restriction
-        start += keyword.len();
-        let oldstart = start;
-        for &b in src[start..].as_bytes() {
-            match b {
-                b'(' if allow_scope => {
-                    levels += 1;
-                    start += 1;
-                }
-                b')' if levels >= 1 => {
-                    levels -= 1;
-                    start += 1;
-                }
-                _ if levels >= 1 => {
-                    start += 1;
-                }
-                b' ' | b'\r' | b'\n' | b'\t' => start += 1,
-                _ => break
-            }
-        }
-        if start != oldstart { return Some(start.into()); }
+/// remove pub(crate), crate, unsafe and return keyword start
+fn strip_keyword_prefixes(src: &str) -> Option<(BytePos, bool)> {
+    lazy_static! {
+        static ref KEY_PREFIX: Regex = Regex::new(r"(?x)
+(?P<visibility>(pub(\((in\s*)?(\w|:)*\))?) # pub(crate), pub(super), pub(in foo) etc
+|(crate))? # crate
+\s*(unsafe)? # unsafe
+\s*(?P<keyword>\w*) # keyword
+.*
+").unwrap();
     }
-    None
+    let caps = KEY_PREFIX.captures(src)?;
+    caps.name("keyword").map(|ma| (BytePos(ma.start()), caps.name("visibility").is_some()))
 }
 
-fn find_keyword(src: &str, pattern: &str, context: &MatchCxt) -> Option<BytePos> {
+fn find_keywords(src: &str, patterns: &[&str], context: &MatchCxt) -> Option<BytePos> {
     find_keyword_impl(
         src,
-        pattern,
+        patterns,
         context.search_str,
         context.search_type,
         context.is_local,
@@ -130,27 +112,22 @@ fn find_keyword(src: &str, pattern: &str, context: &MatchCxt) -> Option<BytePos>
 
 fn find_keyword_impl(
     src: &str,
-    pattern: &str,
+    patterns: &[&str],
     search_str: &str,
     search_type: SearchType,
     is_local: bool,
 ) -> Option<BytePos> {
     // search for "^(pub\s+)?(unsafe\s+)?pattern\s+search"
 
-    // if not local must start with pub
-    // TODO: we should add support for crate_visibility_modifier(kngwyu)
-    if !is_local && !src.starts_with("pub") { return None; }
-
-    let mut start = BytePos::ZERO;
-
-    // optional (pub\s+)?(unsafe\s+)?
-    for pat in &["pub", "unsafe"] {
-        if let Some(prefix_len) = strip_keyword_prefix(&src[start.0..], pat) {
-            start += prefix_len;
-        }
+    let (mut start, has_visibility) = strip_keyword_prefixes(&src[..])?;
+    if !is_local && !has_visibility {
+        return None;
     }
     // mandatory pattern\s+
-    if src[start.0..].starts_with(pattern) {
+    for pattern in patterns {
+        if !src[start.0..].starts_with(pattern) {
+            return None;
+        }
         // remove whitespaces ... must have one at least
         start += pattern.len().into();
         let oldstart = start;
@@ -161,8 +138,6 @@ fn find_keyword_impl(
             }
         }
         if start == oldstart { return None; }
-    } else {
-        return None;
     }
 
     let search_str_len = search_str.len();
@@ -192,11 +167,11 @@ enum FnType {
 
 impl FnType {
     // TODO: it should return regex
-    fn to_keyword(self) -> &'static str {
+    fn to_keywords(self) -> &'static [&'static str] {
         match self {
-            FnType::Const => "const fn",
-            FnType::ConstUnsafe => "const unsafe fn",
-            FnType::Normal => "fn",
+            FnType::Const => &["const", "fn"],
+            FnType::ConstUnsafe => &["const", "unsafe", "fn"],
+            FnType::Normal => &["fn"],
         }
     }
 }
@@ -235,7 +210,7 @@ fn match_pattern_start(
     // string search
 
     let blob = &src[context.range.to_range()];
-    if let Some(start) = find_keyword(blob, pattern, context) {
+    if let Some(start) = find_keywords(blob, &[pattern], context) {
         if let Some(end) = blob[start.0..].find(':') {
             let s = blob[start.0..start.0 + end].trim_right();
             return Some(Match {
@@ -356,7 +331,7 @@ pub fn match_extern_crate(msrc: &str, context: &MatchCxt, session: &Session) -> 
 
     // Temporary fix to parse reexported crates by skipping pub
     // keyword until racer understands crate visibility.
-    if let Some(start) = strip_keyword_prefix(blob, "pub") {
+    if let Some((start, _)) = strip_keyword_prefixes(blob) {
         blob = &blob[start.0..];
     }
 
@@ -395,7 +370,7 @@ pub fn match_extern_crate(msrc: &str, context: &MatchCxt, session: &Session) -> 
 
 pub fn match_mod(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Match> {
     let blob = &msrc[context.range.to_range()];
-    let (start, s) = context.get_keyword(blob, "mod")?;
+    let (start, s) = context.get_key_ident(blob, &["mod"])?;
     if blob.find('{').is_some() {
         debug!("found a module inline: |{}|", blob);
         return Some(Match {
@@ -466,7 +441,7 @@ pub fn match_mod(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Mat
 
 pub fn match_struct(msrc: &str, context: &MatchCxt) -> Option<Match> {
     let blob = &msrc[context.range.to_range()];
-    let (start, s) = context.get_keyword(blob, "struct")?;
+    let (start, s) = context.get_key_ident(blob, &["struct"])?;
 
     debug!("found a struct |{}|", s);
 
@@ -497,7 +472,7 @@ pub fn match_struct(msrc: &str, context: &MatchCxt) -> Option<Match> {
 
 pub fn match_type(msrc: &str, context: &MatchCxt) -> Option<Match> {
     let blob = &msrc[context.range.to_range()];
-    let (start, s) = context.get_keyword(blob, "type")?;
+    let (start, s) = context.get_key_ident(blob, &["type"])?;
     debug!("found!! a type {}", s);
     let start = context.range.start + start;
     Some(Match {
@@ -516,7 +491,7 @@ pub fn match_type(msrc: &str, context: &MatchCxt) -> Option<Match> {
 
 pub fn match_trait(msrc: &str, context: &MatchCxt) -> Option<Match> {
     let blob = &msrc[context.range.to_range()];
-    let (start, s) = context.get_keyword(blob, "trait")?;
+    let (start, s) = context.get_key_ident(blob, &["trait"])?;
     debug!("found!! a trait {}", s);
     let start = context.range.start + start;
     Some(Match {
@@ -565,7 +540,7 @@ pub fn match_enum_variants(msrc: &str, context: &MatchCxt) -> vec::IntoIter<Matc
 
 pub fn match_enum(msrc: &str, context: &MatchCxt) -> Option<Match> {
     let blob = &msrc[context.range.to_range()];
-    let (start, s) = context.get_keyword(blob, "enum")?;
+    let (start, s) = context.get_key_ident(blob, &["enum"])?;
 
     debug!("found!! an enum |{}|", s);
     // Parse generics
@@ -612,7 +587,7 @@ pub fn match_use(
 
     let mut out = Vec::new();
 
-    if find_keyword_impl(blob, "use", "", StartsWith, context.is_local).is_none() {
+    if find_keyword_impl(blob, &["use"], "", StartsWith, context.is_local).is_none() {
         return out;
     }
 
@@ -722,8 +697,8 @@ pub fn match_fn(msrc: &str, context: &MatchCxt) -> Option<Match> {
     if typeinf::first_param_is_self(blob) {
         return None;
     }
-    let keyword = get_fn_type(msrc, context.range)?.to_keyword();
-    let (start, s) = context.get_keyword(blob, keyword)?;
+    let keywords = get_fn_type(msrc, context.range)?.to_keywords();
+    let (start, s) = context.get_key_ident(blob, keywords)?;
     debug!("found a fn {}", s);
     let start = context.range.start + start;
     Some(Match {
@@ -745,7 +720,7 @@ pub fn match_macro(msrc: &str, context: &MatchCxt) -> Option<Match> {
     let mut context = context.clone();
     context.search_str = trimed;
     let blob = &msrc[context.range.to_range()];
-    let (start, mut s) = context.get_keyword(blob, "macro_rules!")?;
+    let (start, mut s) = context.get_key_ident(blob, &["macro_rules!"])?;
     s.push('!');
     debug!("found a macro {}", s);
     Some(Match {
