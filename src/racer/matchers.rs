@@ -85,19 +85,53 @@ pub fn match_values(src: Src, context: &MatchCxt) -> impl Iterator<Item=Match> {
         .chain(match_macro(&src, context))
 }
 
-/// remove pub(crate), crate, unsafe and return keyword start
-fn strip_keyword_prefixes(src: &str) -> Option<(BytePos, bool)> {
-    lazy_static! {
-        static ref KEY_PREFIX: Regex = Regex::new(r"(?x)
-(?P<visibility>(pub(\((in\s*)?(\w|:)*\))?) # pub(crate), pub(super), pub(in foo) etc
-|(crate))? # crate
-\s*(unsafe)? # unsafe
-\s*(?P<keyword>\w*) # keyword
-.*
-").unwrap();
+// don't use other than strip_visibilities or strip_unsafe
+fn strip_impl(src: &str, allow_paren: bool) -> Option<BytePos> {
+    let mut offset = BytePos::ZERO;
+    let mut levels = 0;
+    for &b in src.as_bytes() {
+        match b {
+            b'(' if allow_paren => {
+                levels += 1;
+                offset = offset.increment();
+            }
+            b')' if levels >= 1 => {
+                levels -= 1;
+                offset = offset.increment();
+            }
+            _ if levels >= 1 => {
+                offset = offset.increment();
+            }
+            b' ' | b'\r' | b'\n' | b'\t' => offset = offset.increment(),
+            _ => break
+        }
     }
-    let caps = KEY_PREFIX.captures(src)?;
-    caps.name("keyword").map(|ma| (BytePos(ma.start()), caps.name("visibility").is_some()))
+    if offset == BytePos::ZERO {
+        None
+    } else {
+        Some(offset)
+    }
+}
+
+/// remove pub(crate), crate
+fn strip_visivilities(src: &str) -> Option<BytePos> {
+    if src.starts_with("pub") {
+        Some(strip_impl(&src[3..], true)? + BytePos(3))
+    } else if src.starts_with("crate") {
+        Some(strip_impl(&src[5..], false)? + BytePos(5))
+    } else {
+        None
+    }
+}
+
+/// remove `unsafe` or other keywords
+fn strip_word(src: &str, word: &str) -> Option<BytePos> {
+    if src.starts_with(word) {
+        let len = word.len();
+        Some(strip_impl(&src[len..], false)? + BytePos(len))
+    } else {
+        None
+    }
 }
 
 fn find_keywords(src: &str, patterns: &[&str], context: &MatchCxt) -> Option<BytePos> {
@@ -117,11 +151,17 @@ fn find_keyword_impl(
     search_type: SearchType,
     is_local: bool,
 ) -> Option<BytePos> {
-    // search for "^(pub\s+)?(unsafe\s+)?pattern\s+search"
+    let mut start = BytePos::ZERO;
 
-    let (mut start, has_visibility) = strip_keyword_prefixes(&src[..])?;
-    if !is_local && !has_visibility {
+    if let Some(offset) = strip_visivilities(&src[..]) {
+        start += offset;
+    } else if !is_local {
+        // TODO: too about
         return None;
+    }
+
+    if let Some(offset) = strip_word(&src[start.0..], "unsafe") {
+        start += offset;
     }
     // mandatory pattern\s+
     for pattern in patterns {
@@ -331,8 +371,8 @@ pub fn match_extern_crate(msrc: &str, context: &MatchCxt, session: &Session) -> 
 
     // Temporary fix to parse reexported crates by skipping pub
     // keyword until racer understands crate visibility.
-    if let Some((start, _)) = strip_keyword_prefixes(blob) {
-        blob = &blob[start.0..];
+    if let Some(offset) = strip_visivilities(blob) {
+        blob = &blob[offset.0..];
     }
 
     // TODO: later part is really necessary?
