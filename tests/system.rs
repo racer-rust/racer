@@ -4056,9 +4056,20 @@ fn completes_const_unsafe_fn() {
     let got = get_only_completion(src, None);
     assert_eq!("unsafe_func", got.matchstr);
     let src = r"
-    const    unsafe   fn   unsafe_func() {}
+    pub const    unsafe   fn   unsafe_func() {}
     let var = unsafe_fu~
 ";
     let got = get_only_completion(src, None);
     assert_eq!("unsafe_func", got.matchstr);
 }
+
+#[test]
+fn completes_fn_with_crate_visibility_modifier() {
+    let src = r"
+    crate unsafe fn unsafe_func() {}
+    let var = unsafe_fu~
+";
+    let got = get_only_completion(src, None);
+    assert_eq!("unsafe_func", got.matchstr);
+}
+
