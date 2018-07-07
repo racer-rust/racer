@@ -3,9 +3,13 @@ name = "test-crate3"
 version = "0.1.0"
 authors = ["kngwyu <yuji.kngw.80s.revive@gmail.com>"]
 description = "test crate for patch.crates-io"
+workspace = ".."
 
-[dependencies]
-rand = "0.5.0"
+[dependencies.rand]
+version = "0.5.0"
+default-features = false
+features = []
 
-[patch.crates-io]
-rand = { git = "https://github.com/rust-lang-nursery/rand.git", rev = "ea9fc2e5357dcf5d0497aa332cd0f8050017e3ec"}
+[patch.crates-io.rand]
+git = "https://github.com/rust-lang-nursery/rand.git"
+rev = "ea9fc2e5357dcf5d0497aa332cd0f8050017e3ec"
