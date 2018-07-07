@@ -33,6 +33,7 @@ fn completes_methods_for_file_open(b: &mut Bencher) {
     let src = r#"
     use std::io;
     use std::io::prelude::*;
+    use std::fs::File;
     let mut f = File::open("no-file-here"):
     f.~
 "#;
