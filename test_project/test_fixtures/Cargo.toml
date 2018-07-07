@@ -2,6 +2,7 @@
 name = "test_fixtures"
 version = "0.1.0"
 authors = ["jaxx"]
+workspace = ".."
 
 [lib]
 name = "fixtures"

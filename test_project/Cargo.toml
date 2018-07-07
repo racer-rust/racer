@@ -1,5 +1,7 @@
 [package]
+publish = false
 name = "test_project"
+description = "crate for testing racer's functionalities"
 version = "0.1.0"
 authors = ["Joe Wilm <joe@jwilm.com>"]
 
@@ -7,3 +9,5 @@ authors = ["Joe Wilm <joe@jwilm.com>"]
 test_fixtures = { path = "./test_fixtures" }
 test-crate2 = { path = "./test-crate2"}
 
+[workspace]
+members = ["test-crate2", "test-crate3", "test_fixtures"]
