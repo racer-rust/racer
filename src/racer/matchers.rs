@@ -20,6 +20,7 @@ struct PendingImport<'fp> {
 /// A stack of imports (`use` items) currently being resolved.
 type PendingImports<'stack, 'fp> = StackLinkedListNode<'stack, PendingImport<'fp>>;
 
+const GLOB_LIMIT: usize = 3;
 /// Import information(pending imports, glob, and etc.)
 pub struct ImportInfo<'stack, 'fp: 'stack> {
     /// A stack of imports currently being resolved
@@ -628,7 +629,7 @@ pub fn match_use(
                     Some(*d + 1)
                 } else {
                     // heuristics for issue #844
-                    import_info.glob_limit = Some(3);
+                    import_info.glob_limit = Some(GLOB_LIMIT - 1);
                     None
                 };
                 let mut search_path = path_alias.path;

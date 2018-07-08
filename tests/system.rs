@@ -4012,6 +4012,23 @@ mod trait_bounds {
 }
 
 #[test]
+fn recursive_glob_depth3() {
+    let src = "
+    use mod1::*;
+    use mod2::*;
+    use Bar::*;
+
+    mod mod1 { pub mod mod2 {
+        pub enum Bar { MyVariant, MyVariant2 }
+    }}
+    MyVa~riant
+    ";
+    let got = get_definition(src, None);
+    assert_eq!("MyVariant", got.matchstr);
+}
+
+#[test]
+#[should_panic]
 fn recursive_glob_depth4() {
     let src = "
     use mod1::*;
@@ -4028,24 +4045,6 @@ fn recursive_glob_depth4() {
     assert_eq!("MyVariant", got.matchstr);
 }
 
-#[test]
-#[should_panic]
-fn recursive_glob_depth5() {
-    let src = "
-    use mod1::*;
-    use mod2::*;
-    use mod3::*;
-    use mod4::*;
-    use Bar::*;
-
-    mod mod1 { pub mod mod2 { pub mod mod3 { pub mod mod4 {
-        pub enum Bar { MyVariant, MyVariant2 }
-    }}}}
-    MyVa~riant
-    ";
-    let got = get_definition(src, None);
-    assert_eq!("MyVariant", got.matchstr);
-}
 
 #[test]
 fn completes_const_unsafe_fn() {
