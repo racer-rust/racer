@@ -595,6 +595,9 @@ fn strip_word_impl(src: &str, allow_paren: bool) -> Option<BytePos> {
             _ if level >= 1 => (),
             // stop on the first thing that isn't whitespace
             _ if !is_whitespace_byte(b) => {
+                if i == 0 {
+                    break;
+                }
                 return Some(BytePos(i));
             },
             _ => continue,

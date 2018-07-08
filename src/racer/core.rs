@@ -1182,19 +1182,13 @@ fn complete_from_file_(
             // 1. The line is use contextstr::{A, B, C, searchstr
             // 2. The line started with contextstr or ::
             // 3. FIXME(may not correct): Neither above case, then expr parsed above is corrected
-            let linestart = scopes::find_stmt_start(src.as_src(), pos).unwrap_or_else(|| scopes::get_line(src_text, pos));
+            let linestart = scopes::find_stmt_start(src.as_src(), pos)
+                .unwrap_or_else(|| scopes::get_line(src_text, pos));
 
             // step 1, get full line, take the rightmost part split by semicolon
             //   prevent the case that someone write multiple line in one line
             let line = src_text[linestart.0..pos.0].trim().rsplit(';').nth(0).unwrap();
             debug!("Complete path with line: {:?}", line);
-
-            // Test if the **path expression** starts with `::`, in which case the path
-            // should be checked against the global namespace rather than the items currently
-            // in scope.
-            let is_global = expr.starts_with("::");
-            let is_use = line.starts_with("use ");
-
             // when in the function ident position, only look for methods
             // from a trait to complete.
             if util::in_fn_name(line) {
@@ -1211,17 +1205,18 @@ fn complete_from_file_(
                 )
             }
 
-            let v = (if is_use {
-                // trim the `use ` statement
-                &line[4..]
-            } else if is_global {
-                // trim the leading semi-colon
-                &expr[2..]
+            let path = if let Some(use_start) = scopes::use_stmt_start(line) {
+                scopes::construct_path_from_use_tree(&line[use_start.0..])
             } else {
-                expr
-            }).split("::").collect::<Vec<_>>();
-
-            let path = Path::from_vec(is_global, v);
+                let is_global = expr.starts_with("::");
+                let v: Vec<_> = (if is_global {
+                    &expr[2..]
+                } else {
+                    expr
+                }).split("::").collect();
+                Path::from_vec(is_global, v)
+            };
+            debug!("path: {:?}, is_global: {:?}", path, path.global);
             out.extend(nameres::resolve_path(
                 &path,
                 filepath,

@@ -130,7 +130,7 @@ fn find_keyword_impl(
     let oldstart = start;
     for &b in src[start.0..].as_bytes() {
         match b {
-            b' '|b'\r'|b'\n'|b'\t' => start = start.increment(),
+            b if is_whitespace_byte(b) => start = start.increment(),
             _ => break
         }
     }
