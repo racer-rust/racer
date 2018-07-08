@@ -11,16 +11,20 @@ pub const PATH_SEP: char = ':';
 #[cfg(windows)]
 pub const PATH_SEP: char = ';';
 
-pub fn is_pattern_char(c: char) -> bool {
+pub(crate) fn is_pattern_char(c: char) -> bool {
     c.is_alphanumeric() || c.is_whitespace() || (c == '_') || (c == ':') || (c == '.')
 }
 
-pub fn is_search_expr_char(c: char) -> bool {
+pub(crate) fn is_search_expr_char(c: char) -> bool {
     c.is_alphanumeric() || (c == '_') || (c == ':') || (c == '.')
 }
 
-pub fn is_ident_char(c: char) -> bool {
+pub(crate) fn is_ident_char(c: char) -> bool {
     c.is_alphanumeric() || (c == '_') || (c == '!')
+}
+
+pub(crate) fn is_whitespace_byte(b: u8) -> bool {
+    b == b' ' || b == b'\r' || b == b'\n' || b == b'\t'
 }
 
 /// Searches for `needle` as a standalone identifier in `haystack`. To be considered a match,
@@ -581,31 +585,71 @@ impl<'stack, T: PartialEq> StackLinkedListNode<'stack, T> {
     }
 }
 
-/// Removes `pub(...)` from the start of a blob so that other code
-/// can assess the struct/trait/fn without worrying about restricted
-/// visibility.
-pub fn trim_visibility(blob: &str) -> &str {
-    if !blob.trim_left().starts_with("pub") {
-        return blob
-    }
-
+// don't use other than strip_visibilities or strip_unsafe
+fn strip_word_impl(src: &str, allow_paren: bool) -> Option<BytePos> {
     let mut level = 0;
-    let mut skip_restricted = 0;
-    for (i, c) in blob[3..].char_indices() {
-        match c {
-            '(' => level += 1,
-            ')' => level -= 1,
+     for (i, &b) in src.as_bytes().into_iter().enumerate() {
+        match b {
+            b'(' if allow_paren => level += 1,
+            b')' if allow_paren => level -= 1,
             _ if level >= 1 => (),
             // stop on the first thing that isn't whitespace
-            _ if is_ident_char(c) => {
-                skip_restricted = i + 3;
-                break;
+            _ if !is_whitespace_byte(b) => {
+                return Some(BytePos(i));
             },
             _ => continue,
         }
     }
+    None
+}
 
-    &blob[skip_restricted..]
+/// remove pub(crate), crate
+pub(crate) fn strip_visivilities(src: &str) -> Option<BytePos> {
+    if src.starts_with("pub") {
+        Some(strip_word_impl(&src[3..], true)? + BytePos(3))
+    } else if src.starts_with("crate") {
+        Some(strip_word_impl(&src[5..], false)? + BytePos(5))
+    } else {
+        None
+    }
+}
+
+/// remove `unsafe` or other keywords
+pub(crate) fn strip_word(src: &str, word: &str) -> Option<BytePos> {
+    if src.starts_with(word) {
+        let len = word.len();
+        Some(strip_word_impl(&src[len..], false)? + BytePos(len))
+    } else {
+        None
+    }
+}
+
+/// remove words
+pub(crate) fn strip_words(src: &str, words: &[&str]) -> BytePos {
+    let mut start = BytePos::ZERO;
+    for word in words {
+        start += strip_word(&src[start.0..], word).unwrap_or(BytePos::ZERO);
+    }
+    start
+}
+
+#[test]
+fn test_strip_words() {
+    assert_eq!(strip_words("const  unsafe  fn", &["const", "unsafe"]), BytePos(15));
+    assert_eq!(strip_words("unsafe  fn", &["const", "unsafe"]), BytePos(8));
+    assert_eq!(strip_words("const   fn", &["const", "unsafe"]), BytePos(8));
+    assert_eq!(strip_words("fn", &["const", "unsafe"]), BytePos(0));
+}
+
+/// Removes `pub(...)` from the start of a blob so that other code
+/// can assess the struct/trait/fn without worrying about restricted
+/// visibility.
+pub(crate) fn trim_visibility(blob: &str) -> &str {
+    if let Some(start) = strip_visivilities(blob) {
+        &blob[start.0..]
+    } else {
+        blob
+    }
 }
 
 #[test]
