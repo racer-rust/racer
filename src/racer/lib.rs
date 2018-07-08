@@ -12,6 +12,7 @@ extern crate cargo;
 extern crate syntax;
 #[macro_use]
 extern crate derive_more;
+extern crate regex;
 extern crate rls_span;
 
 #[macro_use]
