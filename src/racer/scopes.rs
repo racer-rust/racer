@@ -629,6 +629,10 @@ fn test_construct_path_from_use_tree() {
         get_path_idents("std::{collections::{HashMap, "),
         vec!["std", "collections", ""],
     );
+    assert_eq!(
+        get_path_idents("std::collections::{"),
+        vec!["std", "collections", ""],
+    );
 }
 
 

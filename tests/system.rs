@@ -4086,4 +4086,10 @@ fn follows_complicated_use() {
     ";
     let got = get_all_completions(src, None);
     assert!(got.into_iter().any(|ma| ma.matchstr == "HashMap"));
+
+    let src = "
+    crate use std::{collections::{~
+    ";
+    let got = get_all_completions(src, None);
+    assert!(got.into_iter().any(|ma| ma.matchstr == "HashMap"));
 }
