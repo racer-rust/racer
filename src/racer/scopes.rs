@@ -51,18 +51,20 @@ pub fn scope_start(src: Src, point: BytePos) -> BytePos {
     if curly_parent_open_pos > BytePos::ZERO
         && masked_src[..curly_parent_open_pos.0].ends_with("::{")
     {
-        if let Some(pos) = masked_src[..curly_parent_open_pos.0]
+        let pos = if let Some(pos) = masked_src[..curly_parent_open_pos.0]
             .rfind(|c: char|  c == '\n' || c == ';')
         {
-            curly_parent_open_pos = find_close(
-                mask_comments(src.change_length(pos.into())).as_bytes().iter().rev(),
-                b'}',
-                b'{',
-                0,
-            ).map_or(BytePos::ZERO, |count| point - count);
+            BytePos(pos)
         } else {
             warn!("[scope_start] \n or ; are not found for use statement");
-        }
+            curly_parent_open_pos
+        };
+        curly_parent_open_pos = find_close(
+            mask_comments(src.change_length(pos)).as_bytes().iter().rev(),
+            b'}',
+            b'{',
+            0,
+        ).map_or(BytePos::ZERO, |count| point - count);
     }
 
     let parent_open_pos = find_close(masked_src.as_bytes().iter().rev(), b')', b'(', 0)
