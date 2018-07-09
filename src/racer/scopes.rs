@@ -43,8 +43,7 @@ pub fn find_closure_scope_start(
 pub fn scope_start(src: Src, point: BytePos) -> BytePos {
     let masked_src = mask_comments(src.change_length(point));
     let bytes = masked_src.as_bytes();
-    let byte_len = bytes.len();
-    let curly_parent_open_pos = find_close(bytes.iter().rev(), b'}', b'{', 0)
+    let mut curly_parent_open_pos = find_close(bytes.iter().rev(), b'}', b'{', 0)
         .map_or(BytePos::ZERO, |count| point - count);
 
     // We've found a multi-use statement, such as `use foo::{bar, baz};`, so we shouldn't consider
@@ -52,16 +51,18 @@ pub fn scope_start(src: Src, point: BytePos) -> BytePos {
     if curly_parent_open_pos > BytePos::ZERO
         && masked_src[..curly_parent_open_pos.0].ends_with("::{")
     {
-        if let Some(mut pos) = masked_src[..curly_parent_open_pos.0]
+        if let Some(pos) = masked_src[..curly_parent_open_pos.0]
             .rfind(|c: char|  c == '\n' || c == ';')
         {
-            pos += 1;
-            while pos < byte_len && is_whitespace_byte(masked_src.as_bytes()[pos]) {
-                pos += 1;
-            }
-            return BytePos(pos);
+            curly_parent_open_pos = find_close(
+                mask_comments(src.change_length(pos.into())).as_bytes().iter().rev(),
+                b'}',
+                b'{',
+                0,
+            ).map_or(BytePos::ZERO, |count| point - count);
+        } else {
+            warn!("[scope_start] \n or ; are not found for use statement");
         }
-        warn!("[scope_start] \n or ; are not found for use statement");
     }
 
     let parent_open_pos = find_close(masked_src.as_bytes().iter().rev(), b')', b'(', 0)
@@ -574,7 +575,7 @@ fn test_use_stmt_start() {
 }
 
 /// get path from use statement, supposing completion point is end of expr
-/// e.g. "use std::collections::{hash_map,  Hash" -> P["std", "collections", "HashMap"]
+/// e.g. "use std::collections::{hash_map,  Hash" -> P["std", "collections", "Hash"]
 pub(crate) fn construct_path_from_use_tree(expr: &str) -> core::Path {
     let mut segments = Vec::new();
     let bytes = expr.as_bytes();
