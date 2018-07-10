@@ -36,7 +36,6 @@ racer-testutils = { path = "testutils" }
 
 [features]
 nightly = []
-clippy = []
 
 [workspace]
 members = ["testutils"]
