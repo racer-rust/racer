@@ -1,12 +1,12 @@
 use {ast, typeinf, util};
-use core::{Src, CompletionType, BytePos, ByteRange};
+use core::{self, Src, CompletionType, BytePos, ByteRange};
 #[cfg(test)]
-use core::{self, Coordinate};
+use core::Coordinate;
 
 use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
-use util::{closure_valid_arg_scope, char_at};
+use util::*;
 use codecleaner::comment_skip_iter_rev;
 
 fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<BytePos>
@@ -42,17 +42,26 @@ pub fn find_closure_scope_start(
 
 pub fn scope_start(src: Src, point: BytePos) -> BytePos {
     let masked_src = mask_comments(src.change_length(point));
-
-    let mut curly_parent_open_pos = find_close(masked_src.as_bytes().iter().rev(), b'}', b'{', 0)
+    let bytes = masked_src.as_bytes();
+    let mut curly_parent_open_pos = find_close(bytes.iter().rev(), b'}', b'{', 0)
         .map_or(BytePos::ZERO, |count| point - count);
 
     // We've found a multi-use statement, such as `use foo::{bar, baz};`, so we shouldn't consider
     // the brace to be the start of the scope.
-    if curly_parent_open_pos > BytePos::ZERO && masked_src[..curly_parent_open_pos.0].ends_with("::{") {
-        trace!("scope_start landed in a use statement for {:?}; broadening search", point);
+    if curly_parent_open_pos > BytePos::ZERO
+        && masked_src[..curly_parent_open_pos.0].ends_with("::{")
+    {
+        let pos = if let Some(pos) = masked_src[..curly_parent_open_pos.0]
+            .rfind(|c: char|  c == '\n' || c == ';')
+        {
+            BytePos(pos)
+        } else {
+            warn!("[scope_start] \n or ; are not found for use statement");
+            curly_parent_open_pos
+        };
         curly_parent_open_pos = find_close(
-            mask_comments(src.change_length(curly_parent_open_pos.decrement())).as_bytes().iter().rev(), 
-            b'}', 
+            mask_comments(src.change_length(pos)).as_bytes().iter().rev(),
+            b'}',
             b'{',
             0,
         ).map_or(BytePos::ZERO, |count| point - count);
@@ -554,3 +563,79 @@ struct foo {
     let s = end_of_next_scope(src);
     assert_eq!(expected, s);
 }
+
+/// get start of path from use statements
+/// e.g. get Some(16) from "pub(crate)  use a"
+pub(crate) fn use_stmt_start(line_str: &str) -> Option<BytePos> {
+    let use_start = strip_visivilities(line_str).unwrap_or(BytePos::ZERO);
+    strip_word(&line_str[use_start.0..], "use").map(|b| b + use_start)
+}
+
+#[test]
+fn test_use_stmt_start() {
+    assert_eq!(use_stmt_start("pub(crate)   use   some::").unwrap().0, 19);
+}
+
+/// get path from use statement, supposing completion point is end of expr
+/// e.g. "use std::collections::{hash_map,  Hash" -> P["std", "collections", "Hash"]
+pub(crate) fn construct_path_from_use_tree(expr: &str) -> core::Path {
+    let mut segments = Vec::new();
+    let bytes = expr.as_bytes();
+    let mut i = bytes.len();
+    let mut ident_end = Some(i - 1);
+    while i > 0 {
+        i -= 1;
+        if is_ident_char(bytes[i] as char) {
+            if ident_end.is_none() {
+                ident_end = Some(i)
+            }
+        } else {
+            if let Some(end) = ident_end {
+                segments.push(&expr[i + 1..=end]);
+                ident_end = None;
+            }
+            if let Some(point) = expr[..=i].rfind("::") {
+                if point > 0 {
+                    i = point;
+                    continue
+                }
+            }
+            break;
+        }
+    }
+    if let Some(end) = ident_end {
+        segments.push(&expr[0..=end]);
+    }
+    if let Some(&"crate") = segments.last() {
+        segments.pop();
+    }
+    segments.reverse();
+    let is_global = expr.starts_with("::");
+    core::Path::from_vec(is_global, segments)
+}
+
+#[test]
+fn test_construct_path_from_use_tree() {
+    let get_path_idents = |s| {
+        let s = construct_path_from_use_tree(s);
+        s.segments.into_iter().map(|seg| seg.name).collect::<Vec<_>>()
+    };
+    assert_eq!(
+        get_path_idents("std::collections::HashMa"),
+        vec!["std", "collections", "HashMa"],
+    );
+    assert_eq!(
+        get_path_idents("std::{collections::{HashMap, hash_ma"),
+        vec!["std", "collections", "hash_ma"],
+    );
+    assert_eq!(
+        get_path_idents("std::{collections::{HashMap, "),
+        vec!["std", "collections", ""],
+    );
+    assert_eq!(
+        get_path_idents("std::collections::{"),
+        vec!["std", "collections", ""],
+    );
+}
+
+

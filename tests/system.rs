@@ -4072,3 +4072,24 @@ fn completes_fn_with_crate_visibility_modifier() {
     assert_eq!("unsafe_func", got.matchstr);
 }
 
+// for #882
+#[test]
+fn follows_complicated_use() {
+    let src = "
+    pub use std::{collections::{hash_map, HashM~
+    ";
+    let got = get_only_completion(src, None);
+    assert_eq!("HashMap", got.matchstr);
+
+    let src = "
+    pub use std::{collections::{hash_map,  ~
+    ";
+    let got = get_all_completions(src, None);
+    assert!(got.into_iter().any(|ma| ma.matchstr == "HashMap"));
+
+    let src = "
+    crate use std::{collections::{~
+    ";
+    let got = get_all_completions(src, None);
+    assert!(got.into_iter().any(|ma| ma.matchstr == "HashMap"));
+}
