@@ -1,8 +1,6 @@
-use cargo::core::{
-    registry::PackageRegistry, resolver::{EncodableResolve, Method, Resolve}, Workspace,
-};
-use cargo::ops::resolve_with_previous;
-use cargo::util::{errors::CargoResult, important_paths::find_root_manifest_for_wd, toml};
+use cargo::core::{resolver::Method, Workspace};
+use cargo::ops;
+use cargo::util::important_paths::find_root_manifest_for_wd;
 use cargo::Config;
 use core::Session;
 use nameres::RUST_SRC_PATH;
@@ -89,43 +87,17 @@ fn get_outer_crates(libname: &str, from_path: &Path, session: &Session) -> Optio
 }
 
 fn resolve_dependencies(manifest: &Path, session: &Session, libname: &str) -> Option<PathBuf> {
-    let config = cargo_try!(Config::default());
+    let mut config = cargo_try!(Config::default());
+    // verbose=0, quiet=true, frozen=true, locked=true
+    config.configure(0, Some(true), &None, true, true, &None, &[]).ok()?;
     let ws = cargo_try!(Workspace::new(&manifest, &config));
-    // get resolve from lock file
-    let lock_path = ws.root().to_owned().join("Cargo.lock");
-    let lock_file = session.load_lockfile(&lock_path, |lockfile| {
-        let resolve = cargo_try!(toml::parse(&lockfile, &lock_path, ws.config()));
-        let v: EncodableResolve = cargo_try!(resolve.try_into());
-        Some(cargo_try!(v.into_resolve(&ws)))
-    });
-
-    // then resolve precisely and add overrides
-    let mut registry = cargo_try!(PackageRegistry::new(ws.config()));
-    let resolve = cargo_try!(match lock_file {
-        Some(prev) => resolve_with_prev(&mut registry, &ws, Some(&*prev)),
-        None => resolve_with_prev(&mut registry, &ws, None),
-    });
-    add_overrides(&mut registry, &ws)
-        .unwrap_or_else(|e| warn!("[resolve_dependencies] error in add_override: {}", e));
-    // get depedency with overrides
-    let resolved_with_overrides = cargo_try!(resolve_with_previous(
-        &mut registry,
-        &ws,
-        Method::Everything,
-        Some(&resolve),
-        None,
-        &[],
-        false,
-        false,
-    ));
-    let packages = get_resolved_packages(&resolved_with_overrides, registry);
-    // cache depedencies and get the src_path we're searching, if it exists
-    let mut res = None;
-    // we have caches for each packages, so only need depth1 depedencies
+    // resolve dependencies
+    let (packages, _) = cargo_try!(ops::resolve_ws_with_method(&ws, None, Method::Everything, &[]));
     let depth1_dependencies = match ws.current_opt() {
         Some(cur) => cur.dependencies().iter().map(|p| p.name()).collect(),
         None => HashSet::new(),
     };
+    let mut res = None;
     let deps_map = packages
         .package_ids()
         .filter_map(|package_id| {
@@ -147,54 +119,4 @@ fn resolve_dependencies(manifest: &Path, session: &Session, libname: &str) -> Op
         .collect();
     session.cache_deps(manifest, deps_map);
     res
-}
-
-// wrapper of resolve_with_previous
-fn resolve_with_prev<'cfg>(
-    registry: &mut PackageRegistry<'cfg>,
-    ws: &Workspace<'cfg>,
-    prev: Option<&Resolve>,
-) -> CargoResult<Resolve> {
-    resolve_with_previous(
-        registry,
-        ws,
-        Method::Everything,
-        prev,
-        None,
-        &[],
-        true,
-        false,
-    )
-}
-
-use cargo::core::{PackageSet, PackageId, Source, SourceId};
-use cargo::sources::PathSource;
-
-// until cargo 0.30 is released
-fn get_resolved_packages<'a>(resolve: &Resolve, registry: PackageRegistry<'a>) -> PackageSet<'a> {
-    let ids: Vec<PackageId> = resolve.iter().cloned().collect();
-    registry.get(&ids)
-}
-
-// until cargo 0.30 is released
-fn add_overrides<'a>(registry: &mut PackageRegistry<'a>, ws: &Workspace<'a>) -> CargoResult<()> {
-    let paths = match ws.config().get_list("paths")? {
-        Some(list) => list,
-        None => return Ok(()),
-    };
-
-    let paths = paths.val.iter().map(|&(ref s, ref p)| {
-        // The path listed next to the string is the config file in which the
-        // key was located, so we want to pop off the `.cargo/config` component
-        // to get the directory containing the `.cargo` folder.
-        (p.parent().unwrap().parent().unwrap().join(s), p)
-    });
-
-    for (path, _) in paths {
-        let id = SourceId::for_path(&path)?;
-        let mut source = PathSource::new_recursive(&path, &id, ws.config());
-        source.update()?;
-        registry.add_override(Box::new(source));
-    }
-    Ok(())
 }

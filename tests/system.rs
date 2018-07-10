@@ -3855,7 +3855,6 @@ println!("{}", m);
 [`Uniform`]: distributions/uniform/struct.Uniform.html"#;
     with_test_project(|dir| {
         let src_dir = dir.nested_dir("test-crate3").nested_dir("src");
-        println!("{:?}", src_dir);
         let got = get_only_completion(src, Some(src_dir));
         assert_eq!(got.matchstr, "gen_range");
         assert_eq!(got.docs, doc);
