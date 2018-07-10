@@ -5,14 +5,10 @@ rust:
 
 cache: cargo
 
-env:
-  - TRAVIS_CARGO_NIGHTLY_FEATURE=""
-
 before_script:
-  - pip install 'travis-cargo<0.2' --user
-  - export PATH=$HOME/.local/bin:$PATH
   - rustup component add rust-src
   - export RUST_SRC_PATH=`rustc --print sysroot`/lib/rustlib/src/rust/src
 
 script:
-  - travis-cargo test --features allow_net
+  - cargo build --features allow_net
+  - cargo test --features allow_net
