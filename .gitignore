@@ -6,5 +6,4 @@ src/scopes
 target/
 *.py[cod]
 .vscode/**
-test_project/**/Cargo.lock
 *.log
