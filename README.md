@@ -61,7 +61,7 @@ As mentioned in the command output, don't forget to add the installation directo
 
     2. manually from git: https://github.com/rust-lang/rust
 
-    *Note*
+    **Note**
 
      If you want to use `racer` with multiple release channels (Rust has 3 release channels: `stable`, `beta` and `nightly`), you have to also download Rust source code for each release channel you install.
 
@@ -71,13 +71,14 @@ As mentioned in the command output, don't forget to add the installation directo
 
     `rustup component add rust-src`
 
-2. (Only needed if downloaded the sources) Set the ```RUST_SRC_PATH``` environment variable to point to the 'src' dir in the Rust source installation
+2. (Optional) Set `RUST_SRC_PATH` environment variable to point to the 'src' dir in the Rust source installation
+   e.g. `% export RUST_SRC_PATH=/usr/local/src/rust/src` or `% export RUST_SRC_PATH="$(rustc --print sysroot)/lib/rustlib/src/rust/src"`
 
-   (e.g. ```% export RUST_SRC_PATH=/usr/local/src/rust/src``` or ```% export RUST_SRC_PATH="$(rustc --print sysroot)/lib/rustlib/src/rust/src"``` )
+   It's recommended to set `RUST_SRC_PATH` for speed up, but racer detects it automatically if you don't set it.
 
 3. Test on the command line:
 
-   ```racer complete std::io::B ```  (should show some completions)
+   `racer complete std::io::B `  (should show some completions)
 
 **Note**
 
