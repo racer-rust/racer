@@ -87,6 +87,10 @@ such as `cargo build` or `cargo test`, to get completions.
 
 ## Editors/IDEs Supported
 
+### RLS
+
+Racer is used as a static library in [RLS](https://github.com/rust-lang-nursery/rls)
+
 ### Eclipse integration
 
 Racer can be used with Eclipse through the use of [RustDT](https://github.com/RustDT/RustDT). (User guide is [linked](http://rustdt.github.io/) in repo description)
