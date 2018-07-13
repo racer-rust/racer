@@ -4092,3 +4092,20 @@ fn follows_complicated_use() {
     let got = get_all_completions(src, None);
     assert!(got.into_iter().any(|ma| ma.matchstr == "HashMap"));
 }
+
+
+#[test]
+fn get_completion_in_example_dir() {
+    let src = r"
+    extern crate test_project;
+    use test_project::TestStruct;
+    fn main() {
+        let test_struct = TestStruct::n~
+    }
+";
+    with_test_project(|dir| {
+        let example_dir = dir.nested_dir("examples");
+        let got = get_only_completion(src, Some(example_dir));
+        assert_eq!(got.matchstr, "new");
+    })
+}

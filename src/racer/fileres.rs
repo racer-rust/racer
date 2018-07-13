@@ -82,7 +82,7 @@ fn get_outer_crates(libname: &str, from_path: &Path, session: &Session) -> Optio
     } else {
         // cache doesn't exist
         let manifest = cargo_try!(find_root_manifest_for_wd(from_path));
-        // calucurating depedencies can be bottleneck so used info! here(kngwyu)
+        // calucurating depedencies can be bottleneck we use info! here(kngwyu)
         info!("[get_outer_crates] cache doesn't exist");
         resolve_dependencies(&manifest, session, libname)
     }
@@ -121,16 +121,26 @@ fn resolve_dependencies(manifest: &Path, session: &Session, libname: &str) -> Op
     ));
     let packages = get_resolved_packages(&resolved_with_overrides, registry);
     let mut res = None;
-    // we have caches for each packages, so only need depth1 depedencies
+    // we have caches for each crates, so only need depth1 depedencies(= dependencies in Cargo.toml)
     let depth1_dependencies = match ws.current_opt() {
         Some(cur) => cur.dependencies().iter().map(|p| p.name()).collect(),
         None => HashSet::new(),
+    };
+    let current_pkg = ws.current().map(|pkg| pkg.name());
+    let is_current_pkg = |name| {
+        if let Ok(n) = current_pkg {
+            n == name
+        } else {
+            false
+        }
     };
     let deps_map = packages
         .package_ids()
         .filter_map(|package_id| {
             let pkg = packages.get(package_id).ok()?;
-            if !depth1_dependencies.contains(&pkg.name()) {
+            let pkg_name = pkg.name();
+            // for examples/ or tests/ dir, we have to handle current package specially
+            if !is_current_pkg(pkg_name) && !depth1_dependencies.contains(&pkg.name()) {
                 return None;
             }
             let targets = pkg.manifest().targets();

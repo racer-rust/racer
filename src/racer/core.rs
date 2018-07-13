@@ -1204,7 +1204,6 @@ fn complete_from_file_(
                     &ImportInfo::default(),
                 )
             }
-            println!("{:?}", line);
             let path = if let Some(use_start) = scopes::use_stmt_start(line) {
                 scopes::construct_path_from_use_tree(&line[use_start.0..])
             } else {
