@@ -13,7 +13,7 @@
 ## Installation
 
 **NOTE**
-From 2.1, racer needs nightly rust
+From 2.1, racer needs **nightly rust**
 
 ### Requirements
 
@@ -79,9 +79,10 @@ As mentioned in the command output, don't forget to add the installation directo
 
    ```racer complete std::io::B ```  (should show some completions)
 
-*Note*
+**Note**
+
 To complete names in extrenal crates, Racer needs `Cargo.lock`.
-So, when you add a dependency in your `Cargo.toml`, you have to run build commands
+So, when you add a dependency in your `Cargo.toml`, you have to run a build command
 such as `cargo build` or `cargo test`, to get completions.
 
 ## Editors/IDEs Supported
