@@ -90,8 +90,8 @@ fn get_outer_crates(libname: &str, from_path: &Path, session: &Session) -> Optio
 
 fn resolve_dependencies(manifest: &Path, session: &Session, libname: &str) -> Option<PathBuf> {
     let mut config = cargo_try!(Config::default());
-    let frozen = !cfg!(feature = "allow_net");
-    config.configure(0, Some(true), &None, frozen, true, &None, &[]).ok()?;
+    // frozen=true, locked=true
+    config.configure(0, Some(true), &None, true, true, &None, &[]).ok()?;
     let ws = cargo_try!(Workspace::new(&manifest, &config));
     // get resolve from lock file
     let lock_path = ws.root().to_owned().join("Cargo.lock");

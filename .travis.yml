@@ -10,5 +10,5 @@ before_script:
   - export RUST_SRC_PATH=`rustc --print sysroot`/lib/rustlib/src/rust/src
 
 script:
-  - cargo build --features allow_net
-  - cargo test --features allow_net
+  - cargo build --features
+  - cargo test --features

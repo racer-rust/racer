@@ -54,7 +54,7 @@ build: false
 # TODO modify this phase as you see fit
 test_script:
   - cargo build --verbose
-  - cargo test --features allow_net
+  - cargo test --features
 
 cache:
   - target
