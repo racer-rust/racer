@@ -35,6 +35,7 @@ rls-span = "0.4.0"
 racer-testutils = { path = "testutils" }
 
 [features]
+allow_net = []
 nightly = []
 
 [workspace]

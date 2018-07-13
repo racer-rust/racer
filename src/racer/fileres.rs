@@ -1,7 +1,7 @@
 use cargo::core::{
     registry::PackageRegistry, resolver::{EncodableResolve, Method, Resolve}, Workspace,
 };
-use cargo::ops::resolve_with_previous;
+use cargo::ops;
 use cargo::util::{errors::CargoResult, important_paths::find_root_manifest_for_wd, toml};
 use cargo::Config;
 use core::Session;
@@ -89,7 +89,9 @@ fn get_outer_crates(libname: &str, from_path: &Path, session: &Session) -> Optio
 }
 
 fn resolve_dependencies(manifest: &Path, session: &Session, libname: &str) -> Option<PathBuf> {
-    let config = cargo_try!(Config::default());
+    let mut config = cargo_try!(Config::default());
+    let frozen = !cfg!(feature = "allow_net");
+    config.configure(0, Some(true), &None, frozen, true, &None, &[]).ok()?;
     let ws = cargo_try!(Workspace::new(&manifest, &config));
     // get resolve from lock file
     let lock_path = ws.root().to_owned().join("Cargo.lock");
@@ -98,7 +100,6 @@ fn resolve_dependencies(manifest: &Path, session: &Session, libname: &str) -> Op
         let v: EncodableResolve = cargo_try!(resolve.try_into());
         Some(cargo_try!(v.into_resolve(&ws)))
     });
-
     // then resolve precisely and add overrides
     let mut registry = cargo_try!(PackageRegistry::new(ws.config()));
     let resolve = cargo_try!(match lock_file {
@@ -108,7 +109,7 @@ fn resolve_dependencies(manifest: &Path, session: &Session, libname: &str) -> Op
     add_overrides(&mut registry, &ws)
         .unwrap_or_else(|e| warn!("[resolve_dependencies] error in add_override: {}", e));
     // get depedency with overrides
-    let resolved_with_overrides = cargo_try!(resolve_with_previous(
+    let resolved_with_overrides = cargo_try!(ops::resolve_with_previous(
         &mut registry,
         &ws,
         Method::Everything,
@@ -119,7 +120,6 @@ fn resolve_dependencies(manifest: &Path, session: &Session, libname: &str) -> Op
         false,
     ));
     let packages = get_resolved_packages(&resolved_with_overrides, registry);
-    // cache depedencies and get the src_path we're searching, if it exists
     let mut res = None;
     // we have caches for each packages, so only need depth1 depedencies
     let depth1_dependencies = match ws.current_opt() {
@@ -155,7 +155,7 @@ fn resolve_with_prev<'cfg>(
     ws: &Workspace<'cfg>,
     prev: Option<&Resolve>,
 ) -> CargoResult<Resolve> {
-    resolve_with_previous(
+    ops::resolve_with_previous(
         registry,
         ws,
         Method::Everything,
