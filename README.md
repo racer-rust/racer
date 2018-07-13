@@ -79,6 +79,11 @@ As mentioned in the command output, don't forget to add the installation directo
 
    ```racer complete std::io::B ```  (should show some completions)
 
+*Note*
+To complete names in extrenal crates, Racer needs `Cargo.lock`.
+So, when you add a dependency in your `Cargo.toml`, you have to run build commands
+such as `cargo build` or `cargo test`, to get completions.
+
 ## Editors/IDEs Supported
 
 ### Eclipse integration
