@@ -50,7 +50,7 @@ pub enum MatchType {
     Macro,
     Builtin,
     /// fn f<T: Clone> or fn f(a: impl Clone) with its trait bounds
-    TypeParameter(ast::TraitBounds),
+    TypeParameter(Box<ast::TraitBounds>),
 }
 
 impl fmt::Display for MatchType {

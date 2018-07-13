@@ -1090,7 +1090,7 @@ impl TypeParameter {
             point: self.point,
             coords: None,
             local: false,
-            mtype: MatchType::TypeParameter(self.bounds),
+            mtype: MatchType::TypeParameter(Box::new(self.bounds)),
             contextstr: String::new(),
             generic_args: Vec::new(),
             generic_types: Vec::new(),
