@@ -558,7 +558,7 @@ pub fn match_use(
     }
 
     let use_item = ast::parse_use(blob.to_owned());
-    println!(
+    debug!(
         "[match_use] found item: {:?}, searchstr: {}",
         use_item, context.search_str
     );
