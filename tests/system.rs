@@ -3813,12 +3813,14 @@ fn follows_use_for_reexport() {
     })
 }
 
+// !!! this functionality is duplicated in #889
 // test for patch.crates-io
 // in test-crate3, we patches rand0.5.0 to
 // https://github.com/rust-lang-nursery/rand/commit/ea9fc2e5357dcf5d0497aa332cd0f8050017e3ec
 // , where doc for `gen_range` was modified, so if racer returns modified doc, it recognizes
 // patches.crates-io correctly
 #[test]
+#[ignore]
 fn check_work_with_cratesio_patch() {
     let src = "
     extern crate rand;
