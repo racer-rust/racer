@@ -567,7 +567,7 @@ struct foo {
 /// get start of path from use statements
 /// e.g. get Some(16) from "pub(crate)  use a"
 pub(crate) fn use_stmt_start(line_str: &str) -> Option<BytePos> {
-    let use_start = strip_visivilities(line_str).unwrap_or(BytePos::ZERO);
+    let use_start = strip_visivility(line_str).unwrap_or(BytePos::ZERO);
     strip_word(&line_str[use_start.0..], "use").map(|b| b + use_start)
 }
 
