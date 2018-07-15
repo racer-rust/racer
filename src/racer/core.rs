@@ -486,13 +486,14 @@ impl fmt::Debug for PathSearch {
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct IndexedSource {
     pub code: String,
     pub idx: Vec<ByteRange>,
     pub lines: RefCell<Vec<ByteRange>>
 }
 
-#[derive(Clone,Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Src<'c> {
     pub src: &'c IndexedSource,
     pub range: ByteRange,

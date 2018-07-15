@@ -23,3 +23,7 @@ pub mod bar;
 pub mod foo;
 
 pub use test_crate2::useless_func;
+
+pub type UsizeVec = Vec<usize>;
+
+
