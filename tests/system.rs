@@ -4095,7 +4095,6 @@ fn follows_complicated_use() {
     assert!(got.into_iter().any(|ma| ma.matchstr == "HashMap"));
 }
 
-
 #[test]
 fn get_completion_in_example_dir() {
     let src = r"
@@ -4110,4 +4109,25 @@ fn get_completion_in_example_dir() {
         let got = get_only_completion(src, Some(example_dir));
         assert_eq!(got.matchstr, "new");
     })
+}
+
+#[test]
+fn follows_use_crate() {
+    let mod_src = "
+    pub fn myfn() {}
+    pub fn foo() {}
+    ";
+    let lib_src = "
+    mod mymod;
+    use crate::mymod::*;
+    fn main() {
+        myf~
+    }
+    ";
+
+    let dir = TmpDir::new();
+    let _lib = dir.write_file("mymod.rs", mod_src);
+    let got = get_only_completion(lib_src, Some(dir));
+    assert_eq!(got.matchstr, "myfn");
+    assert_eq!(got.contextstr, "pub fn myfn()");
 }

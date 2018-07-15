@@ -1440,7 +1440,9 @@ pub fn resolve_path(
         let pathseg = &path.segments[0];
         resolve_name(pathseg, filepath, pos, search_type, namespace, session, import_info)
     } else if len != 0 {
-        if path.segments[0].name == "self" {
+        // TODO(kngwyu): we should distinguish self and crate,
+        // but maybe it's not absolutely important for use experiences.
+        if path.segments[0].name == "self" || path.segments[0].name == "crate" {
             // just remove self
             let mut newpath: core::Path = path.clone();
             newpath.segments.remove(0);
