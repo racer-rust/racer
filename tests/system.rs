@@ -4131,3 +4131,33 @@ fn follows_use_crate() {
     assert_eq!(got.matchstr, "myfn");
     assert_eq!(got.contextstr, "pub fn myfn()");
 }
+
+// regression test for #800
+#[test]
+fn completes_typedef_in_external_crate() {
+    let src = "
+    extern crate fixtures;
+
+    use fixtures::Usize~
+    ";
+
+    with_test_project(|dir| {
+        let srcdir = dir.nested_dir("src");
+        let got = get_only_completion(src, Some(srcdir));
+        assert_eq!(got.matchstr, "UsizeVec");
+        assert_eq!(got.contextstr, "pub type UsizeVec = Vec<usize>;");
+    })
+}
+
+#[test]
+fn completes_static_method_for_typedef() {
+    let src = "
+    type UsizeVec = Vec<usize>;
+    fn func() {
+        let u = UsizeVec::with_capacity();
+        u.append_elem~
+    }
+    ";
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "append_elements");
+}

@@ -499,7 +499,7 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: BytePos, session: &Sess
     let res = resolve_path_with_str(path, fpath, pos, core::SearchType::ExactMatch,
                core::Namespace::Type, session).nth(0).and_then(|m| {
                    match m.mtype {
-                       MatchType::Type => get_type_of_typedef(&m, session, fpath),
+                       MatchType::Type => get_type_of_typedef(&m, session),
                        _ => Some(m)
                    }
                });
@@ -518,7 +518,7 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: BytePos, session: &Sess
     })
 }
 
-fn get_type_of_typedef(m: &Match, session: &Session, fpath: &Path) -> Option<Match> {
+pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match> {
     debug!("get_type_of_typedef match is {:?}", m);
     let msrc = session.load_file_and_mask_comments(&m.filepath);
     let blobstart = m.point - BytePos(5);  // 5 == "type ".len()
@@ -531,7 +531,7 @@ fn get_type_of_typedef(m: &Match, session: &Session, fpath: &Path) -> Option<Mat
         debug!("get_type_of_typedef parsed type {:?}", res.type_);
         res.type_
     }).and_then(|type_| {
-        let src = session.load_file(fpath);
+        let src = session.load_file(&m.filepath);
         let scope_start = scopes::scope_start(src.as_src(), m.point);
 
         // Type of TypeDef cannot be inside the impl block so look outside

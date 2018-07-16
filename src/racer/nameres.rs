@@ -7,9 +7,7 @@ use std::path::{Path, PathBuf};
 
 use {core, ast, matchers, scopes, typeinf};
 use core::SearchType::{self, ExactMatch, StartsWith};
-use core::{Match, Src, Session, Coordinate, SessionExt, Ty, BytePos, ByteRange};
-use core::MatchType::{Module, Function, Struct, Enum, EnumVariant, FnArg, Trait, StructField,
-    Impl, TraitImpl, MatchArm, Builtin, TypeParameter};
+use core::{Match, Src, Session, Coordinate, SessionExt, Ty, BytePos, ByteRange, MatchType};
 use core::Namespace;
 use ast::{GenericsArgs, ImplVisitor};
 use fileres::{get_crate_file, get_module_file};
@@ -45,7 +43,7 @@ fn search_struct_fields(searchstr: &str, structmatch: &Match,
                                 point: field_point + struct_start,
                                 coords: None,
                                 local: structmatch.local,
-                                mtype: StructField,
+                                mtype: MatchType::StructField,
                                 contextstr: contextstr,
                                 generic_args: Vec::new(),
                                 generic_types: Vec::new(),
@@ -153,7 +151,7 @@ fn search_scope_for_methods(
                            point: point + blob_range.start + start,
                            coords: None,
                            local: true,
-                           mtype: Function,
+                           mtype: MatchType::Function,
                            contextstr: signature.to_owned(),
                            generic_args: Vec::new(),
                            generic_types: Vec::new(),
@@ -196,7 +194,7 @@ fn search_generic_impl_scope_for_methods(
                            point: point + blob_range.start + start,
                            coords: None,
                            local: true,
-                           mtype: Function,
+                           mtype: MatchType::Function,
                            contextstr: signature.to_owned(),
                            generic_args: contextm.generic_args.clone(),  // Attach impl generic args
                            generic_types: contextm.generic_types.clone(), // Attach impl generic types
@@ -244,7 +242,7 @@ fn search_scope_for_static_trait_fns(
                            point: point + blob_range.start + start,
                            coords: None,
                            local: true,
-                           mtype: Function,
+                           mtype: MatchType::Function,
                            contextstr: signature.to_owned(),
                            generic_args: Vec::new(),
                            generic_types: Vec::new(),
@@ -290,7 +288,7 @@ pub fn search_for_impls(
                     debug!("impl decl {}", decl);
                     let implres = ast::parse_impl(decl);
                     let is_trait_impl = implres.trait_path.is_some();
-                    let mtype = if is_trait_impl { TraitImpl } else { Impl };
+                    let mtype = if is_trait_impl { MatchType::TraitImpl } else { MatchType::Impl };
 
                     if let Some(name_path) = implres.name_path {
                         if let Some(name) = name_path.segments.last() {
@@ -427,7 +425,7 @@ pub fn search_for_generic_impls(
                                 point: start + trait_pos,
                                 coords: None,
                                 local: true,
-                                mtype: TraitImpl,
+                                mtype: MatchType::TraitImpl,
                                 contextstr: "".into(),
                                 generic_args: vec![gen_arg.name().to_owned()],
                                 generic_types: vec![self_pathsearch],
@@ -549,7 +547,7 @@ fn search_scope_headers(
                         point: start,
                         coords: None,
                         local: true,
-                        mtype: MatchArm,
+                        mtype: MatchType::MatchArm,
                         contextstr: lhs.trim().to_owned(),
                         generic_args: Vec::new(),
                         generic_types: Vec::new(),
@@ -643,7 +641,7 @@ fn search_fn_args(
                     point: fnstart + arg_range.start - impl_header_len.into(),
                     coords: None,
                     local: local,
-                    mtype: FnArg,
+                    mtype: MatchType::FnArg,
                     contextstr: s.to_owned(),
                     generic_args: Vec::new(),
                     generic_types: Vec::new(),
@@ -720,7 +718,7 @@ pub fn do_file_search(
                             point: BytePos::ZERO,
                             coords: Some(Coordinate::start()),
                             local: false,
-                            mtype: Module,
+                            mtype: MatchType::Module,
                             contextstr: fname[3..].to_owned(),
                             generic_args: Vec::new(),
                             generic_types: Vec::new(),
@@ -740,7 +738,7 @@ pub fn do_file_search(
                                 point: BytePos::ZERO,
                                 coords: Some(Coordinate::start()),
                                 local: false,
-                                mtype: Module,
+                                mtype: MatchType::Module,
                                 contextstr: filepath.to_str().unwrap().to_owned(),
                                 generic_args: Vec::new(),
                                 generic_types: Vec::new(),
@@ -759,7 +757,7 @@ pub fn do_file_search(
                             point: BytePos::ZERO,
                             coords: Some(Coordinate::start()),
                             local: false,
-                            mtype: Module,
+                            mtype: MatchType::Module,
                             contextstr: fpath_buf.to_str().unwrap().to_owned(),
                             generic_args: Vec::new(),
                             generic_types: Vec::new(),
@@ -993,7 +991,7 @@ pub fn search_scope(
                                   point: BytePos::ZERO,
                                   coords: Some(Coordinate::start()),
                                   local: false,
-                                  mtype: Module,
+                                  mtype: MatchType::Module,
                                   contextstr: context,
                                   generic_args: Vec::new(),
                                   generic_types: Vec::new(),
@@ -1086,7 +1084,7 @@ fn search_closure_args(
                         point: scope_src_pos + pipe_range.start + arg_range.start,
                         coords: None,
                         local: true,
-                        mtype: FnArg,
+                        mtype: MatchType::FnArg,
                         contextstr: pipe_str.to_owned(),
                         generic_args: Vec::new(),
                         generic_types: Vec::new(),
@@ -1285,7 +1283,7 @@ pub fn resolve_path_with_str(
                 point: BytePos::ZERO,
                 coords: Some(Coordinate::start()),
                 local: false,
-                mtype: Builtin,
+                mtype: MatchType::Builtin,
                 contextstr: "str".into(),
                 generic_args: vec![],
                 generic_types: vec![],
@@ -1344,7 +1342,7 @@ pub fn resolve_name(
                         point: BytePos::ZERO,
                         coords: Some(Coordinate::start()),
                         local: false,
-                        mtype: Module,
+                        mtype: MatchType::Module,
                         contextstr: context,
                         generic_args: Vec::new(),
                         generic_types: Vec::new(),
@@ -1425,6 +1423,102 @@ pub fn get_super_scope(filepath: &Path, pos: BytePos, session: &Session,
     }
 }
 
+fn get_impls(
+    search_path: &core::PathSegment,
+    namespace: Namespace,
+    search_type: SearchType,
+    context: &Match,
+    session: &Session,
+    import_info: &ImportInfo,
+) -> Vec<Match> {
+    let mut out = Vec::new();
+    match context.mtype {
+        MatchType::Enum => {
+            let filesrc = session.load_file(&context.filepath);
+            let scopestart = scopes::find_stmt_start(filesrc.as_src(), context.point)
+                .expect("[resolve_path] statement start was not found");
+            let scopesrc = filesrc.get_src_from_start(scopestart);
+            if let Some(blob_range) = scopesrc.iter_stmts().nth(0) {
+                let match_cxt = MatchCxt {
+                    filepath: &context.filepath,
+                    search_str: &search_path.name,
+                    search_type,
+                    range: blob_range.shift(scopestart),
+                    is_local: true,
+                };
+                for mut enum_var in matchers::match_enum_variants(&filesrc, &match_cxt) {
+                    debug!(
+                        "Found enum variant {} with enum type {}",
+                        enum_var.matchstr,
+                        context.matchstr
+                    );
+                    // return Match which has enum simultaneously, for method completion
+                    enum_var.mtype = MatchType::EnumVariant(Some(Box::new(context.clone())));
+                    out.push(enum_var);
+                }
+            }
+        }
+        MatchType::Struct => {}
+        _ => return out,
+    }
+
+    for m_impl in search_for_impls(
+        context.point,
+        &context.matchstr,
+        &context.filepath,
+        context.local,
+        true,
+        session,
+        import_info)
+    {
+        debug!("found impl!! {:?}", m_impl);
+        let src = session.load_file(&m_impl.filepath);
+        // find the opening brace and skip to it.
+        if let Some(n) = src[m_impl.point.0..].find('{') {
+            let point = m_impl.point + BytePos(n + 1);
+            out.extend(search_scope(
+                point,
+                point,
+                src.as_src(),
+                &search_path,
+                &m_impl.filepath,
+                search_type,
+                m_impl.local,
+                namespace,
+                session,
+                import_info,
+            ));
+        }
+        for m_gen in search_for_generic_impls(
+            m_impl.point,
+            &m_impl.matchstr,
+            &context,
+            &m_impl.filepath,
+            session)
+        {
+            debug!("found generic impl!! {:?}", m_gen);
+            let src = session.load_file(&m_gen.filepath);
+            // find the opening brace and skip to it.
+            if let Some(n) = src[m_gen.point.0..].find('{') {
+                let point = m_gen.point + BytePos(n + 1);
+                out.extend(search_scope(
+                    point,
+                    point,
+                    src.as_src(),
+                    search_path,
+                    &m_gen.filepath,
+                    search_type,
+                    m_gen.local,
+                    namespace,
+                    session,
+                    import_info,
+                ));
+            }
+        }
+    };
+    out
+}
+
 pub fn resolve_path(
     path: &core::Path,
     filepath: &Path,
@@ -1470,7 +1564,7 @@ pub fn resolve_path(
         let context = resolve_path(&parent_path, filepath, pos, ExactMatch, Namespace::Type, session, import_info).nth(0);
         context.map(|m| {
             match m.mtype {
-                Module => {
+                MatchType::Module => {
                     let mut searchstr: &str = &path.segments[len-1].name;
                     if let Some(i) = searchstr.rfind(',') {
                         searchstr = searchstr[i+1..].trim();
@@ -1491,120 +1585,27 @@ pub fn resolve_path(
                         import_info,
                     ));
                 }
-                Enum => {
-                    let pathseg = &path.segments[len-1];
-                    debug!("searching an enum '{}' (whole path: {:?}) searchtype: {:?}", m.matchstr, path, search_type);
-                    let filesrc = session.load_file(&m.filepath);
-                    let scopestart = scopes::find_stmt_start(filesrc.as_src(), m.point)
-                        .expect("[resolve_path] statement start was not found");
-                    let scopesrc = filesrc.get_src_from_start(scopestart);
-                    if let Some(blob_range) = scopesrc.iter_stmts().nth(0) {
-                        let match_cxt = MatchCxt {
-                            filepath: &m.filepath,
-                            search_str: &pathseg.name,
-                            search_type,
-                            range: blob_range.shift(scopestart),
-                            is_local: true,
-                        };
-                        for mut enum_var in matchers::match_enum_variants(&filesrc, &match_cxt) {
-                            debug!("Found enum variant {} with enum type {}", enum_var.matchstr, m.matchstr);
-                            // return Match which has enum simultaneously, for method completion
-                            enum_var.mtype = EnumVariant(Some(Box::new(m.clone())));
-                            out.push(enum_var);
-                        }
-                    }
-
-                    // TODO remove code duplication with the struct branch below. The two implementations are identical.
-
-                    for m_impl in search_for_impls(
-                        m.point,
-                        &m.matchstr, &m.filepath, m.local, true, session, import_info) {
-                        debug!("found impl!! {:?}", m_impl);
-                        let pathseg = &path.segments[len-1];
-                        let src = session.load_file(&m_impl.filepath);
-                        // find the opening brace and skip to it.
-                        if let Some(n) = src[m_impl.point.0..].find('{') {
-                            let point = m_impl.point + BytePos(n + 1);
-                            out.extend(search_scope(
-                                point,
-                                point,
-                                src.as_src(),
-                                pathseg,
-                                &m_impl.filepath,
-                                search_type,
-                                m_impl.local,
-                                namespace,
-                                session,
-                                import_info,
-                            ));
-                        }
-                        for m_gen in search_for_generic_impls(m_impl.point, &m_impl.matchstr, &m, &m_impl.filepath, session) {
-                            debug!("found generic impl!! {:?}", m_gen);
-                            let pathseg = &path.segments[len-1];
-                            let src = session.load_file(&m_gen.filepath);
-                            // find the opening brace and skip to it.
-                            if let Some(n) = src[m_gen.point.0..].find('{') {
-                                let point = m_gen.point + BytePos(n + 1);
-                                out.extend(search_scope(
-                                    point,
-                                    point,
-                                    src.as_src(),
-                                    pathseg,
-                                    &m_gen.filepath,
-                                    search_type,
-                                    m_gen.local,
-                                    namespace,
-                                    session,
-                                    import_info,
-                                ));
-                            }
-                        }
-                    };
+                MatchType::Enum | MatchType::Struct => {
+                    out.extend(get_impls(
+                        &path.segments[len - 1],
+                        namespace,
+                        search_type,
+                        &m,
+                        session,
+                        import_info,
+                    ));
                 }
-                Struct => {
-                    debug!("found a struct. Now need to look for impl");
-                    for m_impl in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, true, session, import_info) {
-                        debug!("found impl!! {:?}", m_impl);
-                        let pathseg = &path.segments[len-1];
-                        let src = session.load_file(&m_impl.filepath);
-                        // find the opening brace and skip to it.
-                        if let Some(n) = src[m_impl.point.0..].find('{') {
-                            let point = m_impl.point + BytePos(n + 1);
-                            out.extend(search_scope(
-                                point,
-                                point,
-                                src.as_src(),
-                                pathseg,
-                                &m_impl.filepath,
-                                search_type,
-                                m_impl.local,
-                                namespace,
-                                session,
-                                import_info,
-                            ));
-                        }
-                        for m_gen in search_for_generic_impls(m_impl.point, &m_impl.matchstr, &m, &m_impl.filepath, session) {
-                            debug!("found generic impl!! {:?}", m_gen);
-                            let pathseg = &path.segments[len-1];
-                            let src = session.load_file(&m_gen.filepath);
-                            // find the opening brace and skip to it.
-                            if let Some(n) = src[m_gen.point.0..].find('{') {
-                                let point = m_gen.point + BytePos(n + 1);
-                                out.extend(search_scope(
-                                    point,
-                                    point,
-                                    src.as_src(),
-                                    pathseg,
-                                    &m_gen.filepath,
-                                    search_type,
-                                    m_gen.local,
-                                    namespace,
-                                    session,
-                                    import_info,
-                                ));
-                            }
-                        }
-                    };
+                MatchType::Type => {
+                    if let Some(match_) = ast::get_type_of_typedef(&m, session) {
+                        out.extend(get_impls(
+                            &path.segments[len - 1],
+                            namespace,
+                            search_type,
+                            &match_,
+                            session,
+                            import_info,
+                        ));
+                    }
                 }
                 _ => ()
             }
@@ -1653,7 +1654,7 @@ pub fn resolve_method(
                                      Namespace::Both,
                                      session,
                                      import_info)
-                    .filter(|m| m.mtype == Trait)
+                    .filter(|m| m.mtype == MatchType::Trait)
                     .nth(0);
                 if let Some(m) = m {
                     debug!("found trait : match is |{:?}|", m);
@@ -1719,7 +1720,7 @@ pub fn do_external_search(
                            point: BytePos::ZERO,
                            coords: Some(Coordinate::start()),
                            local: false,
-                           mtype: Module,
+                           mtype: MatchType::Module,
                            contextstr: context,
                            generic_args: Vec::new(),
                            generic_types: Vec::new(),
@@ -1732,7 +1733,7 @@ pub fn do_external_search(
         context.map(|m| {
             let import_info = &ImportInfo::default();
             match m.mtype {
-                Module => {
+                MatchType::Module => {
                     debug!("found an external module {}", m.matchstr);
                     // deal with started with "{", so that "foo::{bar" will be same as "foo::bar"
                     let searchstr = match path[path.len()-1].chars().next() {
@@ -1746,7 +1747,7 @@ pub fn do_external_search(
                     }
                 }
 
-                Struct => {
+                MatchType::Struct => {
                     debug!("found a pub struct. Now need to look for impl");
                     for m in search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, false, session, import_info) {
                         debug!("found  impl2!! {}", m.matchstr);
@@ -1837,7 +1838,7 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
         }).flatten()
     };
     match m.mtype {
-        Struct => {
+        MatchType::Struct => {
             debug!("got a struct, looking for fields and impl methods!! {}", m.matchstr);
             for m in search_struct_fields(searchstr, &m, search_type, session) {
                 out.push(m);
@@ -1852,7 +1853,7 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
                 out.push(m);
             }
         },
-        Builtin => {
+        MatchType::Builtin => {
             for m in search_for_impl_methods(&m,
                                     searchstr,
                                     m.point,
@@ -1863,7 +1864,7 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
                 out.push(m);
             }
         },
-        Enum => {
+        MatchType::Enum => {
             debug!("got an enum, looking for impl methods {}", m.matchstr);
             for m in search_for_impl_methods(&m,
                                     searchstr,
@@ -1875,11 +1876,11 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
                 out.push(m);
             }
         },
-        Trait => {
+        MatchType::Trait => {
             debug!("got a trait, looking for methods {}", m.matchstr);
             out.extend(find_inherited_traits(m));
         }
-        TypeParameter(bounds) => {
+        MatchType::TypeParameter(bounds) => {
             debug!("got a trait bound, looking for methods {}", m.matchstr);
             let traits = bounds.get_traits(session);
             traits.into_iter().for_each(|m| {
