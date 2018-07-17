@@ -1024,6 +1024,7 @@ pub fn search_scope(
                     session,
                     import_info,
                 ));
+                continue;
             }
         }
         // There's a good chance of a match. Run the matchers
