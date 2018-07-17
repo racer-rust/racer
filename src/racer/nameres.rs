@@ -870,7 +870,7 @@ pub fn search_scope(
     point: BytePos,
     src: Src,
     pathseg: &core::PathSegment,
-    filepath:&Path,
+    filepath: &Path,
     search_type: SearchType,
     is_local: bool,
     namespace: Namespace,
@@ -947,7 +947,6 @@ pub fn search_scope(
         }
 
         let blob = &scopesrc[blob_range.to_range()];
-
         // for now skip stuff that's meant for testing. Often the test
         // module hierarchy is incompatible with the non-test
         // hierarchy and we get into recursive loops
@@ -1007,6 +1006,26 @@ pub fn search_scope(
             continue;
         }
 
+        // if we find extern block, let's look up inner scope
+        if blob.starts_with("extern") {
+            if let Some(block_start) = blob[7..].find('{') {
+                debug!("[search_scope] found extern block!");
+                // move to the point next to {
+                let src = src.shift_range(blob_range).shift_start(BytePos(block_start + 8));
+                out.extend(search_scope(
+                    BytePos::ZERO,
+                    BytePos::ZERO,
+                    src,
+                    pathseg,
+                    filepath,
+                    search_type,
+                    is_local,
+                    namespace,
+                    session,
+                    import_info,
+                ));
+            }
+        }
         // There's a good chance of a match. Run the matchers
         let match_cxt = get_match_cxt(blob_range.shift(start));
         out.extend(run_matchers_on_blob(src, &match_cxt, namespace, session, import_info));
