@@ -11,18 +11,22 @@ pub const PATH_SEP: char = ':';
 #[cfg(windows)]
 pub const PATH_SEP: char = ';';
 
+#[inline]
 pub(crate) fn is_pattern_char(c: char) -> bool {
     c.is_alphanumeric() || c.is_whitespace() || (c == '_') || (c == ':') || (c == '.')
 }
 
+#[inline]
 pub(crate) fn is_search_expr_char(c: char) -> bool {
     c.is_alphanumeric() || (c == '_') || (c == ':') || (c == '.')
 }
 
+#[inline]
 pub(crate) fn is_ident_char(c: char) -> bool {
     c.is_alphanumeric() || (c == '_') || (c == '!')
 }
 
+#[inline]
 pub(crate) fn is_whitespace_byte(b: u8) -> bool {
     b == b' ' || b == b'\r' || b == b'\n' || b == b'\t'
 }

@@ -4171,3 +4171,29 @@ fn finds_definition_in_use_tree() {
     let got = get_definition(src, None);
     assert_eq!(got.matchstr, "DefaultHasher");
 }
+
+// for #890
+#[test]
+fn finds_fn_in_extern_block() {
+    let src = r#"
+    use std::os::raw::c_char;
+    extern "C" {
+        pub fn MyCFunction() -> *mut c_char;
+    }
+    fn main() {
+        let ptr = MyCFunc~
+    }
+    "#;
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "MyCFunction");
+}
+
+// for #878
+#[test]
+fn finds_std_fn_in_extern_block() {
+    let src = r#"
+    use std::ptr::copy_nonoverla~
+    "#;
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "copy_nonoverlapping");
+}
