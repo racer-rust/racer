@@ -1,11 +1,12 @@
 use {ast, typeinf, util};
-use core::{self, Src, CompletionType, BytePos, ByteRange};
+use core::{self, Src, CompletionType, BytePos, ByteRange, IndexedSource};
 #[cfg(test)]
 use core::Coordinate;
 
 use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
+use std::rc::Rc;
 use util::*;
 use codecleaner::comment_skip_iter_rev;
 
@@ -638,4 +639,17 @@ fn test_construct_path_from_use_tree() {
     );
 }
 
+/// get current line string parsed by ;
+pub(crate) fn get_current_line(src: &Rc<IndexedSource>, pos: BytePos) -> &str {
+    // reparse the string, searchstr is not corrected parsed with split_into_context_and_completion
+    // it will stop by character like '{', and ' ', which occurs in the following case
+    // 1. The line is use contextstr::{A, B, C, searchstr
+    // 2. The line started with contextstr or ::
+    // 3. FIXME(may not correct): Neither above case, then expr parsed above is corrected
+    let linestart = find_stmt_start(src.as_src(), pos)
+        .unwrap_or_else(|| get_line(&src[..], pos));
 
+    // step 1, get full line, take the rightmost part split by semicolon
+    //   prevent the case that someone write multiple line in one line
+    &src[linestart.0..pos.0].trim().rsplit(';').nth(0).unwrap()
+}

@@ -4161,3 +4161,13 @@ fn completes_static_method_for_typedef() {
     let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "append_elements");
 }
+
+// for #882
+#[test]
+fn finds_definition_in_use_tree() {
+    let src = "
+    pub use std::{collections::{HashMap, hash_map::DefaultHa~sher,
+    ";
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "DefaultHasher");
+}

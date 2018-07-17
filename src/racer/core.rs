@@ -1178,17 +1178,7 @@ fn complete_from_file_(
 
     match completetype {
         CompletionType::Path => {
-            // reparse the string, searchstr is not corrected parsed with split_into_context_and_completion
-            // it will stop by character like '{', and ' ', which occurs in the following case
-            // 1. The line is use contextstr::{A, B, C, searchstr
-            // 2. The line started with contextstr or ::
-            // 3. FIXME(may not correct): Neither above case, then expr parsed above is corrected
-            let linestart = scopes::find_stmt_start(src.as_src(), pos)
-                .unwrap_or_else(|| scopes::get_line(src_text, pos));
-
-            // step 1, get full line, take the rightmost part split by semicolon
-            //   prevent the case that someone write multiple line in one line
-            let line = src_text[linestart.0..pos.0].trim().rsplit(';').nth(0).unwrap();
+            let line = scopes::get_current_line(&src, pos);
             debug!("Complete path with line: {:?}", line);
             // when in the function ident position, only look for methods
             // from a trait to complete.
@@ -1323,8 +1313,7 @@ pub fn find_definition<P, C>(
 
 pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Session) -> Option<Match> {
     let src = session.load_file_and_mask_comments(filepath);
-    let src = &src.as_src()[..];
-
+    let src_txt = &src[..];
     // TODO return result
     let pos = match cursor.to_point(&session.load_file(filepath)) {
         Some(pos) => pos,
@@ -1335,7 +1324,7 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
     };
 
     // Make sure `src` is in the cache
-    let range = scopes::expand_search_expr(src, pos);
+    let range = scopes::expand_search_expr(src_txt, pos);
     let expr = &src[range.to_range()];
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
@@ -1343,18 +1332,19 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
 
     match completetype {
         CompletionType::Path => {
-            let mut v = expr.split("::").collect::<Vec<_>>();
-            let global = v[0] == "";
-            if global {      // i.e. starts with '::' e.g. ::std::old_io::blah
-                v.remove(0);
-            }
-
-            let segments = v
-                .into_iter()
-                .map(|x| PathSegment{ name: x.to_owned(), types: Vec::new() })
-                .collect::<Vec<_>>();
-            let path = Path { global, segments };
-
+            let line = scopes::get_current_line(&src, range.end);
+            let path = if let Some(use_start) = scopes::use_stmt_start(line) {
+                scopes::construct_path_from_use_tree(&line[use_start.0..])
+            } else {
+                let is_global = expr.starts_with("::");
+                let v: Vec<_> = (if is_global {
+                    &expr[2..]
+                } else {
+                    expr
+                }).split("::").collect();
+                Path::from_vec(is_global, v)
+            };
+            println!("[find_definition_] Path: {:?}", path);
             nameres::resolve_path(
                 &path,
                 filepath,
