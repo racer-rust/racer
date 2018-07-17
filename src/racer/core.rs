@@ -69,7 +69,7 @@ pub enum SearchType {
     StartsWith
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum Namespace {
     Type,
@@ -541,6 +541,24 @@ impl IndexedSource {
         }).collect();
     }
 
+    fn cache_lineoffsets_and_get_line(&self, pos: BytePos) -> Option<Coordinate> {
+        if self.lines.borrow().len() != 0 {
+            return None;
+        }
+        let mut before = 0;
+        let mut target_line = None;
+        *self.lines.borrow_mut() = self.code.lines().enumerate().map(|(i, line)| {
+            let len = line.len() + 1;
+            let res = ByteRange::new(before, before + len);
+            if target_line.is_none() && res.contains(pos) {
+                target_line = Some(Coordinate::new(i as u32 + 1, (pos.0 - before) as u32));
+            }
+            before += len;
+            res
+        }).collect();
+        target_line
+    }
+
     pub fn coords_to_point(&self, coords: &Coordinate) -> Option<BytePos> {
         self.cache_lineoffsets();
         self.lines
@@ -557,11 +575,21 @@ impl IndexedSource {
     }
 
     pub fn point_to_coords(&self, point: BytePos) -> Option<Coordinate> {
-        self.cache_lineoffsets();
-        // TODO: binary search is better?
-        for (i, &range) in self.lines.borrow().iter().enumerate() {
-            if range.contains(point) {
-                return Some(Coordinate::new(i as u32 + 1, (point - range.start).0 as u32))
+        if let Some(cd) = self.cache_lineoffsets_and_get_line(point) {
+            return Some(cd);
+        }
+        let lines = self.lines.borrow();
+        // find appropriate coord using binary search
+        let (mut lo, mut hi) = (0, lines.len());
+        while lo < hi {
+            let mid = (lo + hi) / 2;
+            let cur = lines[mid];
+            if point < cur.start {
+                hi = mid;
+            } else if point >= cur.end {
+                lo = mid;
+            } else {
+                return Some(Coordinate::new(mid as u32 + 1, (point - cur.start).0 as u32));
             }
         }
         None
