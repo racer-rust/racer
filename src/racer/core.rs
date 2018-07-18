@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::collections::{hash_map, HashMap};
 use std::ops::{Deref, Range};
 use std::slice;
-use std::cmp::{min, max};
+use std::cmp::{min, max, Ordering};
 use std::iter::{Fuse, Iterator};
 use std::rc::Rc;
 use codeiter::StmtIndicesIter;
@@ -129,20 +129,28 @@ impl ByteRange {
             end: end.into(),
         }
     }
+
     /// returns the length of the range
+    #[inline]
     pub fn len(&self) -> usize {
         (self.end - self.start).0
     }
+
     /// returns if the range contains `point` or not
+    #[inline]
     pub fn contains(&self, point: BytePos) -> bool {
         self.start <= point && point < self.end
     }
+
     /// returns if the range contains `point` (except its start point)
+    #[inline]
     pub fn contains_exclusive(&self, point: BytePos) -> bool {
         self.start < point && point < self.end
     }
+
     /// returns the new range with which its start is `self.start + shift`,
     /// its end is `self.end + shift`
+    #[inline]
     pub fn shift<P: Into<BytePos>>(&self, shift: P) -> Self {
         let shift = shift.into();
         ByteRange {
@@ -150,9 +158,29 @@ impl ByteRange {
             end: self.end + shift,
         }
     }
+
     /// convert the range to `std::ops::Range`
+    #[inline]
     pub fn to_range(&self) -> Range<usize> {
         self.start.0..self.end.0
+    }
+}
+
+impl PartialEq<BytePos> for ByteRange {
+    fn eq(&self, other: &BytePos) -> bool {
+        self.contains(*other)
+    }
+}
+
+impl PartialOrd<BytePos> for ByteRange {
+    fn partial_cmp(&self, other: &BytePos) -> Option<Ordering> {
+        if *other < self.start {
+            Some(Ordering::Greater)
+        } else if *other >= self.end {
+            Some(Ordering::Less)
+        } else {
+            Some(Ordering::Equal)
+        }
     }
 }
 
@@ -575,24 +603,15 @@ impl IndexedSource {
     }
 
     pub fn point_to_coords(&self, point: BytePos) -> Option<Coordinate> {
+        // if cache dones't exist, get the coord when constructing cache
         if let Some(cd) = self.cache_lineoffsets_and_get_line(point) {
             return Some(cd);
         }
+        // if cache exists, do binary search
         let lines = self.lines.borrow();
-        // find appropriate coord using binary search
-        let (mut lo, mut hi) = (0, lines.len());
-        while lo < hi {
-            let mid = (lo + hi) / 2;
-            let cur = lines[mid];
-            if point < cur.start {
-                hi = mid;
-            } else if point >= cur.end {
-                lo = mid;
-            } else {
-                return Some(Coordinate::new(mid as u32 + 1, (point - cur.start).0 as u32));
-            }
-        }
-        None
+        lines.binary_search_by(|range| range.partial_cmp(&point).unwrap())
+             .ok()
+             .map(|idx| Coordinate::new(idx as u32 + 1, (point - lines[idx].start).0 as u32))
     }
 }
 
