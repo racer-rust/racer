@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::collections::{hash_map, HashMap};
 use std::ops::{Deref, Range};
 use std::slice;
-use std::cmp::{min, max};
+use std::cmp::{min, max, Ordering};
 use std::iter::{Fuse, Iterator};
 use std::rc::Rc;
 use codeiter::StmtIndicesIter;
@@ -69,7 +69,7 @@ pub enum SearchType {
     StartsWith
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 pub enum Namespace {
     Type,
@@ -129,20 +129,28 @@ impl ByteRange {
             end: end.into(),
         }
     }
+
     /// returns the length of the range
+    #[inline]
     pub fn len(&self) -> usize {
         (self.end - self.start).0
     }
+
     /// returns if the range contains `point` or not
+    #[inline]
     pub fn contains(&self, point: BytePos) -> bool {
         self.start <= point && point < self.end
     }
+
     /// returns if the range contains `point` (except its start point)
+    #[inline]
     pub fn contains_exclusive(&self, point: BytePos) -> bool {
         self.start < point && point < self.end
     }
+
     /// returns the new range with which its start is `self.start + shift`,
     /// its end is `self.end + shift`
+    #[inline]
     pub fn shift<P: Into<BytePos>>(&self, shift: P) -> Self {
         let shift = shift.into();
         ByteRange {
@@ -150,9 +158,29 @@ impl ByteRange {
             end: self.end + shift,
         }
     }
+
     /// convert the range to `std::ops::Range`
+    #[inline]
     pub fn to_range(&self) -> Range<usize> {
         self.start.0..self.end.0
+    }
+}
+
+impl PartialEq<BytePos> for ByteRange {
+    fn eq(&self, other: &BytePos) -> bool {
+        self.contains(*other)
+    }
+}
+
+impl PartialOrd<BytePos> for ByteRange {
+    fn partial_cmp(&self, other: &BytePos) -> Option<Ordering> {
+        if *other < self.start {
+            Some(Ordering::Greater)
+        } else if *other >= self.end {
+            Some(Ordering::Less)
+        } else {
+            Some(Ordering::Equal)
+        }
     }
 }
 
@@ -541,6 +569,24 @@ impl IndexedSource {
         }).collect();
     }
 
+    fn cache_lineoffsets_and_get_line(&self, pos: BytePos) -> Option<Coordinate> {
+        if self.lines.borrow().len() != 0 {
+            return None;
+        }
+        let mut before = 0;
+        let mut target_line = None;
+        *self.lines.borrow_mut() = self.code.lines().enumerate().map(|(i, line)| {
+            let len = line.len() + 1;
+            let res = ByteRange::new(before, before + len);
+            if target_line.is_none() && res.contains(pos) {
+                target_line = Some(Coordinate::new(i as u32 + 1, (pos.0 - before) as u32));
+            }
+            before += len;
+            res
+        }).collect();
+        target_line
+    }
+
     pub fn coords_to_point(&self, coords: &Coordinate) -> Option<BytePos> {
         self.cache_lineoffsets();
         self.lines
@@ -557,14 +603,15 @@ impl IndexedSource {
     }
 
     pub fn point_to_coords(&self, point: BytePos) -> Option<Coordinate> {
-        self.cache_lineoffsets();
-        // TODO: binary search is better?
-        for (i, &range) in self.lines.borrow().iter().enumerate() {
-            if range.contains(point) {
-                return Some(Coordinate::new(i as u32 + 1, (point - range.start).0 as u32))
-            }
+        // if cache dones't exist, get the coord when constructing cache
+        if let Some(cd) = self.cache_lineoffsets_and_get_line(point) {
+            return Some(cd);
         }
-        None
+        // if cache exists, do binary search
+        let lines = self.lines.borrow();
+        lines.binary_search_by(|range| range.partial_cmp(&point).unwrap())
+             .ok()
+             .map(|idx| Coordinate::new(idx as u32 + 1, (point - lines[idx].start).0 as u32))
     }
 }
 
