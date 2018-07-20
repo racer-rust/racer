@@ -405,22 +405,36 @@ pub fn match_mod(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Mat
     None
 }
 
+fn find_generics_end(blob: &str) -> Option<BytePos> {
+    let mut level = 0;
+    for (i, b) in blob.as_bytes().into_iter().enumerate() {
+        match b {
+            b'{' | b'(' | b';'  => return None,
+            b'<' => level += 1,
+            b'>' => {
+                level -= 1;
+                if level == 0 {
+                    return Some(i.into())
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 pub fn match_struct(msrc: &str, context: &MatchCxt) -> Option<Match> {
     let blob = &msrc[context.range.to_range()];
     let (start, s) = context.get_key_ident(blob, "struct", &[])?;
 
     debug!("found a struct |{}|", s);
 
-    let end = match blob.find('{').or_else(|| blob.find(';')) {
-        Some(e) => e,
-        None => {
-            error!("Can't find end of struct header");
-            return None;
-        }
+    let generics = if let Some(generics_end) = find_generics_end(&blob[start.0..]) {
+        let header = format!("struct {}();", &blob[start.0..=(start + generics_end).0]);
+        ast::parse_generics(header, context.filepath).get_idents()
+    } else {
+        Vec::new()
     };
-
-    // structs with no values need to end in ';', not '{}'
-    let generics = ast::parse_generics(format!("{};", &blob[..end]), context.filepath);
     let start = context.range.start + start;
     Some(Match {
         matchstr: s,
@@ -430,7 +444,7 @@ pub fn match_struct(msrc: &str, context: &MatchCxt) -> Option<Match> {
         local: context.is_local,
         mtype: Struct,
         contextstr: get_context(blob, "{"),
-        generic_args: generics.get_idents(),
+        generic_args: generics,
         generic_types: Vec::new(),
         docs: find_doc(msrc, start),
     })
@@ -509,10 +523,13 @@ pub fn match_enum(msrc: &str, context: &MatchCxt) -> Option<Match> {
     let (start, s) = context.get_key_ident(blob, "enum", &[])?;
 
     debug!("found!! an enum |{}|", s);
-    // Parse generics
-    let end = blob.find('{').or_else(|| blob.find(';'))
-                            .expect("Can't find end of enum header");
-    let generics = ast::parse_generics(format!("{}{{}}", &blob[..end]), context.filepath);
+
+    let generics = if let Some(generics_end) = find_generics_end(&blob[start.0..]) {
+        let header = format!("enum {}{{}};", &blob[start.0..=(start + generics_end).0]);
+        ast::parse_generics(header, context.filepath).get_idents()
+    } else {
+        Vec::new()
+    };
     let start = context.range.start + start;
     Some(Match {
         matchstr: s,
@@ -522,7 +539,7 @@ pub fn match_enum(msrc: &str, context: &MatchCxt) -> Option<Match> {
         local: context.is_local,
         mtype: Enum,
         contextstr: first_line(blob),
-        generic_args: generics.get_idents(),
+        generic_args: generics,
         generic_types: Vec::new(),
         docs: find_doc(msrc, start),
     })
