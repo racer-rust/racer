@@ -42,3 +42,25 @@ fn completes_methods_for_file_open(b: &mut Bencher) {
         var = get_all_completions(src, None);
     })
 }
+
+#[bench]
+fn follows_std(b: &mut Bencher) {
+    let src = r#"
+    use std::~
+"#;
+    let mut var = vec![];
+    b.iter(|| {
+        var = get_all_completions(src, None);
+    })
+}
+
+#[bench]
+fn follows_collections(b: &mut Bencher) {
+    let src = r#"
+    use std::collections::~
+"#;
+    let mut var = vec![];
+    b.iter(|| {
+        var = get_all_completions(src, None);
+    })
+}
