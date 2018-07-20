@@ -525,7 +525,7 @@ pub fn match_enum(msrc: &str, context: &MatchCxt) -> Option<Match> {
     debug!("found!! an enum |{}|", s);
 
     let generics = if let Some(generics_end) = find_generics_end(&blob[start.0..]) {
-        let header = format!("enum {}{{}};", &blob[start.0..=(start + generics_end).0]);
+        let header = format!("enum {}{{}}", &blob[start.0..=(start + generics_end).0]);
         ast::parse_generics(header, context.filepath).get_idents()
     } else {
         Vec::new()
