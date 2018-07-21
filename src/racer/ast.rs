@@ -1141,7 +1141,7 @@ impl GenericsArgs {
         GenericsArgs(res)
     }
     pub fn get_idents(&self) -> Vec<String> {
-        self.0.iter().map(|g| g.name.to_string()).collect()
+        self.0.iter().map(|g| g.name.clone()).collect()
     }
 }
 

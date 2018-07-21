@@ -1391,7 +1391,7 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
                 }).split("::").collect();
                 Path::from_vec(is_global, v)
             };
-            println!("[find_definition_] Path: {:?}", path);
+            debug!("[find_definition_] Path: {:?}", path);
             nameres::resolve_path(
                 &path,
                 filepath,

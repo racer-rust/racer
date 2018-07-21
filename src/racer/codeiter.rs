@@ -311,4 +311,14 @@ mod test {
         ", slice(&src, it.next().unwrap()));
     }
 
+    #[test]
+    fn iterates_ndarray() {
+        let src = "
+            let a = [[f64; 5]; 5];
+            pub struct Matrix44f(pub [[f64; 4]; 4]);
+        ";
+        let mut it = iter_stmts(src.as_ref());
+        assert_eq!("let a = [[f64; 5]; 5];", slice(&src, it.next().unwrap()));
+        assert_eq!("pub struct Matrix44f(pub [[f64; 4]; 4]);", slice(&src, it.next().unwrap()));
+    }
 }
