@@ -69,13 +69,32 @@ pub enum SearchType {
     StartsWith
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
-pub enum Namespace {
-    Type,
-    Value,
-    Both
+mod declare_namespace {
+    // (kngwyu) I reserved Crate, Mod or other names for future usage(like for #830)
+    // but, currently they're not used and... I'm not sure they're useful:)
+    #![allow(non_upper_case_globals, unused)]
+    bitflags!{
+        /// Type context
+        pub struct Namespace: u32 {
+            const Crate    = 0b0000000000001;
+            const Mod      = 0b0000000000010;
+            const Struct   = 0b0000000000100;
+            const Enum     = 0b0000000001000;
+            const Union    = 0b0000000010000;
+            const Trait    = 0b0000000100000;
+            const Type     = 0b0000001111111;
+            const Const    = 0b0000010000000;
+            const Static   = 0b0000100000000;
+            const Func     = 0b0001000000000;
+            const Macro    = 0b0010000000000;
+            const Value    = 0b0011110000000;
+            const Both     = 0b0011111111111;
+            // temporary hack (kngwyu)
+            const StdMacro = 0b0100000000000;
+        }
+    }
 }
+pub use self::declare_namespace::Namespace;
 
 #[derive(Debug, Clone, Copy)]
 pub enum CompletionType {
@@ -1259,7 +1278,7 @@ fn complete_from_file_(
                 filepath,
                 pos,
                 SearchType::StartsWith,
-                Namespace::Both,
+                Namespace::Both | Namespace::StdMacro,
                 session,
                 &ImportInfo::default(),
             ));
@@ -1397,7 +1416,7 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
                 filepath,
                 pos,
                 SearchType::ExactMatch,
-                Namespace::Both,
+                Namespace::Both | Namespace::StdMacro,
                 session,
                 &ImportInfo::default(),
             ).nth(0)

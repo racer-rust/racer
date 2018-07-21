@@ -1136,33 +1136,19 @@ fn run_matchers_on_blob(
         namespace
     );
     let mut out = Vec::new();
-    match namespace {
-        Namespace::Type =>
-            for m in matchers::match_types(src, context, session, import_info) {
-                out.push(m);
-                if context.search_type == ExactMatch {
-                    return out;
-                }
-            },
-        Namespace::Value =>
-            for m in matchers::match_values(src, context) {
-                out.push(m);
-                if context.search_type == ExactMatch {
-                    return out;
-                }
-            },
-        Namespace::Both => {
-            for m in matchers::match_types(src, context, session, import_info) {
-                out.push(m);
-                if context.search_type == ExactMatch {
-                    return out;
-                }
+    if namespace.contains(Namespace::Type) {
+        for m in matchers::match_types(src, context, session, import_info) {
+            out.push(m);
+            if context.search_type == ExactMatch {
+                return out;
             }
-            for m in matchers::match_values(src, context) {
-                out.push(m);
-                if context.search_type == ExactMatch {
-                    return out;
-                }
+        }
+    }
+    if namespace.contains(Namespace::Value) {
+        for m in matchers::match_values(src, context) {
+            out.push(m);
+            if context.search_type == ExactMatch {
+                return out;
             }
         }
     }
@@ -1403,6 +1389,10 @@ pub fn resolve_name(
             out.push(m);
         }
     }
+
+    if namespace.contains(Namespace::StdMacro) {
+        get_std_macros(searchstr, search_type, session, &mut out);
+    }
     out.into_iter()
 }
 
@@ -1544,7 +1534,7 @@ pub fn resolve_path(
     filepath: &Path,
     pos: BytePos,
     search_type: SearchType,
-    namespace: Namespace,
+    mut namespace: Namespace,
     session: &Session,
     import_info: &ImportInfo,
 ) -> vec::IntoIter<Match> {
@@ -1554,6 +1544,7 @@ pub fn resolve_path(
         let pathseg = &path.segments[0];
         resolve_name(pathseg, filepath, pos, search_type, namespace, session, import_info)
     } else if len != 0 {
+        namespace.remove(Namespace::StdMacro);
         // TODO(kngwyu): we should distinguish self and crate,
         // but maybe it's not absolutely important for use experiences.
         if path.segments[0].name == "self" || path.segments[0].name == "crate" {
@@ -1990,4 +1981,75 @@ fn get_subpathsearch(pathsearch: &core::PathSearch) -> Option<core::PathSearch> 
                    })
                })
         })
+}
+
+
+fn get_std_macros(
+    searchstr: &str,
+    search_type: SearchType,
+    session: &Session,
+    out: &mut Vec<Match>,
+) {
+    let std_path = if let Some(ref p) = *RUST_SRC_PATH {
+        p
+    } else {
+        return;
+    };
+    let searchstr = if searchstr.ends_with("!") {
+        let len = searchstr.len();
+        &searchstr[..len - 1]
+    } else {
+        searchstr
+    };
+    let macro_path = std_path.join("libstd/macros.rs");
+    if !macro_path.exists() {
+        return;
+    }
+    let src = session.load_file(&macro_path);
+    let mut export = false;
+    out.extend(src.as_src()
+       .iter_stmts()
+       .filter_map(|range| {
+           let blob = &src[range.to_range()];
+           if blob.starts_with("#[macro_export]") {
+               export = true;
+               return None;
+           }
+           if !export {
+               return None;
+           }
+           if !blob.starts_with("macro_rules!") {
+               return None;
+           }
+           export = false;
+           let mut start = BytePos(12);
+           for &b in blob[start.0..].as_bytes() {
+               match b {
+                   b if util::is_whitespace_byte(b) => start = start.increment(),
+                   _ => break,
+               }
+           }
+           if !blob[start.0..].starts_with(searchstr) {
+               return None;
+           }
+           let end = find_ident_end(blob, start + BytePos(searchstr.len()));
+           let mut matchstr = blob[start.0..end.0].to_owned();
+           if search_type == SearchType::ExactMatch && searchstr != matchstr {
+               return None;
+           }
+           matchstr.push_str("!");
+           let point = range.start + start;
+           Some(Match {
+               matchstr,
+               filepath: macro_path.clone(),
+               point,
+               coords: src.point_to_coords(point),
+               local: false,
+               mtype: MatchType::Macro,
+               contextstr: matchers::first_line(blob),
+               generic_args: Vec::new(),
+               generic_types: Vec::new(),
+               docs: String::new(),
+           })
+       }));
 }

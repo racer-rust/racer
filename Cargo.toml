@@ -21,6 +21,7 @@ doc = false
 debug = true
 
 [dependencies]
+bitflags = "1.0"
 cargo = "0.28"
 log = "0.4"
 rustc-ap-syntax = "184.0.0"
