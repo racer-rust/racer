@@ -751,9 +751,9 @@ impl<'c> Iterator for CodeChunkIter<'c> {
             if end < self.src.start() {
                 continue;
             }
-            if start > self.src.end() {
+            if start >= self.src.end() {
                 return None;
-            } 
+            }
             return Some(ByteRange::new(
                 max(start, self.src.start()) - self.src.start(),
                 min(end, self.src.end()) - self.src.start()

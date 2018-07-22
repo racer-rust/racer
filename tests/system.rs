@@ -1098,10 +1098,9 @@ fn find_complete_docs_with_parentheses_on_last_line() {
 pub fn foo() {}
 
 pub fn bar() {
-    fo~o()
+    foo~()
 }
 ";
-
     let got = get_only_completion(src, None);
     assert_eq!("foo", got.matchstr);
     assert_eq!("Hello world\n(quux)", got.docs);
@@ -4246,4 +4245,16 @@ fn doesnt_complete_macro_after_use() {
     "#;
     let got = get_all_completions(src, None);
     assert!(got.is_empty(), "got: {:?}", got);
+}
+
+#[test]
+fn complets_stringify() {
+    let src = r#"
+    fn main() {
+        let ident = 100;
+        let s = stringi~
+    }
+    "#;
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "stringify!");
 }
