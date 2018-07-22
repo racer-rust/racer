@@ -12,11 +12,36 @@
 
 ## Installation
 
+**NOTE**
+From 2.1, racer needs **nightly rust**
+
+### Requirements
+
+#### Current nightly Rust
+
+If you're using rustup, run
+```
+rustup toolchain add nightly
+```
+
+#### Dependencies of cargo
+From 2.1, racer depends on cargo, so you have to install its dependencies
+
+On Linux, you will need [cmake](https://cmake.org/), [pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/)
+and [zlib](http://zlib.net/):
+
+- On Ubuntu run: `sudo apt-get install cmake pkg-config zlib1g-dev libssl-dev`
+- On Fedora run: `sudo dnf install cmake pkgconfig zlib-devel openssl-devel`
+
+On Windows, you will need to have [cmake](https://cmake.org/) installed.
+
+It's a bit confusing and we're plannig to remove this dependency in the futute.
+
 ### With `cargo install`
 
-This method requires Rust 1.5. Simply run:
+Simply run:
 
-```cargo install racer```
+```cargo +nightly install racer```
 
 As mentioned in the command output, don't forget to add the installation directory to your `PATH`.
 
@@ -24,7 +49,7 @@ As mentioned in the command output, don't forget to add the installation directo
 
 1. Clone the repository: ```git clone https://github.com/racer-rust/racer.git```
 
-2. ```cd racer; cargo build --release```.  The binary will now be in ```./target/release/racer```
+2. ```cd racer; cargo +nightly build --release```.  The binary will now be in ```./target/release/racer```
 
 3. Add the binary to your `PATH`. This can be done by moving it to a directory already in your `PATH` (i.e. `/usr/local/bin`) or by adding the `./target/release/` directory to your `PATH`
 
@@ -36,7 +61,7 @@ As mentioned in the command output, don't forget to add the installation directo
 
     2. manually from git: https://github.com/rust-lang/rust
 
-    *Note*
+    **Note**
 
      If you want to use `racer` with multiple release channels (Rust has 3 release channels: `stable`, `beta` and `nightly`), you have to also download Rust source code for each release channel you install.
 
@@ -46,15 +71,26 @@ As mentioned in the command output, don't forget to add the installation directo
 
     `rustup component add rust-src`
 
-2. (Only needed if downloaded the sources) Set the ```RUST_SRC_PATH``` environment variable to point to the 'src' dir in the Rust source installation
+2. (Optional) Set `RUST_SRC_PATH` environment variable to point to the 'src' dir in the Rust source installation
+   e.g. `% export RUST_SRC_PATH=/usr/local/src/rust/src` or `% export RUST_SRC_PATH="$(rustc --print sysroot)/lib/rustlib/src/rust/src"`
 
-   (e.g. ```% export RUST_SRC_PATH=/usr/local/src/rust/src``` or ```% export RUST_SRC_PATH="$(rustc --print sysroot)/lib/rustlib/src/rust/src"``` )
+   It's recommended to set `RUST_SRC_PATH` for speed up, but racer detects it automatically if you don't set it.
 
 3. Test on the command line:
 
-   ```racer complete std::io::B ```  (should show some completions)
+   `racer complete std::io::B `  (should show some completions)
+
+**Note**
+
+To complete names in extrenal crates, Racer needs `Cargo.lock`.
+So, when you add a dependency in your `Cargo.toml`, you have to run a build command
+such as `cargo build` or `cargo test`, to get completions.
 
 ## Editors/IDEs Supported
+
+### RLS
+
+Racer is used as a static library in [RLS](https://github.com/rust-lang-nursery/rls)
 
 ### Eclipse integration
 
