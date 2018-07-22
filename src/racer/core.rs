@@ -235,7 +235,7 @@ impl Coordinate {
     }
     /// start point of the file
     pub fn start() -> Self {
-        Coordinate::new(0, 1)
+        Coordinate::new(1, 0)
     }
 }
 
