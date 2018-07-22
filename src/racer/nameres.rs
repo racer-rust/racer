@@ -1152,6 +1152,11 @@ fn run_matchers_on_blob(
             }
         }
     }
+    if namespace.contains(Namespace::Macro) {
+        if let Some(m) = matchers::match_macro(&src, context) {
+            out.push(m);
+        }
+    }
     out
 }
 
@@ -1390,7 +1395,7 @@ pub fn resolve_name(
         }
     }
 
-    if namespace.contains(Namespace::StdMacro) {
+    if namespace.contains(Namespace::Macro) {
         get_std_macros(searchstr, search_type, session, &mut out);
     }
     out.into_iter()
@@ -1534,17 +1539,16 @@ pub fn resolve_path(
     filepath: &Path,
     pos: BytePos,
     search_type: SearchType,
-    mut namespace: Namespace,
+    namespace: Namespace,
     session: &Session,
     import_info: &ImportInfo,
 ) -> vec::IntoIter<Match> {
     debug!("resolve_path {:?} {:?} {:?} {:?}", path, filepath.display(), pos, search_type);
-    let len = path.segments.len();
+    let len = path.len();
     if len == 1 {
         let pathseg = &path.segments[0];
         resolve_name(pathseg, filepath, pos, search_type, namespace, session, import_info)
     } else if len != 0 {
-        namespace.remove(Namespace::StdMacro);
         // TODO(kngwyu): we should distinguish self and crate,
         // but maybe it's not absolutely important for use experiences.
         if path.segments[0].name == "self" || path.segments[0].name == "crate" {

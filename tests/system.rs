@@ -4230,3 +4230,20 @@ fn finds_def_of_println() {
     let got = get_definition(src, None);
     assert_eq!(got.matchstr, "println!");
 }
+
+#[test]
+fn doesnt_complete_macro_after_use() {
+    let src = r#"
+    use printl~
+    "#;
+    let got = get_all_completions(src, None);
+    assert!(got.is_empty(), "got: {:?}", got);
+    let src = r#"
+    macro_rules! macro {
+        () => {}
+    }
+    use macr~
+    "#;
+    let got = get_all_completions(src, None);
+    assert!(got.is_empty(), "got: {:?}", got);
+}

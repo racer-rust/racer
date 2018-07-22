@@ -87,7 +87,6 @@ pub fn match_values(src: Src, context: &MatchCxt) -> impl Iterator<Item=Match> {
     match_const(&src, context).into_iter()
         .chain(match_static(&src, context))
         .chain(match_fn(&src, context))
-        .chain(match_macro(&src, context))
 }
 
 fn find_keyword(src: &str, pattern: &str, ignore: &[&str], context: &MatchCxt) -> Option<BytePos> {
