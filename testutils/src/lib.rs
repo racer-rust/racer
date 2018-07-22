@@ -204,7 +204,7 @@ pub fn get_one_completion(src: &str, dir: Option<TmpDir>) -> Match {
 /// Panics if there is not exactly one completion.
 pub fn get_only_completion(src: &str, dir: Option<TmpDir>) -> Match {
     let mut all = get_all_completions(src, dir);
-    assert_eq!(all.len(), 1);
+    assert_eq!(all.len(), 1, "all: {:?}", all);
     all.pop().unwrap()
 }
 

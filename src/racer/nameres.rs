@@ -1987,7 +1987,6 @@ fn get_subpathsearch(pathsearch: &core::PathSearch) -> Option<core::PathSearch> 
         })
 }
 
-
 fn get_std_macros(
     searchstr: &str,
     search_type: SearchType,
@@ -2005,49 +2004,70 @@ fn get_std_macros(
     } else {
         searchstr
     };
-    let macro_path = std_path.join("libstd/macros.rs");
-    if !macro_path.exists() {
-        return;
+    for macro_file in &["libstd/macros.rs", "libcore/macros.rs", "liballoc/macros.rs"] {
+        let macro_path = std_path.join(macro_file);
+        if !macro_path.exists() {
+            return;
+        }
+        get_std_macros_(&macro_path, searchstr, search_type, session, out);
     }
+}
+
+fn get_std_macros_(
+    macro_path: &Path,
+    searchstr: &str,
+    search_type: SearchType,
+    session: &Session,
+    out: &mut Vec<Match>,
+) {
     let src = session.load_file(&macro_path);
     let mut export = false;
+    let mut get_macro_def = |blob: &str| -> Option<(BytePos, String)> {
+        if blob.starts_with("#[macro_export]") {
+            export = true;
+            return None;
+        }
+        if !export {
+            return None;
+        }
+        if !blob.starts_with("macro_rules!") {
+            return None;
+        }
+        export = false;
+        let mut start = BytePos(12);
+        for &b in blob[start.0..].as_bytes() {
+            match b {
+                b if util::is_whitespace_byte(b) => start = start.increment(),
+                _ => break,
+            }
+        }
+        if !blob[start.0..].starts_with(searchstr) {
+            return None;
+        }
+        let end = find_ident_end(blob, start + BytePos(searchstr.len()));
+        let mut matchstr = blob[start.0..end.0].to_owned();
+        if search_type == SearchType::ExactMatch && searchstr != matchstr {
+            return None;
+        }
+        matchstr.push_str("!");
+        Some((start, matchstr))
+    };
+    let mut builtin_start = None;
     out.extend(src.as_src()
        .iter_stmts()
        .filter_map(|range| {
            let blob = &src[range.to_range()];
-           if blob.starts_with("#[macro_export]") {
-               export = true;
-               return None;
+           // for builtin macros in libstd/macros.rs
+           if blob.starts_with("pub mod builtin") {
+               builtin_start = blob.find("#[macro_export]").map(|u| range.start + u.into());
            }
-           if !export {
-               return None;
-           }
-           if !blob.starts_with("macro_rules!") {
-               return None;
-           }
-           export = false;
-           let mut start = BytePos(12);
-           for &b in blob[start.0..].as_bytes() {
-               match b {
-                   b if util::is_whitespace_byte(b) => start = start.increment(),
-                   _ => break,
-               }
-           }
-           if !blob[start.0..].starts_with(searchstr) {
-               return None;
-           }
-           let end = find_ident_end(blob, start + BytePos(searchstr.len()));
-           let mut matchstr = blob[start.0..end.0].to_owned();
-           if search_type == SearchType::ExactMatch && searchstr != matchstr {
-               return None;
-           }
-           matchstr.push_str("!");
-           let point = range.start + start;
+           let (offset, matchstr) = get_macro_def(blob)?;
+           let start = range.start + offset;
            Some(Match {
                matchstr,
-               filepath: macro_path.clone(),
-               point,
-               coords: src.point_to_coords(point),
+               filepath: macro_path.to_owned(),
+               point: start,
+               coords: src.point_to_coords(start),
                local: false,
                mtype: MatchType::Macro,
                contextstr: matchers::first_line(blob),
@@ -2056,4 +2076,28 @@ fn get_std_macros(
                docs: String::new(),
            })
        }));
+    if let Some(builtin_start) = builtin_start {
+        let mod_src = src.get_src_from_start(builtin_start);
+        out.extend(
+            mod_src
+                .iter_stmts()
+                .filter_map(|range| {
+                    let blob = &mod_src[range.to_range()];
+                    let (offset, matchstr) = get_macro_def(blob)?;
+                    let start = builtin_start + range.start + offset;
+                    Some(Match {
+                        matchstr,
+                        filepath: macro_path.to_owned(),
+                        point: start,
+                        coords: src.point_to_coords(start),
+                        local: false,
+                        mtype: MatchType::Macro,
+                        contextstr: matchers::first_line(blob),
+                        generic_args: Vec::new(),
+                        generic_types: Vec::new(),
+                        docs: String::new(),
+                    })
+                })
+        );
+    }
 }
