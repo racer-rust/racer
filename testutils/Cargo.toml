@@ -1,5 +1,4 @@
 [package]
-publish = false
 workspace = ".."
 name = "racer-testutils"
 version = "0.1.0"
