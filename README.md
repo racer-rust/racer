@@ -27,11 +27,12 @@ rustup toolchain add nightly
 #### Dependencies of cargo
 From 2.1, racer depends on cargo, so you have to install its dependencies
 
-On Linux, you will need [cmake](https://cmake.org/), [pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/)
+On Linux, you will need [make](https://www.gnu.org/software/make/), [gcc](https://gcc.gnu.org/), [cmake](https://cmake.org/), [pkg-config](https://www.freedesktop.org/wiki/Software/pkg-config/)
 and [zlib](http://zlib.net/):
 
-- On Ubuntu run: `sudo apt-get install cmake pkg-config zlib1g-dev libssl-dev`
-- On Fedora run: `sudo dnf install cmake pkgconfig zlib-devel openssl-devel`
+- On Ubuntu run: `sudo apt install build-essential cmake pkg-config zlib1g-dev libssl-dev`
+- On Fedora run: `sudo dnf install make gcc cmake pkgconfig zlib-devel openssl-devel`
+- On Arch Linux run: `sudo pacman -S base-devel cmake zlib openssl`
 
 On Windows, you will need to have [cmake](https://cmake.org/) installed.
 
