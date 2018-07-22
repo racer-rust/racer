@@ -4258,3 +4258,25 @@ fn complets_stringify() {
     let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "stringify!");
 }
+
+#[test]
+fn completes_writeln() {
+    let src = r#"
+    fn main() {
+        writel~
+    }
+    "#;
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "writeln!");
+}
+
+#[test]
+fn completes_vec() {
+    let src = r#"
+    fn main() {
+        ve~
+    }
+    "#;
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "vec!");
+}

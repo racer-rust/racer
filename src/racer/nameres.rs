@@ -1987,7 +1987,6 @@ fn get_subpathsearch(pathsearch: &core::PathSearch) -> Option<core::PathSearch> 
         })
 }
 
-
 fn get_std_macros(
     searchstr: &str,
     search_type: SearchType,
@@ -2005,10 +2004,22 @@ fn get_std_macros(
     } else {
         searchstr
     };
-    let macro_path = std_path.join("libstd/macros.rs");
-    if !macro_path.exists() {
-        return;
+    for macro_file in &["libstd/macros.rs", "libcore/macros.rs", "liballoc/macros.rs"] {
+        let macro_path = std_path.join(macro_file);
+        if !macro_path.exists() {
+            return;
+        }
+        get_std_macros_(&macro_path, searchstr, search_type, session, out);
     }
+}
+
+fn get_std_macros_(
+    macro_path: &Path,
+    searchstr: &str,
+    search_type: SearchType,
+    session: &Session,
+    out: &mut Vec<Match>,
+) {
     let src = session.load_file(&macro_path);
     let mut export = false;
     let mut get_macro_def = |blob: &str| -> Option<(BytePos, String)> {
@@ -2046,6 +2057,7 @@ fn get_std_macros(
        .iter_stmts()
        .filter_map(|range| {
            let blob = &src[range.to_range()];
+           // for builtin macros in libstd/macros.rs
            if blob.starts_with("pub mod builtin") {
                builtin_start = blob.find("#[macro_export]").map(|u| range.start + u.into());
            }
@@ -2053,7 +2065,7 @@ fn get_std_macros(
            let start = range.start + offset;
            Some(Match {
                matchstr,
-               filepath: macro_path.clone(),
+               filepath: macro_path.to_owned(),
                point: start,
                coords: src.point_to_coords(start),
                local: false,
@@ -2075,7 +2087,7 @@ fn get_std_macros(
                     let start = builtin_start + range.start + offset;
                     Some(Match {
                         matchstr,
-                        filepath: macro_path.clone(),
+                        filepath: macro_path.to_owned(),
                         point: start,
                         coords: src.point_to_coords(start),
                         local: false,
