@@ -36,7 +36,7 @@ and [zlib](http://zlib.net/):
 
 On Windows, you will need to have [cmake](https://cmake.org/) installed.
 
-It's a bit confusing and we're plannig to remove this dependency in the futute.
+It's a bit confusing and we're planning to remove this dependency in the futute.
 
 ### With `cargo install`
 
