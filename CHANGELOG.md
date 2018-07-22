@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file. This
 project adheres to [Semantic Versioning](http://semver.org/).
 
 ## 2.1.0
+- Support completions for stdlib macros #902
+- Support extern "~"  block #895
+- Support `crate_in_paths` #891
 - Fix bug of getting completion context from `use` statement #886
 - Handle const unsafe fn #879
 - Limit recursion depth through glob imports #875
