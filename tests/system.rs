@@ -4197,3 +4197,53 @@ fn finds_std_fn_in_extern_block() {
     let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "copy_nonoverlapping");
 }
+
+#[test]
+fn complets_println() {
+    let src = r#"
+    fn main() {
+        printl~
+    }
+    "#;
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "println!");
+}
+
+#[test]
+fn doesnt_complete_cfg_if() {
+    let src = r#"
+    fn main() {
+        cfg_i~
+    }
+    "#;
+    let got = get_all_completions(src, None);
+    assert!(got.is_empty(), "got: {:?}", got);
+}
+
+#[test]
+fn finds_def_of_println() {
+    let src = r#"
+    fn main() {
+        printl~n!("Hello@_@");
+    }
+    "#;
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "println!");
+}
+
+#[test]
+fn doesnt_complete_macro_after_use() {
+    let src = r#"
+    use printl~
+    "#;
+    let got = get_all_completions(src, None);
+    assert!(got.is_empty(), "got: {:?}", got);
+    let src = r#"
+    macro_rules! macro {
+        () => {}
+    }
+    use macr~
+    "#;
+    let got = get_all_completions(src, None);
+    assert!(got.is_empty(), "got: {:?}", got);
+}

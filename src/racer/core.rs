@@ -69,13 +69,33 @@ pub enum SearchType {
     StartsWith
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)]
-pub enum Namespace {
-    Type,
-    Value,
-    Both
+mod declare_namespace {
+    // (kngwyu) I reserved Crate, Mod or other names for future usage(like for #830)
+    // but, currently they're not used and... I'm not sure they're useful:)
+    #![allow(non_upper_case_globals, unused)]
+    bitflags!{
+        /// Type context
+        pub struct Namespace: u32 {
+            const Crate  = 0b0000000000001;
+            const Mod    = 0b0000000000010;
+            const Struct = 0b0000000000100;
+            const Enum   = 0b0000000001000;
+            const Union  = 0b0000000010000;
+            const Trait  = 0b0000000100000;
+            const Type   = 0b0000001111111;
+            const Const  = 0b0000010000000;
+            const Static = 0b0000100000000;
+            const Func   = 0b0001000000000;
+            const Value  = 0b0001110000000;
+            const Both   = 0b0001111111111;
+            // we don't include macro in `Value`
+            // see #902 for detail(kngwyu)
+            const Macro  = 0b0010000000000;
+        }
+    }
 }
+pub use self::declare_namespace::Namespace;
+
 
 #[derive(Debug, Clone, Copy)]
 pub enum CompletionType {
@@ -420,6 +440,10 @@ impl Path {
     pub fn extend(&mut self, path: Path) -> &mut Self {
         self.segments.extend(path.segments);
         self
+    }
+
+    pub fn len(&self) -> usize {
+        self.segments.len()
     }
 }
 
@@ -1242,8 +1266,9 @@ fn complete_from_file_(
                     &ImportInfo::default(),
                 )
             }
-            let path = if let Some(use_start) = scopes::use_stmt_start(line) {
-                scopes::construct_path_from_use_tree(&line[use_start.0..])
+            let (path, namespace) = if let Some(use_start) = scopes::use_stmt_start(line) {
+                let path = scopes::construct_path_from_use_tree(&line[use_start.0..]);
+                (path, Namespace::Both)
             } else {
                 let is_global = expr.starts_with("::");
                 let v: Vec<_> = (if is_global {
@@ -1251,7 +1276,13 @@ fn complete_from_file_(
                 } else {
                     expr
                 }).split("::").collect();
-                Path::from_vec(is_global, v)
+                let path = Path::from_vec(is_global, v);
+                let namespace = if path.len() == 1 {
+                    Namespace::Macro | Namespace::Both
+                } else {
+                    Namespace::Both
+                };
+                (path, namespace)
             };
             debug!("path: {:?}, is_global: {:?}", path, path.global);
             out.extend(nameres::resolve_path(
@@ -1259,7 +1290,7 @@ fn complete_from_file_(
                 filepath,
                 pos,
                 SearchType::StartsWith,
-                Namespace::Both,
+                namespace,
                 session,
                 &ImportInfo::default(),
             ));
@@ -1380,8 +1411,9 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
     match completetype {
         CompletionType::Path => {
             let line = scopes::get_current_line(&src, range.end);
-            let path = if let Some(use_start) = scopes::use_stmt_start(line) {
-                scopes::construct_path_from_use_tree(&line[use_start.0..])
+            let (path, namespace) = if let Some(use_start) = scopes::use_stmt_start(line) {
+                let path = scopes::construct_path_from_use_tree(&line[use_start.0..]);
+                (path, Namespace::Both)
             } else {
                 let is_global = expr.starts_with("::");
                 let v: Vec<_> = (if is_global {
@@ -1389,7 +1421,13 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
                 } else {
                     expr
                 }).split("::").collect();
-                Path::from_vec(is_global, v)
+                let path = Path::from_vec(is_global, v);
+                let namespace = if path.len() == 1 {
+                    Namespace::Macro | Namespace::Both
+                } else {
+                    Namespace::Both
+                };
+                (path, namespace)
             };
             debug!("[find_definition_] Path: {:?}", path);
             nameres::resolve_path(
@@ -1397,7 +1435,7 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
                 filepath,
                 pos,
                 SearchType::ExactMatch,
-                Namespace::Both,
+                namespace,
                 session,
                 &ImportInfo::default(),
             ).nth(0)
