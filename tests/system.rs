@@ -4280,3 +4280,45 @@ fn completes_vec() {
     let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "vec!");
 }
+
+#[test]
+fn finds_std_macro_doc() {
+    let src = r#"
+    fn main() {
+        module_pat~h!();
+    }
+    "#;
+    let got = get_definition(src, None);
+    let doc = r#"Expands to a string that represents the current module path.
+
+The current module path can be thought of as the hierarchy of modules
+leading back up to the crate root. The first component of the path
+returned is the name of the crate currently being compiled.
+
+# Examples
+
+```
+mod test {
+    pub fn foo() {
+        assert!(module_path!().ends_with("test"));
+    }
+}
+
+test::foo();
+```"#;
+    assert_eq!(got.docs, doc);
+}
+
+#[test]
+fn finds_local_macro_doc() {
+    let src = r#"
+    /// my macro
+    macro_rules! local_macro { () => {} }
+    fn main() {
+        local_mac~ro!();
+    }
+    "#;
+    let got = get_definition(src, None);
+    let doc = "my macro";
+    assert_eq!(got.docs, doc);
+}
