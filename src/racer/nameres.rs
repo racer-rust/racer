@@ -2073,7 +2073,7 @@ fn get_std_macros_(
                contextstr: matchers::first_line(blob),
                generic_args: Vec::new(),
                generic_types: Vec::new(),
-               docs: String::new(),
+               docs: matchers::find_doc(&src.as_src(), range.start),
            })
        }));
     if let Some(builtin_start) = builtin_start {
@@ -2095,7 +2095,7 @@ fn get_std_macros_(
                         contextstr: matchers::first_line(blob),
                         generic_args: Vec::new(),
                         generic_types: Vec::new(),
-                        docs: String::new(),
+                        docs: matchers::find_doc(&mod_src, range.start),
                     })
                 })
         );

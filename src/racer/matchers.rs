@@ -713,7 +713,7 @@ pub fn match_macro(msrc: &str, context: &MatchCxt) -> Option<Match> {
         contextstr: first_line(blob),
         generic_args: Vec::new(),
         generic_types: Vec::new(),
-        docs: String::new(),
+        docs: find_doc(msrc, context.range.start),
     })
 
 }
