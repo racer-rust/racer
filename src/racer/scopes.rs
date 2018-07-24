@@ -577,6 +577,27 @@ fn test_use_stmt_start() {
     assert_eq!(use_stmt_start("pub(crate)   use   some::").unwrap().0, 19);
 }
 
+#[inline(always)]
+fn next_use_item(expr: &str) -> Option<usize> {
+    let bytes = expr.as_bytes();
+    let mut i = bytes.len();
+    let mut before = b' ';
+    while i > 0 {
+        i -= 1;
+        let cur = bytes[i];
+        if before == b':' && cur == b':' {
+            return Some(i);
+        }
+        if cur == b',' {
+            while i > 0 && bytes[i] != b'{' {
+                i -= 1;
+            }
+        }
+        before = cur;
+    }
+    None
+}
+
 /// get path from use statement, supposing completion point is end of expr
 /// e.g. "use std::collections::{hash_map,  Hash" -> P["std", "collections", "Hash"]
 pub(crate) fn construct_path_from_use_tree(expr: &str) -> core::Path {
@@ -595,7 +616,7 @@ pub(crate) fn construct_path_from_use_tree(expr: &str) -> core::Path {
                 segments.push(&expr[i + 1..=end]);
                 ident_end = None;
             }
-            if let Some(point) = expr[..=i].rfind("::") {
+            if let Some(point) = next_use_item(&expr[..=i]) {
                 if point > 0 {
                     i = point;
                     continue
@@ -636,6 +657,14 @@ fn test_construct_path_from_use_tree() {
     assert_eq!(
         get_path_idents("std::collections::{"),
         vec!["std", "collections", ""],
+    );
+    assert_eq!(
+        get_path_idents("std::{collections::HashMap, sync::Arc"),
+        vec!["std", "sync", "Arc"],
+    );
+    assert_eq!(
+        get_path_idents("{Str1, module::Str2, Str3"),
+        vec!["Str3"],
     );
 }
 
