@@ -617,19 +617,14 @@ pub(crate) fn construct_path_from_use_tree(expr: &str) -> core::Path {
                 ident_end = None;
             }
             if let Some(point) = next_use_item(&expr[..=i]) {
-                if point > 0 {
-                    i = point;
-                    continue
-                }
+                i = point;
+                continue;
             }
             break;
         }
     }
     if let Some(end) = ident_end {
         segments.push(&expr[0..=end]);
-    }
-    if let Some(&"crate") = segments.last() {
-        segments.pop();
     }
     segments.reverse();
     let is_global = expr.starts_with("::");
