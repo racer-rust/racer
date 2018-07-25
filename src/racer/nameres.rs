@@ -2009,13 +2009,21 @@ fn get_std_macros(
         if !macro_path.exists() {
             return;
         }
-        get_std_macros_(&macro_path, searchstr, search_type, session, out);
+        get_std_macros_(
+            &macro_path,
+            searchstr,
+            macro_file == &"libcore/macros.rs",
+            search_type,
+            session,
+            out
+        );
     }
 }
 
 fn get_std_macros_(
     macro_path: &Path,
     searchstr: &str,
+    is_core: bool,
     search_type: SearchType,
     session: &Session,
     out: &mut Vec<Match>,
@@ -2023,7 +2031,7 @@ fn get_std_macros_(
     let src = session.load_file(&macro_path);
     let mut export = false;
     let mut get_macro_def = |blob: &str| -> Option<(BytePos, String)> {
-        if blob.starts_with("#[macro_export]") {
+        if blob.starts_with("#[macro_export]") | blob.starts_with("#[rustc_doc_only_macro]") {
             export = true;
             return None;
         }
@@ -2057,9 +2065,9 @@ fn get_std_macros_(
        .iter_stmts()
        .filter_map(|range| {
            let blob = &src[range.to_range()];
-           // for builtin macros in libstd/macros.rs
-           if blob.starts_with("pub mod builtin") {
-               builtin_start = blob.find("#[macro_export]").map(|u| range.start + u.into());
+           // for builtin macros in libcore/macros.rs
+           if is_core && blob.starts_with("mod builtin") {
+               builtin_start = blob.find("#").map(|u| range.start + u.into());
            }
            let (offset, matchstr) = get_macro_def(blob)?;
            let start = range.start + offset;
