@@ -9,7 +9,6 @@ extern crate lazy_static;
 #[macro_use]
 extern crate bitflags;
 
-extern crate cargo;
 extern crate syntax;
 #[macro_use]
 extern crate derive_more;
@@ -29,12 +28,14 @@ mod codecleaner;
 mod matchers;
 mod snippets;
 mod fileres;
+mod project_model;
 
 pub use core::{find_definition, complete_from_file, complete_fully_qualified_name, to_point, to_coords};
 pub use snippets::snippet_for_match;
 pub use core::{Match, MatchType, PathSearch};
 pub use core::{FileCache, Session, Coordinate, Location, FileLoader, BytePos, ByteRange};
 pub use util::expand_ident;
+pub use project_model::ProjectModelProvider;
 
 pub use util::{RustSrcPathError, get_rust_src_path};
 

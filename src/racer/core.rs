@@ -1,4 +1,3 @@
-use cargo::core::Resolve;
 use rls_span;
 use syntax::codemap;
 use std::fs::File;
@@ -7,7 +6,7 @@ use std::{vec, fmt};
 use std::{str, path};
 use std::io;
 use std::cell::RefCell;
-use std::collections::{hash_map, HashMap};
+use std::collections::HashMap;
 use std::ops::{Deref, Range};
 use std::slice;
 use std::cmp::{min, max, Ordering};
@@ -15,6 +14,7 @@ use std::iter::{Fuse, Iterator};
 use std::rc::Rc;
 use codeiter::StmtIndicesIter;
 use matchers::ImportInfo;
+use project_model::ProjectModelProvider;
 
 use scopes;
 use nameres;
@@ -261,7 +261,7 @@ impl Match {
     /// but in the interest of minimizing the crate's public API surface it's exposed
     /// as a private method for now.
     fn is_same_as(&self, other: &Match) -> bool {
-        self.point == other.point 
+        self.point == other.point
         && self.matchstr == other.matchstr
         && self.filepath == other.filepath
     }
@@ -560,7 +560,7 @@ impl IndexedSource {
             lines: RefCell::new(Vec::new())
         }
     }
-    
+
     pub fn with_src(&self, new_src: String) -> IndexedSource {
         IndexedSource {
             code: new_src,
@@ -704,7 +704,7 @@ impl<'c> Src<'c> {
     pub fn end(&self) -> BytePos {
         self.range.end
     }
-    
+
     pub fn iter_stmts(&self) -> Fuse<StmtIndicesIter<CodeChunkIter>> {
         StmtIndicesIter::from_parts(self, self.chunk_indices())
     }
@@ -796,7 +796,7 @@ pub struct FileCache {
     masked_map: RefCell<HashMap<path::PathBuf, Rc<IndexedSource>>>,
 
     /// The file loader
-    loader: Box<FileLoader>,
+    pub(crate) loader: Box<FileLoader>,
 }
 
 /// Used by the FileCache for loading files
@@ -920,23 +920,6 @@ pub trait SessionExt {
     fn load_file_and_mask_comments(&self, &path::Path) -> Rc<IndexedSource>;
 }
 
-/// dependencies info of a package
-#[derive(Clone, Debug, Default)]
-pub struct Dependencies {
-    /// dependencies of a package(library name -> src_path)
-    inner: HashMap<String, path::PathBuf>,
-}
-
-impl Dependencies {
-    /// Get src path from a library name.
-    /// e.g. from query string `bit_set` it returns
-    /// `~/.cargo/registry/src/github.com-1ecc6299db9ec823/bit-set-0.4.0`
-    pub fn get_src_path(&self, query: &str) -> Option<path::PathBuf> {
-        let p = self.inner.get(query)?;
-        Some(p.to_owned())
-    }
-}
-
 /// Context for a Racer operation
 pub struct Session<'c> {
     /// Cache for files
@@ -948,10 +931,7 @@ pub struct Session<'c> {
     pub generic_impls: RefCell<HashMap<(path::PathBuf, BytePos),
                                        Rc<Vec<(BytePos, String,
                                                ast::GenericsArgs, ast::ImplVisitor)>>>>,
-    /// Cached dependencie (path to Cargo.toml -> Depedencies)
-    cached_deps: RefCell<HashMap<path::PathBuf, Rc<Dependencies>>>,
-    /// Cached lockfiles (path to Cargo.lock -> Resolve)
-    cached_lockfile: RefCell<HashMap<path::PathBuf, Rc<Resolve>>>,
+    pub project_model: Box<ProjectModelProvider + 'c>,
 }
 
 impl<'c> fmt::Debug for Session<'c> {
@@ -976,15 +956,19 @@ impl<'c> Session<'c> {
     /// ```
     ///
     /// [`FileCache`]: struct.FileCache.html
+    #[cfg(feature = "cargo")]
     pub fn new(cache: &'c FileCache) -> Session<'c> {
+        let project_model = ::project_model::cargo::cargo_project_model(cache);
+        Session::with_project_model(cache, project_model)
+    }
+
+    pub fn with_project_model(cache: &'c FileCache, project_model: Box<ProjectModelProvider + 'c>) -> Session<'c> {
         Session {
             cache,
             generic_impls: Default::default(),
-            cached_deps: Default::default(),
-            cached_lockfile: Default::default(),
+            project_model,
         }
     }
-
     /// Specify the contents of a file to be used in completion operations
     ///
     /// The path to the file and the file's contents must both be specified.
@@ -1011,54 +995,6 @@ impl<'c> Session<'c> {
         let raw = self.cache.raw_map.borrow();
         let masked = self.cache.masked_map.borrow();
         raw.contains_key(path) && masked.contains_key(path)
-    }
-
-    /// Get cached dependencies from manifest path(abs path of Cargo.toml) if they exist.
-    pub(crate) fn get_deps<P: AsRef<path::Path>>(&self, manifest: P) -> Option<Rc<Dependencies>> {
-        let manifest = manifest.as_ref();
-        let deps = self.cached_deps.borrow();
-        deps.get(manifest).map(|rc| Rc::clone(&rc))
-    }
-
-    /// Cache dependencies into session.
-    pub(crate) fn cache_deps<P: AsRef<path::Path>>(
-        &self,
-        manifest: P,
-        cache: HashMap<String, path::PathBuf>,
-    ) {
-        let manifest = manifest.as_ref().to_owned();
-        let deps = Dependencies {
-            inner: cache,
-        };
-        self.cached_deps.borrow_mut().insert(manifest, Rc::new(deps));
-    }
-
-    /// load `Cargo.lock` file using fileloader
-    // TODO: use result
-    pub(crate) fn load_lockfile<P, F>(&self, path: P, resolver: F) -> Option<Rc<Resolve>>
-    where
-        P: AsRef<path::Path>,
-        F: FnOnce(&str) -> Option<Resolve>
-    {
-        let pathbuf = path.as_ref().to_owned();
-        match self.cached_lockfile.borrow_mut().entry(pathbuf) {
-            hash_map::Entry::Occupied(occupied) => Some(Rc::clone(occupied.get())),
-            hash_map::Entry::Vacant(vacant) => {
-                let contents = match self.cache.loader.load_file(path.as_ref()) {
-                    Ok(f) => f,
-                    Err(e) => {
-                        debug!(
-                            "[Session::load_lock_file] Failed to load {:?}: {}",
-                            path.as_ref(),
-                            e
-                        );
-                        return None;
-                    }
-                };
-                resolver(&contents)
-                    .map(|res| Rc::clone(vacant.insert(Rc::new(res))))
-            }
-        }
     }
 }
 
@@ -1257,10 +1193,10 @@ fn complete_from_file_(
                 trace!("Path is in fn declaration: `{}`", expr);
 
                 return nameres::resolve_method(
-                    pos, 
-                    src.as_src(), 
-                    expr, 
-                    filepath, 
+                    pos,
+                    src.as_src(),
+                    expr,
+                    filepath,
                     SearchType::StartsWith,
                     session,
                     &ImportInfo::default(),

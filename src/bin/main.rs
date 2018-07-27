@@ -271,7 +271,7 @@ impl Interface {
             },
             Message::Point(point) => println!("POINT{}{}", self.leading_space(), point),
             Message::Coords(coord) => {
-                println!("COORD{lead}{}{field}{}", 
+                println!("COORD{lead}{}{field}{}",
                     coord.row.0,
                     coord.col.0,
                     lead = self.leading_space(),
