@@ -4,6 +4,10 @@ Change Log
 All notable changes to this project will be documented in this file. This
 project adheres to [Semantic Versioning](http://semver.org/).
 
+## 2.1.2
+- Fix bug around getting `use` context #906
+- Update rustc-ap-syntax to fix build in current nightly #911
+
 ## 2.1.1
 - Fix coordinate bug
 - Get doc string for macro #905
