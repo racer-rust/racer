@@ -4,6 +4,9 @@ Change Log
 All notable changes to this project will be documented in this file. This
 project adheres to [Semantic Versioning](http://semver.org/).
 
+# 2.1.3
+- Make cargo optional for RLS #910
+
 ## 2.1.2
 - Fix bug around getting `use` context #906
 - Update rustc-ap-syntax to fix build in current nightly #911
