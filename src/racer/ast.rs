@@ -703,21 +703,19 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
 
             ExprKind::Try(ref expr) => {                
                 self.visit_expr(&expr);
-                debug!("ExprTypeVisitor result: {:?} expr: {:?}", self.result, expr);
+                debug!("ExprKind::Try result: {:?} expr: {:?}", self.result, expr);
                 self.result = if let Some(&Ty::Match(ref m)) = self.result.as_ref() {
                     // HACK for speed up (kngwyu)
                     // Yeah there're many corner cases but it'll work well in most cases
                     if m.matchstr == "Result" || m.matchstr == "Option" {
-                        if let Some(ref ok_var) = m.generic_types.get(0) {
+                        m.generic_types.get(0).and_then(|ok_var| {
                             find_type_match(
                                 &ok_var.path,
                                 &ok_var.filepath,
                                 ok_var.point,
                                 self.session,
                             )
-                        } else {
-                            None
-                        }
+                        })
                     } else {
                         debug!("Unable to desugar Try expression; type was {} with arity {} of {}", 
                             m.matchstr, 
