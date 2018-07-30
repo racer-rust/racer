@@ -4305,3 +4305,32 @@ fn finds_local_macro_doc() {
     let doc = "my macro";
     assert_eq!(got.docs, doc);
 }
+
+#[test]
+fn let_try_socket() {
+    let src = r#"
+    use std::net::UdpSocket;
+    use std::io;
+    fn main() -> io::Result<()> {
+        let sock = UdpSocket::bind("127.0.0.1:1234")?;
+        sock.multicast_~
+    }
+"#;
+    let got = get_all_completions(src, None);
+    assert!(got.into_iter().any(|ma| ma.matchstr == "multicast_loop_v6"));
+}
+
+#[test]
+fn let_try_option() {
+    let src = r#"
+    fn f() -> Option<String> {
+        Some(String::new())
+    }
+    fn f2() -> Option<()> {
+        let s = f()?;
+        s.as_mut_v~
+    }
+"#;
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "as_mut_vec");
+}
