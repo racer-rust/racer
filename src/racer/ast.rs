@@ -702,21 +702,20 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
             }
 
             ExprKind::Try(ref expr) => {                
-                debug!("try expr");
                 self.visit_expr(&expr);
+                debug!("ExprKind::Try result: {:?} expr: {:?}", self.result, expr);
                 self.result = if let Some(&Ty::Match(ref m)) = self.result.as_ref() {
-                    // HACK: Try to break open the result and find it's "Ok" type.
-                    // Once the 'Try' operator trait stabilizes, it'd be better to
-                    // find the type through the trait.
-                    if m.matchstr == "Result" && m.generic_types.len() == 2 {
-                        let ok_var = &m.generic_types[0];
-                        find_type_match(&ok_var.path, 
-                                        &ok_var.filepath, 
-                                        ok_var.point, 
-                                        self.session)
-                    } else if m.matchstr == "Result" && (m.generic_types.len() != m.generic_args.len()) {
-                        debug!("Unable to desugar Try expression; either `T` or `E` was `()`.");
-                        None
+                    // HACK for speed up (kngwyu)
+                    // Yeah there're many corner cases but it'll work well in most cases
+                    if m.matchstr == "Result" || m.matchstr == "Option" {
+                        m.generic_types.get(0).and_then(|ok_var| {
+                            find_type_match(
+                                &ok_var.path,
+                                &ok_var.filepath,
+                                ok_var.point,
+                                self.session,
+                            )
+                        })
                     } else {
                         debug!("Unable to desugar Try expression; type was {} with arity {} of {}", 
                             m.matchstr, 
