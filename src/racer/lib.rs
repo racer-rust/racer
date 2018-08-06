@@ -1,5 +1,3 @@
-#![feature(iterator_flatten)]
-#![feature(slice_get_slice)]
 #![cfg_attr(feature = "nightly", feature(test))]
 
 #[macro_use]

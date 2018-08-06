@@ -24,7 +24,7 @@ debug = true
 bitflags = "1.0"
 cargo = { version = "0.28", optional = true }
 log = "0.4"
-rustc-ap-syntax = "211.0.0"
+rustc-ap-syntax = "218.0.0"
 env_logger = "0.5"
 clap = "2.32"
 lazy_static = "1.0"
