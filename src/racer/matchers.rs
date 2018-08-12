@@ -156,7 +156,7 @@ fn find_keyword_impl(
 fn is_const_fn(src: &str, blob_range: ByteRange) -> bool {
     if let Some(b) = strip_word(&src[blob_range.to_range()], "const") {
         let s = src[(blob_range.start + b).0..].trim_left();
-        !s.starts_with("fn") && !s.starts_with("unsafe")
+        s.starts_with("fn") || s.starts_with("unsafe")
     } else {
         false
     }
