@@ -174,20 +174,22 @@ fn match_pattern_start(
 
     let blob = &src[context.range.to_range()];
     if let Some(start) = find_keyword(blob, pattern, ignore, context) {
-        if let Some(end) = blob[start.0..].find(':') {
-            let s = blob[start.0..start.0 + end].trim_right();
-            return Some(Match {
-                matchstr: s.to_owned(),
-                filepath: context.filepath.to_path_buf(),
-                point: context.range.start + start,
-                coords: None,
-                local: context.is_local,
-                mtype: mtype,
-                contextstr: first_line(blob),
-                generic_args: Vec::new(),
-                generic_types: Vec::new(),
-                docs: String::new(),
-            })
+        if let Some(end) = blob[start.0..].find(|c: char| c == ':' || c.is_whitespace()) {
+            if blob[start.0 + end..].trim_left().chars().next() == Some(':') {
+                let s = &blob[start.0..start.0 + end];
+                return Some(Match {
+                    matchstr: s.to_owned(),
+                    filepath: context.filepath.to_path_buf(),
+                    point: context.range.start + start,
+                    coords: None,
+                    local: context.is_local,
+                    mtype: mtype,
+                    contextstr: first_line(blob),
+                    generic_args: Vec::new(),
+                    generic_types: Vec::new(),
+                    docs: String::new(),
+                })
+            }
         }
     }
     None
