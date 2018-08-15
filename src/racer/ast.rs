@@ -13,7 +13,7 @@ use syntax::errors::{emitter::ColorConfig, Handler};
 use syntax::parse::parser::Parser;
 use syntax::parse::{self, ParseSess};
 use syntax::print::pprust;
-use syntax::{self, symbol, visit};
+use syntax::{self, visit};
 
 /// construct parser from string
 // From syntax/util/parser_testing.rs
@@ -451,14 +451,13 @@ fn resolve_ast_path(
 }
 
 fn to_racer_path(path: &ast::Path) -> core::Path {
+    let mut prefix = None;
     let mut segments = Vec::new();
-    let mut global = false;
-    for seg in &path.segments {
-        let name = seg.ident.name;
+    for (i, seg) in path.segments.iter().enumerate() {
+        let name = seg.ident.name.to_string();
         let mut types = Vec::new();
-        if name == symbol::keywords::CrateRoot.name() {
-            global = true;
-            continue;
+        if i == 0 {
+            prefix = core::PathPrefix::from_str(&name);
         }
         // TODO: support GenericArgs::Parenthesized (A path like `Foo(A,B) -> C`)
         if let Some(ref params) = seg.args {
@@ -472,13 +471,10 @@ fn to_racer_path(path: &ast::Path) -> core::Path {
                 })
             }
         }
-        segments.push(core::PathSegment {
-            name: name.to_string(),
-            types,
-        });
+        segments.push(core::PathSegment::new(name, types));
     }
     core::Path {
-        global,
+        prefix,
         segments,
     }
 }

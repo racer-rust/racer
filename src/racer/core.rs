@@ -88,7 +88,7 @@ mod declare_namespace {
             const Func   = 0b0001000000000;
             const Value  = 0b0001110000000;
             const Both   = 0b0001111111111;
-            // we don't include macro in `Value`
+            // we don't include macro in `Value` currently
             // see #902 for detail(kngwyu)
             const Macro  = 0b0010000000000;
         }
@@ -409,32 +409,77 @@ impl fmt::Display for Ty {
     }
 }
 
+/// Prefix of path.
+/// e.g. for path `::std` => Global
+///      for path `self::abc` => Self_
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PathPrefix {
+    Crate,
+    Super,
+    Self_,
+    Global,
+}
+
+impl PathPrefix {
+    pub(crate) fn from_str(s: &str) -> Option<PathPrefix> {
+        match s {
+            "crate" => Some(PathPrefix::Crate),
+            "super" => Some(PathPrefix::Super),
+            "self" => Some(PathPrefix::Self_),
+            "{{root}}" => Some(PathPrefix::Global),
+            _ => None,
+        }
+    }
+}
+
 // The racer implementation of an ast::Path. Difference is that it is Send-able
 #[derive(Clone, PartialEq)]
 pub struct Path {
-    pub global: bool,
-    pub segments: Vec<PathSegment>
+    pub prefix: Option<PathPrefix>,
+    pub segments: Vec<PathSegment>,
 }
 
 impl Path {
     pub fn generic_types(&self) -> ::std::slice::Iter<Path> {
-        self.segments[self.segments.len()-1].types.iter()
+        self.segments[self.segments.len() - 1].types.iter()
+    }
+
+    pub fn single(seg: PathSegment) -> Path {
+        Path {
+            prefix: None,
+            segments: vec![seg],
+        }
     }
 
     pub fn from_vec(global: bool, v: Vec<&str>) -> Path {
-        let segments = v
-            .into_iter()
-            .map(|x| PathSegment{ name: x.to_owned(), types: Vec::new() })
-            .collect::<Vec<_>>();
-        Path { global, segments }
+        Self::from_iter(global, v.into_iter().map(|s| s.to_owned()))
     }
 
     pub fn from_svec(global: bool, v: Vec<String>) -> Path {
-        let segments = v
-            .into_iter()
+        Self::from_iter(global, v.into_iter())
+    }
+
+    pub fn from_iter(global: bool, i: impl Iterator<Item = String>) -> Path {
+        let mut prefix = if global {
+            Some(PathPrefix::Global)
+        } else {
+            None
+        };
+        let segments: Vec<_> = i
+            .skip_while(|s| {
+                if prefix.is_some() {
+                    return false;
+                }
+                if let Some(pre) = PathPrefix::from_str(s) {
+                    prefix = Some(pre);
+                    true
+                } else {
+                    false
+                }
+            })
             .map(PathSegment::from)
-            .collect::<Vec<_>>();
-        Path { global, segments }
+            .collect();
+        Path { prefix, segments }
     }
 
     pub fn extend(&mut self, path: Path) -> &mut Self {
@@ -510,6 +555,12 @@ impl fmt::Display for Path {
 pub struct PathSegment {
     pub name: String,
     pub types: Vec<Path>
+}
+
+impl PathSegment {
+    pub fn new(name: String, types: Vec<Path>) -> Self {
+        PathSegment { name, types }
+    }
 }
 
 impl From<String> for PathSegment {
@@ -1220,7 +1271,7 @@ fn complete_from_file_(
                 };
                 (path, namespace)
             };
-            debug!("path: {:?}, is_global: {:?}", path, path.global);
+            debug!("path: {:?}, prefix: {:?}", path, path.prefix);
             out.extend(nameres::resolve_path(
                 &path,
                 filepath,

@@ -1326,7 +1326,7 @@ pub fn resolve_name(
     let searchstr = &pathseg.name;
 
     let msrc = session.load_file(filepath);
-    let is_exact_match = match search_type { ExactMatch => true, StartsWith => false };
+    let is_exact_match = search_type == ExactMatch;
 
     if is_exact_match && &searchstr[..] == "Self" {
         if let Some(Ty::Match(m)) = typeinf::get_type_of_self(pos, filepath, true, msrc.as_src(), session) {
@@ -1898,8 +1898,13 @@ pub fn search_for_field_or_method(context: Match, searchstr: &str, search_type: 
     out.into_iter()
 }
 
-fn search_for_deref_matches(impl_match: &Match, type_match: &Match, fieldsearchstr: &str, fpath: &Path, session: &Session) -> vec::IntoIter<Match>
-{
+fn search_for_deref_matches(
+    impl_match: &Match,
+    type_match: &Match,
+    fieldsearchstr: &str,
+    fpath: &Path,
+    session: &Session
+) -> vec::IntoIter<Match> {
     debug!("Found a Deref Implementation for {}, Searching for Methods on the Deref Type", type_match.matchstr);
     let mut out = Vec::new();
 
@@ -1924,13 +1929,7 @@ fn search_for_deref_matches(impl_match: &Match, type_match: &Match, fieldsearchs
         }
         // If Deref to an ordinary type
         else {
-            let deref_type_path = core::Path {
-                global: false,
-                segments: vec![core::PathSegment {
-                    name: impl_match.generic_args.first().unwrap().clone(),
-                    types: Vec::new()
-                }]
-            };
+            let deref_type_path = core::Path::single(impl_match.generic_args[0].clone().into());
             let type_match = resolve_path_with_str(
                 &deref_type_path,
                 fpath,
