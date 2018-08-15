@@ -22,7 +22,7 @@ debug = true
 
 [dependencies]
 bitflags = "1.0"
-cargo = { version = "0.28", optional = true }
+cargo = { version = "0.29", optional = true }
 log = "0.4"
 rustc-ap-syntax = "218.0.0"
 env_logger = "0.5"
