@@ -451,6 +451,19 @@ impl Path {
         }
     }
 
+    pub fn set_prefix(&mut self) {
+        if self.prefix.is_some() {
+            return;
+        }
+        self.prefix = self
+            .segments
+            .first()
+            .and_then(|seg| PathPrefix::from_str(&seg.name));
+        if self.prefix.is_some() {
+            self.segments.remove(0);
+        }
+    }
+
     pub fn from_vec(global: bool, v: Vec<&str>) -> Path {
         Self::from_iter(global, v.into_iter().map(|s| s.to_owned()))
     }
@@ -459,25 +472,23 @@ impl Path {
         Self::from_iter(global, v.into_iter())
     }
 
-    pub fn from_iter(global: bool, i: impl Iterator<Item = String>) -> Path {
+    pub fn from_iter(global: bool, iter: impl Iterator<Item = String>) -> Path {
         let mut prefix = if global {
             Some(PathPrefix::Global)
         } else {
             None
         };
-        let segments: Vec<_> = i
-            .skip_while(|s| {
-                if prefix.is_some() {
-                    return false;
+        let segments: Vec<_> = iter
+            .enumerate()
+            .filter_map(|(i, s)| {
+                if i == 0 && prefix.is_none() {
+                    if let Some(pre) = PathPrefix::from_str(&s) {
+                        prefix = Some(pre);
+                        return None;
+                    }
                 }
-                if let Some(pre) = PathPrefix::from_str(s) {
-                    prefix = Some(pre);
-                    true
-                } else {
-                    false
-                }
+                Some(PathSegment::from(s))
             })
-            .map(PathSegment::from)
             .collect();
         Path { prefix, segments }
     }
