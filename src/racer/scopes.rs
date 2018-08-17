@@ -1,26 +1,32 @@
-use {ast, typeinf, util};
-use core::{self, Src, CompletionType, BytePos, ByteRange, IndexedSource};
 #[cfg(test)]
 use core::Coordinate;
+use core::{self, BytePos, ByteRange, CompletionType, IndexedSource, Src};
+use {ast, typeinf, util};
 
+use codecleaner::comment_skip_iter_rev;
 use std::iter::Iterator;
 use std::path::{Path, PathBuf};
-use std::str::from_utf8;
 use std::rc::Rc;
+use std::str::from_utf8;
 use util::*;
-use codecleaner::comment_skip_iter_rev;
 
 fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<BytePos>
 where
-    A: Iterator<Item = &'a u8>
+    A: Iterator<Item = &'a u8>,
 {
     let mut levels = 0u32;
     for (count, &b) in iter.enumerate() {
         if b == close {
-            if levels == level_end { return Some(count.into()); }
-            if levels == 0 { return None; }
+            if levels == level_end {
+                return Some(count.into());
+            }
+            if levels == 0 {
+                return None;
+            }
             levels -= 1;
-        } else if b == open { levels += 1; }
+        } else if b == open {
+            levels += 1;
+        }
     }
     None
 }
@@ -33,27 +39,28 @@ pub fn find_closing_paren(src: &str, pos: BytePos) -> BytePos {
 pub fn find_closure_scope_start(
     src: Src,
     point: BytePos,
-    parentheses_open_pos: BytePos
+    parentheses_open_pos: BytePos,
 ) -> Option<BytePos> {
     let masked_src = mask_comments(src.shift_start(point));
     let closing_paren_pos = find_closing_paren(masked_src.as_str(), BytePos::ZERO) + point;
-    let src_between_parent = mask_comments(src.shift_range(ByteRange::new(parentheses_open_pos, closing_paren_pos)));
-    closure_valid_arg_scope(&src_between_parent).map(|_ |parentheses_open_pos)
+    let src_between_parent =
+        mask_comments(src.shift_range(ByteRange::new(parentheses_open_pos, closing_paren_pos)));
+    closure_valid_arg_scope(&src_between_parent).map(|_| parentheses_open_pos)
 }
 
 pub fn scope_start(src: Src, point: BytePos) -> BytePos {
     let masked_src = mask_comments(src.change_length(point));
     let bytes = masked_src.as_bytes();
-    let mut curly_parent_open_pos = find_close(bytes.iter().rev(), b'}', b'{', 0)
-        .map_or(BytePos::ZERO, |count| point - count);
+    let mut curly_parent_open_pos =
+        find_close(bytes.iter().rev(), b'}', b'{', 0).map_or(BytePos::ZERO, |count| point - count);
 
     // We've found a multi-use statement, such as `use foo::{bar, baz};`, so we shouldn't consider
     // the brace to be the start of the scope.
     if curly_parent_open_pos > BytePos::ZERO
         && masked_src[..curly_parent_open_pos.0].ends_with("::{")
     {
-        let pos = if let Some(pos) = masked_src[..curly_parent_open_pos.0]
-            .rfind(|c: char|  c == '\n' || c == ';')
+        let pos = if let Some(pos) =
+            masked_src[..curly_parent_open_pos.0].rfind(|c: char| c == '\n' || c == ';')
         {
             BytePos(pos)
         } else {
@@ -61,7 +68,10 @@ pub fn scope_start(src: Src, point: BytePos) -> BytePos {
             curly_parent_open_pos
         };
         curly_parent_open_pos = find_close(
-            mask_comments(src.change_length(pos)).as_bytes().iter().rev(),
+            mask_comments(src.change_length(pos))
+                .as_bytes()
+                .iter()
+                .rev(),
             b'}',
             b'{',
             0,
@@ -89,7 +99,8 @@ pub fn find_stmt_start(msrc: Src, point: BytePos) -> Option<BytePos> {
         point,
         &msrc[scopestart.0..point.increment().0]
     );
-    msrc.shift_start(scopestart).iter_stmts()
+    msrc.shift_start(scopestart)
+        .iter_stmts()
         .find(|&range| scopestart + range.start < point && point < scopestart + range.end)
         .map(|range| scopestart + range.start)
 }
@@ -105,11 +116,13 @@ pub fn find_let_start(msrc: Src, point: BytePos) -> Option<BytePos> {
     let mut scopestart = scope_start(msrc, point);
     let mut let_start = None;
 
-    // To avoid infinite loops, we cap the number of times we'll 
+    // To avoid infinite loops, we cap the number of times we'll
     // expand the search in an attempt to find statements.
     // TODO: it's too hacky, and, 1..6 is appropriate?
     for step in 1..6 {
-        let_start = msrc.shift_start(scopestart).iter_stmts()
+        let_start = msrc
+            .shift_start(scopestart)
+            .iter_stmts()
             .find(|&range| scopestart + range.end > point);
 
         if let Some(ref range) = let_start {
@@ -119,7 +132,7 @@ pub fn find_let_start(msrc: Src, point: BytePos) -> Option<BytePos> {
                 break;
             }
         }
-        
+
         debug!(
             "find_let_start failed to find start on attempt {}: Restarting search from {:?} ({:?})",
             step,
@@ -158,13 +171,17 @@ fn get_local_module_path_(msrc: Src, point: BytePos, out: &mut Vec<String>) {
     }
 }
 
-pub fn get_module_file_from_path(msrc: Src, point: BytePos, parentdir: &Path) -> Option<PathBuf> {    
+pub fn get_module_file_from_path(msrc: Src, point: BytePos, parentdir: &Path) -> Option<PathBuf> {
     let mut iter = msrc.iter_stmts();
     while let Some(range) = iter.next() {
         let blob = msrc.shift_range(range);
         let start = range.start;
-        if blob.starts_with("#[path ")  {
-            if let Some(ByteRange { start: _, end: modend }) = iter.next() {
+        if blob.starts_with("#[path ") {
+            if let Some(ByteRange {
+                start: _,
+                end: modend,
+            }) = iter.next()
+            {
                 if start < point && modend > point {
                     let pathstart = blob.find('"')? + 1;
                     let pathend = blob[pathstart..].find('"').unwrap();
@@ -183,14 +200,16 @@ pub fn get_module_file_from_path(msrc: Src, point: BytePos, parentdir: &Path) ->
 
 pub fn find_impl_start(msrc: Src, point: BytePos, scopestart: BytePos) -> Option<BytePos> {
     let len = point - scopestart;
-    msrc
-        .shift_start(scopestart)
+    msrc.shift_start(scopestart)
         .iter_stmts()
         .find(|range| range.end > len)
         .and_then(|range| {
             let blob = msrc.shift_start(scopestart + range.start);
             // TODO:: the following is a bit weak at matching traits. make this better
-            if blob.starts_with("impl") || blob.starts_with("trait") || blob.starts_with("pub trait") {
+            if blob.starts_with("impl")
+                || blob.starts_with("trait")
+                || blob.starts_with("pub trait")
+            {
                 Some(scopestart + range.start)
             } else {
                 let newstart = blob.find('{').expect("[find_impl_start] { was not found.") + 1;
@@ -221,15 +240,17 @@ fn finds_subnested_module() {
 
 // TODO: This function can't handle use_nested_groups
 pub fn split_into_context_and_completion(s: &str) -> (&str, &str, CompletionType) {
-    match s.char_indices().rev().find(|&(_, c)| !util::is_ident_char(c)) {
-        Some((i,c)) => {
-            match c {
-                '.' => (&s[..i], &s[(i+1)..], CompletionType::Field),
-                ':' if s.len() > 1 => (&s[..(i-1)], &s[(i+1)..], CompletionType::Path),
-                _   => (&s[..(i+1)], &s[(i+1)..], CompletionType::Path)
-            }
+    match s
+        .char_indices()
+        .rev()
+        .find(|&(_, c)| !util::is_ident_char(c))
+    {
+        Some((i, c)) => match c {
+            '.' => (&s[..i], &s[(i + 1)..], CompletionType::Field),
+            ':' if s.len() > 1 => (&s[..(i - 1)], &s[(i + 1)..], CompletionType::Path),
+            _ => (&s[..(i + 1)], &s[(i + 1)..], CompletionType::Path),
         },
-        None => ("", s, CompletionType::Path)
+        None => ("", s, CompletionType::Path),
     }
 }
 
@@ -243,8 +264,8 @@ pub fn get_line(src: &str, point: BytePos) -> BytePos {
         .unwrap_or(BytePos::ZERO)
 }
 
-/// search in reverse for the start of the current expression 
-/// allow . and :: to be surrounded by white chars to enable multi line call chains 
+/// search in reverse for the start of the current expression
+/// allow . and :: to be surrounded by white chars to enable multi line call chains
 pub fn get_start_of_search_expr(src: &str, point: BytePos) -> BytePos {
     enum State {
         /// In parentheses; the value inside identifies depth.
@@ -259,34 +280,34 @@ pub fn get_start_of_search_expr(src: &str, point: BytePos) -> BytePos {
     }
     let mut ws_ok = State::None;
     for (i, c) in src.as_bytes()[..point.0].iter().enumerate().rev() {
-        ws_ok = match (*c,ws_ok) {
-            (b'(', State::None) => State::Result(i+1),
-            (b'(', State::Levels(1)) =>  State::None,
-            (b'(', State::Levels(lev)) =>  State::Levels(lev-1),
-            (b')', State::Levels(lev)) =>  State::Levels(lev+1),
-            (b')', State::None) |
-            (b')', State::StartsWithDot) =>  State::Levels(1),
-            (b'.', State::None) =>  State::StartsWithDot,
-            (b'.', State::StartsWithDot) => State::Result(i+2) ,
-            (b'.', State::MustEndsWithDot(_)) =>  State::None,
-            (b':', State::MustEndsWithDot(index)) =>  State::StartsWithCol(index),
-            (b':', State::StartsWithCol(_)) =>  State::None,
-            (b'"', State::None) |
-            (b'"', State::StartsWithDot) => State::StringLiteral,
+        ws_ok = match (*c, ws_ok) {
+            (b'(', State::None) => State::Result(i + 1),
+            (b'(', State::Levels(1)) => State::None,
+            (b'(', State::Levels(lev)) => State::Levels(lev - 1),
+            (b')', State::Levels(lev)) => State::Levels(lev + 1),
+            (b')', State::None) | (b')', State::StartsWithDot) => State::Levels(1),
+            (b'.', State::None) => State::StartsWithDot,
+            (b'.', State::StartsWithDot) => State::Result(i + 2),
+            (b'.', State::MustEndsWithDot(_)) => State::None,
+            (b':', State::MustEndsWithDot(index)) => State::StartsWithCol(index),
+            (b':', State::StartsWithCol(_)) => State::None,
+            (b'"', State::None) | (b'"', State::StartsWithDot) => State::StringLiteral,
             (b'"', State::StringLiteral) => State::None,
             (b'?', State::StartsWithDot) => State::None,
-            (_ , State::StringLiteral) => State::StringLiteral,
-            ( _ , State::StartsWithCol(index)) => State::Result(index) ,
-            ( _ , State::None) if char_at(src, i).is_whitespace() =>  State::MustEndsWithDot(i+1),
-            ( _ , State::MustEndsWithDot(index)) if char_at(src, i).is_whitespace() => State::MustEndsWithDot(index),
-            ( _ , State::StartsWithDot ) if char_at(src, i).is_whitespace() => State::StartsWithDot,
-            ( _ , State::MustEndsWithDot(index)) => State::Result(index) ,
-            ( _ , State::None) if !util::is_search_expr_char(char_at(src, i)) => State::Result(i+1) ,
-            ( _ , State::None) => State::None,
-            ( _ , s@State::Levels(_)) => s,
-            ( _ , State::StartsWithDot) if util::is_search_expr_char(char_at(src, i)) =>  State::None,
-            ( _ , State::StartsWithDot) => State::Result(i+1) ,
-            ( _ , State::Result(_)) => unreachable!() ,
+            (_, State::StringLiteral) => State::StringLiteral,
+            (_, State::StartsWithCol(index)) => State::Result(index),
+            (_, State::None) if char_at(src, i).is_whitespace() => State::MustEndsWithDot(i + 1),
+            (_, State::MustEndsWithDot(index)) if char_at(src, i).is_whitespace() => {
+                State::MustEndsWithDot(index)
+            }
+            (_, State::StartsWithDot) if char_at(src, i).is_whitespace() => State::StartsWithDot,
+            (_, State::MustEndsWithDot(index)) => State::Result(index),
+            (_, State::None) if !util::is_search_expr_char(char_at(src, i)) => State::Result(i + 1),
+            (_, State::None) => State::None,
+            (_, s @ State::Levels(_)) => s,
+            (_, State::StartsWithDot) if util::is_search_expr_char(char_at(src, i)) => State::None,
+            (_, State::StartsWithDot) => State::Result(i + 1),
+            (_, State::Result(_)) => unreachable!(),
         };
         if let State::Result(index) = ws_ok {
             return index.into();
@@ -304,8 +325,10 @@ pub fn get_start_of_pattern(src: &str, point: BytePos) -> BytePos {
                     return i.increment();
                 }
                 levels -= 1;
-            },
-            ')' => { levels += 1; },
+            }
+            ')' => {
+                levels += 1;
+            }
             _ => {
                 if levels == 0 && !util::is_pattern_char(c) {
                     return i.increment();
@@ -329,15 +352,20 @@ mod test_get_start_of_pattern {
 
     #[test]
     fn handles_variant2() {
-        assert_eq!(4, get_start_of_pattern_("bla, ast::PatTup(ref tuple_elements) => {", 36));
+        assert_eq!(
+            4,
+            get_start_of_pattern_("bla, ast::PatTup(ref tuple_elements) => {", 36)
+        );
     }
 
     #[test]
     fn with_block_comments() {
-        assert_eq!(6, get_start_of_pattern_("break, Some(b) /* if expr is Some */ => {", 36));
+        assert_eq!(
+            6,
+            get_start_of_pattern_("break, Some(b) /* if expr is Some */ => {", 36)
+        );
     }
 }
-
 
 pub fn expand_search_expr(msrc: &str, point: BytePos) -> ByteRange {
     let start = get_start_of_search_expr(msrc, point);
@@ -346,7 +374,7 @@ pub fn expand_search_expr(msrc: &str, point: BytePos) -> ByteRange {
 
 #[cfg(test)]
 mod test_expand_seacrh_expr {
-    use super::{BytePos, expand_search_expr};
+    use super::{expand_search_expr, BytePos};
     fn expand_search_expr_(s: &str, u: usize) -> (usize, usize) {
         let res = expand_search_expr(s, BytePos(u));
         (res.start.0, res.end.0)
@@ -368,11 +396,17 @@ mod test_expand_seacrh_expr {
 
     #[test]
     fn handles_inline_closures() {
-        assert_eq!((0, 29), expand_search_expr_("yeah::blah.foo(|x:foo|{}).bar", 27))
+        assert_eq!(
+            (0, 29),
+            expand_search_expr_("yeah::blah.foo(|x:foo|{}).bar", 27)
+        )
     }
     #[test]
     fn handles_a_function_arg() {
-        assert_eq!((5, 25), expand_search_expr_("myfn(foo::new().baz().com)", 23))
+        assert_eq!(
+            (5, 25),
+            expand_search_expr_("myfn(foo::new().baz().com)", 23)
+        )
     }
 
     #[test]
@@ -416,11 +450,11 @@ mod test_expand_seacrh_expr {
     }
 }
 
-
-
 fn fill_gaps(buffer: &str, result: &mut String, start: usize, prev: usize) {
-    for _ in 0..((start-prev)/buffer.len()) { result.push_str(buffer); }
-    result.push_str(&buffer[..((start-prev)%buffer.len())]);
+    for _ in 0..((start - prev) / buffer.len()) {
+        result.push_str(buffer);
+    }
+    result.push_str(&buffer[..((start - prev) % buffer.len())]);
 }
 
 pub fn mask_comments(src: Src) -> String {
@@ -456,10 +490,10 @@ pub fn mask_sub_scopes(src: &str) -> String {
             b'{' => {
                 if levels == 0 {
                     result.push_str(&src[start..(pos)]);
-                    start = pos+1;
+                    start = pos + 1;
                 }
                 levels += 1;
-            },
+            }
             b'}' => {
                 if levels == 1 {
                     fill_gaps(buffer, &mut result, pos, start);
@@ -467,12 +501,12 @@ pub fn mask_sub_scopes(src: &str) -> String {
                     start = pos;
                 }
                 levels -= 1;
-            },
+            }
             b'\n' if levels > 0 => {
                 fill_gaps(buffer, &mut result, pos, start);
                 result.push('\n');
-                start = pos+1;
-            },
+                start = pos + 1;
+            }
             _ => {}
         }
     }
@@ -490,19 +524,20 @@ pub fn mask_sub_scopes(src: &str) -> String {
 pub fn end_of_next_scope(src: &str) -> &str {
     match find_close(src.as_bytes().iter(), b'{', b'}', 1) {
         Some(count) => &src[..count.0 + 1],
-        None => ""
+        None => "",
     }
 }
 
-
 #[test]
 fn test_scope_start() {
-    let src = String::from("
+    let src = String::from(
+        "
 fn myfn() {
     let a = 3;
     print(a);
 }
-");
+",
+    );
     let src = core::new_source(src);
     let point = src.coords_to_point(&Coordinate::new(4, 10)).unwrap();
     let start = scope_start(src.as_src(), point);
@@ -511,7 +546,8 @@ fn myfn() {
 
 #[test]
 fn test_scope_start_handles_sub_scopes() {
-    let src = String::from("
+    let src = String::from(
+        "
 fn myfn() {
     let a = 3;
     {
@@ -519,7 +555,8 @@ fn myfn() {
     }
     print(a);
 }
-");
+",
+    );
     let src = core::new_source(src);
     let point = src.coords_to_point(&Coordinate::new(7, 10)).unwrap();
     let start = scope_start(src.as_src(), point);
@@ -528,11 +565,13 @@ fn myfn() {
 
 #[test]
 fn masks_out_comments() {
-    let src = String::from("
+    let src = String::from(
+        "
 this is some code
 this is a line // with a comment
 some more
-");
+",
+    );
     let src = core::new_source(src);
     let r = mask_comments(src.as_src());
 
@@ -549,14 +588,14 @@ some more
 
 #[test]
 fn finds_end_of_struct_scope() {
-    let src="
+    let src = "
 struct foo {
    a: usize,
    blah: ~str
 }
 Some other junk";
 
-    let expected="
+    let expected = "
 struct foo {
    a: usize,
    blah: ~str
@@ -635,7 +674,10 @@ pub(crate) fn construct_path_from_use_tree(expr: &str) -> core::Path {
 fn test_construct_path_from_use_tree() {
     let get_path_idents = |s| {
         let s = construct_path_from_use_tree(s);
-        s.segments.into_iter().map(|seg| seg.name).collect::<Vec<_>>()
+        s.segments
+            .into_iter()
+            .map(|seg| seg.name)
+            .collect::<Vec<_>>()
     };
     assert_eq!(
         get_path_idents("std::collections::HashMa"),
@@ -657,10 +699,7 @@ fn test_construct_path_from_use_tree() {
         get_path_idents("std::{collections::HashMap, sync::Arc"),
         vec!["std", "sync", "Arc"],
     );
-    assert_eq!(
-        get_path_idents("{Str1, module::Str2, Str3"),
-        vec!["Str3"],
-    );
+    assert_eq!(get_path_idents("{Str1, module::Str2, Str3"), vec!["Str3"],);
 }
 
 /// get current line string parsed by ;
@@ -670,8 +709,7 @@ pub(crate) fn get_current_line(src: &Rc<IndexedSource>, pos: BytePos) -> &str {
     // 1. The line is use contextstr::{A, B, C, searchstr
     // 2. The line started with contextstr or ::
     // 3. FIXME(may not correct): Neither above case, then expr parsed above is corrected
-    let linestart = find_stmt_start(src.as_src(), pos)
-        .unwrap_or_else(|| get_line(&src[..], pos));
+    let linestart = find_stmt_start(src.as_src(), pos).unwrap_or_else(|| get_line(&src[..], pos));
 
     // step 1, get full line, take the rightmost part split by semicolon
     //   prevent the case that someone write multiple line in one line

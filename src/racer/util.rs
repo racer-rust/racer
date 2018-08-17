@@ -1,10 +1,13 @@
 // Small functions of utility
-use std::{cmp, error, fmt, path};
 use std::rc::Rc;
-use std::{collections::hash_map::DefaultHasher, hash::{Hash, Hasher}};
+use std::{cmp, error, fmt, path};
+use std::{
+    collections::hash_map::DefaultHasher,
+    hash::{Hash, Hasher},
+};
 
-use core::{IndexedSource, Session, SessionExt, Location, LocationExt, BytePos, ByteRange};
 use core::SearchType::{self, ExactMatch, StartsWith};
+use core::{BytePos, ByteRange, IndexedSource, Location, LocationExt, Session, SessionExt};
 
 #[cfg(unix)]
 pub const PATH_SEP: char = ':';
@@ -46,13 +49,14 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
             }
 
             for (n, _) in haystack.match_indices(needle) {
-                if (n == 0 || !is_ident_char(char_before(haystack, n))) &&
-                    (n+n_len == h_len || !is_ident_char(char_at(haystack, n+n_len))) {
+                if (n == 0 || !is_ident_char(char_before(haystack, n)))
+                    && (n + n_len == h_len || !is_ident_char(char_at(haystack, n + n_len)))
+                {
                     return true;
                 }
             }
             false
-        },
+        }
         StartsWith => {
             if needle.is_empty() {
                 return true;
@@ -69,9 +73,9 @@ pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
 }
 
 pub fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bool {
-   match stype {
+    match stype {
         ExactMatch => searchstr == candidate,
-        StartsWith => candidate.starts_with(searchstr)
+        StartsWith => candidate.starts_with(searchstr),
     }
 }
 
@@ -89,7 +93,7 @@ pub fn closure_valid_arg_scope(scope_src: &str) -> Option<(ByteRange, &str)> {
             '|' => {
                 let right_pipe = left_pipe + 1 + i;
                 // now we find right |
-                if brace_level == 0  {
+                if brace_level == 0 {
                     let range = ByteRange::new(left_pipe, right_pipe + 1);
                     return Some((range, &scope_src[range.to_range()]));
                 }
@@ -144,10 +148,15 @@ fn txt_matches_matches_stuff() {
 fn txt_matches_matches_methods() {
     assert_eq!(true, txt_matches(StartsWith, "do_st", "fn do_stuff"));
     assert_eq!(true, txt_matches(StartsWith, "do_st", "pub fn do_stuff"));
-    assert_eq!(true, txt_matches(StartsWith, "do_st", "pub(crate) fn do_stuff"));
-    assert_eq!(true, txt_matches(StartsWith, "do_st", "pub(in codegen) fn do_stuff"));
+    assert_eq!(
+        true,
+        txt_matches(StartsWith, "do_st", "pub(crate) fn do_stuff")
+    );
+    assert_eq!(
+        true,
+        txt_matches(StartsWith, "do_st", "pub(in codegen) fn do_stuff")
+    );
 }
-
 
 /// Given a string and index, return span of identifier
 ///
@@ -172,13 +181,10 @@ fn txt_matches_matches_methods() {
 /// let expanded = racer::expand_ident(path, pos, &session).unwrap();
 /// assert_eq!("this_is_an_identifier", expanded.ident());
 /// ```
-pub fn expand_ident<P, C>(
-    filepath: P,
-    cursor: C,
-    session: &Session
-) -> Option<ExpandedIdent>
-    where P: AsRef<path::Path>,
-          C: Into<Location>
+pub fn expand_ident<P, C>(filepath: P, cursor: C, session: &Session) -> Option<ExpandedIdent>
+where
+    P: AsRef<path::Path>,
+    C: Into<Location>,
 {
     let cursor = cursor.into();
     let indexed_source = session.load_file(filepath.as_ref());
@@ -250,7 +256,7 @@ pub fn find_ident_end(s: &str, pos: BytePos) -> BytePos {
 
 #[cfg(test)]
 mod test_find_ident_end {
-    use super::{BytePos, find_ident_end};
+    use super::{find_ident_end, BytePos};
     fn find_ident_end_(s: &str, pos: usize) -> usize {
         find_ident_end(s, BytePos(pos)).0
     }
@@ -266,7 +272,6 @@ mod test_find_ident_end {
         assert_eq!(10, find_ident_end_("ends_in_µ", 0));
     }
 }
-
 
 fn char_before(src: &str, i: usize) -> char {
     let mut prev = '\0';
@@ -316,25 +321,30 @@ impl error::Error for RustSrcPathError {
 impl fmt::Display for RustSrcPathError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            RustSrcPathError::Missing => {
-                write!(f, "RUST_SRC_PATH environment variable must be set to \
-                           point to the src directory of a rust checkout. \
-                           E.g. \"/home/foouser/src/rust/src\"")
-            },
-            RustSrcPathError::DoesNotExist(ref path) => {
-                write!(f, "racer can't find the directory pointed to by the \
-                           RUST_SRC_PATH variable \"{:?}\". Try using an \
-                           absolute fully qualified path and make sure it \
-                           points to the src directory of a rust checkout - \
-                           e.g. \"/home/foouser/src/rust/src\".", path)
-            },
-            RustSrcPathError::NotRustSourceTree(ref path) => {
-                write!(f, "Unable to find libstd under RUST_SRC_PATH. N.B. \
-                           RUST_SRC_PATH variable needs to point to the *src* \
-                           directory inside a rust checkout e.g. \
-                           \"/home/foouser/src/rust/src\". \
-                           Current value \"{:?}\"", path)
-            },
+            RustSrcPathError::Missing => write!(
+                f,
+                "RUST_SRC_PATH environment variable must be set to \
+                 point to the src directory of a rust checkout. \
+                 E.g. \"/home/foouser/src/rust/src\""
+            ),
+            RustSrcPathError::DoesNotExist(ref path) => write!(
+                f,
+                "racer can't find the directory pointed to by the \
+                 RUST_SRC_PATH variable \"{:?}\". Try using an \
+                 absolute fully qualified path and make sure it \
+                 points to the src directory of a rust checkout - \
+                 e.g. \"/home/foouser/src/rust/src\".",
+                path
+            ),
+            RustSrcPathError::NotRustSourceTree(ref path) => write!(
+                f,
+                "Unable to find libstd under RUST_SRC_PATH. N.B. \
+                 RUST_SRC_PATH variable needs to point to the *src* \
+                 directory inside a rust checkout e.g. \
+                 \"/home/foouser/src/rust/src\". \
+                 Current value \"{:?}\"",
+                path
+            ),
         }
     }
 }
@@ -397,7 +407,7 @@ pub fn get_rust_src_path() -> Result<path::PathBuf, RustSrcPathError> {
     debug!("Getting rust source path. Trying env var RUST_SRC_PATH.");
 
     if let Ok(ref srcpaths) = env::var("RUST_SRC_PATH") {
-         if !srcpaths.is_empty() {
+        if !srcpaths.is_empty() {
             if let Some(path) = srcpaths.split(PATH_SEP).next() {
                 return validate_rust_src_path(path::PathBuf::from(path));
             }
@@ -412,10 +422,7 @@ pub fn get_rust_src_path() -> Result<path::PathBuf, RustSrcPathError> {
 
     debug!("Nope. Trying default paths: /usr/local/src/rust/src and /usr/src/rust/src");
 
-    let default_paths = [
-        "/usr/local/src/rust/src",
-        "/usr/src/rust/src",
-    ];
+    let default_paths = ["/usr/local/src/rust/src", "/usr/src/rust/src"];
 
     for path in &default_paths {
         if let Ok(path) = validate_rust_src_path(path::PathBuf::from(path)) {
@@ -477,8 +484,12 @@ fn test_get_rust_src_path_does_not_exist() {
         None => env::remove_var("RUST_SRC_PATH"),
     }
 
-    assert_eq!(Err(RustSrcPathError::DoesNotExist(path::PathBuf::from("test_path"))),
-               result);
+    assert_eq!(
+        Err(RustSrcPathError::DoesNotExist(path::PathBuf::from(
+            "test_path"
+        ))),
+        result
+    );
 }
 
 #[test]
@@ -498,9 +509,12 @@ fn test_get_rust_src_path_not_rust_source_tree() {
         None => env::remove_var("RUST_SRC_PATH"),
     }
 
-    assert_eq!(Err(RustSrcPathError::NotRustSourceTree(path::PathBuf::from("/libstd"))),
-               result);
-
+    assert_eq!(
+        Err(RustSrcPathError::NotRustSourceTree(path::PathBuf::from(
+            "/libstd"
+        ))),
+        result
+    );
 }
 
 #[test]
@@ -523,8 +537,7 @@ fn test_get_rust_src_path_missing() {
         None => env::remove_var("RUST_SRC_PATH"),
     }
 
-    assert_eq!(Err(RustSrcPathError::Missing),
-        result);
+    assert_eq!(Err(RustSrcPathError::Missing), result);
 }
 
 #[test]
@@ -544,11 +557,12 @@ fn test_get_rust_src_path_rustup_ok() {
 
     match result {
         Ok(_) => (),
-        Err(_) => panic!("Couldn't get the path via rustup! \
-            Rustup and the component rust-src needs to be installed for this test to pass!"),
+        Err(_) => panic!(
+            "Couldn't get the path via rustup! \
+             Rustup and the component rust-src needs to be installed for this test to pass!"
+        ),
     }
 }
-
 
 /// An immutable stack implemented as a linked list backed by a thread's stack.
 // TODO: this implementation is fast, but if we want to run racer in multiple threads,
@@ -579,7 +593,11 @@ impl<'stack, T: PartialEq> StackLinkedListNode<'stack, T> {
     /// Returns `true` if the item is found, or `false` if it's not found.
     pub fn contains(&self, item: &T) -> bool {
         let mut current = self;
-        while let StackLinkedListNode(Some(StackLinkedListNodeData { item: ref current_item, previous })) = *current {
+        while let StackLinkedListNode(Some(StackLinkedListNodeData {
+            item: ref current_item,
+            previous,
+        })) = *current
+        {
             if current_item == item {
                 return true;
             }
@@ -592,7 +610,7 @@ impl<'stack, T: PartialEq> StackLinkedListNode<'stack, T> {
 // don't use other than strip_visibilities or strip_unsafe
 fn strip_word_impl(src: &str, allow_paren: bool) -> Option<BytePos> {
     let mut level = 0;
-     for (i, &b) in src.as_bytes().into_iter().enumerate() {
+    for (i, &b) in src.as_bytes().into_iter().enumerate() {
         match b {
             b'(' if allow_paren => level += 1,
             b')' if allow_paren => level -= 1,
@@ -603,7 +621,7 @@ fn strip_word_impl(src: &str, allow_paren: bool) -> Option<BytePos> {
                     break;
                 }
                 return Some(BytePos(i));
-            },
+            }
             _ => continue,
         }
     }
@@ -642,7 +660,10 @@ pub(crate) fn strip_words(src: &str, words: &[&str]) -> BytePos {
 
 #[test]
 fn test_strip_words() {
-    assert_eq!(strip_words("const  unsafe  fn", &["const", "unsafe"]), BytePos(15));
+    assert_eq!(
+        strip_words("const  unsafe  fn", &["const", "unsafe"]),
+        BytePos(15)
+    );
     assert_eq!(strip_words("unsafe  fn", &["const", "unsafe"]), BytePos(8));
     assert_eq!(strip_words("const   fn", &["const", "unsafe"]), BytePos(8));
     assert_eq!(strip_words("fn", &["const", "unsafe"]), BytePos(0));
@@ -683,11 +704,8 @@ pub fn in_fn_name(line_before_point: &str) -> bool {
             }
         }
     }
-    
-    words
-        .next()
-        .map(|word| word == "fn")
-        .unwrap_or_default()
+
+    words.next().map(|word| word == "fn").unwrap_or_default()
 }
 
 #[test]

@@ -1,7 +1,7 @@
 //! system test utilities for racer
 extern crate racer;
 extern crate tempfile;
-use racer::{complete_from_file, find_definition, Match, BytePos};
+use racer::{complete_from_file, find_definition, BytePos, Match};
 use std::fmt;
 use std::fs;
 use std::io::{self, Write};
@@ -18,7 +18,7 @@ pub fn tmpname() -> String {
 }
 
 /// Wrapper of NamedTempfile
-/// 
+///
 /// **Note** NamedTempFile is removed when it drops.
 /// So, if you want to use some file in TempDir for test, you mustn't drop it.
 /// # Example
@@ -144,7 +144,8 @@ fn setup_test_project() -> TmpDir {
         for entry in fs::read_dir(abs_path)? {
             let entry = entry?;
             let path = entry.path();
-            let relative = path.strip_prefix(abs_path)
+            let relative = path
+                .strip_prefix(abs_path)
                 .expect("[setup_test_project] failed to strip_prefix(bug)");
             let relative = relative
                 .to_str()
@@ -168,8 +169,7 @@ fn setup_test_project() -> TmpDir {
 }
 
 /// exec test with test project
-pub fn with_test_project<F: FnOnce(TmpDir)>(test: F)
-{
+pub fn with_test_project<F: FnOnce(TmpDir)>(test: F) {
     let dir = setup_test_project();
     test(dir)
 }

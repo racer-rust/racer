@@ -20,7 +20,6 @@ fn completes_fn() {
     assert_eq!("apple", got.matchstr);
 }
 
-
 #[test]
 fn finds_fn_docs() {
     let src = "
@@ -110,7 +109,9 @@ fn completes_fn_with_substitute_file() {
     let session = racer::Session::new(&cache);
     session.cache_file_contents(&real_file, src);
     let cursor = Coordinate::new(6, 18);
-    let got = complete_from_file(real_file, cursor, &session).nth(0).unwrap();
+    let got = complete_from_file(real_file, cursor, &session)
+        .nth(0)
+        .unwrap();
 
     assert_eq!(Some(Coordinate::new(2, 8)), got.coords);
     assert_eq!("apple", got.matchstr);
@@ -333,11 +334,15 @@ fn completes_trait_methods() {
     let cache1 = racer::FileCache::default();
     let session1 = racer::Session::new(&cache1);
     let cursor1 = Coordinate::new(18, 18);
-    let got1 = complete_from_file(&path, cursor1, &session1).nth(0).unwrap();
+    let got1 = complete_from_file(&path, cursor1, &session1)
+        .nth(0)
+        .unwrap();
     let cache2 = racer::FileCache::default();
     let session2 = racer::Session::new(&cache2);
     let cursor2 = Coordinate::new(19, 11);
-    let got2 = complete_from_file(&path, cursor2, &session2).nth(0).unwrap();
+    let got2 = complete_from_file(&path, cursor2, &session2)
+        .nth(0)
+        .unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
     assert_eq!(got1.matchstr, "traitf");
@@ -375,11 +380,15 @@ fn completes_trait_bounded_methods() {
     let cache1 = racer::FileCache::default();
     let session1 = racer::Session::new(&cache1);
     let cursor1 = Coordinate::new(20, 16);
-    let got1 = complete_from_file(&path, cursor1, &session1).nth(0).unwrap();
+    let got1 = complete_from_file(&path, cursor1, &session1)
+        .nth(0)
+        .unwrap();
     let cache2 = racer::FileCache::default();
     let session2 = racer::Session::new(&cache2);
     let cursor2 = Coordinate::new(21, 12);
-    let got2 = complete_from_file(&path, cursor2, &session2).nth(0).unwrap();
+    let got2 = complete_from_file(&path, cursor2, &session2)
+        .nth(0)
+        .unwrap();
     println!("{:?}", got1);
     println!("{:?}", got2);
     assert_eq!(got1.matchstr, "traitf");
@@ -664,7 +673,6 @@ fn completes_for_type_alias() {
     }
     ";
 
-
     assert_eq!(get_all_completions(src, None)[0].matchstr, "method");
 }
 
@@ -784,7 +792,7 @@ fn follows_multiple_use_globs() {
     let src2 = "
     pub fn src2fn() {}
     ";
-    let src ="
+    let src = "
     use multiple_glob_test1::*;
     use multiple_glob_test2::*;
     mod multiple_glob_test1;
@@ -801,8 +809,12 @@ fn follows_multiple_use_globs() {
     let mut has_2 = false;
     let completions = get_all_completions(src, Some(dir));
     for m in completions {
-        if m.matchstr == "src1fn" { has_1 = true; }
-        if m.matchstr == "src2fn" { has_2 = true; }
+        if m.matchstr == "src1fn" {
+            has_1 = true;
+        }
+        if m.matchstr == "src2fn" {
+            has_2 = true;
+        }
     }
     assert!(has_1 && has_2);
 }
@@ -834,7 +846,7 @@ fn single_import_shadows_glob_import() {
 
 #[test]
 fn follows_use_self() {
-    let src ="
+    let src = "
     use foo::use_self_test::{self, bar};
 
     mod foo {
@@ -847,9 +859,13 @@ fn follows_use_self() {
     ";
 
     let completions = get_all_completions(src, None);
-    assert!(completions.into_iter().any(|m| m.matchstr == "use_self_test"));
+    assert!(
+        completions
+            .into_iter()
+            .any(|m| m.matchstr == "use_self_test")
+    );
 
-    let src ="
+    let src = "
     use use_self_test::self;
 
     mod use_self_test {
@@ -859,7 +875,11 @@ fn follows_use_self() {
     ";
 
     let completions = get_all_completions(src, None);
-    assert!(completions.into_iter().any(|m| m.matchstr == "use_self_test"));
+    assert!(
+        completions
+            .into_iter()
+            .any(|m| m.matchstr == "use_self_test")
+    );
 }
 
 /// This test addresses https://github.com/racer-rust/racer/issues/645 by
@@ -1071,7 +1091,10 @@ fn keeps_newlines_in_external_mod_doc() {
     let _src1 = dir.write_file("external_mod.rs", src1);
     let got = get_one_completion(src, Some(dir));
     assert_eq!("external_mod", got.matchstr);
-    assert_eq!("The mods multiline documentation\n\nwith an empty line", got.docs);
+    assert_eq!(
+        "The mods multiline documentation\n\nwith an empty line",
+        got.docs
+    );
 }
 
 /// Addresses https://github.com/racer-rust/racer/issues/618
@@ -1212,7 +1235,7 @@ fn struct_field_scalar_primitive_types() {
             "reference" => "&u8",
             "array" => "[u8; 5]",
             "slice" => "&[u8]",
-            _ => panic!("unexpected match from Foo struct ({})", completion.matchstr)
+            _ => panic!("unexpected match from Foo struct ({})", completion.matchstr),
         };
 
         assert_eq!(completion.contextstr, expected);
@@ -2435,7 +2458,6 @@ fn completes_multiple_use_newline() {
     assert_eq!(got[0].matchstr, "myfn");
 }
 
-
 #[test]
 fn completes_trait_methods_in_trait_impl() {
     let src = "
@@ -3027,14 +3049,17 @@ x: i32
 
     let got = get_definition(src, None);
     assert_eq!("x", got.matchstr);
-    assert_eq!("|
+    assert_eq!(
+        "|
 
 
 x: i32
 
 
 
-|", got.contextstr);
+|",
+        got.contextstr
+    );
 }
 
 #[test]
@@ -3055,14 +3080,17 @@ x: i32
 
     let got = get_definition(src, None);
     assert_eq!("x", got.matchstr);
-    assert_eq!("|
+    assert_eq!(
+        "|
 
 
 x: i32
 
 
 
-|", got.contextstr);
+|",
+        got.contextstr
+    );
 }
 
 #[test]
@@ -3150,7 +3178,7 @@ fn closure_dont_detect_normal_pipes() {
 
 #[test]
 fn closure_test_curly_brackets_in_args() {
-    let src ="
+    let src = "
     struct Foo {
         bar: u16
     }
@@ -3171,7 +3199,7 @@ fn closure_test_curly_brackets_in_args() {
 
 #[test]
 fn closure_test_multiple_curly_brackets_in_args() {
-    let src ="
+    let src = "
     struct Foo {
         bar: u16
     }
@@ -3189,7 +3217,6 @@ fn closure_test_multiple_curly_brackets_in_args() {
     assert_eq!("bar", got.matchstr);
     assert_eq!("|Foo { bar }, Foo { ex }, Foo { b }|", got.contextstr);
 }
-
 
 #[test]
 fn literal_string_method() {
@@ -3401,7 +3428,7 @@ fn crate_restricted_impl_method_completes() {
 ///   |
 /// 1 | pub(in codegen) struct Foo {
 ///   |     ^^
-/// 
+///
 /// error: expected one of `)` or `::`, found `codegen`
 ///  --> bogofile:1:8
 ///   |
@@ -3690,7 +3717,11 @@ fn completes_methods_after_raw_string() {
         v.l~
     }
     "##;
-    assert!(get_all_completions(src, None).iter().any(|ma| ma.matchstr == "len"));
+    assert!(
+        get_all_completions(src, None)
+            .iter()
+            .any(|ma| ma.matchstr == "len")
+    );
 }
 
 // For issue 826
@@ -4044,7 +4075,6 @@ fn recursive_glob_depth4() {
     let got = get_definition(src, None);
     assert_eq!("MyVariant", got.matchstr);
 }
-
 
 #[test]
 fn completes_const_unsafe_fn() {

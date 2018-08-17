@@ -9,21 +9,21 @@ enum StrStyle {
     Raw(usize),
 }
 
-#[derive(Clone,Copy)]
+#[derive(Clone, Copy)]
 enum State {
     Code,
     Comment,
     CommentBlock,
     String(StrStyle),
     Char,
-    Finished
+    Finished,
 }
 
-#[derive(Clone,Copy)]
+#[derive(Clone, Copy)]
 pub struct CodeIndicesIter<'a> {
     src: &'a str,
     pos: BytePos,
-    state: State
+    state: State,
 }
 
 impl<'a> Iterator for CodeIndicesIter<'a> {
@@ -33,10 +33,10 @@ impl<'a> Iterator for CodeIndicesIter<'a> {
         match self.state {
             State::Code => Some(self.code()),
             State::Comment => Some(self.comment()),
-            State::CommentBlock  => Some(self.comment_block()),
+            State::CommentBlock => Some(self.comment_block()),
             State::String(style) => Some(self.string(style)),
             State::Char => Some(self.char()),
-            State::Finished => None
+            State::Finished => None,
         }
     }
 }
@@ -57,32 +57,33 @@ impl<'a> CodeIndicesIter<'a> {
                         self.state = State::Comment;
                         self.pos = pos.increment();
                         return ByteRange::new(start, pos.decrement());
-                    },
+                    }
                     b'*' => {
                         self.state = State::CommentBlock;
                         self.pos = pos.increment();
                         return ByteRange::new(start, pos.decrement());
-                    },
+                    }
                     _ => {}
                 },
-                b'"' => {    // "
+                b'"' => {
+                    // "
                     let str_type = self.detect_str_type(pos);
                     self.state = State::String(str_type);
                     self.pos = pos;
                     return ByteRange::new(start, pos); // include dblquotes
-                },
+                }
                 b'\'' => {
                     // single quotes are also used for lifetimes, so we need to
                     // be confident that this is not a lifetime.
                     // Look for backslash starting the escape, or a closing quote:
-                    if src_bytes.len() > pos.increment().0 &&
-                        (src_bytes[pos.0] == b'\\' ||
-                         src_bytes[pos.increment().0] == b'\'') {
+                    if src_bytes.len() > pos.increment().0
+                        && (src_bytes[pos.0] == b'\\' || src_bytes[pos.increment().0] == b'\'')
+                    {
                         self.state = State::Char;
                         self.pos = pos;
                         return ByteRange::new(start, pos); // include single quote
                     }
-                },
+                }
                 _ => {}
             }
         }
@@ -120,11 +121,13 @@ impl<'a> CodeIndicesIter<'a> {
                     } else {
                         nesting_level -= 1;
                     }
-                },
+                }
                 b'*' if prev == b'/' => {
                     nesting_level += 1;
-                },
-                _ => { prev = b; }
+                }
+                _ => {
+                    prev = b;
+                }
             }
         }
         self.pos = pos;
@@ -143,8 +146,8 @@ impl<'a> CodeIndicesIter<'a> {
                         // number of preceding #s
                         num_sharps: usize,
                         // Position of last "
-                        quote_pos: BytePos
-                    }, 
+                        quote_pos: BytePos,
+                    },
                     None, // No preceding "##...
                 }
                 let mut cur_state = SharpState::None;
@@ -152,7 +155,10 @@ impl<'a> CodeIndicesIter<'a> {
                 // detect corresponding end(if start is r##", "##) greedily
                 for (i, &b) in src_bytes[self.pos.0..].iter().enumerate() {
                     match cur_state {
-                        SharpState::Sharp { num_sharps, quote_pos } => {
+                        SharpState::Sharp {
+                            num_sharps,
+                            quote_pos,
+                        } => {
                             cur_state = match b {
                                 b'#' => SharpState::Sharp {
                                     num_sharps: num_sharps + 1,
@@ -174,7 +180,11 @@ impl<'a> CodeIndicesIter<'a> {
                             }
                         }
                     }
-                    if let SharpState::Sharp { num_sharps, quote_pos } = cur_state {
+                    if let SharpState::Sharp {
+                        num_sharps,
+                        quote_pos,
+                    } = cur_state
+                    {
                         if num_sharps == level {
                             end_was_found = true;
                             pos += quote_pos.increment();
@@ -191,9 +201,15 @@ impl<'a> CodeIndicesIter<'a> {
                 for &b in &src_bytes[pos.0..] {
                     pos = pos.increment();
                     match b {
-                        b'"' if is_not_escaped  => { break; }, // "
-                        b'\\' => { is_not_escaped = !is_not_escaped; },
-                        _ => { is_not_escaped = true; }
+                        b'"' if is_not_escaped => {
+                            break;
+                        } // "
+                        b'\\' => {
+                            is_not_escaped = !is_not_escaped;
+                        }
+                        _ => {
+                            is_not_escaped = true;
+                        }
                     }
                 }
             }
@@ -208,9 +224,15 @@ impl<'a> CodeIndicesIter<'a> {
         for &b in &self.src.as_bytes()[pos.0..] {
             pos = pos.increment();
             match b {
-                b'\'' if is_not_escaped  => { break; },
-                b'\\' => { is_not_escaped = !is_not_escaped; },
-                _ => { is_not_escaped = true; }
+                b'\'' if is_not_escaped => {
+                    break;
+                }
+                b'\\' => {
+                    is_not_escaped = !is_not_escaped;
+                }
+                _ => {
+                    is_not_escaped = true;
+                }
             }
         }
         self.pos = pos;
@@ -237,7 +259,11 @@ impl<'a> CodeIndicesIter<'a> {
 
 /// Returns indices of chunks of code (minus comments and string contents)
 pub fn code_chunks(src: &str) -> CodeIndicesIter {
-    CodeIndicesIter { src, state: State::Code, pos: BytePos::ZERO }
+    CodeIndicesIter {
+        src,
+        state: State::Code,
+        pos: BytePos::ZERO,
+    }
 }
 
 /// Reverse Iterator for reading the source bytes skipping comments.
@@ -249,7 +275,11 @@ pub struct CommentSkipIterRev<'a> {
 
 /// This produce CommentSkipIterRev for range [0, start)
 pub fn comment_skip_iter_rev(s: &str, start: BytePos) -> CommentSkipIterRev {
-    let start = if start.0 > s.len() { BytePos::ZERO } else { start };
+    let start = if start.0 > s.len() {
+        BytePos::ZERO
+    } else {
+        start
+    };
     CommentSkipIterRev { src: s, pos: start }
 }
 
@@ -281,7 +311,6 @@ impl<'a> Iterator for CommentSkipIterRev<'a> {
 }
 
 impl<'a> CommentSkipIterRev<'a> {
-
     fn cur_byte(&self) -> Option<u8> {
         self.get_byte(self.pos)
     }
@@ -341,38 +370,40 @@ impl<'a> CommentSkipIterRev<'a> {
         while skipped_whole_line && pos > BytePos::ZERO {
             // now pos >= 1 && self.src.as_bytes()[pos - 1] == '\n'
             skipped_whole_line = false;
-            let comment_start = if let Some(next_newline) = self.src[..pos.decrement().0].rfind('\n') {
-                if let Some(start) = self.src[next_newline + 1..pos.decrement().0].find("//") {
-                    skipped_whole_line = start == 0;
-                    start + next_newline + 1
+            let comment_start =
+                if let Some(next_newline) = self.src[..pos.decrement().0].rfind('\n') {
+                    if let Some(start) = self.src[next_newline + 1..pos.decrement().0].find("//") {
+                        skipped_whole_line = start == 0;
+                        start + next_newline + 1
+                    } else {
+                        return skip_cr(pos.decrement());
+                    }
                 } else {
-                    return skip_cr(pos.decrement());
-                }
-            } else {
-                if let Some(start) = self.src[..pos.decrement().0].find("//") {
-                    start
-                } else {
-                    return skip_cr(pos.decrement());
-                }
-            };
+                    if let Some(start) = self.src[..pos.decrement().0].find("//") {
+                        start
+                    } else {
+                        return skip_cr(pos.decrement());
+                    }
+                };
             pos = BytePos(comment_start);
         }
         pos
     }
 }
 
-
 #[cfg(test)]
 mod code_indices_iter_test {
     use super::*;
-    use ::testutils::{rejustify, slice};
+    use testutils::{rejustify, slice};
 
     #[test]
     fn removes_a_comment() {
-        let src = &rejustify("
+        let src = &rejustify(
+            "
     this is some code // this is a comment
     some more code
-    ");
+    ",
+        );
         let mut it = code_chunks(src);
         assert_eq!("this is some code ", slice(src, it.next().unwrap()));
         assert_eq!("some more code", slice(src, it.next().unwrap()));
@@ -380,12 +411,14 @@ mod code_indices_iter_test {
 
     #[test]
     fn removes_consecutive_comments() {
-        let src = &rejustify("
+        let src = &rejustify(
+            "
     this is some code // this is a comment
     // this is more comment
     // another comment
     some more code
-    ");
+    ",
+        );
         let mut it = code_chunks(src);
         assert_eq!("this is some code ", slice(src, it.next().unwrap()));
         assert_eq!("some more code", slice(src, it.next().unwrap()));
@@ -393,9 +426,11 @@ mod code_indices_iter_test {
 
     #[test]
     fn removes_string_contents() {
-        let src = &rejustify("
+        let src = &rejustify(
+            "
     this is some code \"this is a string\" more code
-    ");
+    ",
+        );
         let mut it = code_chunks(src);
         assert_eq!("this is some code \"", slice(src, it.next().unwrap()));
         assert_eq!("\" more code", slice(src, it.next().unwrap()));
@@ -403,9 +438,11 @@ mod code_indices_iter_test {
 
     #[test]
     fn removes_char_contents() {
-        let src = &rejustify("
+        let src = &rejustify(
+            "
     this is some code \'\"\' more code \'\\x00\' and \'\\\'\' that\'s it
-    ");
+    ",
+        );
         let mut it = code_chunks(src);
         assert_eq!("this is some code \'", slice(src, it.next().unwrap()));
         assert_eq!("\' more code \'", slice(src, it.next().unwrap()));
@@ -415,9 +452,11 @@ mod code_indices_iter_test {
 
     #[test]
     fn removes_string_contents_with_a_comment_in_it() {
-        let src = &rejustify("
+        let src = &rejustify(
+            "
     this is some code \"string with a // fake comment \" more code
-    ");
+    ",
+        );
         let mut it = code_chunks(src);
         assert_eq!("this is some code \"", slice(src, it.next().unwrap()));
         assert_eq!("\" more code", slice(src, it.next().unwrap()));
@@ -425,10 +464,12 @@ mod code_indices_iter_test {
 
     #[test]
     fn removes_a_comment_with_a_dbl_quote_in_it() {
-        let src = &rejustify("
+        let src = &rejustify(
+            "
     this is some code // comment with \" double quote
     some more code
-    ");
+    ",
+        );
         let mut it = code_chunks(src);
         assert_eq!("this is some code ", slice(src, it.next().unwrap()));
         assert_eq!("some more code", slice(src, it.next().unwrap()));
@@ -436,10 +477,12 @@ mod code_indices_iter_test {
 
     #[test]
     fn removes_multiline_comment() {
-        let src = &rejustify("
+        let src = &rejustify(
+            "
     this is some code /* this is a
     \"multiline\" comment */some more code
-    ");
+    ",
+        );
         let mut it = code_chunks(src);
         assert_eq!("this is some code ", slice(src, it.next().unwrap()));
         assert_eq!("some more code", slice(src, it.next().unwrap()));
@@ -447,9 +490,11 @@ mod code_indices_iter_test {
 
     #[test]
     fn handles_nesting_of_block_comments() {
-        let src = &rejustify("
+        let src = &rejustify(
+            "
     this is some code /* nested /* block */ comment */ some more code
-    ");
+    ",
+        );
         let mut it = code_chunks(src);
         assert_eq!("this is some code ", slice(src, it.next().unwrap()));
         assert_eq!(" some more code", slice(src, it.next().unwrap()));
@@ -457,9 +502,11 @@ mod code_indices_iter_test {
 
     #[test]
     fn removes_string_with_escaped_dblquote_in_it() {
-        let src = &rejustify("
+        let src = &rejustify(
+            "
     this is some code \"string with a \\\" escaped dblquote fake comment \" more code
-    ");
+    ",
+        );
 
         let mut it = code_chunks(src);
         assert_eq!("this is some code \"", slice(src, it.next().unwrap()));
@@ -468,9 +515,11 @@ mod code_indices_iter_test {
 
     #[test]
     fn removes_raw_string_with_dangling_escape_in_it() {
-        let src = &rejustify("
+        let src = &rejustify(
+            "
     this is some code br\" escaped dblquote raw string \\\" more code
-    ");
+    ",
+        );
 
         let mut it = code_chunks(src);
         assert_eq!("this is some code br\"", slice(src, it.next().unwrap()));
@@ -490,10 +539,12 @@ mod code_indices_iter_test {
 
     #[test]
     fn handles_tricky_bit_from_str_rs() {
-        let src = &rejustify("
+        let src = &rejustify(
+            "
         before(\"\\\\\'\\\\\\\"\\\\\\\\\");
         more_code(\" skip me \")
-    ");
+    ",
+        );
 
         for range in code_chunks(src) {
             let range = || range.to_range();
@@ -506,9 +557,11 @@ mod code_indices_iter_test {
 
     #[test]
     fn removes_nested_rawstr() {
-        let src = &rejustify(r####"
+        let src = &rejustify(
+            r####"
     this is some code br###""" r##""##"### more code
-    "####);
+    "####,
+        );
 
         let mut it = code_chunks(src);
         assert_eq!("this is some code br###\"", slice(src, it.next().unwrap()));
@@ -520,35 +573,47 @@ mod code_indices_iter_test {
 #[cfg(test)]
 mod comment_skip_iter_rev_test {
     use super::*;
-    use ::testutils::rejustify;
+    use testutils::rejustify;
     #[test]
     fn removes_consecutive_comments_with_comment_skip_iter_rev() {
-         let src = &rejustify("
+        let src = &rejustify(
+            "
     this is some code // this is a comment
     // this is more comment
     // another comment
     some more code
-    ");
-        let result: String = comment_skip_iter_rev(&src, BytePos(src.len())).map(|c| c.0).collect();
+    ",
+        );
+        let result: String = comment_skip_iter_rev(&src, BytePos(src.len()))
+            .map(|c| c.0)
+            .collect();
         assert_eq!(&result, "edoc erom emos\n edoc emos si siht");
     }
     #[test]
     fn removes_nested_block_comments_with_comment_skip_iter_rev() {
-         let src = &rejustify("
+        let src = &rejustify(
+            "
     this is some code // this is a comment
     /* /* nested comment */ */
     some more code
-    ");
-        let result: String = comment_skip_iter_rev(&src, BytePos(src.len())).map(|c| c.0).collect();
+    ",
+        );
+        let result: String = comment_skip_iter_rev(&src, BytePos(src.len()))
+            .map(|c| c.0)
+            .collect();
         assert_eq!(&result, "edoc erom emos\n\n\n edoc emos si siht");
     }
     #[test]
     fn removes_multiline_comment_with_comment_skip_iter_rev() {
-        let src = &rejustify("
+        let src = &rejustify(
+            "
     this is some code /* this is a
     \"multiline\" comment */some more code
-    ");
-        let result: String = comment_skip_iter_rev(&src, BytePos(src.len())).map(|c| c.0).collect();
+    ",
+        );
+        let result: String = comment_skip_iter_rev(&src, BytePos(src.len()))
+            .map(|c| c.0)
+            .collect();
         assert_eq!(&result, "edoc erom emos  edoc emos si siht");
     }
 }

@@ -10,24 +10,25 @@ pub(crate) mod cargo {
     extern crate cargo;
 
     use std::{
+        cell::RefCell,
         collections::{
-            HashSet,
             hash_map::{self, HashMap},
+            HashSet,
         },
         path::{Path, PathBuf},
-        cell::RefCell,
         rc::Rc,
     };
     use {FileCache, ProjectModelProvider};
 
     use self::cargo::{
-        Config,
+        core::{
+            registry::PackageRegistry,
+            resolver::{EncodableResolve, Method, Resolve},
+            PackageId, PackageSet, Workspace,
+        },
         ops,
         util::{errors::CargoResult, important_paths::find_root_manifest_for_wd, toml},
-        core::{
-            Workspace, PackageSet, PackageId, registry::PackageRegistry,
-            resolver::{EncodableResolve, Method, Resolve},
-        }
+        Config,
     };
 
     pub fn cargo_project_model<'c>(file_cache: &'c FileCache) -> Box<ProjectModelProvider + 'c> {
@@ -88,8 +89,7 @@ pub(crate) mod cargo {
             &self,
             path: &Path,
             resolver: &Fn(&str) -> Option<Resolve>,
-        ) -> Option<Rc<Resolve>>
-        {
+        ) -> Option<Rc<Resolve>> {
             match self.cached_lockfile.borrow_mut().entry(path.to_owned()) {
                 hash_map::Entry::Occupied(occupied) => Some(Rc::clone(occupied.get())),
                 hash_map::Entry::Vacant(vacant) => {
@@ -104,8 +104,7 @@ pub(crate) mod cargo {
                             return None;
                         }
                     };
-                    resolver(&contents)
-                        .map(|res| Rc::clone(vacant.insert(Rc::new(res))))
+                    resolver(&contents).map(|res| Rc::clone(vacant.insert(Rc::new(res))))
                 }
             }
         }
@@ -113,7 +112,9 @@ pub(crate) mod cargo {
         fn resolve_dependencies(&self, manifest: &Path) -> Option<HashMap<String, PathBuf>> {
             let mut config = cargo_try!(Config::default());
             // frozen=true, locked=true
-            config.configure(0, Some(true), &None, true, true, &None, &[]).ok()?;
+            config
+                .configure(0, Some(true), &None, true, true, &None, &[])
+                .ok()?;
             let ws = cargo_try!(Workspace::new(&manifest, &config));
             // get resolve from lock file
             let lock_path = ws.root().to_owned().join("Cargo.lock");
@@ -158,8 +159,7 @@ pub(crate) mod cargo {
                     let crate_name = lib_target.crate_name();
                     let src_path = lib_target.src_path().to_owned();
                     Some((crate_name, src_path))
-                })
-                .collect();
+                }).collect();
             Some(deps_map)
         }
 
@@ -214,7 +214,10 @@ pub(crate) mod cargo {
     }
 
     // until cargo 0.30 is released
-    fn get_resolved_packages<'a>(resolve: &Resolve, registry: PackageRegistry<'a>) -> PackageSet<'a> {
+    fn get_resolved_packages<'a>(
+        resolve: &Resolve,
+        registry: PackageRegistry<'a>,
+    ) -> PackageSet<'a> {
         let ids: Vec<PackageId> = resolve.iter().cloned().collect();
         registry.get(&ids)
     }
