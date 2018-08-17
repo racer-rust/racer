@@ -12,10 +12,10 @@ pub fn get_crate_file(name: &str, from_path: &Path, session: &Session) -> Option
     } else {
         debug!("get_outer_crates returned None, try RUST_SRC_PATH");
     }
-    get_std_file(name, from_path, session)
+    get_std_file(name, session)
 }
 
-pub fn get_std_file(name: &str, from_path: &Path, session: &Session) -> Option<PathBuf> {
+pub fn get_std_file(name: &str, session: &Session) -> Option<PathBuf> {
     // TODO: cache std libs
     if let Some(ref std_path) = *RUST_SRC_PATH {
         // try lib<name>/lib.rs, like in the rust source dir

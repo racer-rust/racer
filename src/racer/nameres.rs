@@ -1525,7 +1525,7 @@ pub fn resolve_name(
     if (is_exact_match && &searchstr[..] == "std")
         || (!is_exact_match && "std".starts_with(searchstr))
     {
-        if let Some(cratepath) = get_std_file("std", filepath, session) {
+        if let Some(cratepath) = get_std_file("std", session) {
             let context = cratepath.to_str().unwrap().to_owned();
             out.push(Match {
                 matchstr: "std".into(),

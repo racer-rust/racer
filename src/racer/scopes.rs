@@ -51,7 +51,7 @@ pub fn find_closure_scope_start(
 pub fn scope_start(src: Src, point: BytePos) -> BytePos {
     let masked_src = mask_comments(src.change_length(point));
     let bytes = masked_src.as_bytes();
-    let mut curly_parent_open_pos =
+    let curly_parent_open_pos =
         find_close(bytes.iter().rev(), b'}', b'{', 0).map_or(BytePos::ZERO, |count| point - count);
 
     // We've found a multi-use statement, such as `use foo::{bar, baz};`, so we shouldn't consider
@@ -59,23 +59,9 @@ pub fn scope_start(src: Src, point: BytePos) -> BytePos {
     if curly_parent_open_pos > BytePos::ZERO
         && masked_src[..curly_parent_open_pos.0].ends_with("::{")
     {
-        let pos = if let Some(pos) =
-            masked_src[..curly_parent_open_pos.0].rfind(|c: char| c == '\n' || c == ';')
-        {
-            BytePos(pos)
-        } else {
-            warn!("[scope_start] \n or ; are not found for use statement");
-            curly_parent_open_pos
-        };
-        curly_parent_open_pos = find_close(
-            mask_comments(src.change_length(pos))
-                .as_bytes()
-                .iter()
-                .rev(),
-            b'}',
-            b'{',
-            0,
-        ).map_or(BytePos::ZERO, |count| point - count);
+        if let Some(pos) = masked_src[..curly_parent_open_pos.0].rfind("use") {
+            return scope_start(src, pos.into());
+        }
     }
 
     let parent_open_pos = find_close(masked_src.as_bytes().iter().rev(), b')', b'(', 0)
