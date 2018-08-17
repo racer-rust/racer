@@ -62,4 +62,3 @@ pub fn foo() -> () {
         var = get_all_completions(src, None);
     })
 }
-

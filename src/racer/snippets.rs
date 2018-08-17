@@ -45,7 +45,7 @@ pub fn snippet_for_match(m: &Match, session: &Session) -> String {
 
 struct MethodInfo {
     name: String,
-    args: Vec<String>
+    args: Vec<String>,
 }
 
 impl MethodInfo {
@@ -59,25 +59,27 @@ impl MethodInfo {
             let mut at_end = false;
             if let Ok(method) = p.parse_impl_item(&mut at_end) {
                 if let ImplItemKind::Method(ref msig, _) = method.node {
-                        let decl = &msig.decl;
-                        return Some(MethodInfo {
-                            // ident.as_str calls Ident.name.as_str
-                            name: method.ident.name.to_string(),
-                            args: decl.inputs
-                                      .iter()
-                                      .map(|arg| {
-                                          let codemap = &p.sess.codemap();
-                                          let var_name = match codemap.span_to_snippet(arg.pat.span) {
-                                              Ok(name) => name,
-                                              _ => "".into()
-                                          };
-                                          match codemap.span_to_snippet(arg.ty.span) {
-                                              Ok(ref type_name) if !type_name.is_empty() => format!("{}: {}", var_name, type_name),
-                                              _ => var_name
-                                          }
-                                      })
-                                      .collect()
-                        })
+                    let decl = &msig.decl;
+                    return Some(MethodInfo {
+                        // ident.as_str calls Ident.name.as_str
+                        name: method.ident.name.to_string(),
+                        args: decl
+                            .inputs
+                            .iter()
+                            .map(|arg| {
+                                let codemap = &p.sess.codemap();
+                                let var_name = match codemap.span_to_snippet(arg.pat.span) {
+                                    Ok(name) => name,
+                                    _ => "".into(),
+                                };
+                                match codemap.span_to_snippet(arg.ty.span) {
+                                    Ok(ref type_name) if !type_name.is_empty() => {
+                                        format!("{}: {}", var_name, type_name)
+                                    }
+                                    _ => var_name,
+                                }
+                            }).collect(),
+                    });
                 }
             }
             debug!("Unable to parse method declaration. |{}|", source);
@@ -87,20 +89,22 @@ impl MethodInfo {
 
     ///Returns completion snippets usable by some editors
     fn snippet(&self) -> String {
-        format!("{}({})",
-                self.name,
-                &self.args
-                     .iter()
-                     .filter(|&s| !s.ends_with("self"))
-                     .enumerate()
-                     .fold(String::new(), |cur, (i, ref s)| {
-                         let arg = format!("${{{}:{}}}", i + 1, s);
-                         let delim = if i > 0 { ", " } else { "" };
-                         cur + delim + &arg
-                     }))
+        format!(
+            "{}({})",
+            self.name,
+            &self
+                .args
+                .iter()
+                .filter(|&s| !s.ends_with("self"))
+                .enumerate()
+                .fold(String::new(), |cur, (i, ref s)| {
+                    let arg = format!("${{{}:{}}}", i + 1, s);
+                    let delim = if i > 0 { ", " } else { "" };
+                    cur + delim + &arg
+                })
+        )
     }
 }
-
 
 #[test]
 fn method_info_test() {

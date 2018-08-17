@@ -1,26 +1,31 @@
 extern crate test;
 
 use std::env::var;
-use std::io::Read;
 use std::fs::File;
+use std::io::Read;
 use std::path::PathBuf;
 
-use codeiter::StmtIndicesIter;
 use codecleaner::code_chunks;
-use scopes::{mask_comments, mask_sub_scopes};
+use codeiter::StmtIndicesIter;
 use core::IndexedSource;
+use scopes::{mask_comments, mask_sub_scopes};
 
 use self::test::Bencher;
 
 fn get_rust_file_str(path: &[&str]) -> String {
     let mut src_path = match var("RUST_SRC_PATH") {
-        Ok(env) => { PathBuf::from(&env) },
-        _ => panic!("Cannot find $RUST_SRC_PATH")
+        Ok(env) => PathBuf::from(&env),
+        _ => panic!("Cannot find $RUST_SRC_PATH"),
     };
-    for &s in path.iter() { src_path.push(s); }
+    for &s in path.iter() {
+        src_path.push(s);
+    }
 
     let mut s = String::new();
-    File::open(&src_path).unwrap().read_to_string(&mut s).unwrap();
+    File::open(&src_path)
+        .unwrap()
+        .read_to_string(&mut s)
+        .unwrap();
     s
 }
 
@@ -36,8 +41,7 @@ fn bench_code_chunks(b: &mut Bencher) {
 fn bench_iter_stmts(b: &mut Bencher) {
     let src = &get_rust_file_str(&["liballoc", "vec.rs"]);
     b.iter(|| {
-        test::black_box(StmtIndicesIter::from_parts(src, code_chunks(src))
-                        .collect::<Vec<_>>());
+        test::black_box(StmtIndicesIter::from_parts(src, code_chunks(src)).collect::<Vec<_>>());
     });
 }
 
@@ -57,4 +61,3 @@ fn bench_mask_sub_scopes(b: &mut Bencher) {
         test::black_box(mask_sub_scopes(src));
     });
 }
-

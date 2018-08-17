@@ -15,27 +15,29 @@ extern crate rls_span;
 #[macro_use]
 mod testutils;
 
-mod core;
-mod scopes;
 mod ast;
-mod typeinf;
-mod nameres;
-mod util;
-mod codeiter;
 mod codecleaner;
-mod matchers;
-mod snippets;
+mod codeiter;
+mod core;
 mod fileres;
+mod matchers;
+mod nameres;
 mod project_model;
+mod scopes;
+mod snippets;
+mod typeinf;
+mod util;
 
-pub use core::{find_definition, complete_from_file, complete_fully_qualified_name, to_point, to_coords};
-pub use snippets::snippet_for_match;
+pub use core::{
+    complete_from_file, complete_fully_qualified_name, find_definition, to_coords, to_point,
+};
+pub use core::{BytePos, ByteRange, Coordinate, FileCache, FileLoader, Location, Session};
 pub use core::{Match, MatchType, PathSearch};
-pub use core::{FileCache, Session, Coordinate, Location, FileLoader, BytePos, ByteRange};
-pub use util::expand_ident;
 pub use project_model::ProjectModelProvider;
+pub use snippets::snippet_for_match;
+pub use util::expand_ident;
 
-pub use util::{RustSrcPathError, get_rust_src_path};
+pub use util::{get_rust_src_path, RustSrcPathError};
 
 #[cfg(all(feature = "nightly", test))]
 mod benches;

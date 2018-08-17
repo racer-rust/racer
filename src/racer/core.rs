@@ -1,25 +1,25 @@
-use rls_span;
-use syntax::codemap;
-use std::fs::File;
-use std::io::Read;
-use std::{vec, fmt};
-use std::{str, path};
-use std::io;
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::ops::{Deref, Range};
-use std::slice;
-use std::cmp::{min, max, Ordering};
-use std::iter::{Fuse, Iterator};
-use std::rc::Rc;
 use codeiter::StmtIndicesIter;
 use matchers::ImportInfo;
 use project_model::ProjectModelProvider;
+use rls_span;
+use std::cell::RefCell;
+use std::cmp::{max, min, Ordering};
+use std::collections::HashMap;
+use std::fs::File;
+use std::io;
+use std::io::Read;
+use std::iter::{Fuse, Iterator};
+use std::ops::{Deref, Range};
+use std::rc::Rc;
+use std::slice;
+use std::{fmt, vec};
+use std::{path, str};
+use syntax::codemap;
 
-use scopes;
-use nameres;
 use ast;
 use codecleaner;
+use nameres;
+use scopes;
 use util;
 
 /// Within a [`Match`], specifies what was matched
@@ -66,7 +66,7 @@ impl fmt::Display for MatchType {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SearchType {
     ExactMatch,
-    StartsWith
+    StartsWith,
 }
 
 mod declare_namespace {
@@ -96,16 +96,30 @@ mod declare_namespace {
 }
 pub use self::declare_namespace::Namespace;
 
-
 #[derive(Debug, Clone, Copy)]
 pub enum CompletionType {
     Field,
-    Path
+    Path,
 }
 
 /// 0-based byte offset in a file.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd, Hash,
-         Index, From, Add, Sub, AddAssign, SubAssign)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Hash,
+    Index,
+    From,
+    Add,
+    Sub,
+    AddAssign,
+    SubAssign,
+)]
 pub struct BytePos(pub usize);
 
 impl From<u32> for BytePos {
@@ -250,7 +264,7 @@ pub struct Match {
     pub mtype: MatchType,
     pub contextstr: String,
     pub generic_args: Vec<String>,
-    pub generic_types: Vec<PathSearch>,  // generic types are evaluated lazily
+    pub generic_types: Vec<PathSearch>, // generic types are evaluated lazily
     pub docs: String,
 }
 
@@ -262,8 +276,8 @@ impl Match {
     /// as a private method for now.
     fn is_same_as(&self, other: &Match) -> bool {
         self.point == other.point
-        && self.matchstr == other.matchstr
-        && self.filepath == other.filepath
+            && self.matchstr == other.matchstr
+            && self.filepath == other.filepath
     }
 }
 
@@ -304,83 +318,80 @@ impl LocationExt for Location {
     fn to_point(&self, src: &IndexedSource) -> Option<BytePos> {
         match *self {
             Location::Point(val) => Some(val),
-            Location::Coords(ref coords) => {
-                src.coords_to_point(coords)
-            }
+            Location::Coords(ref coords) => src.coords_to_point(coords),
         }
     }
 
     fn to_coords(&self, src: &IndexedSource) -> Option<Coordinate> {
         match *self {
             Location::Coords(val) => Some(val),
-            Location::Point(point) => src.point_to_coords(point)
+            Location::Point(point) => src.point_to_coords(point),
         }
     }
 }
 
-
 impl fmt::Debug for Match {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Match [{:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?} |{}|]",
-               self.matchstr,
-               self.filepath.display(),
-               self.point,
-               self.local,
-               self.mtype,
-               self.generic_args,
-               self.generic_types,
-               self.contextstr)
+        write!(
+            f,
+            "Match [{:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?} |{}|]",
+            self.matchstr,
+            self.filepath.display(),
+            self.point,
+            self.local,
+            self.mtype,
+            self.generic_args,
+            self.generic_types,
+            self.contextstr
+        )
     }
 }
 
 #[derive(Clone)]
 pub struct Scope {
     pub filepath: path::PathBuf,
-    pub point: BytePos
+    pub point: BytePos,
 }
 
 impl Scope {
     pub fn from_match(m: &Match) -> Scope {
-        Scope{ filepath: m.filepath.clone(), point: m.point }
+        Scope {
+            filepath: m.filepath.clone(),
+            point: m.point,
+        }
     }
 }
 
 impl fmt::Debug for Scope {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Scope [{:?}, {:?}]",
-               self.filepath.display(),
-               self.point)
+        write!(f, "Scope [{:?}, {:?}]", self.filepath.display(), self.point)
     }
 }
 
 // Represents a type. Equivilent to rustc's ast::Ty but can be passed across threads
-#[derive(Debug,Clone)]
+#[derive(Debug, Clone)]
 pub enum Ty {
     Match(Match),
-    PathSearch(Path, Scope),   // A path + the scope to be able to resolve it
+    PathSearch(Path, Scope), // A path + the scope to be able to resolve it
     Tuple(Vec<Ty>),
     FixedLengthVec(Box<Ty>, String), // ty, length expr as string
     RefPtr(Box<Ty>),
     Vec(Box<Ty>),
-    Unsupported
+    Unsupported,
 }
 
 impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            Ty::Match(ref m) => {
-                write!(f, "{}", m.matchstr)
-            }
-            Ty::PathSearch(ref p, _) => {
-                write!(f, "{}", p)
-            }
+            Ty::Match(ref m) => write!(f, "{}", m.matchstr),
+            Ty::PathSearch(ref p, _) => write!(f, "{}", p),
             Ty::Tuple(ref vec) => {
                 let mut first = true;
                 write!(f, "(")?;
                 for field in vec.iter() {
                     if first {
                         write!(f, "{}", field)?;
-                            first = false;
+                        first = false;
                     } else {
                         write!(f, ", {}", field)?;
                     }
@@ -399,12 +410,8 @@ impl fmt::Display for Ty {
                 write!(f, "{}", ty)?;
                 write!(f, "]")
             }
-            Ty::RefPtr(ref ty) => {
-                write!(f, "&{}", ty)
-            }
-            Ty::Unsupported => {
-                write!(f, "_")
-            }
+            Ty::RefPtr(ref ty) => write!(f, "&{}", ty),
+            Ty::Unsupported => write!(f, "_"),
         }
     }
 }
@@ -488,8 +495,7 @@ impl Path {
                     }
                 }
                 Some(PathSegment::from(s))
-            })
-            .collect();
+            }).collect();
         Path { prefix, segments }
     }
 
@@ -565,7 +571,7 @@ impl fmt::Display for Path {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PathSegment {
     pub name: String,
-    pub types: Vec<Path>
+    pub types: Vec<Path>,
 }
 
 impl PathSegment {
@@ -588,15 +594,18 @@ impl From<String> for PathSegment {
 pub struct PathSearch {
     pub path: Path,
     pub filepath: path::PathBuf,
-    pub point: BytePos
+    pub point: BytePos,
 }
 
 impl fmt::Debug for PathSearch {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Search [{:?}, {:?}, {:?}]",
-               self.path,
-               self.filepath.display(),
-               self.point)
+        write!(
+            f,
+            "Search [{:?}, {:?}, {:?}]",
+            self.path,
+            self.filepath.display(),
+            self.point
+        )
     }
 }
 
@@ -604,7 +613,7 @@ impl fmt::Debug for PathSearch {
 pub struct IndexedSource {
     pub code: String,
     pub idx: Vec<ByteRange>,
-    pub lines: RefCell<Vec<ByteRange>>
+    pub lines: RefCell<Vec<ByteRange>>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -619,7 +628,7 @@ impl IndexedSource {
         IndexedSource {
             code: src,
             idx: indices,
-            lines: RefCell::new(Vec::new())
+            lines: RefCell::new(Vec::new()),
         }
     }
 
@@ -627,7 +636,7 @@ impl IndexedSource {
         IndexedSource {
             code: new_src,
             idx: self.idx.clone(),
-            lines: self.lines.clone()
+            lines: self.lines.clone(),
         }
     }
 
@@ -638,7 +647,7 @@ impl IndexedSource {
     pub fn get_src_from_start(&self, new_start: BytePos) -> Src {
         Src {
             src: self,
-            range: ByteRange::new(new_start, self.len().into())
+            range: ByteRange::new(new_start, self.len().into()),
         }
     }
 
@@ -647,12 +656,15 @@ impl IndexedSource {
             return;
         }
         let mut before = 0;
-        *self.lines.borrow_mut() = self.code.lines().map(|line| {
-            let len = line.len() + 1;
-            let res = ByteRange::new(before, before + len);
-            before += len;
-            res
-        }).collect();
+        *self.lines.borrow_mut() = self
+            .code
+            .lines()
+            .map(|line| {
+                let len = line.len() + 1;
+                let res = ByteRange::new(before, before + len);
+                before += len;
+                res
+            }).collect();
     }
 
     fn cache_lineoffsets_and_get_line(&self, pos: BytePos) -> Option<Coordinate> {
@@ -661,15 +673,19 @@ impl IndexedSource {
         }
         let mut before = 0;
         let mut target_line = None;
-        *self.lines.borrow_mut() = self.code.lines().enumerate().map(|(i, line)| {
-            let len = line.len() + 1;
-            let res = ByteRange::new(before, before + len);
-            if target_line.is_none() && res.contains(pos) {
-                target_line = Some(Coordinate::new(i as u32 + 1, (pos.0 - before) as u32));
-            }
-            before += len;
-            res
-        }).collect();
+        *self.lines.borrow_mut() = self
+            .code
+            .lines()
+            .enumerate()
+            .map(|(i, line)| {
+                let len = line.len() + 1;
+                let res = ByteRange::new(before, before + len);
+                if target_line.is_none() && res.contains(pos) {
+                    target_line = Some(Coordinate::new(i as u32 + 1, (pos.0 - before) as u32));
+                }
+                before += len;
+                res
+            }).collect();
         target_line
     }
 
@@ -695,9 +711,10 @@ impl IndexedSource {
         }
         // if cache exists, do binary search
         let lines = self.lines.borrow();
-        lines.binary_search_by(|range| range.partial_cmp(&point).unwrap())
-             .ok()
-             .map(|idx| Coordinate::new(idx as u32 + 1, (point - lines[idx].start).0 as u32))
+        lines
+            .binary_search_by(|range| range.partial_cmp(&point).unwrap())
+            .ok()
+            .map(|idx| Coordinate::new(idx as u32 + 1, (point - lines[idx].start).0 as u32))
     }
 }
 
@@ -710,17 +727,14 @@ impl<'c> Iterator for MatchIter<'c> {
     type Item = Match;
 
     fn next(&mut self) -> Option<Match> {
-        self.matches
-            .next()
-            .map(|mut m| {
-                if m.coords.is_none() {
-                    let point = m.point;
-                    let src = self.session.load_file(m.filepath.as_path());
-                    m.coords = src.point_to_coords(point);
-                }
-                m
-            })
-
+        self.matches.next().map(|mut m| {
+            if m.coords.is_none() {
+                let point = m.point;
+                let src = self.session.load_file(m.filepath.as_path());
+                m.coords = src.point_to_coords(point);
+            }
+            m
+        })
     }
 }
 
@@ -732,7 +746,10 @@ fn myfn() {
     print(a);
 }";
     let src = new_source(src.into());
-    assert_eq!(src.coords_to_point(&Coordinate::new(3, 5)), Some(BytePos(18)));
+    assert_eq!(
+        src.coords_to_point(&Coordinate::new(3, 5)),
+        Some(BytePos(18))
+    );
 }
 
 #[test]
@@ -749,14 +766,14 @@ fn myfn(b:usize) {
 ";
     fn round_trip_point_and_coords(src: &str, lineno: usize, charno: usize) {
         let src = new_source(src.into());
-        let point = src.coords_to_point(&Coordinate::new(lineno as u32, charno as u32)).unwrap();
+        let point = src
+            .coords_to_point(&Coordinate::new(lineno as u32, charno as u32))
+            .unwrap();
         let coords = src.point_to_coords(point).unwrap();
         assert_eq!(coords, Coordinate::new(lineno as u32, charno as u32));
     }
     round_trip_point_and_coords(src, 4, 5);
 }
-
-
 
 impl<'c> Src<'c> {
     pub fn start(&self) -> BytePos {
@@ -793,7 +810,10 @@ impl<'c> Src<'c> {
     }
 
     pub fn chunk_indices(&self) -> CodeChunkIter<'c> {
-        CodeChunkIter { src: *self, iter: self.src.idx.iter() }
+        CodeChunkIter {
+            src: *self,
+            iter: self.src.idx.iter(),
+        }
     }
 }
 
@@ -801,7 +821,7 @@ impl<'c> Src<'c> {
 // N.b. src can be a substr, so iteration skips chunks that aren't part of the substr
 pub struct CodeChunkIter<'c> {
     src: Src<'c>,
-    iter: slice::Iter<'c, ByteRange>
+    iter: slice::Iter<'c, ByteRange>,
 }
 
 impl<'c> Iterator for CodeChunkIter<'c> {
@@ -818,7 +838,7 @@ impl<'c> Iterator for CodeChunkIter<'c> {
             }
             return Some(ByteRange::new(
                 max(start, self.src.start()) - self.src.start(),
-                min(end, self.src.end()) - self.src.start()
+                min(end, self.src.end()) - self.src.start(),
             ));
         }
         None
@@ -894,8 +914,7 @@ impl FileLoader for DefaultFileLoader {
                 .map(|s| s.to_owned())
                 .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
         } else {
-            String::from_utf8(rawbytes)
-                .map_err(|err| io::Error::new(io::ErrorKind::Other, err))
+            String::from_utf8(rawbytes).map_err(|err| io::Error::new(io::ErrorKind::Other, err))
         }
     }
 }
@@ -933,14 +952,19 @@ impl FileCache {
 
     /// Add/Replace a file in both versions.
     fn cache_file_contents<P, T>(&self, filepath: P, buf: T)
-        where T: Into<String>,
-              P: Into<path::PathBuf>
+    where
+        T: Into<String>,
+        P: Into<path::PathBuf>,
     {
         let pathbuf = filepath.into();
         let src = IndexedSource::new(buf.into());
         let masked_src = IndexedSource::new(scopes::mask_comments(src.as_src()));
-        self.raw_map.borrow_mut().insert(pathbuf.clone(), Rc::new(src));
-        self.masked_map.borrow_mut().insert(pathbuf, Rc::new(masked_src));
+        self.raw_map
+            .borrow_mut()
+            .insert(pathbuf.clone(), Rc::new(src));
+        self.masked_map
+            .borrow_mut()
+            .insert(pathbuf, Rc::new(masked_src));
     }
 
     fn load_file(&self, filepath: &path::Path) -> Rc<IndexedSource> {
@@ -950,9 +974,14 @@ impl FileCache {
 
         // nothing found, insert into cache
         // Ugh, really need handle results on all these methods :(
-        let res = self.loader.load_file(filepath).expect("load file successfully");
+        let res = self
+            .loader
+            .load_file(filepath)
+            .expect("load file successfully");
         let src = Rc::new(IndexedSource::new(res));
-        self.raw_map.borrow_mut().insert(filepath.to_path_buf(), src.clone());
+        self.raw_map
+            .borrow_mut()
+            .insert(filepath.to_path_buf(), src.clone());
         src
     }
 
@@ -963,8 +992,9 @@ impl FileCache {
         // nothing found, insert into cache
         let src = self.load_file(filepath);
         let msrc = Rc::new(src.with_src(scopes::mask_comments(src.as_src())));
-        self.masked_map.borrow_mut().insert(filepath.to_path_buf(),
-                                            msrc.clone());
+        self.masked_map
+            .borrow_mut()
+            .insert(filepath.to_path_buf(), msrc.clone());
         msrc
     }
 }
@@ -990,9 +1020,12 @@ pub struct Session<'c> {
     /// borrowed here in order to support reuse across Racer operations.
     cache: &'c FileCache,
     /// Cache for generic impls
-    pub generic_impls: RefCell<HashMap<(path::PathBuf, BytePos),
-                                       Rc<Vec<(BytePos, String,
-                                               ast::GenericsArgs, ast::ImplVisitor)>>>>,
+    pub generic_impls: RefCell<
+        HashMap<
+            (path::PathBuf, BytePos),
+            Rc<Vec<(BytePos, String, ast::GenericsArgs, ast::ImplVisitor)>>,
+        >,
+    >,
     pub project_model: Box<ProjectModelProvider + 'c>,
 }
 
@@ -1024,7 +1057,10 @@ impl<'c> Session<'c> {
         Session::with_project_model(cache, project_model)
     }
 
-    pub fn with_project_model(cache: &'c FileCache, project_model: Box<ProjectModelProvider + 'c>) -> Session<'c> {
+    pub fn with_project_model(
+        cache: &'c FileCache,
+        project_model: Box<ProjectModelProvider + 'c>,
+    ) -> Session<'c> {
         Session {
             cache,
             generic_impls: Default::default(),
@@ -1046,8 +1082,9 @@ impl<'c> Session<'c> {
     /// session.cache_file_contents("foo.rs", "pub struct Foo;\\n");
     /// ```
     pub fn cache_file_contents<T, P>(&self, filepath: P, buf: T)
-        where T: Into<String>,
-              P: Into<path::PathBuf>
+    where
+        T: Into<String>,
+        P: Into<path::PathBuf>,
     {
         self.cache.cache_file_contents(filepath, buf);
     }
@@ -1071,24 +1108,18 @@ impl<'c> SessionExt for Session<'c> {
 }
 
 /// Get the racer point of a line/character number pair for a file.
-pub fn to_point<P>(
-    coords: Coordinate,
-    path: P,
-    session: &Session
-) -> Option<BytePos>
-    where
-        P: AsRef<path::Path> {
+pub fn to_point<P>(coords: Coordinate, path: P, session: &Session) -> Option<BytePos>
+where
+    P: AsRef<path::Path>,
+{
     Location::from(coords).to_point(&session.load_file(path.as_ref()))
 }
 
 /// Get the racer point of a line/character number pair for a file.
-pub fn to_coords<P>(
-    point: BytePos,
-    path: P,
-    session: &Session
-) -> Option<Coordinate>
-    where
-        P: AsRef<path::Path> {
+pub fn to_coords<P>(point: BytePos, path: P, session: &Session) -> Option<Coordinate>
+where
+    P: AsRef<path::Path>,
+{
     Location::from(point).to_coords(&session.load_file(path.as_ref()))
 }
 
@@ -1120,10 +1151,11 @@ pub fn to_coords<P>(
 pub fn complete_fully_qualified_name<'c, S, P>(
     query: S,
     path: P,
-    session: &'c Session
+    session: &'c Session,
 ) -> MatchIter<'c>
-    where S: AsRef<str>,
-          P: AsRef<path::Path>,
+where
+    S: AsRef<str>,
+    P: AsRef<path::Path>,
 {
     let mut matches = complete_fully_qualified_name_(query.as_ref(), path.as_ref(), session);
     matches.dedup_by(|a, b| a.is_same_as(b));
@@ -1135,11 +1167,7 @@ pub fn complete_fully_qualified_name<'c, S, P>(
 }
 
 /// Actual implementation without generic bounds
-fn complete_fully_qualified_name_(
-    query: &str,
-    path: &path::Path,
-    session: &Session
-) -> Vec<Match> {
+fn complete_fully_qualified_name_(query: &str, path: &path::Path, session: &Session) -> Vec<Match> {
     let p: Vec<&str> = query.split("::").collect();
 
     let mut matches = Vec::new();
@@ -1154,7 +1182,7 @@ fn complete_fully_qualified_name_(
                 m.point,
                 SearchType::StartsWith,
                 Namespace::Both,
-                &session
+                &session,
             );
 
             for m in external_search_matches {
@@ -1165,7 +1193,6 @@ fn complete_fully_qualified_name_(
 
     matches
 }
-
 
 /// Search for completion at position in a file
 ///
@@ -1202,13 +1229,10 @@ fn complete_fully_qualified_name_(
 ///
 /// # }
 /// ```
-pub fn complete_from_file<'c, P, C>(
-    filepath: P,
-    cursor: C,
-    session: &'c Session
-) -> MatchIter<'c>
-    where P: AsRef<path::Path>,
-          C: Into<Location>
+pub fn complete_from_file<'c, P, C>(filepath: P, cursor: C, session: &'c Session) -> MatchIter<'c>
+where
+    P: AsRef<path::Path>,
+    C: Into<Location>,
 {
     let mut matches = complete_from_file_(filepath.as_ref(), cursor.into(), session);
     matches.dedup_by(|a, b| a.is_same_as(b));
@@ -1219,11 +1243,7 @@ pub fn complete_from_file<'c, P, C>(
     }
 }
 
-fn complete_from_file_(
-    filepath: &path::Path,
-    cursor: Location,
-    session: &Session
-) -> Vec<Match> {
+fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Session) -> Vec<Match> {
     let src = session.load_file_and_mask_comments(filepath);
     let src_text = &src.as_src()[..];
 
@@ -1241,7 +1261,10 @@ fn complete_from_file_(
 
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
-    debug!("{:?}: contextstr is |{}|, searchstr is |{}|", completetype, contextstr, searchstr);
+    debug!(
+        "{:?}: contextstr is |{}|, searchstr is |{}|",
+        completetype, contextstr, searchstr
+    );
 
     let mut out = Vec::new();
 
@@ -1262,18 +1285,16 @@ fn complete_from_file_(
                     SearchType::StartsWith,
                     session,
                     &ImportInfo::default(),
-                )
+                );
             }
             let (path, namespace) = if let Some(use_start) = scopes::use_stmt_start(line) {
                 let path = scopes::construct_path_from_use_tree(&line[use_start.0..]);
                 (path, Namespace::Both)
             } else {
                 let is_global = expr.starts_with("::");
-                let v: Vec<_> = (if is_global {
-                    &expr[2..]
-                } else {
-                    expr
-                }).split("::").collect();
+                let v: Vec<_> = (if is_global { &expr[2..] } else { expr })
+                    .split("::")
+                    .collect();
                 let path = Path::from_vec(is_global, v);
                 let namespace = if path.len() == 1 {
                     Namespace::Macro | Namespace::Both
@@ -1292,7 +1313,7 @@ fn complete_from_file_(
                 session,
                 &ImportInfo::default(),
             ));
-        },
+        }
         CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("complete_from_file context is {:?}", context);
@@ -1305,7 +1326,13 @@ fn complete_from_file_(
     out
 }
 
-fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &Session, out: &mut Vec<Match>) {
+fn complete_field_for_ty(
+    ty: Ty,
+    searchstr: &str,
+    stype: SearchType,
+    session: &Session,
+    out: &mut Vec<Match>,
+) {
     // TODO would be nice if this and other methods could operate on a ref instead of requiring
     // ownership
     match ty {
@@ -1313,10 +1340,8 @@ fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &S
             for m in nameres::search_for_field_or_method(m, searchstr, stype, session) {
                 out.push(m)
             }
-        },
-        Ty::RefPtr(m) => {
-            complete_field_for_ty(*m, searchstr, stype, session, out)
         }
+        Ty::RefPtr(m) => complete_field_for_ty(*m, searchstr, stype, session, out),
         _ => {}
     }
 }
@@ -1368,26 +1393,26 @@ fn complete_field_for_ty(ty: Ty, searchstr: &str, stype: SearchType, session: &S
 /// assert_eq!(m.mtype, racer::MatchType::Function);
 /// # }
 /// ```
-pub fn find_definition<P, C>(
-    filepath: P,
-    cursor: C,
-    session: &Session
-) -> Option<Match>
-    where P: AsRef<path::Path>,
-          C: Into<Location>
+pub fn find_definition<P, C>(filepath: P, cursor: C, session: &Session) -> Option<Match>
+where
+    P: AsRef<path::Path>,
+    C: Into<Location>,
 {
-    find_definition_(filepath.as_ref(), cursor.into(), session)
-        .map(|mut m| {
-            if m.coords.is_none() {
-                let point = m.point;
-                let src = session.load_file(m.filepath.as_path());
-                m.coords = src.point_to_coords(point);
-            }
-            m
-        })
+    find_definition_(filepath.as_ref(), cursor.into(), session).map(|mut m| {
+        if m.coords.is_none() {
+            let point = m.point;
+            let src = session.load_file(m.filepath.as_path());
+            m.coords = src.point_to_coords(point);
+        }
+        m
+    })
 }
 
-pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Session) -> Option<Match> {
+pub fn find_definition_(
+    filepath: &path::Path,
+    cursor: Location,
+    session: &Session,
+) -> Option<Match> {
     let src = session.load_file_and_mask_comments(filepath);
     let src_txt = &src[..];
     // TODO return result
@@ -1404,7 +1429,10 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
     let expr = &src[range.to_range()];
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
-    debug!("find_definition_ for |{:?}| |{:?}| {:?}", contextstr, searchstr, completetype);
+    debug!(
+        "find_definition_ for |{:?}| |{:?}| {:?}",
+        contextstr, searchstr, completetype
+    );
 
     match completetype {
         CompletionType::Path => {
@@ -1414,11 +1442,9 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
                 (path, Namespace::Both)
             } else {
                 let is_global = expr.starts_with("::");
-                let v: Vec<_> = (if is_global {
-                    &expr[2..]
-                } else {
-                    expr
-                }).split("::").collect();
+                let v: Vec<_> = (if is_global { &expr[2..] } else { expr })
+                    .split("::")
+                    .collect();
                 let path = Path::from_vec(is_global, v);
                 let namespace = if path.len() == 1 {
                     Namespace::Macro | Namespace::Both
@@ -1437,16 +1463,26 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
                 session,
                 &ImportInfo::default(),
             ).nth(0)
-        },
+        }
         CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("context is {:?}", context);
 
-            let match_type:MatchType = if src[range.end.0..].starts_with('(') { MatchType::Function } else { MatchType::StructField };
+            let match_type: MatchType = if src[range.end.0..].starts_with('(') {
+                MatchType::Function
+            } else {
+                MatchType::StructField
+            };
             context.and_then(|ty| {
                 // for now, just handle matches
                 if let Ty::Match(m) = ty {
-                    nameres::search_for_field_or_method(m, searchstr, SearchType::ExactMatch, session).filter(|m| m.mtype == match_type).nth(0)
+                    nameres::search_for_field_or_method(
+                        m,
+                        searchstr,
+                        SearchType::ExactMatch,
+                        session,
+                    ).filter(|m| m.mtype == match_type)
+                    .nth(0)
                 } else {
                     None
                 }
@@ -1457,9 +1493,9 @@ pub fn find_definition_(filepath: &path::Path, cursor: Location, session: &Sessi
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
     use super::FileCache;
     use super::{Session, SessionExt};
+    use std::path::Path;
 
     #[test]
     fn overwriting_cached_files() {
@@ -1480,7 +1516,7 @@ mod tests {
                 session.cache_file_contents(path, $src);
                 assert_eq!($src, &session.load_file(path).code[..]);
                 assert_eq!($src, &session.load_file_and_mask_comments(path).code[..]);
-            }}
+            }};
         }
 
         // Check for all srcN
