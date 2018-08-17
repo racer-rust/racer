@@ -610,7 +610,8 @@ pub fn match_use(
         };
     }
     // let's find searchstr using path_aliases
-    for path_alias in use_item.path_list {
+    for mut path_alias in use_item.path_list {
+        path_alias.path.set_prefix();
         match path_alias.kind {
             ast::PathAliasKind::Ident(ref ident) => {
                 if !symbol_matches(context.search_type, context.search_str, ident) {

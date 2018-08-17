@@ -7,10 +7,10 @@ use std::path::{Path, PathBuf};
 
 use {core, ast, matchers, scopes, typeinf};
 use core::SearchType::{self, ExactMatch, StartsWith};
-use core::{Match, Src, Session, Coordinate, SessionExt, Ty, BytePos, ByteRange, MatchType};
+use core::{Match, Src, Session, Coordinate, SessionExt, Ty, BytePos, ByteRange, MatchType, PathPrefix};
 use core::Namespace;
 use ast::{GenericsArgs, ImplVisitor};
-use fileres::{get_crate_file, get_module_file};
+use fileres::{get_crate_file, get_module_file, get_std_file};
 use util::{self, closure_valid_arg_scope, symbol_matches, txt_matches,
            find_ident_end, get_rust_src_path, calculate_str_hash};
 use matchers::{find_doc, MatchCxt, ImportInfo};
@@ -273,81 +273,81 @@ pub fn search_for_impls(
     let mut out = Vec::new();
     for blob_range in src.iter_stmts() {
         let blob = &src[blob_range.to_range()];
+        if !blob.starts_with("impl") {
+            continue;
+        }
+        blob.find('{').map(|n| {
+            let decl = &blob[..n+1];
+            if decl.contains('!') {
+                // Guard against macros
+                debug!("impl was probably a macro: {} {:?}", filepath.display(), blob_range.start);
+                return;
+            }
+            let mut decl = decl.to_owned();
+            decl.push_str("}");
+            if txt_matches(ExactMatch, searchstr, &decl) {
+                debug!("impl decl {}", decl);
+                let implres = ast::parse_impl(decl);
+                let is_trait_impl = implres.trait_path.is_some();
+                let mtype = if is_trait_impl { MatchType::TraitImpl } else { MatchType::Impl };
 
-        if blob.starts_with("impl") {
-            blob.find('{').map(|n| {
-                let decl = &blob[..n+1];
-                if decl.contains('!') {
-                    // Guard against macros
-                    debug!("impl was probably a macro: {} {:?}", filepath.display(), blob_range.start);
-                    return;
-                }
-                let mut decl = decl.to_owned();
-                decl.push_str("}");
-                if txt_matches(ExactMatch, searchstr, &decl) {
-                    debug!("impl decl {}", decl);
-                    let implres = ast::parse_impl(decl);
-                    let is_trait_impl = implres.trait_path.is_some();
-                    let mtype = if is_trait_impl { MatchType::TraitImpl } else { MatchType::Impl };
-
-                    if let Some(name_path) = implres.name_path {
-                        if let Some(name) = name_path.segments.last() {
-                            if symbol_matches(ExactMatch, searchstr, &name.name) {
-                                let m = Match {
-                                    matchstr: name.name.clone(),
-                                    filepath: filepath.to_path_buf(),
-                                    point: scope_start + blob_range.start + BytePos(5), // 5 = "impl ".len()
-                                    coords: None,
-                                    // items in trait impls have no "pub" but are
-                                    // still accessible from other modules
-                                    local: local || is_trait_impl,
-                                    mtype: mtype,
-                                    contextstr: "".into(),
-                                    generic_args: Vec::new(),
-                                    generic_types: Vec::new(),
-                                    docs: String::new(),
-                                };
-                                out.push(m);
-                            }
-                        }
-                    }
-
-                    // find trait
-                    if include_traits && is_trait_impl {
-                        let trait_path = implres.trait_path.unwrap();
-                        let m = resolve_path(
-                            &trait_path,
-                            filepath,
-                            scope_start + blob_range.start,
-                            ExactMatch,
-                            Namespace::Type,
-                            session,
-                            import_info,
-                        ).nth(0);
-                        debug!("found trait |{:?}| {:?}", trait_path, m);
-
-                        if let Some(mut m) = m {
-                            if m.matchstr == "Deref" {
-                                let impl_block = &blob[n..];
-
-                                if let Some(pos) = impl_block.find('=') {
-                                    let deref_type_start = n + pos + 1;
-
-                                    if let Some(pos) = blob[deref_type_start..].find(';') {
-                                        let deref_type_end = deref_type_start + pos;
-                                        let deref_type = blob[deref_type_start..deref_type_end].trim();
-                                        debug!("Deref to {} found", deref_type);
-
-                                        m.generic_args = vec![deref_type.to_owned()];
-                                    };
-                                };
-                            }
+                if let Some(name_path) = implres.name_path {
+                    if let Some(name) = name_path.segments.last() {
+                        if symbol_matches(ExactMatch, searchstr, &name.name) {
+                            let m = Match {
+                                matchstr: name.name.clone(),
+                                filepath: filepath.to_path_buf(),
+                                point: scope_start + blob_range.start + BytePos(5), // 5 = "impl ".len()
+                                coords: None,
+                                // items in trait impls have no "pub" but are
+                                // still accessible from other modules
+                                local: local || is_trait_impl,
+                                mtype: mtype,
+                                contextstr: "".into(),
+                                generic_args: Vec::new(),
+                                generic_types: Vec::new(),
+                                docs: String::new(),
+                            };
                             out.push(m);
                         }
                     }
                 }
-            });
-        }
+
+                // find trait
+                if include_traits && is_trait_impl {
+                    let trait_path = implres.trait_path.unwrap();
+                    let m = resolve_path(
+                        &trait_path,
+                        filepath,
+                        scope_start + blob_range.start,
+                        ExactMatch,
+                        Namespace::Type,
+                        session,
+                        import_info,
+                    ).nth(0);
+                    debug!("found trait |{:?}| {:?}", trait_path, m);
+
+                    if let Some(mut m) = m {
+                        if m.matchstr == "Deref" {
+                            let impl_block = &blob[n..];
+
+                            if let Some(pos) = impl_block.find('=') {
+                                let deref_type_start = n + pos + 1;
+
+                                if let Some(pos) = blob[deref_type_start..].find(';') {
+                                    let deref_type_end = deref_type_start + pos;
+                                    let deref_type = blob[deref_type_start..deref_type_end].trim();
+                                    debug!("Deref to {} found", deref_type);
+
+                                    m.generic_args = vec![deref_type.to_owned()];
+                                };
+                            };
+                        }
+                        out.push(m);
+                    }
+                }
+            }
+        });
     }
     out.into_iter()
 }
@@ -1336,19 +1336,19 @@ pub fn resolve_name(
 
     if (is_exact_match && &searchstr[..] == "std") ||
        (!is_exact_match && "std".starts_with(searchstr)) {
-        if let Some(cratepath) = get_crate_file("std", filepath, session) {
+        if let Some(cratepath) = get_std_file("std", filepath, session) {
             let context = cratepath.to_str().unwrap().to_owned();
             out.push(Match {
-                        matchstr: "std".into(),
-                        filepath: cratepath,
-                        point: BytePos::ZERO,
-                        coords: Some(Coordinate::start()),
-                        local: false,
-                        mtype: MatchType::Module,
-                        contextstr: context,
-                        generic_args: Vec::new(),
-                        generic_types: Vec::new(),
-                        docs: String::new(),
+                matchstr: "std".into(),
+                filepath: cratepath,
+                point: BytePos::ZERO,
+                coords: Some(Coordinate::start()),
+                local: false,
+                mtype: MatchType::Module,
+                contextstr: context,
+                generic_args: Vec::new(),
+                generic_types: Vec::new(),
+                docs: String::new(),
             });
         }
 
@@ -1536,34 +1536,29 @@ pub fn resolve_path(
 ) -> vec::IntoIter<Match> {
     debug!("resolve_path {:?} {:?} {:?} {:?}", path, filepath.display(), pos, search_type);
     let len = path.len();
+    if let Some(ref prefix) = path.prefix {
+        match prefix {
+            // TODO: Crate, Self,..
+            PathPrefix::Super => {
+                if let Some(scope) = get_super_scope(filepath, pos, session, import_info) {
+                    debug!("PHIL super scope is {:?}", scope);
+                    let mut newpath = path.clone();
+                    newpath.prefix = None;
+                    return resolve_path(&newpath, &scope.filepath,
+                                        scope.point, search_type, namespace, session, import_info);
+                } else {
+                    // can't find super scope. Return no matches
+                    debug!("can't resolve path {:?}, returning no matches", path);
+                    return Vec::new().into_iter();
+                }
+            }
+            _ => {},
+        }
+    }
     if len == 1 {
         let pathseg = &path.segments[0];
         resolve_name(pathseg, filepath, pos, search_type, namespace, session, import_info)
     } else if len != 0 {
-        // TODO(kngwyu): we should distinguish self and crate,
-        // but maybe it's not absolutely important for use experiences.
-        if path.segments[0].name == "self" || path.segments[0].name == "crate" {
-            // just remove self
-            let mut newpath: core::Path = path.clone();
-            newpath.segments.remove(0);
-            return resolve_path(&newpath, filepath, pos, search_type, namespace, session, import_info);
-        }
-
-        if path.segments[0].name == "super" {
-            if let Some(scope) = get_super_scope(filepath, pos, session, import_info) {
-                debug!("PHIL super scope is {:?}", scope);
-
-                let mut newpath: core::Path = path.clone();
-                newpath.segments.remove(0);
-                return resolve_path(&newpath, &scope.filepath,
-                                    scope.point, search_type, namespace, session, import_info);
-            } else {
-                // can't find super scope. Return no matches
-                debug!("can't resolve path {:?}, returning no matches", path);
-                return Vec::new().into_iter();
-            }
-        }
-
         let mut out = Vec::new();
         let mut parent_path: core::Path = path.clone();
         parent_path.segments.remove(len-1);

@@ -451,14 +451,10 @@ fn resolve_ast_path(
 }
 
 fn to_racer_path(path: &ast::Path) -> core::Path {
-    let mut prefix = None;
     let mut segments = Vec::new();
-    for (i, seg) in path.segments.iter().enumerate() {
+    for seg in path.segments.iter() {
         let name = seg.ident.name.to_string();
         let mut types = Vec::new();
-        if i == 0 {
-            prefix = core::PathPrefix::from_str(&name);
-        }
         // TODO: support GenericArgs::Parenthesized (A path like `Foo(A,B) -> C`)
         if let Some(ref params) = seg.args {
             if let GenericArgs::AngleBracketed(ref angle_args) = **params {
@@ -474,7 +470,7 @@ fn to_racer_path(path: &ast::Path) -> core::Path {
         segments.push(core::PathSegment::new(name, types));
     }
     core::Path {
-        prefix,
+        prefix: None,
         segments,
     }
 }
