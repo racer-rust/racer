@@ -4364,3 +4364,27 @@ fn let_try_option() {
     let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "as_mut_vec");
 }
+
+#[test]
+fn follows_multiline_use() {
+    let src = r#"
+    use std::{
+        cell::RefC~
+        collections::{
+            hash_map::{self, HashMap},
+            HashSet,
+        },
+    "#;
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "RefCell");
+    let src = r#"
+    use std::{
+        cell::RefCell,
+        collections::{
+            hash_map::{self, HashM~
+            HashSet,
+        },
+    "#;
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "HashMap");
+}
