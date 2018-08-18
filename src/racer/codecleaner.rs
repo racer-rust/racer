@@ -269,7 +269,7 @@ pub fn code_chunks(src: &str) -> CodeIndicesIter {
 /// Reverse Iterator for reading the source bytes skipping comments.
 /// This is written for get_start_of_pattern and maybe not so robust.
 pub struct CommentSkipIterRev<'a> {
-    src: &'a str,
+    src: &'a [u8],
     pos: BytePos,
 }
 
@@ -280,53 +280,60 @@ pub fn comment_skip_iter_rev(s: &str, start: BytePos) -> CommentSkipIterRev {
     } else {
         start
     };
-    CommentSkipIterRev { src: s, pos: start }
+    CommentSkipIterRev {
+        src: s.as_bytes(),
+        pos: start,
+    }
 }
 
 impl<'a> Iterator for CommentSkipIterRev<'a> {
-    type Item = (char, BytePos);
-    fn next(&mut self) -> Option<(char, BytePos)> {
-        let cur_byte = self.cur_byte()?;
+    type Item = (u8, BytePos);
+    fn next(&mut self) -> Option<(u8, BytePos)> {
+        let pos = self.pos.0;
+        if pos == 0 {
+            return None;
+        }
+        let cur_byte = self.src[pos - 1];
         match cur_byte {
             b'\n' => {
                 let pos = self.pos;
                 self.pos = self.skip_line_comment();
-                Some((cur_byte as char, pos.decrement()))
+                Some((cur_byte, pos.decrement()))
             }
             b'/' => {
-                if let Some(next_byte) = self.get_byte(self.pos.decrement()) {
-                    if next_byte == b'*' {
-                        self.pos = self.skip_block_comment();
-                        Some((self.cur_byte()? as char, self.pos.decrement()))
-                    } else {
-                        self.code()
-                    }
+                if pos > 1 && self.src[pos - 2] == b'*' {
+                    self.pos = self.skip_block_comment();
+                    Some((self.cur_byte()?, self.pos.decrement()))
                 } else {
-                    self.code()
+                    Some(self.code())
                 }
             }
-            _ => self.code(),
+            _ => Some(self.code()),
         }
     }
 }
 
 impl<'a> CommentSkipIterRev<'a> {
     fn cur_byte(&self) -> Option<u8> {
-        self.get_byte(self.pos)
+        let pos = self.pos.0;
+        if pos == 0 {
+            None
+        } else {
+            Some(self.src[pos - 1])
+        }
     }
 
-    fn code(&mut self) -> Option<(char, BytePos)> {
-        let cur_byte = self.cur_byte()?;
+    fn code(&mut self) -> (u8, BytePos) {
         self.pos = self.pos.decrement();
-        Some((cur_byte as char, self.pos))
+        let b = self.src[self.pos.0];
+        (b, self.pos)
     }
 
     fn get_byte(&self, p: BytePos) -> Option<u8> {
         if p == BytePos::ZERO {
             None
         } else {
-            let b = self.src.as_bytes()[p.0 - 1];
-            Some(b)
+            Some(self.src[p.0 - 1])
         }
     }
 
@@ -335,7 +342,7 @@ impl<'a> CommentSkipIterRev<'a> {
         let mut nest_level = 0;
         let mut prev = b' ';
         for i in (0..self.pos.0 - 2).rev() {
-            let b = self.src.as_bytes()[i];
+            let b = self.src[i];
             match b {
                 b'/' if prev == b'*' => {
                     if nest_level == 0 {
@@ -368,24 +375,26 @@ impl<'a> CommentSkipIterRev<'a> {
         let mut pos = self.pos;
         let mut skipped_whole_line = true;
         while skipped_whole_line && pos > BytePos::ZERO {
-            // now pos >= 1 && self.src.as_bytes()[pos - 1] == '\n'
-            skipped_whole_line = false;
-            let comment_start =
-                if let Some(next_newline) = self.src[..pos.decrement().0].rfind('\n') {
-                    if let Some(start) = self.src[next_newline + 1..pos.decrement().0].find("//") {
-                        skipped_whole_line = start == 0;
-                        start + next_newline + 1
-                    } else {
-                        return skip_cr(pos.decrement());
-                    }
-                } else {
-                    if let Some(start) = self.src[..pos.decrement().0].find("//") {
-                        start
-                    } else {
-                        return skip_cr(pos.decrement());
-                    }
-                };
-            pos = BytePos(comment_start);
+            // now pos >= 1 && self.src[pos - 1] == '\n'
+            let mut before = b'\n';
+            let mut last_comment = None;
+            let mut i = pos.0 - 1;
+            while i > 0 {
+                i -= 1;
+                let cur = self.src[i];
+                match cur {
+                    b'/' if before == b'/' => last_comment = Some(i),
+                    b'\n' => break,
+                    _ => {}
+                }
+                before = cur;
+            }
+            if let Some(start) = last_comment {
+                skipped_whole_line = i > 0 && start == i + 1;
+                pos = BytePos(start);
+            } else {
+                return skip_cr(pos.decrement());
+            }
         }
         pos
     }
@@ -585,7 +594,7 @@ mod comment_skip_iter_rev_test {
     ",
         );
         let result: String = comment_skip_iter_rev(&src, BytePos(src.len()))
-            .map(|c| c.0)
+            .map(|c| c.0 as char)
             .collect();
         assert_eq!(&result, "edoc erom emos\n edoc emos si siht");
     }
@@ -599,7 +608,7 @@ mod comment_skip_iter_rev_test {
     ",
         );
         let result: String = comment_skip_iter_rev(&src, BytePos(src.len()))
-            .map(|c| c.0)
+            .map(|c| c.0 as char)
             .collect();
         assert_eq!(&result, "edoc erom emos\n\n\n edoc emos si siht");
     }
@@ -612,7 +621,7 @@ mod comment_skip_iter_rev_test {
     ",
         );
         let result: String = comment_skip_iter_rev(&src, BytePos(src.len()))
-            .map(|c| c.0)
+            .map(|c| c.0 as char)
             .collect();
         assert_eq!(&result, "edoc erom emos  edoc emos si siht");
     }
