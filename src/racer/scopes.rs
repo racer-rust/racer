@@ -3,7 +3,6 @@ use core::Coordinate;
 use core::{self, BytePos, ByteRange, CompletionType, RangedRawSrc, Src};
 use {ast, typeinf, util};
 
-use codecleaner::*;
 use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
@@ -347,20 +346,20 @@ pub fn get_start_of_search_expr(src: &str, point: BytePos) -> BytePos {
 
 pub fn get_start_of_pattern(src: &str, point: BytePos) -> BytePos {
     let mut levels = 0u32;
-    for (c, i) in comment_skip_iter_rev(src, point) {
-        match c {
-            '(' => {
+    for (i, &b) in src[..point.0].as_bytes().into_iter().enumerate().rev() {
+        match b {
+            b'(' => {
                 if levels == 0 {
-                    return i.increment();
+                    return BytePos(i).increment();
                 }
                 levels -= 1;
             }
-            ')' => {
+            b')' => {
                 levels += 1;
             }
             _ => {
-                if levels == 0 && !util::is_pattern_char(c) {
-                    return i.increment();
+                if levels == 0 && !util::is_pattern_char(b as char) {
+                    return BytePos(i).increment();
                 }
             }
         }
@@ -384,14 +383,6 @@ mod test_get_start_of_pattern {
         assert_eq!(
             4,
             get_start_of_pattern_("bla, ast::PatTup(ref tuple_elements) => {", 36)
-        );
-    }
-
-    #[test]
-    fn with_block_comments() {
-        assert_eq!(
-            6,
-            get_start_of_pattern_("break, Some(b) /* if expr is Some */ => {", 36)
         );
     }
 }
