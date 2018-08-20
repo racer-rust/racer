@@ -29,14 +29,18 @@ fn search_struct_fields(
     search_type: SearchType,
     session: &Session,
 ) -> vec::IntoIter<Match> {
-    let src = session.load_file(&structmatch.filepath);
-    let struct_start = scopes::expect_stmt_start(src.as_src(), structmatch.point);
-    let structsrc = scopes::end_of_next_scope(&src[struct_start.0..]);
+    let src = session.load_source_file(&structmatch.filepath);
+    let mut out = Vec::new();
 
+    let struct_start = scopes::expect_stmt_start(src.as_src(), structmatch.point);
+    let struct_range = if let Some(end) = scopes::end_of_next_scope(&src[struct_start.0..]) {
+        struct_start.0..=(struct_start + end).0
+    } else {
+        return out.into_iter();
+    };
+    let structsrc = &src[struct_range.clone()];
     let fields =
         ast::parse_struct_fields(structsrc.to_owned(), core::Scope::from_match(structmatch));
-
-    let mut out = Vec::new();
 
     for (field, field_point, ty) in fields {
         if symbol_matches(search_type, searchstr, &field) {
@@ -45,7 +49,7 @@ fn search_struct_fields(
             } else {
                 field.clone()
             };
-
+            let raw_src = session.load_raw_file(&structmatch.filepath);
             out.push(Match {
                 matchstr: field,
                 filepath: structmatch.filepath.clone(),
@@ -56,7 +60,7 @@ fn search_struct_fields(
                 contextstr: contextstr,
                 generic_args: Vec::new(),
                 generic_types: Vec::new(),
-                docs: find_doc(structsrc, field_point),
+                docs: find_doc(&raw_src[struct_range.clone()], field_point),
             });
         }
     }
@@ -104,7 +108,7 @@ pub fn search_for_impl_methods(
             ));
         }
 
-        let src = session.load_file(&m.filepath);
+        let src = session.load_source_file(&m.filepath);
 
         // find the opening brace and skip to it.
         if let Some(n) = src[m.point.0..].find('{') {
@@ -123,7 +127,7 @@ pub fn search_for_impl_methods(
             search_for_generic_impls(m.point, &m.matchstr, match_request, &m.filepath, session)
         {
             debug!("found generic impl!! {:?}", gen_m);
-            let src = session.load_file(&gen_m.filepath);
+            let src = session.load_source_file(&gen_m.filepath);
             // find the opening brace and skip to it.
             if let Some(n) = src[gen_m.point.0..].find('{') {
                 let point = gen_m.point.increment() + n.into();
@@ -152,7 +156,7 @@ pub fn search_for_impl_methods(
                     session,
                 ) {
                     debug!("found generic impl!! {:?}", m);
-                    let src = session.load_file(&m.filepath);
+                    let src = session.load_source_file(&m.filepath);
                     // find the opening brace and skip to it.
                     if let Some(n) = src[m.point.0..].find('{') {
                         let point = m.point.increment() + n.into();
@@ -340,7 +344,7 @@ pub fn search_for_impls(
         searchstr,
         filepath.display()
     );
-    let s = session.load_file(filepath);
+    let s = session.load_source_file(filepath);
     let scope_start = scopes::scope_start(s.as_src(), pos);
     let src = s.get_src_from_start(scope_start);
 
@@ -445,7 +449,7 @@ fn cached_generic_impls(
         .borrow_mut()
         .entry((filepath.into(), scope_start))
         .or_insert_with(|| {
-            let s = session.load_file(&filepath);
+            let s = session.load_source_file(&filepath);
             let src = s.get_src_from_start(scope_start);
             let mut out = Vec::new();
             for blob_range in src.iter_stmts() {
@@ -487,7 +491,7 @@ pub fn search_for_generic_impls(
         searchstr,
         filepath.display()
     );
-    let s = session.load_file(filepath);
+    let s = session.load_source_file(filepath);
     let scope_start = scopes::scope_start(s.as_src(), pos);
 
     let mut out = Vec::new();
@@ -969,7 +973,7 @@ pub fn search_next_scope(
     session: &Session,
     import_info: &ImportInfo,
 ) -> vec::IntoIter<Match> {
-    let filesrc = session.load_file(filepath);
+    let filesrc = session.load_source_file(filepath);
     if startpoint != BytePos::ZERO {
         // is a scope inside the file. Point should point to the definition
         // (e.g. mod blah {...}), so the actual scope is past the first open brace.
@@ -1306,7 +1310,7 @@ fn run_matchers_on_blob(
         }
     }
     if namespace.contains(Namespace::Value) {
-        for m in matchers::match_values(src, context) {
+        for m in matchers::match_values(src, context, session) {
             out.push(m);
             if context.search_type == ExactMatch {
                 return out;
@@ -1314,7 +1318,7 @@ fn run_matchers_on_blob(
         }
     }
     if namespace.contains(Namespace::Macro) {
-        if let Some(m) = matchers::match_macro(&src, context) {
+        if let Some(m) = matchers::match_macro(src, context, session) {
             out.push(m);
         }
     }
@@ -1412,7 +1416,7 @@ pub fn search_prelude_file(
     if let Some(ref std_path) = *RUST_SRC_PATH {
         let filepath = std_path.join("libstd").join("prelude").join("v1.rs");
         if filepath.exists() || session.contains_file(&filepath) {
-            let msrc = session.load_file_and_mask_comments(&filepath);
+            let msrc = session.load_source_file(&filepath);
             let is_local = true;
             for m in search_scope(
                 BytePos::ZERO,
@@ -1511,7 +1515,7 @@ pub fn resolve_name(
     let mut out = Vec::new();
     let searchstr = &pathseg.name;
 
-    let msrc = session.load_file(filepath);
+    let msrc = session.load_source_file(filepath);
     let is_exact_match = search_type == ExactMatch;
 
     if is_exact_match && &searchstr[..] == "Self" {
@@ -1604,7 +1608,7 @@ pub fn get_super_scope(
     session: &Session,
     import_info: &ImportInfo,
 ) -> Option<core::Scope> {
-    let msrc = session.load_file_and_mask_comments(filepath);
+    let msrc = session.load_source_file(filepath);
     let mut path = scopes::get_local_module_path(msrc.as_src(), pos);
     debug!(
         "get_super_scope: path: {:?} filepath: {:?} {:?} {:?}",
@@ -1668,7 +1672,7 @@ fn get_impls(
     let mut out = Vec::new();
     match context.mtype {
         MatchType::Enum => {
-            let filesrc = session.load_file(&context.filepath);
+            let filesrc = session.load_source_file(&context.filepath);
             let scopestart = scopes::find_stmt_start(filesrc.as_src(), context.point)
                 .expect("[resolve_path] statement start was not found");
             let scopesrc = filesrc.get_src_from_start(scopestart);
@@ -1705,7 +1709,7 @@ fn get_impls(
         import_info,
     ) {
         debug!("found impl!! {:?}", m_impl);
-        let src = session.load_file(&m_impl.filepath);
+        let src = session.load_source_file(&m_impl.filepath);
         // find the opening brace and skip to it.
         if let Some(n) = src[m_impl.point.0..].find('{') {
             let point = m_impl.point + BytePos(n + 1);
@@ -1730,7 +1734,7 @@ fn get_impls(
             session,
         ) {
             debug!("found generic impl!! {:?}", m_gen);
-            let src = session.load_file(&m_gen.filepath);
+            let src = session.load_source_file(&m_gen.filepath);
             // find the opening brace and skip to it.
             if let Some(n) = src[m_gen.point.0..].find('{') {
                 let point = m_gen.point + BytePos(n + 1);
@@ -1891,12 +1895,8 @@ pub fn resolve_method(
 ) -> Vec<Match> {
     let scopestart = scopes::scope_start(msrc, point);
     debug!(
-        "resolve_method for |{}| pt: {:?} ({:?}); scopestart: {:?} ({:?})",
-        searchstr,
-        point,
-        msrc.src.point_to_coords(point),
-        scopestart,
-        msrc.src.point_to_coords(scopestart)
+        "resolve_method for |{}| pt: {:?}; scopestart: {:?}",
+        searchstr, point, scopestart,
     );
 
     if let Some(stmtstart) = scopes::find_stmt_start(msrc, scopestart.decrement()) {
@@ -1923,7 +1923,7 @@ pub fn resolve_method(
                 if let Some(m) = m {
                     debug!("found trait : match is |{:?}|", m);
                     let mut out = Vec::new();
-                    let src = session.load_file(&m.filepath);
+                    let src = session.load_source_file(&m.filepath);
                     if let Some(n) = src[m.point.0..].find('{') {
                         let point = m.point + BytePos(n + 1);
                         for m in search_scope_for_static_trait_fns(
@@ -2150,7 +2150,7 @@ pub fn search_for_field_or_method(
         traits
             .into_iter()
             .filter_map(|tr| {
-                let src = session.load_file(&tr.filepath);
+                let src = session.load_source_file(&tr.filepath);
                 src[tr.point.0..].find('{').map(|start| {
                     search_scope_for_methods(
                         tr.point + BytePos(start + 1),
@@ -2354,7 +2354,8 @@ fn get_std_macros_(
     session: &Session,
     out: &mut Vec<Match>,
 ) {
-    let src = session.load_file(&macro_path);
+    let raw_src = session.load_raw_file(&macro_path);
+    let src = session.load_source_file(&macro_path);
     let mut export = false;
     let mut get_macro_def = |blob: &str| -> Option<(BytePos, String)> {
         if blob.starts_with("#[macro_export]") | blob.starts_with("#[rustc_doc_only_macro]") {
@@ -2399,13 +2400,13 @@ fn get_std_macros_(
             matchstr,
             filepath: macro_path.to_owned(),
             point: start,
-            coords: src.point_to_coords(start),
+            coords: raw_src.point_to_coords(start),
             local: false,
             mtype: MatchType::Macro,
             contextstr: matchers::first_line(blob),
             generic_args: Vec::new(),
             generic_types: Vec::new(),
-            docs: matchers::find_doc(&src.as_src(), range.start),
+            docs: matchers::find_doc(&raw_src, range.start),
         })
     }));
     if let Some(builtin_start) = builtin_start {
@@ -2418,13 +2419,13 @@ fn get_std_macros_(
                 matchstr,
                 filepath: macro_path.to_owned(),
                 point: start,
-                coords: src.point_to_coords(start),
+                coords: raw_src.point_to_coords(start),
                 local: false,
                 mtype: MatchType::Macro,
                 contextstr: matchers::first_line(blob),
                 generic_args: Vec::new(),
                 generic_types: Vec::new(),
-                docs: matchers::find_doc(&mod_src, range.start),
+                docs: matchers::find_doc(&raw_src, range.start),
             })
         }));
     }

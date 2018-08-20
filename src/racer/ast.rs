@@ -542,7 +542,7 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: BytePos, session: &Sess
 
 pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match> {
     debug!("get_type_of_typedef match is {:?}", m);
-    let msrc = session.load_file_and_mask_comments(&m.filepath);
+    let msrc = session.load_source_file(&m.filepath);
     let blobstart = m.point - BytePos(5); // 5 == "type ".len()
     let blob = msrc.get_src_from_start(blobstart);
 
@@ -555,7 +555,7 @@ pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match>
             debug!("get_type_of_typedef parsed type {:?}", res.type_);
             res.type_
         }).and_then(|type_| {
-            let src = session.load_file(&m.filepath);
+            let src = session.load_source_file(&m.filepath);
             let scope_start = scopes::scope_start(src.as_src(), m.point);
 
             // Type of TypeDef cannot be inside the impl block so look outside
@@ -613,7 +613,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     self.scope.point + lo.into(),
                     self.session,
                 ).and_then(|m| {
-                    let msrc = self.session.load_file_and_mask_comments(&m.filepath);
+                    let msrc = self.session.load_source_file(&m.filepath);
                     typeinf::get_type_of_match(m, msrc.as_src(), self.session)
                 });
             }
