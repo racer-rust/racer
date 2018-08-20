@@ -755,6 +755,7 @@ fn myfn() {
 #[test]
 fn test_point_to_coords() {
     let src = "
+
 fn myfn(b:usize) {
    let a = 3;
    if b == 12 {
@@ -792,13 +793,6 @@ impl<'c> Src<'c> {
         Src {
             src: self.src,
             range: ByteRange::new(self.range.start + shift, self.range.end),
-        }
-    }
-
-    pub fn change_length(&self, new_length: BytePos) -> Src<'c> {
-        Src {
-            src: self.src,
-            range: ByteRange::new(self.range.start, self.range.start + new_length),
         }
     }
 

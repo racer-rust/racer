@@ -16,6 +16,7 @@ extern crate rls_span;
 mod testutils;
 
 mod ast;
+mod byte_iter;
 mod codecleaner;
 mod codeiter;
 mod core;

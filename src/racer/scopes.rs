@@ -3,7 +3,7 @@ use core::Coordinate;
 use core::{self, BytePos, ByteRange, CompletionType, IndexedSource, Src};
 use {ast, typeinf, util};
 
-use codecleaner::comment_skip_iter_rev;
+use byte_iter::comment_skip_iter_rev;
 use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
