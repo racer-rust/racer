@@ -3,7 +3,7 @@ use core::Coordinate;
 use core::{self, BytePos, ByteRange, CompletionType, IndexedSource, Src};
 use {ast, typeinf, util};
 
-use codecleaner::comment_skip_iter_rev;
+use byte_iter::comment_skip_iter_rev;
 use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -31,6 +31,31 @@ where
     None
 }
 
+// expected to use with comment_skip_iter_rev
+fn find_close_with_pos(
+    iter: impl Iterator<Item = (u8, BytePos)>,
+    open: u8,
+    close: u8,
+    level_end: u32,
+) -> Option<BytePos> {
+    let mut levels = 0u32;
+    for (c, pos) in iter {
+        if c == close {
+            if levels == level_end {
+                // +1 for compatibility with find_close
+                return Some(pos.increment());
+            }
+            if levels == 0 {
+                return None;
+            }
+            levels -= 1;
+        } else if c == open {
+            levels += 1;
+        }
+    }
+    None
+}
+
 pub fn find_closing_paren(src: &str, pos: BytePos) -> BytePos {
     find_close(src.as_bytes()[pos.0..].iter(), b'(', b')', 0)
         .map_or(src.len().into(), |count| pos + count)
@@ -41,39 +66,51 @@ pub fn find_closure_scope_start(
     point: BytePos,
     parentheses_open_pos: BytePos,
 ) -> Option<BytePos> {
-    let masked_src = mask_comments(src.shift_start(point));
-    let closing_paren_pos = find_closing_paren(masked_src.as_str(), BytePos::ZERO) + point;
-    let src_between_parent =
-        mask_comments(src.shift_range(ByteRange::new(parentheses_open_pos, closing_paren_pos)));
-    closure_valid_arg_scope(&src_between_parent).map(|_| parentheses_open_pos)
+    let masked_src = mask_comments(src.shift_start(parentheses_open_pos));
+    let closing_paren_pos = find_closing_paren(masked_src.as_str(), point - parentheses_open_pos);
+    let src_between_parent = &masked_src[..closing_paren_pos.0];
+    closure_valid_arg_scope(src_between_parent).map(|_| parentheses_open_pos)
 }
 
 pub fn scope_start(src: Src, point: BytePos) -> BytePos {
-    let masked_src = mask_comments(src.change_length(point));
-    let bytes = masked_src.as_bytes();
-    let curly_parent_open_pos =
-        find_close(bytes.iter().rev(), b'}', b'{', 0).map_or(BytePos::ZERO, |count| point - count);
-
-    // We've found a multi-use statement, such as `use foo::{bar, baz};`, so we shouldn't consider
-    // the brace to be the start of the scope.
-    if curly_parent_open_pos > BytePos::ZERO
-        && masked_src[..curly_parent_open_pos.0].ends_with("::{")
-    {
-        if let Some(pos) = masked_src[..curly_parent_open_pos.0].rfind("use") {
-            return scope_start(src, pos.into());
+    let ret_curly = |pos: BytePos| -> BytePos {
+        if pos > BytePos::ZERO && src[..pos.0].ends_with("::{") {
+            if let Some(pos) = src[..pos.0].rfind("use") {
+                return pos.into();
+            }
+        }
+        pos
+    };
+    let (mut clev, mut plev) = (0u32, 0u32);
+    let mut iter = comment_skip_iter_rev(&src[..], point);
+    while let Some((b, pos)) = iter.next() {
+        match b {
+            b'{' => {
+                // !!! found { earlier than (
+                if clev == 0 {
+                    return ret_curly(pos.increment());
+                }
+                clev -= 1;
+            }
+            b'}' => clev += 1,
+            b'(' => {
+                // !!! found ( earlier than {
+                if plev == 0 {
+                    if let Some(scope_pos) = find_closure_scope_start(src, point, pos.increment()) {
+                        return scope_pos;
+                    } else {
+                        break;
+                    }
+                }
+                plev -= 1;
+            }
+            b')' => plev += 1,
+            _ => {}
         }
     }
-
-    let parent_open_pos = find_close(masked_src.as_bytes().iter().rev(), b')', b'(', 0)
-        .map_or(BytePos::ZERO, |count| point - count);
-
-    if curly_parent_open_pos > parent_open_pos {
-        curly_parent_open_pos
-    } else if let Some(scope_pos) = find_closure_scope_start(src, point, parent_open_pos) {
-        scope_pos
-    } else {
-        curly_parent_open_pos
-    }
+    // fallback: return curly_parent_open_pos
+    let pos = find_close_with_pos(iter, b'}', b'{', 0).unwrap_or(BytePos::ZERO);
+    ret_curly(pos)
 }
 
 pub fn find_stmt_start(msrc: Src, point: BytePos) -> Option<BytePos> {
@@ -306,17 +343,17 @@ pub fn get_start_of_pattern(src: &str, point: BytePos) -> BytePos {
     let mut levels = 0u32;
     for (c, i) in comment_skip_iter_rev(src, point) {
         match c {
-            '(' => {
+            b'(' => {
                 if levels == 0 {
                     return i.increment();
                 }
                 levels -= 1;
             }
-            ')' => {
+            b')' => {
                 levels += 1;
             }
             _ => {
-                if levels == 0 && !util::is_pattern_char(c) {
+                if levels == 0 && !util::is_pattern_char(c as char) {
                     return i.increment();
                 }
             }
@@ -445,8 +482,7 @@ fn fill_gaps(buffer: &str, result: &mut String, start: usize, prev: usize) {
 
 pub fn mask_comments(src: Src) -> String {
     let mut result = String::with_capacity(src.len());
-    let buf_byte = &[b' '; 128];
-    let buffer = from_utf8(buf_byte).unwrap();
+    let buffer = unsafe { ::std::str::from_utf8_unchecked(&[b' '; 128]) };
     let mut prev = BytePos::ZERO;
     for range in src.chunk_indices() {
         fill_gaps(buffer, &mut result, range.start.0, prev.0);

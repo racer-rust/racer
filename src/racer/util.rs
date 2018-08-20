@@ -79,18 +79,18 @@ pub fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bo
     }
 }
 
-/// Try to valid if the given scope contains a valid closure arg scope.
+/// Try to check if the given scope contains a valid closure arg scope.
 pub fn closure_valid_arg_scope(scope_src: &str) -> Option<(ByteRange, &str)> {
     // Try to find the left and right pipe, if one or both are not present, this is not a valid
     // closure definition
     let left_pipe = scope_src.find('|')?;
-    let candidate = &scope_src[left_pipe..];
+    let candidate = &scope_src[left_pipe..].as_bytes();
     let mut brace_level = 0;
-    for (i, c) in candidate.chars().skip(1).enumerate() {
-        match c {
-            '{' => brace_level += 1,
-            '}' => brace_level -= 1,
-            '|' => {
+    for (i, &b) in candidate.iter().skip(1).enumerate() {
+        match b {
+            b'{' => brace_level += 1,
+            b'}' => brace_level -= 1,
+            b'|' => {
                 let right_pipe = left_pipe + 1 + i;
                 // now we find right |
                 if brace_level == 0 {
@@ -99,7 +99,7 @@ pub fn closure_valid_arg_scope(scope_src: &str) -> Option<(ByteRange, &str)> {
                 }
                 break;
             }
-            ';' => break,
+            b';' => break,
             _ => {}
         }
         if brace_level < 0 {
