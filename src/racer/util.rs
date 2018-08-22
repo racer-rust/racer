@@ -7,7 +7,7 @@ use std::{
 };
 
 use core::SearchType::{self, ExactMatch, StartsWith};
-use core::{BytePos, ByteRange, IndexedSource, Location, LocationExt, Session, SessionExt};
+use core::{BytePos, ByteRange, Location, LocationExt, RawSource, Session, SessionExt};
 
 #[cfg(unix)]
 pub const PATH_SEP: char = ':';
@@ -187,7 +187,7 @@ where
     C: Into<Location>,
 {
     let cursor = cursor.into();
-    let indexed_source = session.load_file(filepath.as_ref());
+    let indexed_source = session.load_raw_file(filepath.as_ref());
     let (start, pos) = {
         let s = &indexed_source.code[..];
         let pos = match cursor.to_point(&indexed_source) {
@@ -224,7 +224,7 @@ where
 }
 
 pub struct ExpandedIdent {
-    src: Rc<IndexedSource>,
+    src: Rc<RawSource>,
     start: BytePos,
     pos: BytePos,
 }

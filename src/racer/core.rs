@@ -1,3 +1,4 @@
+use codecleaner;
 use codeiter::StmtIndicesIter;
 use matchers::ImportInfo;
 use project_model::ProjectModelProvider;
@@ -17,7 +18,6 @@ use std::{path, str};
 use syntax::codemap;
 
 use ast;
-use codecleaner;
 use nameres;
 use scopes;
 use util;
@@ -310,19 +310,19 @@ impl From<Coordinate> for Location {
 
 /// Internal cursor methods
 pub trait LocationExt {
-    fn to_point(&self, src: &IndexedSource) -> Option<BytePos>;
-    fn to_coords(&self, src: &IndexedSource) -> Option<Coordinate>;
+    fn to_point(&self, src: &RawSource) -> Option<BytePos>;
+    fn to_coords(&self, src: &RawSource) -> Option<Coordinate>;
 }
 
 impl LocationExt for Location {
-    fn to_point(&self, src: &IndexedSource) -> Option<BytePos> {
+    fn to_point(&self, src: &RawSource) -> Option<BytePos> {
         match *self {
             Location::Point(val) => Some(val),
             Location::Coords(ref coords) => src.coords_to_point(coords),
         }
     }
 
-    fn to_coords(&self, src: &IndexedSource) -> Option<Coordinate> {
+    fn to_coords(&self, src: &RawSource) -> Option<Coordinate> {
         match *self {
             Location::Coords(val) => Some(val),
             Location::Point(point) => src.point_to_coords(point),
@@ -610,44 +610,16 @@ impl fmt::Debug for PathSearch {
 }
 
 #[derive(Clone, Debug)]
-pub struct IndexedSource {
+pub struct RawSource {
     pub code: String,
-    pub idx: Vec<ByteRange>,
     pub lines: RefCell<Vec<ByteRange>>,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub struct Src<'c> {
-    pub src: &'c IndexedSource,
-    pub range: ByteRange,
-}
-
-impl IndexedSource {
-    pub fn new(src: String) -> IndexedSource {
-        let indices = codecleaner::code_chunks(&src).collect();
-        IndexedSource {
-            code: src,
-            idx: indices,
-            lines: RefCell::new(Vec::new()),
-        }
-    }
-
-    pub fn with_src(&self, new_src: String) -> IndexedSource {
-        IndexedSource {
-            code: new_src,
-            idx: self.idx.clone(),
-            lines: self.lines.clone(),
-        }
-    }
-
-    pub fn as_src(&self) -> Src {
-        self.get_src_from_start(BytePos::ZERO)
-    }
-
-    pub fn get_src_from_start(&self, new_start: BytePos) -> Src {
-        Src {
-            src: self,
-            range: ByteRange::new(new_start, self.len().into()),
+impl RawSource {
+    pub fn new(s: String) -> Self {
+        RawSource {
+            code: s,
+            lines: Default::default(),
         }
     }
 
@@ -667,28 +639,6 @@ impl IndexedSource {
             }).collect();
     }
 
-    fn cache_lineoffsets_and_get_line(&self, pos: BytePos) -> Option<Coordinate> {
-        if self.lines.borrow().len() != 0 {
-            return None;
-        }
-        let mut before = 0;
-        let mut target_line = None;
-        *self.lines.borrow_mut() = self
-            .code
-            .lines()
-            .enumerate()
-            .map(|(i, line)| {
-                let len = line.len() + 1;
-                let res = ByteRange::new(before, before + len);
-                if target_line.is_none() && res.contains(pos) {
-                    target_line = Some(Coordinate::new(i as u32 + 1, (pos.0 - before) as u32));
-                }
-                before += len;
-                res
-            }).collect();
-        target_line
-    }
-
     pub fn coords_to_point(&self, coords: &Coordinate) -> Option<BytePos> {
         self.cache_lineoffsets();
         self.lines
@@ -705,16 +655,43 @@ impl IndexedSource {
     }
 
     pub fn point_to_coords(&self, point: BytePos) -> Option<Coordinate> {
-        // if cache dones't exist, get the coord when constructing cache
-        if let Some(cd) = self.cache_lineoffsets_and_get_line(point) {
-            return Some(cd);
-        }
-        // if cache exists, do binary search
+        self.cache_lineoffsets();
         let lines = self.lines.borrow();
         lines
             .binary_search_by(|range| range.partial_cmp(&point).unwrap())
             .ok()
             .map(|idx| Coordinate::new(idx as u32 + 1, (point - lines[idx].start).0 as u32))
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct MaskedSource {
+    pub code: String,
+    pub idx: Vec<ByteRange>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Src<'c> {
+    pub src: &'c MaskedSource,
+    pub range: ByteRange,
+}
+
+impl MaskedSource {
+    pub fn new(src: &str) -> MaskedSource {
+        let idx: Vec<_> = codecleaner::code_chunks(&src).collect();
+        let code = scopes::mask_comments(src, &idx);
+        MaskedSource { code, idx }
+    }
+
+    pub fn as_src(&self) -> Src {
+        self.get_src_from_start(BytePos::ZERO)
+    }
+
+    pub fn get_src_from_start(&self, new_start: BytePos) -> Src {
+        Src {
+            src: self,
+            range: ByteRange::new(new_start, self.len().into()),
+        }
     }
 }
 
@@ -730,7 +707,7 @@ impl<'c> Iterator for MatchIter<'c> {
         self.matches.next().map(|mut m| {
             if m.coords.is_none() {
                 let point = m.point;
-                let src = self.session.load_file(m.filepath.as_path());
+                let src = self.session.load_raw_file(m.filepath.as_path());
                 m.coords = src.point_to_coords(point);
             }
             m
@@ -745,7 +722,7 @@ fn myfn() {
     let a = 3;
     print(a);
 }";
-    let src = new_source(src.into());
+    let src = RawSource::new(src.into());
     assert_eq!(
         src.coords_to_point(&Coordinate::new(3, 5)),
         Some(BytePos(18))
@@ -765,11 +742,11 @@ fn myfn(b:usize) {
 }
 ";
     fn round_trip_point_and_coords(src: &str, lineno: usize, charno: usize) {
-        let src = new_source(src.into());
-        let point = src
+        let raw_src = RawSource::new(src.to_owned());
+        let point = raw_src
             .coords_to_point(&Coordinate::new(lineno as u32, charno as u32))
             .unwrap();
-        let coords = src.point_to_coords(point).unwrap();
+        let coords = raw_src.point_to_coords(point).unwrap();
         assert_eq!(coords, Coordinate::new(lineno as u32, charno as u32));
     }
     round_trip_point_and_coords(src, 4, 5);
@@ -845,7 +822,26 @@ impl<'c> Iterator for CodeChunkIter<'c> {
     }
 }
 
-impl Deref for IndexedSource {
+pub struct RangedRawSrc {
+    inner: Rc<RawSource>,
+    range: ByteRange,
+}
+
+impl Deref for RangedRawSrc {
+    type Target = str;
+    fn deref(&self) -> &str {
+        &self.inner.code[self.range.to_range()]
+    }
+}
+
+impl Deref for RawSource {
+    type Target = str;
+    fn deref(&self) -> &str {
+        &self.code
+    }
+}
+
+impl Deref for MaskedSource {
     type Target = str;
     fn deref(&self) -> &str {
         &self.code
@@ -859,23 +855,19 @@ impl<'c> Deref for Src<'c> {
     }
 }
 
-pub fn new_source(src: String) -> IndexedSource {
-    IndexedSource::new(src)
-}
-
 /// Caches file contents for re-use between sessions.
 ///
 /// The file cache is an opaque blob outside of racer which contains maps of loaded and masked
 /// files.
 pub struct FileCache {
     /// raw source for cached files
-    raw_map: RefCell<HashMap<path::PathBuf, Rc<IndexedSource>>>,
+    raw_map: RefCell<HashMap<path::PathBuf, Rc<RawSource>>>,
 
     /// masked source for cached files
     ///
     /// a version with comments and strings replaced by spaces, so that they
     /// aren't found when scanning the source for signatures.
-    masked_map: RefCell<HashMap<path::PathBuf, Rc<IndexedSource>>>,
+    masked_map: RefCell<HashMap<path::PathBuf, Rc<MaskedSource>>>,
 
     /// The file loader
     pub(crate) loader: Box<FileLoader>,
@@ -957,41 +949,41 @@ impl FileCache {
         P: Into<path::PathBuf>,
     {
         let pathbuf = filepath.into();
-        let src = IndexedSource::new(buf.into());
-        let masked_src = IndexedSource::new(scopes::mask_comments(src.as_src()));
+        let src = buf.into();
+        let masked_src = MaskedSource::new(&src);
         self.raw_map
             .borrow_mut()
-            .insert(pathbuf.clone(), Rc::new(src));
+            .insert(pathbuf.clone(), Rc::new(RawSource::new(src)));
         self.masked_map
             .borrow_mut()
             .insert(pathbuf, Rc::new(masked_src));
     }
 
-    fn load_file(&self, filepath: &path::Path) -> Rc<IndexedSource> {
+    fn load_file(&self, filepath: &path::Path) -> Rc<RawSource> {
         if let Some(src) = self.raw_map.borrow().get(filepath) {
             return src.clone();
         }
 
         // nothing found, insert into cache
         // Ugh, really need handle results on all these methods :(
-        let res = self
+        let source = self
             .loader
             .load_file(filepath)
             .expect("load file successfully");
-        let src = Rc::new(IndexedSource::new(res));
+        let source = Rc::new(RawSource::new(source));
         self.raw_map
             .borrow_mut()
-            .insert(filepath.to_path_buf(), src.clone());
-        src
+            .insert(filepath.to_path_buf(), Rc::clone(&source));
+        source
     }
 
-    fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Rc<IndexedSource> {
+    fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Rc<MaskedSource> {
         if let Some(src) = self.masked_map.borrow().get(filepath) {
             return src.clone();
         }
         // nothing found, insert into cache
         let src = self.load_file(filepath);
-        let msrc = Rc::new(src.with_src(scopes::mask_comments(src.as_src())));
+        let msrc = Rc::new(MaskedSource::new(&src.code));
         self.masked_map
             .borrow_mut()
             .insert(filepath.to_path_buf(), msrc.clone());
@@ -1004,12 +996,15 @@ pub trait SessionExt {
     /// Request that a file is loaded into the cache
     ///
     /// This API is unstable and should not be used outside of Racer
-    fn load_file(&self, &path::Path) -> Rc<IndexedSource>;
+    fn load_raw_file(&self, &path::Path) -> Rc<RawSource>;
+
+    /// ranged version of load_raw_file
+    fn load_raw_src_ranged(&self, src: &Src, &path::Path) -> RangedRawSrc;
 
     /// Request that a file is loaded into the cache with comments masked
     ///
     /// This API is unstable and should not be used outside of Racer
-    fn load_file_and_mask_comments(&self, &path::Path) -> Rc<IndexedSource>;
+    fn load_source_file(&self, &path::Path) -> Rc<MaskedSource>;
 }
 
 /// Context for a Racer operation
@@ -1098,11 +1093,19 @@ impl<'c> Session<'c> {
 }
 
 impl<'c> SessionExt for Session<'c> {
-    fn load_file(&self, filepath: &path::Path) -> Rc<IndexedSource> {
+    fn load_raw_file(&self, filepath: &path::Path) -> Rc<RawSource> {
         self.cache.load_file(filepath)
     }
 
-    fn load_file_and_mask_comments(&self, filepath: &path::Path) -> Rc<IndexedSource> {
+    fn load_raw_src_ranged(&self, src: &Src, filepath: &path::Path) -> RangedRawSrc {
+        let inner = self.cache.load_file(filepath);
+        RangedRawSrc {
+            inner,
+            range: src.range,
+        }
+    }
+
+    fn load_source_file(&self, filepath: &path::Path) -> Rc<MaskedSource> {
         self.cache.load_file_and_mask_comments(filepath)
     }
 }
@@ -1112,7 +1115,7 @@ pub fn to_point<P>(coords: Coordinate, path: P, session: &Session) -> Option<Byt
 where
     P: AsRef<path::Path>,
 {
-    Location::from(coords).to_point(&session.load_file(path.as_ref()))
+    Location::from(coords).to_point(&session.load_raw_file(path.as_ref()))
 }
 
 /// Get the racer point of a line/character number pair for a file.
@@ -1120,7 +1123,7 @@ pub fn to_coords<P>(point: BytePos, path: P, session: &Session) -> Option<Coordi
 where
     P: AsRef<path::Path>,
 {
-    Location::from(point).to_coords(&session.load_file(path.as_ref()))
+    Location::from(point).to_coords(&session.load_raw_file(path.as_ref()))
 }
 
 /// Find completions for a fully qualified name like `std::io::`
@@ -1244,11 +1247,11 @@ where
 }
 
 fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Session) -> Vec<Match> {
-    let src = session.load_file_and_mask_comments(filepath);
+    let src = session.load_source_file(filepath);
+    let raw_src = session.load_raw_file(filepath);
     let src_text = &src.as_src()[..];
-
     // TODO return result
-    let pos = match cursor.to_point(&session.load_file(filepath)) {
+    let pos = match cursor.to_point(&raw_src) {
         Some(pos) => pos,
         None => {
             debug!("Failed to convert cursor to point");
@@ -1270,7 +1273,7 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
 
     match completetype {
         CompletionType::Path => {
-            let line = scopes::get_current_line(&src, pos);
+            let line = &scopes::get_current_line(src.as_src(), pos);
             debug!("Complete path with line: {:?}", line);
             // when in the function ident position, only look for methods
             // from a trait to complete.
@@ -1401,7 +1404,7 @@ where
     find_definition_(filepath.as_ref(), cursor.into(), session).map(|mut m| {
         if m.coords.is_none() {
             let point = m.point;
-            let src = session.load_file(m.filepath.as_path());
+            let src = session.load_raw_file(m.filepath.as_path());
             m.coords = src.point_to_coords(point);
         }
         m
@@ -1413,10 +1416,10 @@ pub fn find_definition_(
     cursor: Location,
     session: &Session,
 ) -> Option<Match> {
-    let src = session.load_file_and_mask_comments(filepath);
+    let src = session.load_source_file(filepath);
     let src_txt = &src[..];
     // TODO return result
-    let pos = match cursor.to_point(&session.load_file(filepath)) {
+    let pos = match cursor.to_point(&session.load_raw_file(filepath)) {
         Some(pos) => pos,
         None => {
             debug!("Failed to convert cursor to point");
@@ -1436,7 +1439,7 @@ pub fn find_definition_(
 
     match completetype {
         CompletionType::Path => {
-            let line = scopes::get_current_line(&src, range.end);
+            let line = &scopes::get_current_line(src.as_src(), range.end);
             let (path, namespace) = if let Some(use_start) = scopes::use_stmt_start(line) {
                 let path = scopes::construct_path_from_use_tree(&line[use_start.0..]);
                 (path, Namespace::Both)
@@ -1514,8 +1517,8 @@ mod tests {
             ($src:ident) => {{
                 let session = Session::new(&cache);
                 session.cache_file_contents(path, $src);
-                assert_eq!($src, &session.load_file(path).code[..]);
-                assert_eq!($src, &session.load_file_and_mask_comments(path).code[..]);
+                assert_eq!($src, &session.load_raw_file(path)[..]);
+                assert_eq!($src, &session.load_source_file(path).code[..]);
             }};
         }
 

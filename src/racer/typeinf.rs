@@ -4,7 +4,7 @@ use ast;
 use core;
 use core::Namespace;
 use core::SearchType::ExactMatch;
-use core::{BytePos, Match, Scope, Session, SessionExt, Src};
+use core::{BytePos, MaskedSource, Match, Scope, Session, SessionExt, Src};
 use matchers;
 use nameres::resolve_path_with_str;
 use scopes;
@@ -233,7 +233,7 @@ fn get_type_of_let_block_expr(
         .find(prefix)
         .expect("`prefix` should appear in statement")
         .into();
-    let src = core::new_source(generate_skeleton_for_parsing(&stmt[point.0..]));
+    let src = MaskedSource::new(&generate_skeleton_for_parsing(&stmt[point.0..]));
 
     if let Some(range) = src.as_src().iter_stmts().next() {
         let blob = &src[range.to_range()];
@@ -250,6 +250,7 @@ fn get_type_of_let_block_expr(
     }
 }
 
+// TODO: it's inefficient(kngwyu)
 fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty> {
     let stmtstart = scopes::expect_stmt_start(msrc, m.point);
     let stmt = msrc.shift_start(stmtstart);
@@ -278,7 +279,7 @@ fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<core:
     src = src.trim_right().to_owned();
     src.push_str(".into_iter().next() { }}");
 
-    let src = core::new_source(src);
+    let src = MaskedSource::new(&src);
 
     if let Some(range) = src.as_src().iter_stmts().next() {
         let blob = &src[range.to_range()];
@@ -314,19 +315,15 @@ pub fn get_struct_field_type(
 
     debug!("[get_struct_filed_type]{}, {:?}", fieldname, structmatch);
 
-    let src = session.load_file(&structmatch.filepath);
+    let src = session.load_source_file(&structmatch.filepath);
 
     let opoint = scopes::expect_stmt_start(src.as_src(), structmatch.point);
-    let structsrc = scopes::end_of_next_scope(&src[opoint.0..]);
-
     // HACK: if scopes::end_of_next_scope returns empty struct, it's maybe tuple struct
-    // TODO: remove this hack
-    let structsrc = if structsrc == "" {
-        (*get_first_stmt(src.as_src().shift_start(opoint))).to_owned()
+    let structsrc = if let Some(end) = scopes::end_of_next_scope(&src[opoint.0..]) {
+        src[opoint.0..=(opoint + end).0].to_owned()
     } else {
-        structsrc.to_owned()
+        (*get_first_stmt(src.as_src().shift_start(opoint))).to_owned()
     };
-
     let fields = ast::parse_struct_fields(structsrc.to_owned(), Scope::from_match(structmatch));
     for (field, _, ty) in fields {
         if fieldname == field {
@@ -341,7 +338,7 @@ pub fn get_tuplestruct_field_type(
     structmatch: &Match,
     session: &Session,
 ) -> Option<core::Ty> {
-    let src = session.load_file(&structmatch.filepath);
+    let src = session.load_source_file(&structmatch.filepath);
     let structsrc = if let core::MatchType::EnumVariant(_) = structmatch.mtype {
         // decorate the enum variant src to make it look like a tuple struct
         let to = src[structmatch.point.0..]
@@ -444,7 +441,7 @@ pub fn get_type_from_match_arm(m: &Match, msrc: Src, session: &Session) -> Optio
 }
 
 pub fn get_function_declaration(fnmatch: &Match, session: &Session) -> String {
-    let src = session.load_file(&fnmatch.filepath);
+    let src = session.load_source_file(&fnmatch.filepath);
     let start = scopes::expect_stmt_start(src.as_src(), fnmatch.point);
     let def_end: &[_] = &['{', ';'];
     let end = src[start.0..]
@@ -458,7 +455,7 @@ pub fn get_return_type_of_function(
     contextm: &Match,
     session: &Session,
 ) -> Option<core::Ty> {
-    let src = session.load_file(&fnmatch.filepath);
+    let src = session.load_source_file(&fnmatch.filepath);
     let point = scopes::expect_stmt_start(src.as_src(), fnmatch.point);
     let out = src[point.0..].find(|c| c == '{' || c == ';').and_then(|n| {
         // wrap in "impl blah { }" so that methods get parsed correctly too
