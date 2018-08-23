@@ -11,4 +11,7 @@ before_script:
 
 script:
   - cargo build --verbose
+  - cd test_project/test-crate3
+  - cargo build
+  - cd ../..
   - cargo test

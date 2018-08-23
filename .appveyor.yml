@@ -54,6 +54,9 @@ build: false
 # TODO modify this phase as you see fit
 test_script:
   - cargo build --verbose
+  - cd test_project/test-crate3
+  - cargo build
+  - cd ../..
   - cargo test
 
 cache:
