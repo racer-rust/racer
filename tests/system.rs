@@ -3843,56 +3843,6 @@ fn follows_use_for_reexport() {
     })
 }
 
-// !!! this functionality is duplicated in #889
-// test for patch.crates-io
-// in test-crate3, we patches rand0.5.0 to
-// https://github.com/rust-lang-nursery/rand/commit/ea9fc2e5357dcf5d0497aa332cd0f8050017e3ec
-// , where doc for `gen_range` was modified, so if racer returns modified doc, it recognizes
-// patches.crates-io correctly
-#[test]
-#[ignore]
-fn check_work_with_cratesio_patch() {
-    let src = "
-    extern crate rand;
-    use rand::{Rng, thread_rng};
-    fn main() {
-        let mut rng: Box<Rng> = Box::new(thread_rng());
-        rng.gen_rang~
-    }
-    ";
-
-    let doc = r#"Generate a random value in the range [`low`, `high`), i.e. inclusive of
-`low` and exclusive of `high`.
-
-This function is optimised for the case that only a single sample is
-made from the given range. See also the [`Uniform`] distribution
-type which may be faster if sampling from the same range repeatedly.
-
-# Panics
-
-Panics if `low >= high`.
-
-# Example
-
-```
-use rand::{thread_rng, Rng};
-
-let mut rng = thread_rng();
-let n: u32 = rng.gen_range(0, 10);
-println!("{}", n);
-let m: f64 = rng.gen_range(-40.0f64, 1.3e5f64);
-println!("{}", m);
-```
-
-[`Uniform`]: distributions/uniform/struct.Uniform.html"#;
-    with_test_project(|dir| {
-        let src_dir = dir.nested_dir("test-crate3").nested_dir("src");
-        let got = get_only_completion(src, Some(src_dir));
-        assert_eq!(got.matchstr, "gen_range");
-        assert_eq!(got.docs, doc);
-    })
-}
-
 // for issue 847
 #[test]
 fn match_statements_confusing_closure_args() {
