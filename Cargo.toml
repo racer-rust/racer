@@ -42,4 +42,4 @@ default = ["cargo"]
 nightly = []
 
 [workspace]
-members = ["testutils"]
+members = ["metadata", "testutils"]

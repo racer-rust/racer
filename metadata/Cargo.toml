@@ -1,0 +1,14 @@
+[package]
+workspace = ".."
+name = "racer-cargo-metadata"
+description = "cargo metadata parser for racer"
+license = "MIT"
+version = "0.1.0"
+authors = ["Yuji Kanagawa <yuji.kngw.80s.revive@gmail.com>"]
+
+[dependencies]
+serde_json = "1.0"
+
+[dependencies.serde]
+version = "1.0"
+features = ["derive"]
