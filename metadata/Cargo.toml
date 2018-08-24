@@ -12,3 +12,8 @@ serde_json = "1.0"
 [dependencies.serde]
 version = "1.0"
 features = ["derive"]
+
+[dependencies.racer-interner]
+version = "0.1"
+path = "../interner"
+

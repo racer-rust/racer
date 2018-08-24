@@ -1,125 +1,17 @@
+extern crate racer_interner;
 extern crate serde;
 extern crate serde_json;
+
+mod metadata;
+pub use metadata::*;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use std::env;
 use std::error::Error;
 use std::fmt;
-use std::hash::{Hash, Hasher};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::str::{self, Utf8Error};
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Metadata {
-    pub packages: HashSet<Package>,
-    pub workspace_members: Vec<PackageId>,
-    pub resolve: Option<Resolve>,
-    #[serde(default)]
-    pub workspace_root: PathBuf,
-    pub target_directory: PathBuf,
-    version: usize,
-    #[serde(skip)]
-    __guard: (),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Package {
-    #[serde(skip)]
-    name: (),
-    #[serde(skip)]
-    version: (),
-    #[serde(skip)]
-    authors: (),
-    pub id: PackageId,
-    #[serde(skip)]
-    source: (),
-    #[serde(skip)]
-    dependencies: (),
-    #[serde(skip)]
-    pub targets: Vec<Target>,
-    #[serde(skip)]
-    features: (),
-    #[serde(skip)]
-    manifest_path: (),
-    #[serde(default = "edition_default")]
-    pub edition: String,
-    #[serde(skip)]
-    __guard: (),
-}
-
-impl Hash for Package {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        Hash::hash(&self.id, state)
-    }
-}
-
-impl PartialEq for Package {
-    fn eq(&self, other: &Package) -> bool {
-        self.id == other.id
-    }
-}
-
-impl Eq for Package {}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Resolve {
-    pub nodes: HashSet<ResolveNode>,
-    #[serde(skip)]
-    __guard: (),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ResolveNode {
-    pub id: PackageId,
-    pub dependencies: HashSet<PackageId>,
-}
-
-impl Hash for ResolveNode {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        Hash::hash(&self.id, state)
-    }
-}
-
-impl PartialEq for ResolveNode {
-    fn eq(&self, other: &ResolveNode) -> bool {
-        self.id == other.id
-    }
-}
-
-impl Eq for ResolveNode {}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Dependency {
-    /// Name as given in the `Cargo.toml`
-    pub name: String,
-    #[serde(skip)]
-    __guard: (),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Target {
-    pub name: String,
-    pub kind: Vec<String>,
-    #[serde(skip)]
-    crate_types: (),
-    pub src_path: PathBuf,
-    #[serde(default = "edition_default")]
-    pub edition: String,
-    #[serde(skip)]
-    __guard: (),
-}
-
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct PackageId(String);
-
-impl PackageId {
-    pub fn name(&self) -> &str {
-        let idx = self.0.find(' ').expect("Whitespace not found");
-        &self.0[..idx]
-    }
-}
 
 #[derive(Debug)]
 pub enum ErrorKind {
@@ -167,11 +59,6 @@ impl From<io::Error> for ErrorKind {
     fn from(e: io::Error) -> ErrorKind {
         ErrorKind::Io(e)
     }
-}
-
-#[inline(always)]
-fn edition_default() -> String {
-    "2015".to_owned()
 }
 
 pub fn find_manifest(mut current: &Path) -> Option<PathBuf> {

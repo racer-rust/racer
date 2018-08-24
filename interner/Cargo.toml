@@ -1,0 +1,7 @@
+[package]
+name = "racer-interner"
+version = "0.1.0"
+authors = ["Yuji Kanagawa <yuji.kngw.80s.revive@gmail.com>"]
+
+[dependencies]
+serde = "1.0"
