@@ -1,7 +1,5 @@
 extern crate rand;
-#[macro_use]
-extern crate serde;
-extern crate regex;
+extern crate rayon;
 
 fn main() {
     println!("Hello, world!");
