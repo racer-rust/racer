@@ -17,7 +17,7 @@ impl MetadataCache {
     }
     fn fill(&self, manifest: &Path) -> Result<(), ()> {
         let meta = metadata::run(manifest, false).map_err(|e| {
-            warn!("Error in cargo metadata: {}", e);
+            println!("Error in cargo metadata: {}", e);
         })?;
         let pkg_map = PackageMap::from_metadata(meta);
         self.pkg_map.fill(pkg_map).map_err(|_| {
@@ -31,7 +31,7 @@ impl ProjectModelProvider for MetadataCache {
         metadata::find_manifest(path)
     }
     fn resolve_dependency(&self, manifest: &Path, libname: &str) -> Option<PathBuf> {
-        println!(
+        debug!(
             "MetadataCache::resolve_dependency manifest: {:?} libname: {}",
             manifest, libname
         );
@@ -40,14 +40,19 @@ impl ProjectModelProvider for MetadataCache {
         }
         let pkg_map: &PackageMap = self.pkg_map.borrow().unwrap();
         let id = pkg_map.get_id(manifest)?;
-        println!("{:?}", pkg_map.get_dependencies(id));
         pkg_map
             .get_src_path_from_libname(id, libname)
             .or_else(|| {
                 let hyphnated = libname.replace('_', "-");
                 pkg_map.get_src_path_from_libname(id, &hyphnated)
-            }).or_else(|| pkg_map.get_lib_src_path(id))
-            .map(|p| p.to_owned())
+            }).or_else(|| {
+                let target = pkg_map.get_lib(id)?;
+                if target.name.replace('-', "_") == libname {
+                    Some(&target.src_path)
+                } else {
+                    None
+                }
+            }).map(|p| p.to_owned())
     }
 }
 

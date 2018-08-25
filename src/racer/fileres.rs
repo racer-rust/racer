@@ -46,6 +46,5 @@ fn get_outer_crates(libname: &str, from_path: &Path, session: &Session) -> Optio
 
     let manifest = session.project_model.discover_project_manifest(from_path)?;
     let res = session.project_model.resolve_dependency(&manifest, libname);
-    println!("{:?}", res);
     res
 }
