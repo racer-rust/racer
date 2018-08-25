@@ -51,7 +51,7 @@ pub fn get_module_file(name: &str, parentdir: &Path, session: &Session) -> Optio
 
 /// try to get outer crates
 /// if we have dependencies in cache, use it.
-/// else, call cargo's function to resolve depndencies.
+/// else, call cargo-metadata(default) or fall back to rls
 fn get_outer_crates(libname: &str, from_path: &Path, session: &Session) -> Option<PathBuf> {
     debug!(
         "[get_outer_crates] lib name: {:?}, from_path: {:?}",

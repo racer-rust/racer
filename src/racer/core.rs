@@ -1046,9 +1046,9 @@ impl<'c> Session<'c> {
     /// ```
     ///
     /// [`FileCache`]: struct.FileCache.html
-    #[cfg(feature = "cargo")]
+    #[cfg(feature = "metadata")]
     pub fn new(cache: &'c FileCache) -> Session<'c> {
-        let project_model = ::project_model::cargo::cargo_project_model(cache);
+        let project_model = ::metadata::project_model();
         Session::with_project_model(cache, project_model)
     }
 

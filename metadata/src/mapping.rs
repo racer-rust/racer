@@ -9,6 +9,7 @@ pub struct PackageMap {
     manifest_to_id: HashMap<PathBuf, PackageId>,
     id_to_edition: HashMap<PackageId, InternedString>,
     id_to_deps: HashMap<PackageId, HashMap<InternedString, PathBuf>>,
+    id_to_lib: HashMap<PackageId, Target>,
 }
 
 impl PackageMap {
@@ -38,12 +39,13 @@ impl PackageMap {
         }
         let id_to_deps = resolve.map_or_else(
             || HashMap::new(),
-            |res| construct_deps(res.nodes, id_to_lib),
+            |res| construct_deps(res.nodes, &id_to_lib),
         );
         PackageMap {
             manifest_to_id,
             id_to_edition,
             id_to_deps,
+            id_to_lib,
         }
     }
     pub fn get_id(&self, path: &Path) -> Option<PackageId> {
@@ -51,6 +53,12 @@ impl PackageMap {
     }
     pub fn get_edition(&self, id: PackageId) -> Option<&str> {
         self.id_to_edition.get(&id).map(|s| s.as_str())
+    }
+    pub fn get_lib(&self, id: PackageId) -> Option<&Target> {
+        self.id_to_lib.get(&id)
+    }
+    pub fn get_lib_src_path(&self, id: PackageId) -> Option<&Path> {
+        self.get_lib(id).map(|t| t.src_path.as_ref())
     }
     pub fn ids(&self) -> impl Iterator<Item = &PackageId> {
         self.id_to_edition.keys()
@@ -67,7 +75,7 @@ impl PackageMap {
 
 fn construct_deps(
     nodes: Vec<ResolveNode>,
-    targets: HashMap<PackageId, Target>,
+    targets: &HashMap<PackageId, Target>,
 ) -> HashMap<PackageId, HashMap<InternedString, PathBuf>> {
     nodes
         .into_iter()
