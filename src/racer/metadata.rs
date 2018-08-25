@@ -38,9 +38,9 @@ impl ProjectModelProvider for MetadataCache {
         if !self.pkg_map.filled() {
             self.fill(manifest).ok()?;
         }
-        let pkg_map = self.pkg_map.borrow().unwrap();
+        let pkg_map: &PackageMap = self.pkg_map.borrow().unwrap();
         let id = pkg_map.get_id(manifest)?;
-
+        println!("{:?}", pkg_map.get_dependencies(id));
         pkg_map
             .get_src_path_from_libname(id, libname)
             .or_else(|| {

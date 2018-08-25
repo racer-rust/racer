@@ -4353,3 +4353,20 @@ fn follows_external_re_export() {
         assert_eq!(got.matchstr, "scope");
     });
 }
+
+#[test]
+fn follows_rand_crate() {
+    let src = "
+    extern crate rand;
+    use rand::{Rng, thread_rng};
+    fn main() {
+        let mut rng: Box<Rng> = Box::new(thread_rng());
+        rng.gen_rang~
+    }
+    ";
+    with_test_project(|dir| {
+        let src_dir = dir.nested_dir("test-crate3").nested_dir("src");
+        let got = get_only_completion(src, Some(src_dir));
+        assert_eq!(got.matchstr, "gen_range");
+    });
+}
