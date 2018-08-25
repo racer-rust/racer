@@ -4338,3 +4338,18 @@ fn follows_multiline_use() {
     let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "HashMap");
 }
+
+#[test]
+fn follows_external_re_export() {
+    let src = "
+    extern crate rayon;
+    fn main() {
+        rayon::sco~
+    }
+    ";
+    with_test_project(|dir| {
+        let src_dir = dir.nested_dir("test-crate3").nested_dir("src");
+        let got = get_only_completion(src, Some(src_dir));
+        assert_eq!(got.matchstr, "scope");
+    });
+}

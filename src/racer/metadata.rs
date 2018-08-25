@@ -31,7 +31,7 @@ impl ProjectModelProvider for MetadataCache {
         metadata::find_manifest(path)
     }
     fn resolve_dependency(&self, manifest: &Path, libname: &str) -> Option<PathBuf> {
-        debug!(
+        println!(
             "MetadataCache::resolve_dependency manifest: {:?} libname: {}",
             manifest, libname
         );
@@ -40,6 +40,7 @@ impl ProjectModelProvider for MetadataCache {
         }
         let pkg_map = self.pkg_map.borrow().unwrap();
         let id = pkg_map.get_id(manifest)?;
+
         pkg_map
             .get_src_path_from_libname(id, libname)
             .or_else(|| {
