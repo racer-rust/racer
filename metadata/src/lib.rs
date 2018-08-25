@@ -1,10 +1,12 @@
 extern crate racer_interner;
+#[macro_use]
 extern crate serde;
 extern crate serde_json;
 
-mod metadata;
-pub use metadata::*;
-use serde::{Deserialize, Serialize};
+pub mod mapping;
+pub mod metadata;
+
+use metadata::Metadata;
 use std::env;
 use std::error::Error;
 use std::fmt;
@@ -88,10 +90,10 @@ pub fn run(manifest_path: &Path, no_deps: bool) -> Result<Metadata, ErrorKind> {
     cmd.arg("--frozen");
     cmd.args(&["--color", "never"]);
     cmd.arg("--manifest-path");
+    cmd.arg(manifest_path.as_os_str());
     if no_deps {
         cmd.arg("--no-deps");
     }
-    cmd.arg(manifest_path.as_os_str());
     let op = cmd.output()?;
     if !op.status.success() {
         let stderr = String::from_utf8(op.stderr).map_err(|e| e.utf8_error())?;

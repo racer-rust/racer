@@ -1,6 +1,6 @@
 extern crate racer_cargo_metadata;
 extern crate serde_json;
-use racer_cargo_metadata::Metadata;
+use racer_cargo_metadata::{mapping::PackageMap, metadata::Metadata};
 use std::collections::BTreeSet;
 use std::fs::File;
 use std::io::prelude::*;
@@ -12,6 +12,13 @@ fn full() {
     file.read_to_string(&mut buf).unwrap();
     let meta: Metadata = serde_json::from_str(&buf).unwrap();
     assert!(meta.resolve.is_some());
+    let pkg_map = PackageMap::from_metadata(meta);
+    let regex = pkg_map.ids().find(|id| id.name() == "regex").unwrap();
+    assert!(
+        pkg_map
+            .get_src_path_from_libname(*regex, "memchr")
+            .is_some()
+    );
 }
 
 #[test]

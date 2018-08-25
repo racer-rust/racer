@@ -7,5 +7,4 @@ workspace = ".."
 
 [dependencies]
 rand = "0.5"
-rayon = "1.0"
 

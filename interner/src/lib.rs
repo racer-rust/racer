@@ -1,4 +1,5 @@
-//! string interner(from cargo, but thread local)
+//! string interner
+//! same as cargo::core::interning.rs, but thread local and Deserializable
 
 extern crate serde;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
@@ -45,6 +46,10 @@ impl InternedString {
             });
             InternedString { inner: s }
         })
+    }
+
+    pub fn new_if_exists(st: &str) -> Option<InternedString> {
+        STRING_CACHE.with(|cache| cache.borrow().get(st).map(|&s| InternedString { inner: s }))
     }
 
     pub fn as_str(&self) -> &'static str {

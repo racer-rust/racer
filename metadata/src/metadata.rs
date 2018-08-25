@@ -1,6 +1,5 @@
 //! Data structures for metadata
 use racer_interner::InternedString;
-use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -18,22 +17,8 @@ pub struct Metadata {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Package {
-    #[serde(skip)]
-    name: (),
-    #[serde(skip)]
-    version: (),
-    #[serde(skip)]
-    authors: (),
     pub id: PackageId,
-    #[serde(skip)]
-    source: (),
-    #[serde(skip)]
-    dependencies: (),
-    #[serde(skip)]
     pub targets: Vec<Target>,
-    #[serde(skip)]
-    features: (),
-    #[serde(skip)]
     pub manifest_path: PathBuf,
     #[serde(default = "edition_default")]
     pub edition: InternedString,
@@ -55,20 +40,9 @@ pub struct ResolveNode {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Dependency {
-    /// Name as given in the `Cargo.toml`
-    pub name: InternedString,
-    #[serde(skip)]
-    __guard: (),
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Target {
     pub name: InternedString,
-    // todo: enum
     pub kind: Vec<InternedString>,
-    #[serde(skip)]
-    crate_types: (),
     pub src_path: PathBuf,
     #[serde(default = "edition_default")]
     pub edition: InternedString,
@@ -76,7 +50,18 @@ pub struct Target {
     __guard: (),
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
+const LIB_KINDS: [&'static str; 4] = ["lib", "rlib", "dylib", "proc-macro"];
+
+impl Target {
+    pub fn is_lib(&self) -> bool {
+        self.kind.iter().any(|k| LIB_KINDS.contains(&k.as_str()))
+    }
+    pub fn is_2015(&self) -> bool {
+        self.edition.as_str() == "2015"
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct PackageId(InternedString);
 
 impl PackageId {
