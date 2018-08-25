@@ -10,8 +10,9 @@ before_script:
   - export RUST_SRC_PATH=`rustc --print sysroot`/lib/rustlib/src/rust/src
 
 script:
-  - cargo build --verbose
-  - cd test_project/test-crate3
-  - cargo build
-  - cd ../..
-  - cargo test
+  - cargo build --verbose --all
+  - cd test_project
+  - cargo build --all
+  - cd ..
+  - cargo metadata --all-features --format-version 1
+  - cargo test --all

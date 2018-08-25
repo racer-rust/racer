@@ -17,7 +17,7 @@ impl MetadataCache {
     }
     fn fill(&self, manifest: &Path) -> Result<(), ()> {
         let meta = metadata::run(manifest, false).map_err(|e| {
-            println!("Error in cargo metadata: {}", e);
+            warn!("Error in cargo metadata: {}", e);
         })?;
         let pkg_map = PackageMap::from_metadata(meta);
         self.pkg_map.fill(pkg_map).map_err(|_| {
