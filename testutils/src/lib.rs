@@ -22,7 +22,7 @@ pub fn tmpname() -> String {
 /// **Note** NamedTempFile is removed when it drops.
 /// So, if you want to use some file in TempDir for test, you mustn't drop it.
 /// # Example
-/// ```no_run
+/// ```ignore
 /// let dir = TmpDir::new();
 /// let _mymod = dir.write_file("mymod.rs", modfile);
 /// let got = get_all_completions(src, Some(dir));

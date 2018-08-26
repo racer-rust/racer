@@ -14,13 +14,14 @@ extern crate rls_span;
 
 #[macro_use]
 mod testutils;
-
 mod ast;
 mod codecleaner;
 mod codeiter;
 mod core;
 mod fileres;
 mod matchers;
+#[cfg(feature = "metadata")]
+mod metadata;
 mod nameres;
 mod project_model;
 mod scopes;
