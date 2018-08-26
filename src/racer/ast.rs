@@ -10,11 +10,11 @@ use syntax::ast::{
     self, ExprKind, FunctionRetTy, GenericArg, GenericArgs, GenericBound, GenericBounds,
     GenericParamKind, ItemKind, LitKind, PatKind, TyKind, UseTree, UseTreeKind,
 };
-use syntax::codemap::{self, FileName, Span};
 use syntax::errors::{emitter::ColorConfig, Handler};
 use syntax::parse::parser::Parser;
 use syntax::parse::{self, ParseSess};
 use syntax::print::pprust;
+use syntax::source_map::{self, FileName, SourceMap, Span};
 use syntax::{self, visit};
 
 /// construct parser from string
@@ -30,7 +30,7 @@ where
     F: FnOnce(&mut Parser) -> Option<T>,
 {
     syntax::with_globals(|| {
-        let codemap = Rc::new(codemap::CodeMap::new(codemap::FilePathMapping::empty()));
+        let codemap = Rc::new(SourceMap::new(source_map::FilePathMapping::empty()));
         // setting of how we display errors in console
         // here we set can_emit_warnings=false, treat_err_as_bug=false
         let handler =
@@ -60,8 +60,8 @@ where
 }
 
 pub(crate) fn destruct_span(span: Span) -> (u32, u32) {
-    let codemap::BytePos(lo) = span.lo();
-    let codemap::BytePos(hi) = span.hi();
+    let source_map::BytePos(lo) = span.lo();
+    let source_map::BytePos(hi) = span.hi();
     (lo, hi)
 }
 
@@ -606,7 +606,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
             }
             ExprKind::Path(_, ref path) => {
                 debug!("expr is a path {:?}", to_racer_path(path));
-                let codemap::BytePos(lo) = path.span.lo();
+                let source_map::BytePos(lo) = path.span.lo();
                 self.result = resolve_ast_path(
                     path,
                     &self.scope.filepath,
@@ -940,10 +940,10 @@ impl<'ast> visit::Visitor<'ast> for StructVisitor {
         _: ast::Ident,
         _: &ast::Generics,
         _: ast::NodeId,
-        _: codemap::Span,
+        _: Span,
     ) {
         for field in struct_definition.fields() {
-            let codemap::BytePos(point) = field.span.lo();
+            let source_map::BytePos(point) = field.span.lo();
 
             let ty = to_racer_ty(&field.ty, &self.scope);
             let name = match field.ident {
@@ -1107,7 +1107,7 @@ impl TraitBounds {
             .filter_map(|bound| {
                 if let GenericBound::Trait(ref ptrait_ref, _) = *bound {
                     let ast_path = &ptrait_ref.trait_ref.path;
-                    let codemap::BytePos(point) = ast_path.span.lo();
+                    let source_map::BytePos(point) = ast_path.span.lo();
                     let path = to_racer_path(&ast_path);
                     let path_search = core::PathSearch {
                         path: path,
@@ -1185,7 +1185,7 @@ impl GenericsArgs {
                     // TODO: should we handle default type here?
                     GenericParamKind::Type { default: _ } => {
                         let param_name = param.ident.name.to_string();
-                        let codemap::BytePos(point) = param.ident.span.lo();
+                        let source_map::BytePos(point) = param.ident.span.lo();
                         let bounds =
                             TraitBounds::from_generic_bounds(&param.bounds, &filepath, offset);
                         Some(TypeParameter {
@@ -1235,7 +1235,7 @@ impl<'ast> visit::Visitor<'ast> for EnumVisitor {
             debug!("name point is {} {}", point1, point2);
 
             for variant in &enum_definition.variants {
-                let codemap::BytePos(point) = variant.span.lo();
+                let source_map::BytePos(point) = variant.span.lo();
                 self.values
                     .push((variant.node.ident.to_string(), point.into()));
             }
@@ -1450,7 +1450,13 @@ pub struct FnOutputVisitor {
 }
 
 impl<'ast> visit::Visitor<'ast> for FnOutputVisitor {
-    fn visit_fn(&mut self, _: visit::FnKind, fd: &ast::FnDecl, _: codemap::Span, _: ast::NodeId) {
+    fn visit_fn(
+        &mut self,
+        _: visit::FnKind,
+        fd: &ast::FnDecl,
+        _: source_map::Span,
+        _: ast::NodeId,
+    ) {
         self.result = match fd.output {
             FunctionRetTy::Ty(ref ty) => to_racer_ty(ty, &self.scope),
             FunctionRetTy::Default(_) => None,
@@ -1482,7 +1488,13 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for FnArgTypeVisitor<'c, 's> {
         self.generics.extend(generics);
     }
 
-    fn visit_fn(&mut self, _fk: visit::FnKind, fd: &ast::FnDecl, _: codemap::Span, _: ast::NodeId) {
+    fn visit_fn(
+        &mut self,
+        _fk: visit::FnKind,
+        fd: &ast::FnDecl,
+        _: source_map::Span,
+        _: ast::NodeId,
+    ) {
         debug!("[FnArgTypeVisitor::visit_fn] inputs: {:?}", fd.inputs);
         // Get generics arguments here (just for speed up)
         let filepath = &self.scope.filepath;

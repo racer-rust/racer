@@ -15,7 +15,7 @@ use std::rc::Rc;
 use std::slice;
 use std::{fmt, vec};
 use std::{path, str};
-use syntax::codemap;
+use syntax::source_map;
 
 use ast;
 use nameres;
@@ -218,8 +218,8 @@ impl PartialOrd<BytePos> for ByteRange {
     }
 }
 
-impl From<codemap::Span> for ByteRange {
-    fn from(span: codemap::Span) -> Self {
+impl From<source_map::Span> for ByteRange {
+    fn from(span: source_map::Span) -> Self {
         let (lo, hi) = ast::destruct_span(span);
         ByteRange::new(lo, hi)
     }

@@ -67,12 +67,12 @@ impl MethodInfo {
                             .inputs
                             .iter()
                             .map(|arg| {
-                                let codemap = &p.sess.codemap();
-                                let var_name = match codemap.span_to_snippet(arg.pat.span) {
+                                let source_map = &p.sess.source_map();
+                                let var_name = match source_map.span_to_snippet(arg.pat.span) {
                                     Ok(name) => name,
                                     _ => "".into(),
                                 };
-                                match codemap.span_to_snippet(arg.ty.span) {
+                                match source_map.span_to_snippet(arg.ty.span) {
                                     Ok(ref type_name) if !type_name.is_empty() => {
                                         format!("{}: {}", var_name, type_name)
                                     }
