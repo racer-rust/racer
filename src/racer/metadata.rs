@@ -16,9 +16,19 @@ impl MetadataCache {
         }
     }
     fn fill(&self, manifest: &Path) -> Result<(), ()> {
-        let meta = metadata::run(manifest, false).map_err(|e| {
-            warn!("Error in cargo metadata: {}", e);
-        })?;
+        let meta = metadata::run(manifest, true)
+            .or_else(|e| {
+                if let metadata::ErrorKind::Subprocess(ref s) = e {
+                    // HACK: if --frozen failed, try again without --frozen
+                    if s.contains("error: unable to get packages from source") {
+                        info!("MetadataCache: try again without --frozen");
+                        return metadata::run(manifest, false);
+                    }
+                }
+                Err(e)
+            }).map_err(|e| {
+                warn!("Error in cargo metadata: {}", e);
+            })?;
         let pkg_map = PackageMap::from_metadata(meta);
         self.pkg_map.fill(pkg_map).map_err(|_| {
             warn!("Error in initialize lazy cell");

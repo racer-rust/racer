@@ -54,10 +54,6 @@ build: false
 # TODO modify this phase as you see fit
 test_script:
   - cargo build --verbose --all
-  - cd test_project
-  - cargo build --all
-  - cd ..
-  - cargo metadata --all-features --format-version 1
   - cargo test --all
 
 cache:

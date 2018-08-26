@@ -81,18 +81,17 @@ pub fn find_manifest(mut current: &Path) -> Option<PathBuf> {
     None
 }
 
-pub fn run(manifest_path: &Path, no_deps: bool) -> Result<Metadata, ErrorKind> {
+pub fn run(manifest_path: &Path, frozen: bool) -> Result<Metadata, ErrorKind> {
     let cargo = env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
     let mut cmd = Command::new(cargo);
     cmd.arg("metadata");
     cmd.arg("--all-features");
     cmd.args(&["--format-version", "1"]);
-    cmd.arg("--frozen");
     cmd.args(&["--color", "never"]);
     cmd.arg("--manifest-path");
     cmd.arg(manifest_path.as_os_str());
-    if no_deps {
-        cmd.arg("--no-deps");
+    if frozen {
+        cmd.arg("--frozen");
     }
     let op = cmd.output()?;
     if !op.status.success() {
