@@ -83,7 +83,7 @@ As mentioned in the command output, don't forget to add the installation directo
 
 **Note**
 
-To complete names in extrenal crates, Racer needs `Cargo.lock`.
+To complete names in external crates, Racer needs `Cargo.lock`.
 So, when you add a dependency in your `Cargo.toml`, you have to run a build command
 such as `cargo build` or `cargo test`, to get completions.
 
