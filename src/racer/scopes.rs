@@ -118,10 +118,8 @@ pub fn find_stmt_start(msrc: Src, point: BytePos) -> Option<BytePos> {
     let scopestart = scope_start(msrc, point);
     // Iterate the scope to find the start of the statement that surrounds the point.
     debug!(
-        "[find_stmt_start] now we are in scope {:?} ~ {:?}, {}",
-        scopestart,
-        point,
-        &msrc[scopestart.0..point.increment().0]
+        "[find_stmt_start] now we are in scope {:?} ~ {:?}",
+        scopestart, point,
     );
     msrc.shift_start(scopestart)
         .iter_stmts()
