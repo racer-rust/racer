@@ -15,6 +15,7 @@ extern crate rls_span;
 #[macro_use]
 mod testutils;
 mod ast;
+mod ast_types;
 mod codecleaner;
 mod codeiter;
 mod core;
@@ -29,11 +30,12 @@ mod snippets;
 mod typeinf;
 mod util;
 
+pub use ast_types::PathSearch;
 pub use core::{
     complete_from_file, complete_fully_qualified_name, find_definition, to_coords, to_point,
 };
 pub use core::{BytePos, ByteRange, Coordinate, FileCache, FileLoader, Location, Session};
-pub use core::{Match, MatchType, PathSearch};
+pub use core::{Match, MatchType};
 pub use project_model::ProjectModelProvider;
 pub use snippets::snippet_for_match;
 pub use util::expand_ident;

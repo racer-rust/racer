@@ -5,12 +5,11 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::{self, vec};
 
-use ast::{GenericsArgs, ImplVisitor};
+use ast::ImplVisitor;
+use ast_types::{GenericsArgs, Path as RacerPath, PathPrefix, PathSearch, PathSegment, Ty};
 use core::Namespace;
 use core::SearchType::{self, ExactMatch, StartsWith};
-use core::{
-    BytePos, ByteRange, Coordinate, Match, MatchType, PathPrefix, Session, SessionExt, Src, Ty,
-};
+use core::{BytePos, ByteRange, Coordinate, Match, MatchType, Session, SessionExt, Src};
 use fileres::{get_crate_file, get_module_file, get_std_file};
 use matchers::{find_doc, ImportInfo, MatchCxt};
 use util::{
@@ -514,8 +513,8 @@ pub fn search_for_generic_impls(
                             .find(&trait_name.name)
                             .expect("[search_for_generic_impls] trait was not found")
                             .into();
-                        let self_path = core::Path::from_vec(false, vec![&contextm.matchstr]);
-                        let self_pathsearch = core::PathSearch {
+                        let self_path = RacerPath::from_vec(false, vec![&contextm.matchstr]);
+                        let self_pathsearch = PathSearch {
                             path: self_path,
                             filepath: contextm.filepath.clone(),
                             point: contextm.point,
@@ -899,7 +898,7 @@ pub fn do_file_search(
 }
 
 pub fn search_crate_root(
-    pathseg: &core::PathSegment,
+    pathseg: &PathSegment,
     modfpath: &Path,
     searchtype: SearchType,
     namespace: Namespace,
@@ -965,7 +964,7 @@ pub fn find_possible_crate_root_modules(currentdir: &Path, session: &Session) ->
 
 pub fn search_next_scope(
     mut startpoint: BytePos,
-    pathseg: &core::PathSegment,
+    pathseg: &PathSegment,
     filepath: &Path,
     search_type: SearchType,
     local: bool,
@@ -1002,7 +1001,7 @@ pub fn search_scope(
     start: BytePos,
     point: BytePos,
     src: Src,
-    pathseg: &core::PathSegment,
+    pathseg: &PathSegment,
     filepath: &Path,
     search_type: SearchType,
     is_local: bool,
@@ -1326,7 +1325,7 @@ fn run_matchers_on_blob(
 }
 
 fn search_local_scopes(
-    pathseg: &core::PathSegment,
+    pathseg: &PathSegment,
     filepath: &Path,
     msrc: Src,
     point: BytePos,
@@ -1400,7 +1399,7 @@ fn search_local_scopes(
 }
 
 pub fn search_prelude_file(
-    pathseg: &core::PathSegment,
+    pathseg: &PathSegment,
     search_type: SearchType,
     namespace: Namespace,
     session: &Session,
@@ -1438,7 +1437,7 @@ pub fn search_prelude_file(
 }
 
 pub fn resolve_path_with_str(
-    path: &core::Path,
+    path: &RacerPath,
     filepath: &Path,
     pos: BytePos,
     search_type: SearchType,
@@ -1454,7 +1453,7 @@ pub fn resolve_path_with_str(
         debug!("{:?} == {:?}", path.segments[0], "str");
 
         if let Some(module) = resolve_path(
-            &core::Path::from_vec(true, vec!["std", "str"]),
+            &RacerPath::from_vec(true, vec!["std", "str"]),
             filepath,
             pos,
             search_type,
@@ -1504,7 +1503,7 @@ pub struct Search {
 
 /// Attempt to resolve a name which occurs in a given file.
 pub fn resolve_name(
-    pathseg: &core::PathSegment,
+    pathseg: &PathSegment,
     filepath: &Path,
     pos: BytePos,
     search_type: SearchType,
@@ -1641,7 +1640,7 @@ pub fn get_super_scope(
         })
     } else {
         path.pop();
-        let path = core::Path::from_svec(false, path);
+        let path = RacerPath::from_svec(false, path);
         debug!("get_super_scope looking for local scope {:?}", path);
         resolve_path(
             &path,
@@ -1662,7 +1661,7 @@ pub fn get_super_scope(
 }
 
 fn get_impls(
-    search_path: &core::PathSegment,
+    search_path: &PathSegment,
     namespace: Namespace,
     search_type: SearchType,
     context: &Match,
@@ -1757,7 +1756,7 @@ fn get_impls(
 }
 
 pub fn resolve_path(
-    path: &core::Path,
+    path: &RacerPath,
     filepath: &Path,
     pos: BytePos,
     search_type: SearchType,
@@ -1812,8 +1811,8 @@ pub fn resolve_path(
         )
     } else if len != 0 {
         let mut out = Vec::new();
-        let mut parent_path: core::Path = path.clone();
-        parent_path.segments.remove(len - 1);
+        let mut parent_path = path.clone();
+        parent_path.segments.pop();
         let context = resolve_path(
             &parent_path,
             filepath,
@@ -1832,7 +1831,7 @@ pub fn resolve_path(
                 if searchstr.starts_with('{') {
                     searchstr = &searchstr[1..];
                 }
-                let pathseg = core::PathSegment {
+                let pathseg = PathSegment {
                     name: searchstr.to_owned(),
                     types: Vec::new(),
                 };
@@ -1909,7 +1908,7 @@ pub fn resolve_method(
                 let expr = &preblock[start.0..n];
 
                 debug!("found impl of trait : expr is |{}|", expr);
-                let path = core::Path::from_vec(false, expr.split("::").collect::<Vec<_>>());
+                let path = RacerPath::from_vec(false, expr.split("::").collect::<Vec<_>>());
                 let m = resolve_path(
                     &path,
                     filepath,
@@ -1979,7 +1978,7 @@ pub fn do_external_search(
     if path.len() == 1 {
         let searchstr = path[0];
         // hack for now
-        let pathseg = core::PathSegment {
+        let pathseg = PathSegment {
             name: searchstr.to_owned(),
             types: Vec::new(),
         };
@@ -2029,7 +2028,7 @@ pub fn do_external_search(
                         Some('{') => &path[path.len() - 1][1..],
                         _ => path[path.len() - 1],
                     };
-                    let pathseg = core::PathSegment {
+                    let pathseg = PathSegment {
                         name: searchstr.to_owned(),
                         types: Vec::new(),
                     };
@@ -2064,7 +2063,7 @@ pub fn do_external_search(
                             Some('{') => &path[path.len() - 1][1..],
                             _ => path[path.len() - 1],
                         };
-                        let pathseg = core::PathSegment {
+                        let pathseg = PathSegment {
                             name: searchstr.to_owned(),
                             types: Vec::new(),
                         };
@@ -2267,7 +2266,7 @@ fn search_for_deref_matches(
         }
         // If Deref to an ordinary type
         else {
-            let deref_type_path = core::Path::single(impl_match.generic_args[0].clone().into());
+            let deref_type_path = RacerPath::single(impl_match.generic_args[0].clone().into());
             let type_match = resolve_path_with_str(
                 &deref_type_path,
                 fpath,
@@ -2287,7 +2286,7 @@ fn search_for_deref_matches(
     out.into_iter()
 }
 
-fn generic_arg_to_path(type_str: &str, m: &Match) -> Option<core::PathSearch> {
+fn generic_arg_to_path(type_str: &str, m: &Match) -> Option<PathSearch> {
     debug!("Attempting to find type match for {} in {:?}", type_str, m);
     if let Some(match_pos) = m.generic_args.iter().position(|x| *x == type_str) {
         if let Some(gen_type) = m.generic_types.get(match_pos) {
@@ -2297,10 +2296,10 @@ fn generic_arg_to_path(type_str: &str, m: &Match) -> Option<core::PathSearch> {
     None
 }
 
-fn get_subpathsearch(pathsearch: &core::PathSearch) -> Option<core::PathSearch> {
+fn get_subpathsearch(pathsearch: &PathSearch) -> Option<PathSearch> {
     pathsearch.path.segments.get(0).and_then(|seg| {
         seg.types.get(0).and_then(|first_type| {
-            Some(core::PathSearch {
+            Some(PathSearch {
                 path: first_type.clone(),
                 filepath: pathsearch.filepath.clone(),
                 point: pathsearch.point,

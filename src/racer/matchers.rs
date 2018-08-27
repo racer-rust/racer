@@ -1,10 +1,11 @@
+use ast_types::{PathAliasKind, PathSegment};
 use core::MatchType::{
     self, Const, Enum, EnumVariant, For, Function, IfLet, Let, Macro, Module, Static, Struct,
     Trait, Type, WhileLet,
 };
 use core::Namespace;
 use core::SearchType::{self, ExactMatch, StartsWith};
-use core::{BytePos, ByteRange, Coordinate, Match, PathSegment, Session, SessionExt, Src};
+use core::{BytePos, ByteRange, Coordinate, Match, Session, SessionExt, Src};
 use fileres::{get_crate_file, get_module_file};
 use nameres::resolve_path;
 use std::path::Path;
@@ -639,7 +640,7 @@ pub fn match_use(
     for mut path_alias in use_item.path_list {
         path_alias.path.set_prefix();
         match path_alias.kind {
-            ast::PathAliasKind::Ident(ref ident) => {
+            PathAliasKind::Ident(ref ident) => {
                 if !symbol_matches(context.search_type, context.search_str, ident) {
                     continue;
                 }
@@ -650,7 +651,7 @@ pub fn match_use(
                     }
                 });
             }
-            ast::PathAliasKind::Self_(ref ident) => {
+            PathAliasKind::Self_(ref ident) => {
                 if let Some(last_seg) = path_alias.path.segments.last() {
                     let is_aliased = ident != "self";
                     let search_name = if is_aliased { ident } else { &last_seg.name };
@@ -665,7 +666,7 @@ pub fn match_use(
                     });
                 }
             }
-            ast::PathAliasKind::Glob => {
+            PathAliasKind::Glob => {
                 let glob_depth_reserved = if let Some(ref mut d) = import_info.glob_limit {
                     if *d == 0 {
                         continue;
