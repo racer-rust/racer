@@ -1,3 +1,4 @@
+use ast_types::Path as RacerPath;
 #[cfg(test)]
 use core::Coordinate;
 use core::{self, BytePos, ByteRange, CompletionType, RangedRawSrc, Src};
@@ -117,10 +118,8 @@ pub fn find_stmt_start(msrc: Src, point: BytePos) -> Option<BytePos> {
     let scopestart = scope_start(msrc, point);
     // Iterate the scope to find the start of the statement that surrounds the point.
     debug!(
-        "[find_stmt_start] now we are in scope {:?} ~ {:?}, {}",
-        scopestart,
-        point,
-        &msrc[scopestart.0..point.increment().0]
+        "[find_stmt_start] now we are in scope {:?} ~ {:?}",
+        scopestart, point,
     );
     msrc.shift_start(scopestart)
         .iter_stmts()
@@ -657,7 +656,7 @@ fn next_use_item(expr: &str) -> Option<usize> {
 
 /// get path from use statement, supposing completion point is end of expr
 /// e.g. "use std::collections::{hash_map,  Hash" -> P["std", "collections", "Hash"]
-pub(crate) fn construct_path_from_use_tree(expr: &str) -> core::Path {
+pub(crate) fn construct_path_from_use_tree(expr: &str) -> RacerPath {
     let mut segments = Vec::new();
     let bytes = expr.as_bytes();
     let mut i = bytes.len();
@@ -685,7 +684,7 @@ pub(crate) fn construct_path_from_use_tree(expr: &str) -> core::Path {
     }
     segments.reverse();
     let is_global = expr.starts_with("::");
-    core::Path::from_vec(is_global, segments)
+    RacerPath::from_vec(is_global, segments)
 }
 
 #[test]

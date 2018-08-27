@@ -1,4 +1,6 @@
-use core::{self, BytePos, ByteRange, Match, MatchType, Scope, Session, SessionExt, Ty};
+use ast_types::Path as RacerPath;
+use ast_types::{self, GenericsArgs, PathAlias, PathAliasKind, PathSearch, TraitBounds, Ty};
+use core::{self, BytePos, ByteRange, Match, MatchType, Scope, Session, SessionExt};
 use nameres::{self, resolve_path_with_str};
 use scopes;
 use typeinf;
@@ -7,13 +9,11 @@ use std::path::Path;
 use std::rc::Rc;
 
 use syntax::ast::{
-    self, ExprKind, FunctionRetTy, GenericArg, GenericArgs, GenericBound, GenericBounds,
-    GenericParamKind, ItemKind, LitKind, PatKind, TyKind, UseTree, UseTreeKind,
+    self, ExprKind, FunctionRetTy, ItemKind, LitKind, PatKind, TyKind, UseTree, UseTreeKind,
 };
 use syntax::errors::{emitter::ColorConfig, Handler};
 use syntax::parse::parser::Parser;
 use syntax::parse::{self, ParseSess};
-use syntax::print::pprust;
 use syntax::source_map::{self, FileName, SourceMap, Span};
 use syntax::{self, visit};
 
@@ -65,30 +65,6 @@ pub(crate) fn destruct_span(span: Span) -> (u32, u32) {
     (lo, hi)
 }
 
-/// The leaf of a `use` statement.
-#[derive(Clone, Debug)]
-pub struct PathAlias {
-    /// the leaf of Use Tree
-    /// it can be one of one of 3 types, e.g.
-    /// use std::collections::{self, hashmap::*, HashMap};
-    pub kind: PathAliasKind,
-    /// The path.
-    pub path: core::Path,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum PathAliasKind {
-    Ident(String),
-    Self_(String),
-    Glob,
-}
-
-impl AsRef<core::Path> for PathAlias {
-    fn as_ref(&self) -> &core::Path {
-        &self.path
-    }
-}
-
 /// collect paths from syntax::ast::UseTree
 #[derive(Debug)]
 pub struct UseVisitor {
@@ -102,16 +78,16 @@ impl<'ast> visit::Visitor<'ast> for UseVisitor {
         // returns (Paths, contains_glab)
         fn collect_nested_items(
             use_tree: &UseTree,
-            parent_path: Option<&core::Path>,
+            parent_path: Option<&ast_types::Path>,
         ) -> (Vec<PathAlias>, bool) {
             let mut res = vec![];
             let mut path = if let Some(parent) = parent_path {
-                let relative_path = to_racer_path(&use_tree.prefix);
+                let relative_path = RacerPath::from_ast(&use_tree.prefix);
                 let mut path = parent.clone();
                 path.extend(relative_path);
                 path
             } else {
-                to_racer_path(&use_tree.prefix)
+                RacerPath::from_ast(&use_tree.prefix)
             };
             let mut contains_glob = false;
             match use_tree.kind {
@@ -204,34 +180,6 @@ impl<'ast> visit::Visitor<'ast> for PatVisitor {
             _ => {
                 visit::walk_pat(self, p);
             }
-        }
-    }
-}
-
-fn to_racer_ty(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
-    match ty.node {
-        TyKind::Tup(ref items) => {
-            let mut res = Vec::new();
-            for t in items {
-                res.push(match to_racer_ty(t, scope) {
-                    Some(t) => t,
-                    None => return None,
-                });
-            }
-            Some(Ty::Tuple(res))
-        }
-        TyKind::Rptr(ref _lifetime, ref ty) => {
-            to_racer_ty(&ty.ty, scope).map(|ref_ty| Ty::RefPtr(Box::new(ref_ty)))
-        }
-        TyKind::Path(_, ref path) => Some(Ty::PathSearch(to_racer_path(path), scope.clone())),
-        TyKind::Array(ref ty, ref expr) => to_racer_ty(ty, scope).map(|racer_ty| {
-            Ty::FixedLengthVec(Box::new(racer_ty), pprust::expr_to_string(&expr.value))
-        }),
-        TyKind::Slice(ref ty) => to_racer_ty(ty, scope).map(|ref_ty| Ty::Vec(Box::new(ref_ty))),
-        TyKind::Never => None,
-        _ => {
-            trace!("unhandled Ty node: {:?}", ty.node);
-            None
         }
     }
 }
@@ -387,7 +335,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for LetTypeVisitor<'c, 's> {
     fn visit_local(&mut self, local: &ast::Local) {
         let mut ty = None;
         if let Some(ref local_ty) = local.ty {
-            ty = to_racer_ty(local_ty, &self.scope);
+            ty = Ty::from_ast(local_ty, &self.scope);
         }
 
         if ty.is_none() {
@@ -465,40 +413,16 @@ fn resolve_ast_path(
     pos: BytePos,
     session: &Session,
 ) -> Option<Match> {
-    debug!("resolve_ast_path {:?}", to_racer_path(path));
+    let path = RacerPath::from_ast(path);
+    debug!("resolve_ast_path {:?}", path);
     nameres::resolve_path_with_str(
-        &to_racer_path(path),
+        &path,
         filepath,
         pos,
         core::SearchType::ExactMatch,
         core::Namespace::Both,
         session,
     ).nth(0)
-}
-
-fn to_racer_path(path: &ast::Path) -> core::Path {
-    let mut segments = Vec::new();
-    for seg in path.segments.iter() {
-        let name = seg.ident.name.to_string();
-        let mut types = Vec::new();
-        // TODO: support GenericArgs::Parenthesized (A path like `Foo(A,B) -> C`)
-        if let Some(ref params) = seg.args {
-            if let GenericArgs::AngleBracketed(ref angle_args) = **params {
-                angle_args.args.iter().for_each(|arg| {
-                    if let GenericArg::Type(ty) = arg {
-                        if let TyKind::Path(_, ref path) = ty.node {
-                            types.push(to_racer_path(path));
-                        }
-                    }
-                })
-            }
-        }
-        segments.push(core::PathSegment::new(name, types));
-    }
-    core::Path {
-        prefix: None,
-        segments,
-    }
 }
 
 fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
@@ -511,7 +435,7 @@ fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
     }
 }
 
-fn find_type_match(path: &core::Path, fpath: &Path, pos: BytePos, session: &Session) -> Option<Ty> {
+fn find_type_match(path: &RacerPath, fpath: &Path, pos: BytePos, session: &Session) -> Option<Ty> {
     debug!("find_type_match {:?}, {:?}", path, fpath);
     let res = resolve_path_with_str(
         path,
@@ -528,9 +452,9 @@ fn find_type_match(path: &core::Path, fpath: &Path, pos: BytePos, session: &Sess
 
     res.and_then(|mut m| {
         // add generic types to match (if any)
-        let mut types: Vec<core::PathSearch> = path
+        let mut types: Vec<PathSearch> = path
             .generic_types()
-            .map(|typepath| core::PathSearch {
+            .map(|typepath| PathSearch {
                 path: typepath.clone(),
                 filepath: fpath.to_path_buf(),
                 point: pos,
@@ -605,7 +529,6 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 self.visit_expr(expr);
             }
             ExprKind::Path(_, ref path) => {
-                debug!("expr is a path {:?}", to_racer_path(path));
                 let source_map::BytePos(lo) = path.span.lo();
                 self.result = resolve_ast_path(
                     path,
@@ -642,7 +565,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 });
             }
             ExprKind::Struct(ref path, _, _) => {
-                let pathvec = to_racer_path(path);
+                let pathvec = RacerPath::from_ast(path);
                 self.result = find_type_match(
                     &pathvec,
                     &self.scope.filepath,
@@ -726,7 +649,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
 
             ExprKind::Lit(ref lit) => {
                 let ty_path = match lit.node {
-                    LitKind::Str(_, _) => Some(core::Path::from_vec(false, vec!["str"])),
+                    LitKind::Str(_, _) => Some(RacerPath::from_vec(false, vec!["str"])),
                     // See https://github.com/phildawes/racer/issues/727 for
                     // information on why other literals aren't supported.
                     _ => None,
@@ -877,7 +800,7 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
 }
 
 fn find_type_match_including_generics(
-    fieldtype: &core::Ty,
+    fieldtype: &Ty,
     filepath: &Path,
     pos: BytePos,
     structm: &Match,
@@ -930,7 +853,7 @@ fn find_type_match_including_generics(
 
 struct StructVisitor {
     pub scope: Scope,
-    pub fields: Vec<(String, BytePos, Option<core::Ty>)>,
+    pub fields: Vec<(String, BytePos, Option<Ty>)>,
 }
 
 impl<'ast> visit::Visitor<'ast> for StructVisitor {
@@ -945,7 +868,7 @@ impl<'ast> visit::Visitor<'ast> for StructVisitor {
         for field in struct_definition.fields() {
             let source_map::BytePos(point) = field.span.lo();
 
-            let ty = to_racer_ty(&field.ty, &self.scope);
+            let ty = Ty::from_ast(&field.ty, &self.scope);
             let name = match field.ident {
                 Some(ref ident) => ident.to_string(),
                 // name unnamed field by its ordinal, since self.0 works
@@ -959,7 +882,7 @@ impl<'ast> visit::Visitor<'ast> for StructVisitor {
 
 pub struct TypeVisitor {
     pub name: Option<String>,
-    pub type_: Option<core::Path>,
+    pub type_: Option<RacerPath>,
 }
 
 impl<'ast> visit::Visitor<'ast> for TypeVisitor {
@@ -970,14 +893,14 @@ impl<'ast> visit::Visitor<'ast> for TypeVisitor {
             let typepath = match ty.node {
                 TyKind::Rptr(_, ref ty) => match ty.ty.node {
                     TyKind::Path(_, ref path) => {
-                        let type_ = to_racer_path(path);
+                        let type_ = RacerPath::from_ast(path);
                         debug!("type type is {:?}", type_);
                         Some(type_)
                     }
                     _ => None,
                 },
                 TyKind::Path(_, ref path) => {
-                    let type_ = to_racer_path(path);
+                    let type_ = RacerPath::from_ast(path);
                     debug!("type type is {:?}", type_);
                     Some(type_)
                 }
@@ -1003,8 +926,8 @@ impl<'ast> visit::Visitor<'ast> for TraitVisitor {
 
 #[derive(Debug)]
 pub struct ImplVisitor {
-    pub name_path: Option<core::Path>,
-    pub trait_path: Option<core::Path>,
+    pub name_path: Option<RacerPath>,
+    pub trait_path: Option<RacerPath>,
 }
 
 impl<'ast> visit::Visitor<'ast> for ImplVisitor {
@@ -1012,19 +935,19 @@ impl<'ast> visit::Visitor<'ast> for ImplVisitor {
         if let ItemKind::Impl(_, _, _, _, ref otrait, ref typ, _) = item.node {
             match typ.node {
                 TyKind::Path(_, ref path) => {
-                    self.name_path = Some(to_racer_path(path));
+                    self.name_path = Some(RacerPath::from_ast(path));
                 }
                 TyKind::Rptr(_, ref ty) => {
                     // HACK for now, treat refs the same as unboxed types
                     // so that we can match '&str' to 'str'
                     if let TyKind::Path(_, ref path) = ty.ty.node {
-                        self.name_path = Some(to_racer_path(path));
+                        self.name_path = Some(RacerPath::from_ast(path));
                     }
                 }
                 _ => {}
             }
             if let Some(ref t) = otrait {
-                self.trait_path = Some(to_racer_path(&t.path));
+                self.trait_path = Some(RacerPath::from_ast(&t.path));
             }
         }
     }
@@ -1055,151 +978,6 @@ impl<'ast> visit::Visitor<'ast> for ExternCrateVisitor {
                 self.realname = Some(istr.to_string());
             }
         }
-    }
-}
-
-/// Wrapper struct for representing trait bounds.
-/// Its usages are
-/// - for generic types like T: Debug + Clone
-/// - for trait inheritance like trait A: Debug + Clone
-/// - for impl_trait like fn f(a: impl Debug + Clone)
-/// - for dynamic traits(dyn_trait) like Box<Debug + Clone> or Box<dyn Debug + Clone>
-#[derive(Clone, Debug, PartialEq)]
-pub struct TraitBounds(Vec<core::PathSearch>);
-
-impl TraitBounds {
-    /// checks if it contains a trait, whick its name is 'name'
-    pub fn find_by_name(&self, name: &str) -> Option<&core::PathSearch> {
-        Some(self.0.iter().find(|path_search| {
-            let seg = &path_search.path.segments;
-            if seg.len() != 1 {
-                return false;
-            }
-            &seg[0].name == name
-        })?)
-    }
-    /// Search traits included in bounds and return Matches
-    pub fn get_traits(&self, session: &Session) -> Vec<Match> {
-        self.0
-            .iter()
-            .filter_map(|ps| {
-                resolve_path_with_str(
-                    &ps.path,
-                    &ps.filepath,
-                    ps.point,
-                    core::SearchType::ExactMatch,
-                    core::Namespace::Type,
-                    session,
-                ).nth(0)
-            }).collect()
-    }
-    #[inline]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-    fn from_generic_bounds<P: AsRef<Path>>(
-        bounds: &GenericBounds,
-        filepath: P,
-        offset: i32,
-    ) -> TraitBounds {
-        let vec = bounds
-            .iter()
-            .filter_map(|bound| {
-                if let GenericBound::Trait(ref ptrait_ref, _) = *bound {
-                    let ast_path = &ptrait_ref.trait_ref.path;
-                    let source_map::BytePos(point) = ast_path.span.lo();
-                    let path = to_racer_path(&ast_path);
-                    let path_search = core::PathSearch {
-                        path: path,
-                        filepath: filepath.as_ref().to_path_buf(),
-                        point: BytePos::from((point as i32 + offset) as u32),
-                    };
-                    Some(path_search)
-                } else {
-                    None
-                }
-            }).collect();
-        TraitBounds(vec)
-    }
-}
-
-/// Argument of generics like T: From<String>
-/// It's intended to use this type only for declaration of type parameter.
-// TODO: impl trait's name
-#[derive(Clone, Debug, PartialEq)]
-pub struct TypeParameter {
-    /// the name of type parameter declared in generics, like 'T'
-    pub name: String,
-    /// The point 'T' appears
-    pub point: BytePos,
-    /// bounds
-    pub bounds: TraitBounds,
-}
-
-impl TypeParameter {
-    pub fn name(&self) -> &str {
-        &(*self.name)
-    }
-    fn into_match<P: AsRef<Path>>(self, filepath: &P) -> Option<Match> {
-        // TODO: contextstr, local
-        Some(Match {
-            matchstr: self.name,
-            filepath: filepath.as_ref().to_path_buf(),
-            point: self.point,
-            coords: None,
-            local: false,
-            mtype: MatchType::TypeParameter(Box::new(self.bounds)),
-            contextstr: String::new(),
-            generic_args: Vec::new(),
-            generic_types: Vec::new(),
-            docs: String::new(),
-        })
-    }
-}
-
-/// List of Args in generics, e.g. <T: Clone, U, P>
-/// Now it's intended to use only for type parameters
-// TODO: should we extend this type enable to handle both type parameters and true types?
-#[derive(Clone, Debug, Default)]
-pub struct GenericsArgs(pub Vec<TypeParameter>);
-
-impl GenericsArgs {
-    fn find_type_param(&self, name: &str) -> Option<&TypeParameter> {
-        self.0.iter().find(|v| &v.name == name)
-    }
-    fn extend(&mut self, other: GenericsArgs) {
-        self.0.extend(other.0);
-    }
-    fn from_generics<'a, P: AsRef<Path>>(
-        generics: &'a ast::Generics,
-        filepath: P,
-        offset: i32,
-    ) -> Self {
-        let res = generics
-            .params
-            .iter()
-            .filter_map(|param| {
-                match param.kind {
-                    // TODO: lifetime support
-                    GenericParamKind::Lifetime => None,
-                    // TODO: should we handle default type here?
-                    GenericParamKind::Type { default: _ } => {
-                        let param_name = param.ident.name.to_string();
-                        let source_map::BytePos(point) = param.ident.span.lo();
-                        let bounds =
-                            TraitBounds::from_generic_bounds(&param.bounds, &filepath, offset);
-                        Some(TypeParameter {
-                            name: param_name,
-                            point: BytePos::from((point as i32 + offset) as u32),
-                            bounds,
-                        })
-                    }
-                }
-            }).collect();
-        GenericsArgs(res)
-    }
-    pub fn get_idents(&self) -> Vec<String> {
-        self.0.iter().map(|g| g.name.clone()).collect()
     }
 }
 
@@ -1262,7 +1040,7 @@ pub fn parse_pat_bind_stmt(s: String) -> Vec<ByteRange> {
     v.ident_points
 }
 
-pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, BytePos, Option<core::Ty>)> {
+pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, BytePos, Option<Ty>)> {
     let mut v = StructVisitor {
         scope,
         fields: Vec::new(),
@@ -1351,7 +1129,7 @@ pub fn parse_pat_idents(s: String) -> Vec<ByteRange> {
     v.ident_points
 }
 
-pub fn parse_fn_output(s: String, scope: Scope) -> Option<core::Ty> {
+pub fn parse_fn_output(s: String, scope: Scope) -> Option<Ty> {
     let mut v = FnOutputVisitor {
         result: None,
         scope,
@@ -1366,7 +1144,7 @@ pub fn parse_fn_arg_type(
     scope: Scope,
     session: &Session,
     offset: i32,
-) -> Option<core::Ty> {
+) -> Option<Ty> {
     debug!("parse_fn_arg {:?} |{}|", argpos, s);
     let mut v = FnArgTypeVisitor {
         argpos,
@@ -1458,7 +1236,7 @@ impl<'ast> visit::Visitor<'ast> for FnOutputVisitor {
         _: ast::NodeId,
     ) {
         self.result = match fd.output {
-            FunctionRetTy::Ty(ref ty) => to_racer_ty(ty, &self.scope),
+            FunctionRetTy::Ty(ref ty) => Ty::from_ast(ty, &self.scope),
             FunctionRetTy::Default(_) => None,
         };
     }
@@ -1504,7 +1282,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for FnArgTypeVisitor<'c, 's> {
             .find(|arg| point_is_in_span(self.argpos, &arg.pat.span))
             .and_then(|arg| {
                 debug!("[FnArgTypeVisitor::visit_fn] type {:?} was found", arg.ty);
-                let ty = to_racer_ty(&arg.ty, &self.scope)
+                let ty = Ty::from_ast(&arg.ty, &self.scope)
                     .and_then(|ty| {
                         destructure_pattern_to_ty(
                             &arg.pat,

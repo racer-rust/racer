@@ -1,6 +1,7 @@
-// Type inference
-
+//! Type inference
+//! THIS MODULE IS ENTIRELY TOO UGLY SO REALLY NEADS REFACTORING(kngwyu)
 use ast;
+use ast_types::Ty;
 use core;
 use core::Namespace;
 use core::SearchType::ExactMatch;
@@ -91,7 +92,7 @@ fn generates_skeleton_for_mod() {
     assert_eq!("mod foo {};", out);
 }
 
-fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty> {
+fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
     debug!("get_type_of_self_arg {:?}", m);
     get_type_of_self(m.point, &m.filepath, m.local, msrc, session)
 }
@@ -102,7 +103,7 @@ pub fn get_type_of_self(
     local: bool,
     msrc: Src,
     session: &Session,
-) -> Option<core::Ty> {
+) -> Option<Ty> {
     scopes::find_impl_start(msrc, point, BytePos::ZERO).and_then(|start| {
         let decl = generate_skeleton_for_parsing(&msrc.shift_start(start));
         debug!("get_type_of_self_arg impl skeleton |{}|", decl);
@@ -118,11 +119,11 @@ pub fn get_type_of_self(
                 Namespace::Type,
                 session,
             ).nth(0)
-            .map(core::Ty::Match)
+            .map(Ty::Match)
         } else {
             // // must be a trait
             ast::parse_trait(decl).name.and_then(|name| {
-                Some(core::Ty::Match(Match {
+                Some(Ty::Match(Match {
                     matchstr: name,
                     filepath: filepath.into(),
                     point: start,
@@ -161,7 +162,7 @@ fn find_start_of_closure_body(src: &str) -> Option<BytePos> {
     None
 }
 
-fn get_type_of_fnarg(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty> {
+fn get_type_of_fnarg(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
     if m.matchstr == "self" {
         return get_type_of_self_arg(m, msrc, session);
     }
@@ -200,7 +201,7 @@ fn get_type_of_fnarg(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty
     }
 }
 
-fn get_type_of_let_expr(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty> {
+fn get_type_of_let_expr(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
     // ASSUMPTION: this is being called on a let decl
     let point = scopes::find_let_start(msrc, m.point).expect("`let` should have a beginning");
     let src = msrc.shift_start(point);
@@ -221,12 +222,7 @@ fn get_type_of_let_expr(m: &Match, msrc: Src, session: &Session) -> Option<core:
 }
 
 // ASSUMPTION: this is being called on an if let or while let decl
-fn get_type_of_let_block_expr(
-    m: &Match,
-    msrc: Src,
-    session: &Session,
-    prefix: &str,
-) -> Option<core::Ty> {
+fn get_type_of_let_block_expr(m: &Match, msrc: Src, session: &Session, prefix: &str) -> Option<Ty> {
     let stmtstart = scopes::find_stmt_start(msrc, m.point).expect("`let` should have a beginning");
     let stmt = msrc.shift_start(stmtstart);
     let point: BytePos = stmt
@@ -251,7 +247,7 @@ fn get_type_of_let_block_expr(
 }
 
 // TODO: it's inefficient(kngwyu)
-fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty> {
+fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
     let stmtstart = scopes::expect_stmt_start(msrc, m.point);
     let stmt = msrc.shift_start(stmtstart);
     let forpos = stmt
@@ -303,7 +299,7 @@ pub fn get_struct_field_type(
     fieldname: &str,
     structmatch: &Match,
     session: &Session,
-) -> Option<core::Ty> {
+) -> Option<Ty> {
     // temporary fix for https://github.com/rust-lang-nursery/rls/issues/783
     if structmatch.mtype != core::MatchType::Struct {
         warn!(
@@ -337,7 +333,7 @@ pub fn get_tuplestruct_field_type(
     fieldnum: usize,
     structmatch: &Match,
     session: &Session,
-) -> Option<core::Ty> {
+) -> Option<Ty> {
     let src = session.load_source_file(&structmatch.filepath);
     let structsrc = if let core::MatchType::EnumVariant(_) = structmatch.mtype {
         // decorate the enum variant src to make it look like a tuple struct
@@ -372,7 +368,7 @@ pub fn get_first_stmt(src: Src) -> Src {
     }
 }
 
-pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<core::Ty> {
+pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<Ty> {
     debug!("get_type_of match {:?} ", m);
 
     match m.mtype {
@@ -385,10 +381,10 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<core:
         core::MatchType::Struct
         | core::MatchType::Enum
         | core::MatchType::Function
-        | core::MatchType::Module => Some(core::Ty::Match(m)),
+        | core::MatchType::Module => Some(Ty::Match(m)),
         core::MatchType::EnumVariant(Some(boxed_enum)) => {
             if boxed_enum.mtype == core::MatchType::Enum {
-                Some(core::Ty::Match(*boxed_enum))
+                Some(Ty::Match(*boxed_enum))
             } else {
                 debug!("EnumVariant has not-enum type: {:?}", boxed_enum.mtype);
                 None
@@ -401,7 +397,7 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<core:
     }
 }
 
-pub fn get_type_from_match_arm(m: &Match, msrc: Src, session: &Session) -> Option<core::Ty> {
+pub fn get_type_from_match_arm(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
     // We construct a faux match stmt and then parse it. This is because the
     // match stmt may be incomplete (half written) in the real code
 
@@ -454,7 +450,7 @@ pub fn get_return_type_of_function(
     fnmatch: &Match,
     contextm: &Match,
     session: &Session,
-) -> Option<core::Ty> {
+) -> Option<Ty> {
     let src = session.load_source_file(&fnmatch.filepath);
     let point = scopes::expect_stmt_start(src.as_src(), fnmatch.point);
     let out = src[point.0..].find(|c| c == '{' || c == ';').and_then(|n| {
@@ -473,7 +469,7 @@ pub fn get_return_type_of_function(
     });
 
     // Convert output arg of type Self to the correct type
-    if let Some(core::Ty::PathSearch(ref path, _)) = out {
+    if let Some(Ty::PathSearch(ref path, _)) = out {
         if let Some(ref path_seg) = path.segments.get(0) {
             if "Self" == path_seg.name {
                 return get_type_of_self_arg(fnmatch, src.as_src(), session);
@@ -482,12 +478,12 @@ pub fn get_return_type_of_function(
     }
 
     // Convert a generic output arg to the correct type
-    if let Some(core::Ty::PathSearch(ref path, _)) = out {
+    if let Some(Ty::PathSearch(ref path, _)) = out {
         if let Some(ref path_seg) = path.segments.get(0) {
             if path.segments.len() == 1 && path_seg.types.is_empty() {
                 for type_name in &fnmatch.generic_args {
                     if type_name == &path_seg.name {
-                        return Some(core::Ty::Match(contextm.clone()));
+                        return Some(Ty::Match(contextm.clone()));
                     }
                 }
             }

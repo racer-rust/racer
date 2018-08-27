@@ -1,3 +1,4 @@
+use ast_types::{GenericsArgs, Path, PathSearch, TraitBounds, Ty};
 use codecleaner;
 use codeiter::StmtIndicesIter;
 use matchers::ImportInfo;
@@ -50,7 +51,7 @@ pub enum MatchType {
     Macro,
     Builtin,
     /// fn f<T: Clone> or fn f(a: impl Clone) with its trait bounds
-    TypeParameter(Box<ast::TraitBounds>),
+    TypeParameter(Box<TraitBounds>),
 }
 
 impl fmt::Display for MatchType {
@@ -365,247 +366,6 @@ impl Scope {
 impl fmt::Debug for Scope {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Scope [{:?}, {:?}]", self.filepath.display(), self.point)
-    }
-}
-
-// Represents a type. Equivilent to rustc's ast::Ty but can be passed across threads
-#[derive(Debug, Clone)]
-pub enum Ty {
-    Match(Match),
-    PathSearch(Path, Scope), // A path + the scope to be able to resolve it
-    Tuple(Vec<Ty>),
-    FixedLengthVec(Box<Ty>, String), // ty, length expr as string
-    RefPtr(Box<Ty>),
-    Vec(Box<Ty>),
-    Unsupported,
-}
-
-impl fmt::Display for Ty {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Ty::Match(ref m) => write!(f, "{}", m.matchstr),
-            Ty::PathSearch(ref p, _) => write!(f, "{}", p),
-            Ty::Tuple(ref vec) => {
-                let mut first = true;
-                write!(f, "(")?;
-                for field in vec.iter() {
-                    if first {
-                        write!(f, "{}", field)?;
-                        first = false;
-                    } else {
-                        write!(f, ", {}", field)?;
-                    }
-                }
-                write!(f, ")")
-            }
-            Ty::FixedLengthVec(ref ty, ref expr) => {
-                write!(f, "[")?;
-                write!(f, "{}", ty)?;
-                write!(f, "; ")?;
-                write!(f, "{}", expr)?;
-                write!(f, "]")
-            }
-            Ty::Vec(ref ty) => {
-                write!(f, "[")?;
-                write!(f, "{}", ty)?;
-                write!(f, "]")
-            }
-            Ty::RefPtr(ref ty) => write!(f, "&{}", ty),
-            Ty::Unsupported => write!(f, "_"),
-        }
-    }
-}
-
-/// Prefix of path.
-/// e.g. for path `::std` => Global
-///      for path `self::abc` => Self_
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PathPrefix {
-    Crate,
-    Super,
-    Self_,
-    Global,
-}
-
-impl PathPrefix {
-    pub(crate) fn from_str(s: &str) -> Option<PathPrefix> {
-        match s {
-            "crate" => Some(PathPrefix::Crate),
-            "super" => Some(PathPrefix::Super),
-            "self" => Some(PathPrefix::Self_),
-            "{{root}}" => Some(PathPrefix::Global),
-            _ => None,
-        }
-    }
-}
-
-// The racer implementation of an ast::Path. Difference is that it is Send-able
-#[derive(Clone, PartialEq)]
-pub struct Path {
-    pub prefix: Option<PathPrefix>,
-    pub segments: Vec<PathSegment>,
-}
-
-impl Path {
-    pub fn generic_types(&self) -> ::std::slice::Iter<Path> {
-        self.segments[self.segments.len() - 1].types.iter()
-    }
-
-    pub fn single(seg: PathSegment) -> Path {
-        Path {
-            prefix: None,
-            segments: vec![seg],
-        }
-    }
-
-    pub fn set_prefix(&mut self) {
-        if self.prefix.is_some() {
-            return;
-        }
-        self.prefix = self
-            .segments
-            .first()
-            .and_then(|seg| PathPrefix::from_str(&seg.name));
-        if self.prefix.is_some() {
-            self.segments.remove(0);
-        }
-    }
-
-    pub fn from_vec(global: bool, v: Vec<&str>) -> Path {
-        Self::from_iter(global, v.into_iter().map(|s| s.to_owned()))
-    }
-
-    pub fn from_svec(global: bool, v: Vec<String>) -> Path {
-        Self::from_iter(global, v.into_iter())
-    }
-
-    pub fn from_iter(global: bool, iter: impl Iterator<Item = String>) -> Path {
-        let mut prefix = if global {
-            Some(PathPrefix::Global)
-        } else {
-            None
-        };
-        let segments: Vec<_> = iter
-            .enumerate()
-            .filter_map(|(i, s)| {
-                if i == 0 && prefix.is_none() {
-                    if let Some(pre) = PathPrefix::from_str(&s) {
-                        prefix = Some(pre);
-                        return None;
-                    }
-                }
-                Some(PathSegment::from(s))
-            }).collect();
-        Path { prefix, segments }
-    }
-
-    pub fn extend(&mut self, path: Path) -> &mut Self {
-        self.segments.extend(path.segments);
-        self
-    }
-
-    pub fn len(&self) -> usize {
-        self.segments.len()
-    }
-}
-
-impl fmt::Debug for Path {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "P[")?;
-        let mut first = true;
-        for seg in &self.segments {
-            if first {
-                write!(f, "{}", seg.name)?;
-                first = false;
-            } else {
-                write!(f, "::{}", seg.name)?;
-            }
-
-            if !seg.types.is_empty() {
-                write!(f, "<")?;
-                let mut t_first = true;
-                for typath in &seg.types {
-                    if t_first {
-                        write!(f, "{:?}", typath)?;
-                        t_first = false;
-                    } else {
-                        write!(f, ",{:?}", typath)?
-                    }
-                }
-                write!(f, ">")?;
-            }
-        }
-        write!(f, "]")
-    }
-}
-
-impl fmt::Display for Path {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut first = true;
-        for seg in &self.segments {
-            if first {
-                write!(f, "{}", seg.name)?;
-                first = false;
-            } else {
-                write!(f, "::{}", seg.name)?;
-            }
-
-            if !seg.types.is_empty() {
-                write!(f, "<")?;
-                let mut t_first = true;
-                for typath in &seg.types {
-                    if t_first {
-                        write!(f, "{}", typath)?;
-                        t_first = false;
-                    } else {
-                        write!(f, ", {}", typath)?
-                    }
-                }
-                write!(f, ">")?;
-            }
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct PathSegment {
-    pub name: String,
-    pub types: Vec<Path>,
-}
-
-impl PathSegment {
-    pub fn new(name: String, types: Vec<Path>) -> Self {
-        PathSegment { name, types }
-    }
-}
-
-impl From<String> for PathSegment {
-    fn from(name: String) -> Self {
-        PathSegment {
-            name,
-            types: Vec::new(),
-        }
-    }
-}
-
-/// Information about generic types in a match
-#[derive(Clone, PartialEq)]
-pub struct PathSearch {
-    pub path: Path,
-    pub filepath: path::PathBuf,
-    pub point: BytePos,
-}
-
-impl fmt::Debug for PathSearch {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Search [{:?}, {:?}, {:?}]",
-            self.path,
-            self.filepath.display(),
-            self.point
-        )
     }
 }
 
@@ -1018,7 +778,7 @@ pub struct Session<'c> {
     pub generic_impls: RefCell<
         HashMap<
             (path::PathBuf, BytePos),
-            Rc<Vec<(BytePos, String, ast::GenericsArgs, ast::ImplVisitor)>>,
+            Rc<Vec<(BytePos, String, GenericsArgs, ast::ImplVisitor)>>,
         >,
     >,
     pub project_model: Box<ProjectModelProvider + 'c>,
