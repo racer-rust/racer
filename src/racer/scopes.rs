@@ -1,7 +1,7 @@
 use ast_types::Path as RacerPath;
 #[cfg(test)]
-use core::Coordinate;
-use core::{self, BytePos, ByteRange, CompletionType, RangedRawSrc, Src};
+use core::{self, Coordinate};
+use core::{BytePos, ByteRange, CompletionType, RangedRawSrc, Src};
 use {ast, typeinf, util};
 
 use std::iter::Iterator;
