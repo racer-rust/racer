@@ -5,6 +5,7 @@ use std::fmt;
 use std::path;
 use syntax::ast::{
     self, GenericArg, GenericArgs, GenericBound, GenericBounds, GenericParamKind, TyKind,
+    WherePredicate,
 };
 use syntax::print::pprust;
 use syntax::source_map;
@@ -394,6 +395,9 @@ impl TraitBounds {
             }).collect();
         TraitBounds(vec)
     }
+    fn extend(&mut self, other: Self) {
+        self.0.extend(other.0)
+    }
 }
 
 /// Argument of generics like T: From<String>
@@ -448,28 +452,49 @@ impl GenericsArgs {
         filepath: P,
         offset: i32,
     ) -> Self {
-        let res = generics
-            .params
-            .iter()
-            .filter_map(|param| {
-                match param.kind {
-                    // TODO: lifetime support
-                    GenericParamKind::Lifetime => None,
-                    // TODO: should we handle default type here?
-                    GenericParamKind::Type { default: _ } => {
-                        let param_name = param.ident.name.to_string();
-                        let source_map::BytePos(point) = param.ident.span.lo();
-                        let bounds =
-                            TraitBounds::from_generic_bounds(&param.bounds, &filepath, offset);
-                        Some(TypeParameter {
-                            name: param_name,
-                            point: BytePos::from((point as i32 + offset) as u32),
-                            bounds,
-                        })
-                    }
+        let mut args = Vec::new();
+        for param in generics.params.iter() {
+            match param.kind {
+                // TODO: lifetime support
+                GenericParamKind::Lifetime => {}
+                // TODO: should we handle default type here?
+                GenericParamKind::Type { default: _ } => {
+                    let param_name = param.ident.name.to_string();
+                    let source_map::BytePos(point) = param.ident.span.lo();
+                    let bounds = TraitBounds::from_generic_bounds(&param.bounds, &filepath, offset);
+                    args.push(TypeParameter {
+                        name: param_name,
+                        point: BytePos::from((point as i32 + offset) as u32),
+                        bounds,
+                    })
                 }
-            }).collect();
-        GenericsArgs(res)
+            }
+        }
+        for pred in generics.where_clause.predicates.iter() {
+            match pred {
+                WherePredicate::BoundPredicate(bound) => match bound.bounded_ty.node {
+                    TyKind::Path(ref _qself, ref path) => {
+                        if let Some(seg) = path.segments.get(0) {
+                            let name = seg.ident.name.as_str();
+                            if let Some(mut tp) = args.iter_mut().find(|tp| tp.name == name) {
+                                tp.bounds.extend(TraitBounds::from_generic_bounds(
+                                    &bound.bounds,
+                                    &filepath,
+                                    offset,
+                                ));
+                            }
+                        }
+                    }
+                    // TODO 'self' support
+                    TyKind::ImplicitSelf => {}
+                    _ => {}
+                },
+                // TODO: lifetime support
+                WherePredicate::RegionPredicate(_) => {}
+                _ => {}
+            }
+        }
+        GenericsArgs(args)
     }
     pub fn get_idents(&self) -> Vec<String> {
         self.0.iter().map(|g| g.name.clone()).collect()

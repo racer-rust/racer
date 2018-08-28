@@ -3938,6 +3938,24 @@ mod trait_bounds {
     }
 
     #[test]
+    fn completes_methods_for_fnarg_by_where_clause() {
+        let src = "
+        fn main() {
+            trait Trait {
+                fn method(&self);
+            }
+            fn func<T>(arg: &T)
+            where
+                T: Trait,
+            {
+                arg.meth~
+            }
+        }
+        ";
+        assert_eq!(get_only_completion(src, None).matchstr, "method");
+    }
+
+    #[test]
     fn completes_external_methods_for_fnarg_by_trait_bounds() {
         let src = "
         fn main() {
