@@ -930,13 +930,15 @@ impl<'ast> visit::Visitor<'ast> for TraitVisitor {
 pub struct ImplVisitor<'p> {
     pub result: ImplHeader,
     filepath: &'p Path,
+    offset: BytePos,
 }
 
 impl<'p> ImplVisitor<'p> {
-    fn new(filepath: &'p Path) -> Self {
+    fn new(filepath: &'p Path, offset: BytePos) -> Self {
         ImplVisitor {
             result: ImplHeader::default(),
             filepath,
+            offset,
         }
     }
 }
@@ -944,7 +946,9 @@ impl<'p> ImplVisitor<'p> {
 impl<'ast, 'p> visit::Visitor<'ast> for ImplVisitor<'p> {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::Impl(_, _, _, ref generics, ref otrait, ref self_typ, _) = item.node {
-            self.result = ImplHeader::new(generics, self.filepath, otrait, self_typ);
+            let (start, _) = destruct_span(item.span);
+            let impl_start = self.offset + start.into();
+            self.result = ImplHeader::new(generics, self.filepath, otrait, self_typ, impl_start);
         }
     }
 }
@@ -1045,8 +1049,8 @@ pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, BytePos, Opt
     v.fields
 }
 
-pub fn parse_impl(s: String, path: &Path) -> ImplHeader {
-    let mut v = ImplVisitor::new(path);
+pub fn parse_impl(s: String, path: &Path, offset: BytePos) -> ImplHeader {
+    let mut v = ImplVisitor::new(path, offset);
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.result
 }
@@ -1081,12 +1085,16 @@ pub fn parse_generics(s: String, filepath: &Path) -> GenericsArgs {
     v.result
 }
 
-pub fn parse_generics_and_impl(s: String, filepath: &Path) -> (GenericsArgs, ImplHeader) {
+pub fn parse_generics_and_impl(
+    s: String,
+    filepath: &Path,
+    offset: BytePos,
+) -> (GenericsArgs, ImplHeader) {
     let mut v = GenericsVisitor {
         result: GenericsArgs::default(),
         filepath: filepath,
     };
-    let mut w = ImplVisitor::new(filepath);
+    let mut w = ImplVisitor::new(filepath, offset);
     with_stmt(s, |stmt| {
         visit::walk_stmt(&mut v, stmt);
         visit::walk_stmt(&mut w, stmt);

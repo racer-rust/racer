@@ -24,11 +24,8 @@ fn find_start_of_function_body(src: &str) -> BytePos {
 // the header
 // TODO: this should skip parens (e.g. function arguments)
 pub fn generate_skeleton_for_parsing(src: &str) -> String {
-    let mut s = String::new();
     let n = find_start_of_function_body(src);
-    s.push_str(&src[..n.0 + 1]);
-    s.push_str("};");
-    s
+    src[..n.0 + 1].to_owned() + "}"
 }
 
 pub fn first_param_is_self(blob: &str) -> bool {
@@ -89,7 +86,7 @@ pub fn first_param_is_self(blob: &str) -> bool {
 fn generates_skeleton_for_mod() {
     let src = "mod foo { blah };";
     let out = generate_skeleton_for_parsing(src);
-    assert_eq!("mod foo {};", out);
+    assert_eq!("mod foo {}", out);
 }
 
 fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
@@ -104,40 +101,39 @@ pub fn get_type_of_self(
     msrc: Src,
     session: &Session,
 ) -> Option<Ty> {
-    scopes::find_impl_start(msrc, point, BytePos::ZERO).and_then(|start| {
-        let decl = generate_skeleton_for_parsing(&msrc.shift_start(start));
-        debug!("get_type_of_self_arg impl skeleton |{}|", decl);
+    let start = scopes::find_impl_start(msrc, point, BytePos::ZERO)?;
+    let decl = generate_skeleton_for_parsing(&msrc.shift_start(start));
+    debug!("get_type_of_self_arg impl skeleton |{}|", decl);
 
-        if decl.starts_with("impl") {
-            let implres = ast::parse_impl(decl, filepath);
-            debug!("get_type_of_self_arg implres |{:?}|", implres);
-            resolve_path_with_str(
-                implres.self_path()?,
-                filepath,
-                start,
-                ExactMatch,
-                Namespace::Type,
-                session,
-            ).nth(0)
-            .map(Ty::Match)
-        } else {
-            // // must be a trait
-            ast::parse_trait(decl).name.and_then(|name| {
-                Some(Ty::Match(Match {
-                    matchstr: name,
-                    filepath: filepath.into(),
-                    point: start,
-                    coords: None,
-                    local: local,
-                    mtype: core::MatchType::Trait,
-                    contextstr: matchers::first_line(&msrc[start.0..]),
-                    generic_args: Vec::new(),
-                    generic_types: Vec::new(),
-                    docs: String::new(),
-                }))
-            })
-        }
-    })
+    if decl.starts_with("impl") {
+        let implres = ast::parse_impl(decl, filepath, start);
+        debug!("get_type_of_self_arg implres |{:?}|", implres);
+        resolve_path_with_str(
+            implres.self_path()?,
+            filepath,
+            start,
+            ExactMatch,
+            Namespace::Type,
+            session,
+        ).nth(0)
+        .map(Ty::Match)
+    } else {
+        // // must be a trait
+        ast::parse_trait(decl).name.and_then(|name| {
+            Some(Ty::Match(Match {
+                matchstr: name,
+                filepath: filepath.into(),
+                point: start,
+                coords: None,
+                local: local,
+                mtype: core::MatchType::Trait,
+                contextstr: matchers::first_line(&msrc[start.0..]),
+                generic_args: Vec::new(),
+                generic_types: Vec::new(),
+                docs: String::new(),
+            }))
+        })
+    }
 }
 
 fn is_closure(src: &str) -> Option<bool> {

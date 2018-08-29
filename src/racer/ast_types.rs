@@ -2,7 +2,7 @@
 use core::{self, BytePos, Match, MatchType, Scope, Session};
 use nameres;
 use std::fmt;
-use std::path;
+use std::path::{Path as FilePath, PathBuf};
 use syntax::ast::{
     self, GenericArg, GenericArgs, GenericBound, GenericBounds, GenericParamKind, TraitRef, TyKind,
     WherePredicate,
@@ -316,7 +316,7 @@ impl From<String> for PathSegment {
 #[derive(Clone, PartialEq)]
 pub struct PathSearch {
     pub path: Path,
-    pub filepath: path::PathBuf,
+    pub filepath: PathBuf,
     pub point: BytePos,
 }
 
@@ -371,7 +371,7 @@ impl TraitBounds {
     pub fn len(&self) -> usize {
         self.0.len()
     }
-    pub(crate) fn from_generic_bounds<P: AsRef<path::Path>>(
+    pub(crate) fn from_generic_bounds<P: AsRef<FilePath>>(
         bounds: &GenericBounds,
         filepath: P,
         offset: i32,
@@ -417,7 +417,7 @@ impl TypeParameter {
     pub fn name(&self) -> &str {
         &(*self.name)
     }
-    pub(crate) fn into_match<P: AsRef<path::Path>>(self, filepath: &P) -> Option<Match> {
+    pub(crate) fn into_match<P: AsRef<FilePath>>(self, filepath: &P) -> Option<Match> {
         // TODO: contextstr, local
         Some(Match {
             matchstr: self.name,
@@ -447,7 +447,7 @@ impl GenericsArgs {
     pub(crate) fn extend(&mut self, other: GenericsArgs) {
         self.0.extend(other.0);
     }
-    pub(crate) fn from_generics<'a, P: AsRef<path::Path>>(
+    pub(crate) fn from_generics<'a, P: AsRef<FilePath>>(
         generics: &'a ast::Generics,
         filepath: P,
         offset: i32,
@@ -507,22 +507,27 @@ pub struct ImplHeader {
     self_path: Option<Path>,
     trait_path: Option<Path>,
     generics: GenericsArgs,
+    filepath: PathBuf,
+    impl_start: BytePos,
 }
 
 impl ImplHeader {
     pub(crate) fn new(
         generics: &ast::Generics,
-        path: &path::Path,
+        path: &FilePath,
         otrait: &Option<TraitRef>,
         self_type: &ast::Ty,
+        impl_start: BytePos,
     ) -> Self {
-        let generics = GenericsArgs::from_generics(generics, path, 0);
+        let generics = GenericsArgs::from_generics(generics, path, impl_start.0 as i32);
         let self_path = destruct_ref_ptr(&self_type.node).map(Path::from_ast);
         let trait_path = otrait.as_ref().map(|tref| Path::from_ast(&tref.path));
         ImplHeader {
             self_path,
             trait_path,
             generics,
+            filepath: path.to_owned(),
+            impl_start,
         }
     }
 
@@ -535,6 +540,9 @@ impl ImplHeader {
     }
     pub(crate) fn destruct(self) -> (Option<Path>, Option<Path>, GenericsArgs) {
         (self.self_path, self.trait_path, self.generics)
+    }
+    pub(crate) fn file_path(&self) -> &FilePath {
+        self.filepath.as_ref()
     }
 }
 
