@@ -1,5 +1,7 @@
 use ast_types::Path as RacerPath;
-use ast_types::{self, GenericsArgs, PathAlias, PathAliasKind, PathSearch, TraitBounds, Ty};
+use ast_types::{
+    self, GenericsArgs, ImplHeader, PathAlias, PathAliasKind, PathSearch, TraitBounds, Ty,
+};
 use core::{self, BytePos, ByteRange, Match, MatchType, Scope, Session, SessionExt};
 use nameres::{self, resolve_path_with_str};
 use scopes;
@@ -925,30 +927,24 @@ impl<'ast> visit::Visitor<'ast> for TraitVisitor {
 }
 
 #[derive(Debug)]
-pub struct ImplVisitor {
-    pub name_path: Option<RacerPath>,
-    pub trait_path: Option<RacerPath>,
+pub struct ImplVisitor<'p> {
+    pub result: ImplHeader,
+    filepath: &'p Path,
 }
 
-impl<'ast> visit::Visitor<'ast> for ImplVisitor {
+impl<'p> ImplVisitor<'p> {
+    fn new(filepath: &'p Path) -> Self {
+        ImplVisitor {
+            result: ImplHeader::default(),
+            filepath,
+        }
+    }
+}
+
+impl<'ast, 'p> visit::Visitor<'ast> for ImplVisitor<'p> {
     fn visit_item(&mut self, item: &ast::Item) {
-        if let ItemKind::Impl(_, _, _, _, ref otrait, ref typ, _) = item.node {
-            match typ.node {
-                TyKind::Path(_, ref path) => {
-                    self.name_path = Some(RacerPath::from_ast(path));
-                }
-                TyKind::Rptr(_, ref ty) => {
-                    // HACK for now, treat refs the same as unboxed types
-                    // so that we can match '&str' to 'str'
-                    if let TyKind::Path(_, ref path) = ty.ty.node {
-                        self.name_path = Some(RacerPath::from_ast(path));
-                    }
-                }
-                _ => {}
-            }
-            if let Some(ref t) = otrait {
-                self.trait_path = Some(RacerPath::from_ast(&t.path));
-            }
+        if let ItemKind::Impl(_, _, _, ref generics, ref otrait, ref self_typ, _) = item.node {
+            self.result = ImplHeader::new(generics, self.filepath, otrait, self_typ);
         }
     }
 }
@@ -1049,13 +1045,10 @@ pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, BytePos, Opt
     v.fields
 }
 
-pub fn parse_impl(s: String) -> ImplVisitor {
-    let mut v = ImplVisitor {
-        name_path: None,
-        trait_path: None,
-    };
+pub fn parse_impl(s: String, path: &Path) -> ImplHeader {
+    let mut v = ImplVisitor::new(path);
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
-    v
+    v.result
 }
 
 pub fn parse_trait(s: String) -> TraitVisitor {
@@ -1079,7 +1072,7 @@ pub fn parse_inherited_traits<P: AsRef<Path>>(
     v.result
 }
 
-pub fn parse_generics<P: AsRef<Path>>(s: String, filepath: P) -> GenericsArgs {
+pub fn parse_generics(s: String, filepath: &Path) -> GenericsArgs {
     let mut v = GenericsVisitor {
         result: GenericsArgs::default(),
         filepath: filepath,
@@ -1088,23 +1081,17 @@ pub fn parse_generics<P: AsRef<Path>>(s: String, filepath: P) -> GenericsArgs {
     v.result
 }
 
-pub fn parse_generics_and_impl<P: AsRef<Path>>(
-    s: String,
-    filepath: P,
-) -> (GenericsArgs, ImplVisitor) {
+pub fn parse_generics_and_impl(s: String, filepath: &Path) -> (GenericsArgs, ImplHeader) {
     let mut v = GenericsVisitor {
         result: GenericsArgs::default(),
         filepath: filepath,
     };
-    let mut w = ImplVisitor {
-        name_path: None,
-        trait_path: None,
-    };
+    let mut w = ImplVisitor::new(filepath);
     with_stmt(s, |stmt| {
         visit::walk_stmt(&mut v, stmt);
         visit::walk_stmt(&mut w, stmt);
     });
-    (v.result, w)
+    (v.result, w.result)
 }
 
 pub fn parse_type(s: String) -> TypeVisitor {
@@ -1328,7 +1315,10 @@ pub struct InheritedTraitsVisitor<P> {
     offset: i32,
 }
 
-impl<'ast, P: AsRef<Path>> visit::Visitor<'ast> for InheritedTraitsVisitor<P> {
+impl<'ast, P> visit::Visitor<'ast> for InheritedTraitsVisitor<P>
+where
+    P: AsRef<Path>,
+{
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::Trait(_, _, _, ref bounds, _) = item.node {
             self.result = Some(TraitBounds::from_generic_bounds(

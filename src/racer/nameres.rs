@@ -5,8 +5,9 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::{self, vec};
 
-use ast::ImplVisitor;
-use ast_types::{GenericsArgs, Path as RacerPath, PathPrefix, PathSearch, PathSegment, Ty};
+use ast_types::{
+    GenericsArgs, ImplHeader, Path as RacerPath, PathPrefix, PathSearch, PathSegment, Ty,
+};
 use core::Namespace;
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{BytePos, ByteRange, Coordinate, Match, MatchType, Session, SessionExt, Src};
@@ -328,7 +329,8 @@ fn search_scope_for_static_trait_fns(
     out.into_iter()
 }
 
-pub fn search_for_impls(
+// this function shouldn't be looked from outer
+fn search_for_impls(
     pos: BytePos,
     searchstr: &str,
     filepath: &Path,
@@ -368,15 +370,16 @@ pub fn search_for_impls(
             decl.push_str("}");
             if txt_matches(ExactMatch, searchstr, &decl) {
                 debug!("impl decl {}", decl);
-                let implres = ast::parse_impl(decl);
-                let is_trait_impl = implres.trait_path.is_some();
+                let implres = ast::parse_impl(decl, filepath);
+                let (self_path, trait_path, _) = implres.destruct();
+                let is_trait_impl = trait_path.is_some();
                 let mtype = if is_trait_impl {
                     MatchType::TraitImpl
                 } else {
                     MatchType::Impl
                 };
 
-                if let Some(name_path) = implres.name_path {
+                if let Some(name_path) = self_path {
                     if let Some(name) = name_path.segments.last() {
                         if symbol_matches(ExactMatch, searchstr, &name.name) {
                             let m = Match {
@@ -400,7 +403,7 @@ pub fn search_for_impls(
 
                 // find trait
                 if include_traits && is_trait_impl {
-                    let trait_path = implres.trait_path.unwrap();
+                    let trait_path = trait_path.unwrap();
                     let m = resolve_path(
                         &trait_path,
                         filepath,
@@ -441,7 +444,7 @@ fn cached_generic_impls(
     filepath: &Path,
     session: &Session,
     scope_start: BytePos,
-) -> Rc<Vec<(BytePos, String, GenericsArgs, ImplVisitor)>> {
+) -> Rc<Vec<(BytePos, String, GenericsArgs, ImplHeader)>> {
     // the cache is keyed by path and the scope we search in
     session
         .generic_impls
@@ -497,9 +500,7 @@ pub fn search_for_generic_impls(
     for &(start, ref blob, ref generics, ref implres) in
         cached_generic_impls(filepath, session, scope_start).iter()
     {
-        if let (Some(name_path), Some(trait_path)) =
-            (implres.name_path.as_ref(), implres.trait_path.as_ref())
-        {
+        if let (Some(name_path), Some(trait_path)) = (implres.self_path(), implres.trait_path()) {
             if let (Some(name), Some(trait_name)) =
                 (name_path.segments.last(), trait_path.segments.last())
             {
@@ -1617,10 +1618,10 @@ pub fn get_super_scope(
         let moduledir = if filepath.ends_with("mod.rs") || filepath.ends_with("lib.rs") {
             // Need to go up to directory above
             // TODO(PD): fix: will crash if mod.rs is in the root fs directory
-            filepath.parent().unwrap().parent().unwrap()
+            filepath.parent()?.parent()?
         } else {
             // module is in current directory
-            filepath.parent().unwrap()
+            filepath.parent()?
         };
 
         for filename in &["mod.rs", "lib.rs"] {

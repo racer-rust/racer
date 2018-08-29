@@ -4,7 +4,7 @@ use nameres;
 use std::fmt;
 use std::path;
 use syntax::ast::{
-    self, GenericArg, GenericArgs, GenericBound, GenericBounds, GenericParamKind, TyKind,
+    self, GenericArg, GenericArgs, GenericBound, GenericBounds, GenericParamKind, TraitRef, TyKind,
     WherePredicate,
 };
 use syntax::print::pprust;
@@ -498,5 +498,50 @@ impl GenericsArgs {
     }
     pub fn get_idents(&self) -> Vec<String> {
         self.0.iter().map(|g| g.name.clone()).collect()
+    }
+}
+
+/// `Impl` information
+#[derive(Clone, Debug, Default)]
+pub struct ImplHeader {
+    self_path: Option<Path>,
+    trait_path: Option<Path>,
+    generics: GenericsArgs,
+}
+
+impl ImplHeader {
+    pub(crate) fn new(
+        generics: &ast::Generics,
+        path: &path::Path,
+        otrait: &Option<TraitRef>,
+        self_type: &ast::Ty,
+    ) -> Self {
+        let generics = GenericsArgs::from_generics(generics, path, 0);
+        let self_path = destruct_ref_ptr(&self_type.node).map(Path::from_ast);
+        let trait_path = otrait.as_ref().map(|tref| Path::from_ast(&tref.path));
+        ImplHeader {
+            self_path,
+            trait_path,
+            generics,
+        }
+    }
+
+    pub(crate) fn self_path(&self) -> Option<&Path> {
+        self.self_path.as_ref()
+    }
+
+    pub(crate) fn trait_path(&self) -> Option<&Path> {
+        self.trait_path.as_ref()
+    }
+    pub(crate) fn destruct(self) -> (Option<Path>, Option<Path>, GenericsArgs) {
+        (self.self_path, self.trait_path, self.generics)
+    }
+}
+
+fn destruct_ref_ptr(ty: &TyKind) -> Option<&ast::Path> {
+    match ty {
+        TyKind::Rptr(_, ref ty) => destruct_ref_ptr(&ty.ty.node),
+        TyKind::Path(_, ref path) => Some(path),
+        _ => None,
     }
 }
