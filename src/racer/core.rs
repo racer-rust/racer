@@ -1,4 +1,4 @@
-use ast_types::{GenericsArgs, ImplHeader, Path, PathSearch, TraitBounds, Ty};
+use ast_types::{ImplHeader, Path, PathSearch, TraitBounds, Ty};
 use codecleaner;
 use codeiter::StmtIndicesIter;
 use matchers::ImportInfo;
@@ -32,6 +32,7 @@ pub enum MatchType {
     Module,
     MatchArm,
     Function,
+    Method(Rc<ImplHeader>),
     Crate,
     Let,
     IfLet,
@@ -52,6 +53,15 @@ pub enum MatchType {
     Builtin,
     /// fn f<T: Clone> or fn f(a: impl Clone) with its trait bounds
     TypeParameter(Box<TraitBounds>),
+}
+
+impl MatchType {
+    fn is_function(&self) -> bool {
+        match self {
+            MatchType::Function | MatchType::Method(_) => true,
+            _ => false,
+        }
+    }
 }
 
 impl fmt::Display for MatchType {
@@ -775,7 +785,7 @@ pub struct Session<'c> {
     /// borrowed here in order to support reuse across Racer operations.
     cache: &'c FileCache,
     /// Cache for generic impls
-    pub generic_impls: RefCell<HashMap<(path::PathBuf, BytePos), Rc<Vec<ImplHeader>>>>,
+    pub generic_impls: RefCell<HashMap<(path::PathBuf, BytePos), Vec<Rc<ImplHeader>>>>,
     pub project_model: Box<ProjectModelProvider + 'c>,
 }
 

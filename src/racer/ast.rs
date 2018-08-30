@@ -936,14 +936,16 @@ pub struct ImplVisitor<'p> {
     pub result: Option<ImplHeader>,
     filepath: &'p Path,
     offset: BytePos,
+    local: bool,
 }
 
 impl<'p> ImplVisitor<'p> {
-    fn new(filepath: &'p Path, offset: BytePos) -> Self {
+    fn new(filepath: &'p Path, offset: BytePos, local: bool) -> Self {
         ImplVisitor {
             result: None,
             filepath,
             offset,
+            local,
         }
     }
 }
@@ -958,6 +960,7 @@ impl<'ast, 'p> visit::Visitor<'ast> for ImplVisitor<'p> {
                 otrait,
                 self_typ,
                 self.offset,
+                self.local,
                 impl_start,
             );
         }
@@ -1060,8 +1063,8 @@ pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, BytePos, Opt
     v.fields
 }
 
-pub fn parse_impl(s: String, path: &Path, offset: BytePos) -> Option<ImplHeader> {
-    let mut v = ImplVisitor::new(path, offset);
+pub fn parse_impl(s: String, path: &Path, offset: BytePos, local: bool) -> Option<ImplHeader> {
+    let mut v = ImplVisitor::new(path, offset, local);
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.result
 }
@@ -1094,23 +1097,6 @@ pub fn parse_generics(s: String, filepath: &Path) -> GenericsArgs {
     };
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.result
-}
-
-pub fn parse_generics_and_impl(
-    s: String,
-    filepath: &Path,
-    offset: BytePos,
-) -> (GenericsArgs, Option<ImplHeader>) {
-    let mut v = GenericsVisitor {
-        result: GenericsArgs::default(),
-        filepath: filepath,
-    };
-    let mut w = ImplVisitor::new(filepath, offset);
-    with_stmt(s, |stmt| {
-        visit::walk_stmt(&mut v, stmt);
-        visit::walk_stmt(&mut w, stmt);
-    });
-    (v.result, w.result)
 }
 
 pub fn parse_type(s: String) -> TypeVisitor {

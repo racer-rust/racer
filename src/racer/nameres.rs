@@ -85,55 +85,51 @@ pub fn search_for_impl_methods(
 
     let mut out = Vec::new();
 
-    for m in search_for_impls(
-        point,
-        implsearchstr,
-        fpath,
-        local,
-        true,
-        session,
-        &ImportInfo::default(),
-    ) {
-        debug!("found impl!! |{:?}| looking for methods", m);
-
-        if m.matchstr == "Deref" {
-            out.extend(search_for_deref_matches(
-                &m,
-                match_request,
-                fieldsearchstr,
-                fpath,
-                session,
-            ));
-        }
-
-        let src = session.load_source_file(&m.filepath);
-
+    for header in search_for_impls(point, implsearchstr, fpath, local, session) {
+        debug!("found impl!! |{:?}| looking for methods", header);
+        let src = session.load_source_file(header.file_path());
+        let impl_start = header.impl_start();
         // find the opening brace and skip to it.
-        if let Some(n) = src[m.point.0..].find('{') {
-            let point = m.point.increment() + n.into();
+        if let Some(n) = src[impl_start.0..].find('{') {
+            let point = impl_start.increment() + n.into();
             for m in search_scope_for_methods(
                 point,
                 src.as_src(),
                 fieldsearchstr,
-                &m.filepath,
+                header.file_path(),
                 search_type,
             ) {
                 out.push(m);
             }
         }
-        for gen_m in
-            search_for_generic_impls(m.point, &m.matchstr, match_request, &m.filepath, session)
-        {
-            debug!("found generic impl!! {:?}", gen_m);
-            let src = session.load_source_file(&gen_m.filepath);
+        let trait_match = try_continue!(header.resolve_trait(session, &ImportInfo::default()));
+        // TODO: add deref support here?
+        // if m.matchstr == "Deref" {
+        //     out.extend(search_for_deref_matches(
+        //         &m,
+        //         match_request,
+        //         fieldsearchstr,
+        //         fpath,
+        //         session,
+        //     ));
+        // }
+        for gen_impl_header in search_for_generic_impls(
+            trait_match.point,
+            &trait_match.matchstr,
+            &trait_match.filepath,
+            session,
+        ) {
+            debug!("found generic impl!! {:?}", gen_impl_header);
+            let src = session.load_source_file(gen_impl_header.file_path());
+            let start = gen_impl_header.impl_start();
             // find the opening brace and skip to it.
-            if let Some(n) = src[gen_m.point.0..].find('{') {
-                let point = gen_m.point.increment() + n.into();
+            if let Some(n) = src[start.0..].find('{') {
+                let point = start.increment() + n.into();
                 for gen_method in search_generic_impl_scope_for_methods(
                     point,
                     src.as_src(),
                     fieldsearchstr,
-                    &gen_m,
+                    &gen_impl_header,
                     search_type,
                 ) {
                     out.push(gen_method);
@@ -197,14 +193,12 @@ fn search_generic_impl_scope_for_methods(
     point: BytePos,
     src: Src,
     searchstr: &str,
-    contextm: &Match,
+    impl_header: &Rc<ImplHeader>,
     search_type: SearchType,
 ) -> vec::IntoIter<Match> {
     debug!(
-        "searching generic impl scope for methods {:?} |{}| {:?}",
-        point,
-        searchstr,
-        contextm.filepath.display()
+        "searching generic impl scope for methods {:?} |{}|",
+        point, searchstr,
     );
 
     let scopesrc = src.shift_start(point);
@@ -225,14 +219,14 @@ fn search_generic_impl_scope_for_methods(
                 // TODO: make a better context string for functions
                 let m = Match {
                     matchstr: l.to_owned(),
-                    filepath: contextm.filepath.clone(),
+                    filepath: impl_header.file_path().to_owned(),
                     point: point + blob_range.start + start,
                     coords: None,
                     local: true,
-                    mtype: MatchType::Function,
+                    mtype: MatchType::Method(Rc::clone(impl_header)),
                     contextstr: signature.to_owned(),
-                    generic_args: contextm.generic_args.clone(), // Attach impl generic args
-                    generic_types: contextm.generic_types.clone(), // Attach impl generic types
+                    generic_args: Vec::new(),
+                    generic_types: Vec::new(),
                     docs: find_doc(&scopesrc, blob_range.start + start),
                 };
                 out.push(m);
@@ -315,10 +309,8 @@ fn search_for_impls(
     searchstr: &str,
     filepath: &Path,
     local: bool,
-    include_traits: bool,
     session: &Session,
-    import_info: &ImportInfo,
-) -> Vec<Match> {
+) -> Vec<ImplHeader> {
     debug!(
         "search_for_impls {:?}, {}, {:?}",
         pos,
@@ -338,70 +330,18 @@ fn search_for_impls(
             }
             let decl = blob[..n + 1].to_owned() + "}";
             debug!("impl decl: {}", decl);
-            let implres = try_continue!(ast::parse_impl(
+            let impl_header = try_continue!(ast::parse_impl(
                 decl,
                 filepath,
-                blob_range.start + scope_start
+                blob_range.start + scope_start,
+                local,
             ));
-            let is_trait_impl = implres.trait_path().is_some();
-            let mtype = if is_trait_impl {
-                MatchType::TraitImpl
-            } else {
-                MatchType::Impl
-            };
-
-            if let Some(name) = implres.self_path().segments.last() {
-                if symbol_matches(ExactMatch, searchstr, &name.name) {
-                    let m = Match {
-                        matchstr: name.name.clone(),
-                        filepath: filepath.to_path_buf(),
-                        point: scope_start + blob_range.start + BytePos(5), // 5 = "impl ".len()
-                        coords: None,
-                        // items in trait impls have no "pub" but are
-                        // still accessible from other modules
-                        local: local || is_trait_impl,
-                        mtype: mtype,
-                        contextstr: "".into(),
-                        generic_args: Vec::new(),
-                        generic_types: Vec::new(),
-                        docs: String::new(),
-                    };
-                    out.push(m);
-                }
-            }
-
-            // find trait
-            if include_traits && is_trait_impl {
-                let trait_path = implres.trait_path().unwrap();
-                let m = resolve_path(
-                    trait_path,
-                    filepath,
-                    scope_start + blob_range.start,
-                    ExactMatch,
-                    Namespace::Type,
-                    session,
-                    import_info,
-                ).nth(0);
-                debug!("found trait |{:?}| {:?}", trait_path, m);
-
-                if let Some(mut m) = m {
-                    if m.matchstr == "Deref" {
-                        let impl_block = &blob[n..];
-
-                        if let Some(pos) = impl_block.find('=') {
-                            let deref_type_start = n + pos + 1;
-
-                            if let Some(pos) = blob[deref_type_start..].find(';') {
-                                let deref_type_end = deref_type_start + pos;
-                                let deref_type = blob[deref_type_start..deref_type_end].trim();
-                                debug!("Deref to {} found", deref_type);
-
-                                m.generic_args = vec![deref_type.to_owned()];
-                            };
-                        };
-                    }
-                    out.push(m);
-                }
+            let matched = impl_header
+                .self_path()
+                .name()
+                .map_or(false, |name| symbol_matches(ExactMatch, searchstr, name));
+            if matched {
+                out.push(impl_header);
             }
         }
     }
@@ -412,7 +352,7 @@ fn cached_generic_impls(
     filepath: &Path,
     session: &Session,
     scope_start: BytePos,
-) -> Rc<Vec<ImplHeader>> {
+) -> Vec<Rc<ImplHeader>> {
     // the cache is keyed by path and the scope we search in
     session
         .generic_impls
@@ -421,15 +361,14 @@ fn cached_generic_impls(
         .or_insert_with(|| {
             let s = session.load_source_file(&filepath);
             let src = s.get_src_from_start(scope_start);
-            let out = src
-                .iter_stmts()
+            src.iter_stmts()
                 .filter_map(|blob_range| {
                     let blob = &src[blob_range.to_range()];
                     let n = impl_scope_start(blob)?;
                     let decl = blob[..n + 1].to_owned() + "}";
-                    ast::parse_impl(decl, filepath, blob_range.start + scope_start)
-                }).collect();
-            Rc::new(out)
+                    ast::parse_impl(decl, filepath, blob_range.start + scope_start, true)
+                        .map(Rc::new)
+                }).collect()
         }).clone()
 }
 
@@ -437,10 +376,9 @@ fn cached_generic_impls(
 fn search_for_generic_impls(
     pos: BytePos,
     searchstr: &str,
-    contextm: &Match,
     filepath: &Path,
     session: &Session,
-) -> Vec<Match> {
+) -> Vec<Rc<ImplHeader>> {
     debug!(
         "search_for_generic_impls {:?}, {}, {:?}",
         pos,
@@ -454,37 +392,17 @@ fn search_for_generic_impls(
 
     for header in cached_generic_impls(filepath, session, scope_start).iter() {
         let name_path = header.self_path();
-        if let Some(trait_path) = header.trait_path() {
-            if let (Some(name), Some(trait_name)) =
-                (name_path.segments.last(), trait_path.segments.last())
-            {
-                for gen_arg in header.generics().params() {
-                    if !symbol_matches(ExactMatch, gen_arg.name(), &name.name)
-                        || gen_arg.bounds.find_by_name(searchstr).is_none()
-                    {
-                        continue;
-                    }
-                    let self_path = RacerPath::from_vec(false, vec![&contextm.matchstr]);
-                    let self_pathsearch = PathSearch {
-                        path: self_path,
-                        filepath: contextm.filepath.clone(),
-                        point: contextm.point,
-                    };
-                    let m = Match {
-                        matchstr: trait_name.name.clone(),
-                        filepath: filepath.to_path_buf(),
-                        point: header.impl_start(),
-                        coords: None,
-                        local: true,
-                        mtype: MatchType::TraitImpl,
-                        contextstr: "".into(),
-                        generic_args: vec![gen_arg.name().to_owned()],
-                        generic_types: vec![self_pathsearch],
-                        docs: String::new(),
-                    };
-                    debug!("Found a trait! {:?}", m);
-                    out.push(m);
+        if !header.is_trait() {
+            continue;
+        }
+        if let Some(name) = name_path.segments.last() {
+            for gen_arg in header.generics().params() {
+                if !symbol_matches(ExactMatch, gen_arg.name(), &name.name)
+                    || gen_arg.bounds.find_by_name(searchstr).is_none()
+                {
+                    continue;
                 }
+                out.push(header.to_owned());
             }
         }
     }
@@ -1566,7 +1484,6 @@ pub fn get_super_scope(
     if path.is_empty() {
         let moduledir = if filepath.ends_with("mod.rs") || filepath.ends_with("lib.rs") {
             // Need to go up to directory above
-            // TODO(PD): fix: will crash if mod.rs is in the root fs directory
             filepath.parent()?.parent()?
         } else {
             // module is in current directory
@@ -1619,89 +1536,91 @@ fn get_impls(
     import_info: &ImportInfo,
 ) -> Vec<Match> {
     let mut out = Vec::new();
-    match context.mtype {
-        MatchType::Enum => {
-            let filesrc = session.load_source_file(&context.filepath);
-            let scopestart = scopes::find_stmt_start(filesrc.as_src(), context.point)
-                .expect("[resolve_path] statement start was not found");
-            let scopesrc = filesrc.get_src_from_start(scopestart);
-            if let Some(blob_range) = scopesrc.iter_stmts().nth(0) {
-                let match_cxt = MatchCxt {
-                    filepath: &context.filepath,
-                    search_str: &search_path.name,
-                    search_type,
-                    range: blob_range.shift(scopestart),
-                    is_local: true,
-                };
-                for mut enum_var in matchers::match_enum_variants(&filesrc, &match_cxt) {
-                    debug!(
-                        "Found enum variant {} with enum type {}",
-                        enum_var.matchstr, context.matchstr
-                    );
-                    // return Match which has enum simultaneously, for method completion
-                    enum_var.mtype = MatchType::EnumVariant(Some(Box::new(context.clone())));
-                    out.push(enum_var);
-                }
-            }
-        }
-        MatchType::Struct => {}
-        _ => return out,
-    }
+    // match context.mtype {
+    //     MatchType::Enum => {
+    //         let filesrc = session.load_source_file(&context.filepath);
+    //         let scopestart = scopes::find_stmt_start(filesrc.as_src(), context.point)
+    //             .expect("[resolve_path] statement start was not found");
+    //         let scopesrc = filesrc.get_src_from_start(scopestart);
+    //         if let Some(blob_range) = scopesrc.iter_stmts().nth(0) {
+    //             let match_cxt = MatchCxt {
+    //                 filepath: &context.filepath,
+    //                 search_str: &search_path.name,
+    //                 search_type,
+    //                 range: blob_range.shift(scopestart),
+    //                 is_local: true,
+    //             };
+    //             for mut enum_var in matchers::match_enum_variants(&filesrc, &match_cxt) {
+    //                 debug!(
+    //                     "Found enum variant {} with enum type {}",
+    //                     enum_var.matchstr, context.matchstr
+    //                 );
+    //                 // return Match which has enum simultaneously, for method completion
+    //                 enum_var.mtype = MatchType::EnumVariant(Some(Box::new(context.clone())));
+    //                 out.push(enum_var);
+    //             }
+    //         }
+    //     }
+    //     MatchType::Struct => {}
+    //     _ => return out,
+    // }
 
-    for m_impl in search_for_impls(
-        context.point,
-        &context.matchstr,
-        &context.filepath,
-        context.local,
-        true,
-        session,
-        import_info,
-    ) {
-        debug!("found impl!! {:?}", m_impl);
-        let src = session.load_source_file(&m_impl.filepath);
-        // find the opening brace and skip to it.
-        if let Some(n) = src[m_impl.point.0..].find('{') {
-            let point = m_impl.point + BytePos(n + 1);
-            out.extend(search_scope(
-                point,
-                point,
-                src.as_src(),
-                &search_path,
-                &m_impl.filepath,
-                search_type,
-                m_impl.local,
-                namespace,
-                session,
-                import_info,
-            ));
-        }
-        for m_gen in search_for_generic_impls(
-            m_impl.point,
-            &m_impl.matchstr,
-            &context,
-            &m_impl.filepath,
-            session,
-        ) {
-            debug!("found generic impl!! {:?}", m_gen);
-            let src = session.load_source_file(&m_gen.filepath);
-            // find the opening brace and skip to it.
-            if let Some(n) = src[m_gen.point.0..].find('{') {
-                let point = m_gen.point + BytePos(n + 1);
-                out.extend(search_scope(
-                    point,
-                    point,
-                    src.as_src(),
-                    search_path,
-                    &m_gen.filepath,
-                    search_type,
-                    m_gen.local,
-                    namespace,
-                    session,
-                    import_info,
-                ));
-            }
-        }
-    }
+    // for m_impl in search_for_impls(
+    //     context.point,
+    //     &context.matchstr,
+    //     &context.filepath,
+    //     context.local,
+    //     true,
+    //     session,
+    //     import_info,
+    // ) {
+    //     if m_impl.mtype != MatchType::Impl || m_impl.mtype != MatchType::TraitImpl {
+    //         continue;
+    //     }
+    //     let src = session.load_source_file(&m_impl.filepath);
+    //     // find the opening brace and skip to it.
+    //     if let Some(n) = src[m_impl.point.0..].find('{') {
+    //         let point = m_impl.point + BytePos(n + 1);
+    //         out.extend(search_scope(
+    //             point,
+    //             point,
+    //             src.as_src(),
+    //             &search_path,
+    //             &m_impl.filepath,
+    //             search_type,
+    //             m_impl.local,
+    //             namespace,
+    //             session,
+    //             import_info,
+    //         ));
+    //     }
+    //     for m_gen in search_for_generic_impls(
+    //         m_impl.point,
+    //         &m_impl.matchstr,
+    //         &context,
+    //         &m_impl.filepath,
+    //         session,
+    //     ) {
+    //         debug!("found generic impl!! {:?}", m_gen);
+    //         let src = session.load_source_file(&m_gen.filepath);
+    //         // find the opening brace and skip to it.
+    //         if let Some(n) = src[m_gen.point.0..].find('{') {
+    //             let point = m_gen.point + BytePos(n + 1);
+    //             out.extend(search_scope(
+    //                 point,
+    //                 point,
+    //                 src.as_src(),
+    //                 search_path,
+    //                 &m_gen.filepath,
+    //                 search_type,
+    //                 m_gen.local,
+    //                 namespace,
+    //                 session,
+    //                 import_info,
+    //             ));
+    //         }
+    //     }
+    // }
     out
 }
 
@@ -1998,16 +1917,9 @@ pub fn do_external_search(
 
                 MatchType::Struct => {
                     debug!("found a pub struct. Now need to look for impl");
-                    for m in search_for_impls(
-                        m.point,
-                        &m.matchstr,
-                        &m.filepath,
-                        m.local,
-                        false,
-                        session,
-                        import_info,
-                    ) {
-                        debug!("found  impl2!! {}", m.matchstr);
+                    for impl_header in
+                        search_for_impls(m.point, &m.matchstr, &m.filepath, m.local, session)
+                    {
                         // deal with started with "{", so that "foo::{bar" will be same as "foo::bar"
                         let searchstr = match path[path.len() - 1].chars().next() {
                             Some('{') => &path[path.len() - 1][1..],
@@ -2019,11 +1931,11 @@ pub fn do_external_search(
                         };
                         debug!("about to search impl scope...");
                         for m in search_next_scope(
-                            m.point,
+                            impl_header.impl_start(),
                             &pathseg,
-                            &m.filepath,
+                            impl_header.file_path(),
                             search_type,
-                            m.local,
+                            impl_header.is_local(),
                             namespace,
                             session,
                             import_info,
@@ -2049,8 +1961,7 @@ fn collect_inherited_traits(trait_match: Match, s: &Session) -> Vec<Match> {
     }
     impl Node {
         fn from_match(m: &Match) -> Self {
-            let mut target_str = m.contextstr.to_owned();
-            target_str.push_str("{}");
+            let target_str = m.contextstr.to_owned() + "{}";
             let offset = m.point.0 as i32 - "trait ".len() as i32;
             Node {
                 target_str: target_str,

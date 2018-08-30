@@ -1,5 +1,6 @@
 //! type conversion between racer types and libsyntax types
 use core::{self, BytePos, Match, MatchType, Scope, Session};
+use matchers::ImportInfo;
 use nameres;
 use std::fmt;
 use std::path::{Path as FilePath, PathBuf};
@@ -230,6 +231,10 @@ impl Path {
     pub fn len(&self) -> usize {
         self.segments.len()
     }
+
+    pub fn name(&self) -> Option<&str> {
+        self.segments.last().map(|seg| &*seg.name)
+    }
 }
 
 impl fmt::Debug for Path {
@@ -437,7 +442,7 @@ impl TypeParameter {
 /// List of Args in generics, e.g. <T: Clone, U, P>
 /// Now it's intended to use only for type parameters
 // TODO: should we extend this type enable to handle both type parameters and true types?
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct GenericsArgs(pub Vec<TypeParameter>);
 
 impl GenericsArgs {
@@ -505,12 +510,14 @@ impl GenericsArgs {
 }
 
 /// `Impl` information
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ImplHeader {
-    self_: Path,
-    trait_: Option<Path>,
+    self_path: Path,
+    trait_path: Option<Path>,
     generics: GenericsArgs,
     filepath: PathBuf,
+    // TODO: should be removed
+    local: bool,
     impl_start: BytePos,
 }
 
@@ -521,24 +528,26 @@ impl ImplHeader {
         otrait: &Option<TraitRef>,
         self_type: &ast::Ty,
         offset: BytePos,
+        local: bool,
         impl_start: BytePos,
     ) -> Option<Self> {
         let generics = GenericsArgs::from_generics(generics, path, offset.0 as i32);
-        let self_ = destruct_ref_ptr(&self_type.node).map(Path::from_ast)?;
-        let trait_ = otrait.as_ref().map(|tref| Path::from_ast(&tref.path));
+        let self_path = destruct_ref_ptr(&self_type.node).map(Path::from_ast)?;
+        let trait_path = otrait.as_ref().map(|tref| Path::from_ast(&tref.path));
         Some(ImplHeader {
-            self_,
-            trait_,
+            self_path,
+            trait_path,
             generics,
             filepath: path.to_owned(),
+            local,
             impl_start,
         })
     }
     pub(crate) fn self_path(&self) -> &Path {
-        &self.self_
+        &self.self_path
     }
     pub(crate) fn trait_path(&self) -> Option<&Path> {
-        self.trait_.as_ref()
+        self.trait_path.as_ref()
     }
     pub(crate) fn file_path(&self) -> &FilePath {
         self.filepath.as_ref()
@@ -548,6 +557,28 @@ impl ImplHeader {
     }
     pub(crate) fn impl_start(&self) -> BytePos {
         self.impl_start
+    }
+    // TODO: should be removed
+    pub(crate) fn is_local(&self) -> bool {
+        self.local || self.trait_path.is_some()
+    }
+    pub(crate) fn is_trait(&self) -> bool {
+        self.trait_path.is_some()
+    }
+    pub(crate) fn resolve_trait(
+        &self,
+        session: &Session,
+        import_info: &ImportInfo,
+    ) -> Option<Match> {
+        nameres::resolve_path(
+            self.trait_path()?,
+            self.file_path(),
+            self.impl_start,
+            core::SearchType::ExactMatch,
+            core::Namespace::Type,
+            session,
+            import_info,
+        ).nth(0)
     }
 }
 

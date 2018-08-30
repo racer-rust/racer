@@ -106,7 +106,7 @@ pub fn get_type_of_self(
     debug!("get_type_of_self_arg impl skeleton |{}|", decl);
 
     if decl.starts_with("impl") {
-        let implres = ast::parse_impl(decl, filepath, start)?;
+        let implres = ast::parse_impl(decl, filepath, start, local)?;
         debug!("get_type_of_self_arg implres |{:?}|", implres);
         resolve_path_with_str(
             implres.self_path(),
@@ -377,6 +377,7 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<Ty> {
         core::MatchType::Struct
         | core::MatchType::Enum
         | core::MatchType::Function
+        | core::MatchType::Method(_)
         | core::MatchType::Module => Some(Ty::Match(m)),
         core::MatchType::EnumVariant(Some(boxed_enum)) => {
             if boxed_enum.mtype == core::MatchType::Enum {
