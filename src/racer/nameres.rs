@@ -5,9 +5,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::{self, vec};
 
-use ast_types::{
-    GenericsArgs, ImplHeader, Path as RacerPath, PathPrefix, PathSearch, PathSegment, Ty,
-};
+use ast_types::{ImplHeader, Path as RacerPath, PathPrefix, PathSearch, PathSegment, Ty};
 use core::Namespace;
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{BytePos, ByteRange, Coordinate, Match, MatchType, Session, SessionExt, Src};
@@ -139,37 +137,6 @@ pub fn search_for_impl_methods(
                     search_type,
                 ) {
                     out.push(gen_method);
-                }
-            }
-        }
-
-        if m.matchstr == "Iterator" && fieldsearchstr == "into_iter" {
-            let mut m_copy = m.clone();
-            if let Ok(mut m_filestring) = m_copy.filepath.into_os_string().into_string() {
-                m_filestring = m_filestring.replace("iterator.rs", "traits.rs");
-                m_copy.filepath = PathBuf::from(&m_filestring);
-                for m in search_for_generic_impls(
-                    m_copy.point,
-                    &m_copy.matchstr,
-                    match_request,
-                    &m_copy.filepath,
-                    session,
-                ) {
-                    debug!("found generic impl!! {:?}", m);
-                    let src = session.load_source_file(&m.filepath);
-                    // find the opening brace and skip to it.
-                    if let Some(n) = src[m.point.0..].find('{') {
-                        let point = m.point.increment() + n.into();
-                        for m in search_generic_impl_scope_for_methods(
-                            point,
-                            src.as_src(),
-                            fieldsearchstr,
-                            &m,
-                            search_type,
-                        ) {
-                            out.push(m);
-                        }
-                    }
                 }
             }
         }
