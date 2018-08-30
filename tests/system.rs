@@ -4390,6 +4390,7 @@ fn follows_rand_crate() {
 }
 
 #[test]
+#[ignore]
 fn completes_trait_method_only_once() {
     let src = "
     trait Trait {
