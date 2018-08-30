@@ -224,6 +224,7 @@ pub fn get_module_file_from_path(
     None
 }
 
+// TODO(kngwyu): this functions shouldn't be generic
 pub fn find_impl_start(msrc: Src, point: BytePos, scopestart: BytePos) -> Option<BytePos> {
     let len = point - scopestart;
     msrc.shift_start(scopestart)

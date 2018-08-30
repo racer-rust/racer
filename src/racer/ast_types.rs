@@ -2,9 +2,9 @@
 use core::{self, BytePos, Match, MatchType, Scope, Session};
 use nameres;
 use std::fmt;
-use std::path;
+use std::path::{Path as FilePath, PathBuf};
 use syntax::ast::{
-    self, GenericArg, GenericArgs, GenericBound, GenericBounds, GenericParamKind, TyKind,
+    self, GenericArg, GenericArgs, GenericBound, GenericBounds, GenericParamKind, TraitRef, TyKind,
     WherePredicate,
 };
 use syntax::print::pprust;
@@ -316,7 +316,7 @@ impl From<String> for PathSegment {
 #[derive(Clone, PartialEq)]
 pub struct PathSearch {
     pub path: Path,
-    pub filepath: path::PathBuf,
+    pub filepath: PathBuf,
     pub point: BytePos,
 }
 
@@ -344,13 +344,13 @@ pub struct TraitBounds(Vec<PathSearch>);
 impl TraitBounds {
     /// checks if it contains a trait, whick its name is 'name'
     pub fn find_by_name(&self, name: &str) -> Option<&PathSearch> {
-        Some(self.0.iter().find(|path_search| {
+        self.0.iter().find(|path_search| {
             let seg = &path_search.path.segments;
             if seg.len() != 1 {
                 return false;
             }
             &seg[0].name == name
-        })?)
+        })
     }
     /// Search traits included in bounds and return Matches
     pub fn get_traits(&self, session: &Session) -> Vec<Match> {
@@ -371,7 +371,7 @@ impl TraitBounds {
     pub fn len(&self) -> usize {
         self.0.len()
     }
-    pub(crate) fn from_generic_bounds<P: AsRef<path::Path>>(
+    pub(crate) fn from_generic_bounds<P: AsRef<FilePath>>(
         bounds: &GenericBounds,
         filepath: P,
         offset: i32,
@@ -417,7 +417,7 @@ impl TypeParameter {
     pub fn name(&self) -> &str {
         &(*self.name)
     }
-    pub(crate) fn into_match<P: AsRef<path::Path>>(self, filepath: &P) -> Option<Match> {
+    pub(crate) fn into_match<P: AsRef<FilePath>>(self, filepath: &P) -> Option<Match> {
         // TODO: contextstr, local
         Some(Match {
             matchstr: self.name,
@@ -447,7 +447,7 @@ impl GenericsArgs {
     pub(crate) fn extend(&mut self, other: GenericsArgs) {
         self.0.extend(other.0);
     }
-    pub(crate) fn from_generics<'a, P: AsRef<path::Path>>(
+    pub(crate) fn from_generics<'a, P: AsRef<FilePath>>(
         generics: &'a ast::Generics,
         filepath: P,
         offset: i32,
@@ -498,5 +498,63 @@ impl GenericsArgs {
     }
     pub fn get_idents(&self) -> Vec<String> {
         self.0.iter().map(|g| g.name.clone()).collect()
+    }
+    pub fn params(&self) -> impl Iterator<Item = &TypeParameter> {
+        self.0.iter()
+    }
+}
+
+/// `Impl` information
+#[derive(Clone, Debug)]
+pub struct ImplHeader {
+    self_: Path,
+    trait_: Option<Path>,
+    generics: GenericsArgs,
+    filepath: PathBuf,
+    impl_start: BytePos,
+}
+
+impl ImplHeader {
+    pub(crate) fn new(
+        generics: &ast::Generics,
+        path: &FilePath,
+        otrait: &Option<TraitRef>,
+        self_type: &ast::Ty,
+        offset: BytePos,
+        impl_start: BytePos,
+    ) -> Option<Self> {
+        let generics = GenericsArgs::from_generics(generics, path, offset.0 as i32);
+        let self_ = destruct_ref_ptr(&self_type.node).map(Path::from_ast)?;
+        let trait_ = otrait.as_ref().map(|tref| Path::from_ast(&tref.path));
+        Some(ImplHeader {
+            self_,
+            trait_,
+            generics,
+            filepath: path.to_owned(),
+            impl_start,
+        })
+    }
+    pub(crate) fn self_path(&self) -> &Path {
+        &self.self_
+    }
+    pub(crate) fn trait_path(&self) -> Option<&Path> {
+        self.trait_.as_ref()
+    }
+    pub(crate) fn file_path(&self) -> &FilePath {
+        self.filepath.as_ref()
+    }
+    pub(crate) fn generics(&self) -> &GenericsArgs {
+        &self.generics
+    }
+    pub(crate) fn impl_start(&self) -> BytePos {
+        self.impl_start
+    }
+}
+
+fn destruct_ref_ptr(ty: &TyKind) -> Option<&ast::Path> {
+    match ty {
+        TyKind::Rptr(_, ref ty) => destruct_ref_ptr(&ty.ty.node),
+        TyKind::Path(_, ref path) => Some(path),
+        _ => None,
     }
 }

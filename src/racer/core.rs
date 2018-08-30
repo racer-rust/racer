@@ -1,4 +1,4 @@
-use ast_types::{GenericsArgs, Path, PathSearch, TraitBounds, Ty};
+use ast_types::{GenericsArgs, ImplHeader, Path, PathSearch, TraitBounds, Ty};
 use codecleaner;
 use codeiter::StmtIndicesIter;
 use matchers::ImportInfo;
@@ -775,12 +775,7 @@ pub struct Session<'c> {
     /// borrowed here in order to support reuse across Racer operations.
     cache: &'c FileCache,
     /// Cache for generic impls
-    pub generic_impls: RefCell<
-        HashMap<
-            (path::PathBuf, BytePos),
-            Rc<Vec<(BytePos, String, GenericsArgs, ast::ImplVisitor)>>,
-        >,
-    >,
+    pub generic_impls: RefCell<HashMap<(path::PathBuf, BytePos), Rc<Vec<ImplHeader>>>>,
     pub project_model: Box<ProjectModelProvider + 'c>,
 }
 

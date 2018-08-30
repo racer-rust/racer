@@ -723,3 +723,13 @@ pub fn calculate_str_hash(s: &str) -> u64 {
     s.hash(&mut hasher);
     hasher.finish()
 }
+
+#[macro_export]
+macro_rules! try_continue {
+    ($res: expr) => {
+        match ::std::ops::Try::into_result($res) {
+            Ok(o) => o,
+            Err(_) => continue,
+        }
+    };
+}

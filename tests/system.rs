@@ -4388,3 +4388,23 @@ fn follows_rand_crate() {
         assert_eq!(got.matchstr, "gen_range");
     });
 }
+
+#[test]
+#[ignore]
+fn completes_trait_method_only_once() {
+    let src = "
+    trait Trait {
+        fn function(&self) -> usize { 5 }
+    }
+    struct S;
+    impl Trait for S {
+        fn function(&self) -> usize { 6 }
+    }
+    fn main() {
+        let s = S {};
+        s.fun~
+    }
+    ";
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "function");
+}
