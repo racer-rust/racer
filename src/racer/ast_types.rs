@@ -344,13 +344,13 @@ pub struct TraitBounds(Vec<PathSearch>);
 impl TraitBounds {
     /// checks if it contains a trait, whick its name is 'name'
     pub fn find_by_name(&self, name: &str) -> Option<&PathSearch> {
-        Some(self.0.iter().find(|path_search| {
+        self.0.iter().find(|path_search| {
             let seg = &path_search.path.segments;
             if seg.len() != 1 {
                 return false;
             }
             &seg[0].name == name
-        })?)
+        })
     }
     /// Search traits included in bounds and return Matches
     pub fn get_traits(&self, session: &Session) -> Vec<Match> {
@@ -499,13 +499,16 @@ impl GenericsArgs {
     pub fn get_idents(&self) -> Vec<String> {
         self.0.iter().map(|g| g.name.clone()).collect()
     }
+    pub fn params(&self) -> impl Iterator<Item = &TypeParameter> {
+        self.0.iter()
+    }
 }
 
 /// `Impl` information
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct ImplHeader {
-    self_path: Option<Path>,
-    trait_path: Option<Path>,
+    self_: Path,
+    trait_: Option<Path>,
     generics: GenericsArgs,
     filepath: PathBuf,
     impl_start: BytePos,
@@ -517,32 +520,34 @@ impl ImplHeader {
         path: &FilePath,
         otrait: &Option<TraitRef>,
         self_type: &ast::Ty,
+        offset: BytePos,
         impl_start: BytePos,
-    ) -> Self {
-        let generics = GenericsArgs::from_generics(generics, path, impl_start.0 as i32);
-        let self_path = destruct_ref_ptr(&self_type.node).map(Path::from_ast);
-        let trait_path = otrait.as_ref().map(|tref| Path::from_ast(&tref.path));
-        ImplHeader {
-            self_path,
-            trait_path,
+    ) -> Option<Self> {
+        let generics = GenericsArgs::from_generics(generics, path, offset.0 as i32);
+        let self_ = destruct_ref_ptr(&self_type.node).map(Path::from_ast)?;
+        let trait_ = otrait.as_ref().map(|tref| Path::from_ast(&tref.path));
+        Some(ImplHeader {
+            self_,
+            trait_,
             generics,
             filepath: path.to_owned(),
             impl_start,
-        }
+        })
     }
-
-    pub(crate) fn self_path(&self) -> Option<&Path> {
-        self.self_path.as_ref()
+    pub(crate) fn self_path(&self) -> &Path {
+        &self.self_
     }
-
     pub(crate) fn trait_path(&self) -> Option<&Path> {
-        self.trait_path.as_ref()
-    }
-    pub(crate) fn destruct(self) -> (Option<Path>, Option<Path>, GenericsArgs) {
-        (self.self_path, self.trait_path, self.generics)
+        self.trait_.as_ref()
     }
     pub(crate) fn file_path(&self) -> &FilePath {
         self.filepath.as_ref()
+    }
+    pub(crate) fn generics(&self) -> &GenericsArgs {
+        &self.generics
+    }
+    pub(crate) fn impl_start(&self) -> BytePos {
+        self.impl_start
     }
 }
 

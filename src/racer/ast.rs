@@ -67,6 +67,11 @@ pub(crate) fn destruct_span(span: Span) -> (u32, u32) {
     (lo, hi)
 }
 
+pub(crate) fn get_span_start(span: Span) -> u32 {
+    let source_map::BytePos(lo) = span.lo();
+    lo
+}
+
 /// collect paths from syntax::ast::UseTree
 #[derive(Debug)]
 pub struct UseVisitor {
@@ -928,7 +933,7 @@ impl<'ast> visit::Visitor<'ast> for TraitVisitor {
 
 #[derive(Debug)]
 pub struct ImplVisitor<'p> {
-    pub result: ImplHeader,
+    pub result: Option<ImplHeader>,
     filepath: &'p Path,
     offset: BytePos,
 }
@@ -936,7 +941,7 @@ pub struct ImplVisitor<'p> {
 impl<'p> ImplVisitor<'p> {
     fn new(filepath: &'p Path, offset: BytePos) -> Self {
         ImplVisitor {
-            result: ImplHeader::default(),
+            result: None,
             filepath,
             offset,
         }
@@ -946,9 +951,15 @@ impl<'p> ImplVisitor<'p> {
 impl<'ast, 'p> visit::Visitor<'ast> for ImplVisitor<'p> {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::Impl(_, _, _, ref generics, ref otrait, ref self_typ, _) = item.node {
-            let (start, _) = destruct_span(item.span);
-            let impl_start = self.offset + start.into();
-            self.result = ImplHeader::new(generics, self.filepath, otrait, self_typ, impl_start);
+            let impl_start = self.offset + get_span_start(item.span).into();
+            self.result = ImplHeader::new(
+                generics,
+                self.filepath,
+                otrait,
+                self_typ,
+                self.offset,
+                impl_start,
+            );
         }
     }
 }
@@ -1049,7 +1060,7 @@ pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, BytePos, Opt
     v.fields
 }
 
-pub fn parse_impl(s: String, path: &Path, offset: BytePos) -> ImplHeader {
+pub fn parse_impl(s: String, path: &Path, offset: BytePos) -> Option<ImplHeader> {
     let mut v = ImplVisitor::new(path, offset);
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.result
@@ -1089,7 +1100,7 @@ pub fn parse_generics_and_impl(
     s: String,
     filepath: &Path,
     offset: BytePos,
-) -> (GenericsArgs, ImplHeader) {
+) -> (GenericsArgs, Option<ImplHeader>) {
     let mut v = GenericsVisitor {
         result: GenericsArgs::default(),
         filepath: filepath,

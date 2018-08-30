@@ -106,10 +106,10 @@ pub fn get_type_of_self(
     debug!("get_type_of_self_arg impl skeleton |{}|", decl);
 
     if decl.starts_with("impl") {
-        let implres = ast::parse_impl(decl, filepath, start);
+        let implres = ast::parse_impl(decl, filepath, start)?;
         debug!("get_type_of_self_arg implres |{:?}|", implres);
         resolve_path_with_str(
-            implres.self_path()?,
+            implres.self_path(),
             filepath,
             start,
             ExactMatch,

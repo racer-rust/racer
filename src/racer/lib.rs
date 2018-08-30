@@ -1,4 +1,5 @@
 #![cfg_attr(feature = "nightly", feature(test))]
+#![feature(try_trait)]
 
 #[macro_use]
 extern crate log;
@@ -14,6 +15,8 @@ extern crate rls_span;
 
 #[macro_use]
 mod testutils;
+#[macro_use]
+mod util;
 mod ast;
 mod ast_types;
 mod codecleaner;
@@ -28,7 +31,6 @@ mod project_model;
 mod scopes;
 mod snippets;
 mod typeinf;
-mod util;
 
 pub use ast_types::PathSearch;
 pub use core::{

@@ -371,32 +371,35 @@ fn search_for_impls(
             }
             let decl = blob[..n + 1].to_owned() + "}";
             debug!("impl decl: {}", decl);
-            let implres = ast::parse_impl(decl, filepath, blob_range.start + scope_start);
+            let implres = try_continue!(ast::parse_impl(
+                decl,
+                filepath,
+                blob_range.start + scope_start
+            ));
             let is_trait_impl = implres.trait_path().is_some();
             let mtype = if is_trait_impl {
                 MatchType::TraitImpl
             } else {
                 MatchType::Impl
             };
-            if let Some(name_path) = implres.self_path() {
-                if let Some(name) = name_path.segments.last() {
-                    if symbol_matches(ExactMatch, searchstr, &name.name) {
-                        let m = Match {
-                            matchstr: name.name.clone(),
-                            filepath: filepath.to_path_buf(),
-                            point: scope_start + blob_range.start + BytePos(5), // 5 = "impl ".len()
-                            coords: None,
-                            // items in trait impls have no "pub" but are
-                            // still accessible from other modules
-                            local: local || is_trait_impl,
-                            mtype: mtype,
-                            contextstr: "".into(),
-                            generic_args: Vec::new(),
-                            generic_types: Vec::new(),
-                            docs: String::new(),
-                        };
-                        out.push(m);
-                    }
+
+            if let Some(name) = implres.self_path().segments.last() {
+                if symbol_matches(ExactMatch, searchstr, &name.name) {
+                    let m = Match {
+                        matchstr: name.name.clone(),
+                        filepath: filepath.to_path_buf(),
+                        point: scope_start + blob_range.start + BytePos(5), // 5 = "impl ".len()
+                        coords: None,
+                        // items in trait impls have no "pub" but are
+                        // still accessible from other modules
+                        local: local || is_trait_impl,
+                        mtype: mtype,
+                        contextstr: "".into(),
+                        generic_args: Vec::new(),
+                        generic_types: Vec::new(),
+                        docs: String::new(),
+                    };
+                    out.push(m);
                 }
             }
 
@@ -442,7 +445,7 @@ fn cached_generic_impls(
     filepath: &Path,
     session: &Session,
     scope_start: BytePos,
-) -> Rc<Vec<(BytePos, String, GenericsArgs, ImplHeader)>> {
+) -> Rc<Vec<ImplHeader>> {
     // the cache is keyed by path and the scope we search in
     session
         .generic_impls
@@ -451,24 +454,20 @@ fn cached_generic_impls(
         .or_insert_with(|| {
             let s = session.load_source_file(&filepath);
             let src = s.get_src_from_start(scope_start);
-            let mut out = Vec::new();
-            for blob_range in src.iter_stmts() {
-                let blob = &src[blob_range.to_range()];
-                if let Some(n) = impl_scope_start(blob) {
+            let out = src
+                .iter_stmts()
+                .filter_map(|blob_range| {
+                    let blob = &src[blob_range.to_range()];
+                    let n = impl_scope_start(blob)?;
                     let decl = blob[..n + 1].to_owned() + "}";
-                    let (generics, impls) = ast::parse_generics_and_impl(
-                        decl,
-                        filepath,
-                        blob_range.start + scope_start,
-                    );
-                    out.push((blob_range.start, blob.into(), generics, impls));
-                }
-            }
+                    ast::parse_impl(decl, filepath, blob_range.start + scope_start)
+                }).collect();
             Rc::new(out)
         }).clone()
 }
 
-pub fn search_for_generic_impls(
+// Find trait impls
+fn search_for_generic_impls(
     pos: BytePos,
     searchstr: &str,
     contextm: &Match,
@@ -485,44 +484,39 @@ pub fn search_for_generic_impls(
     let scope_start = scopes::scope_start(s.as_src(), pos);
 
     let mut out = Vec::new();
-    for &(start, ref blob, ref generics, ref implres) in
-        cached_generic_impls(filepath, session, scope_start).iter()
-    {
-        if let (Some(name_path), Some(trait_path)) = (implres.self_path(), implres.trait_path()) {
+
+    for header in cached_generic_impls(filepath, session, scope_start).iter() {
+        let name_path = header.self_path();
+        if let Some(trait_path) = header.trait_path() {
             if let (Some(name), Some(trait_name)) =
                 (name_path.segments.last(), trait_path.segments.last())
             {
-                for gen_arg in &generics.0 {
-                    if symbol_matches(ExactMatch, gen_arg.name(), &name.name)
-                        && gen_arg.bounds.find_by_name(searchstr).is_some()
+                for gen_arg in header.generics().params() {
+                    if !symbol_matches(ExactMatch, gen_arg.name(), &name.name)
+                        || gen_arg.bounds.find_by_name(searchstr).is_none()
                     {
-                        debug!("generic impl decl {}", blob);
-
-                        let trait_pos: BytePos = blob
-                            .find(&trait_name.name)
-                            .expect("[search_for_generic_impls] trait was not found")
-                            .into();
-                        let self_path = RacerPath::from_vec(false, vec![&contextm.matchstr]);
-                        let self_pathsearch = PathSearch {
-                            path: self_path,
-                            filepath: contextm.filepath.clone(),
-                            point: contextm.point,
-                        };
-                        let m = Match {
-                            matchstr: trait_name.name.clone(),
-                            filepath: filepath.to_path_buf(),
-                            point: start + trait_pos,
-                            coords: None,
-                            local: true,
-                            mtype: MatchType::TraitImpl,
-                            contextstr: "".into(),
-                            generic_args: vec![gen_arg.name().to_owned()],
-                            generic_types: vec![self_pathsearch],
-                            docs: String::new(),
-                        };
-                        debug!("Found a trait! {:?}", m);
-                        out.push(m);
+                        continue;
                     }
+                    let self_path = RacerPath::from_vec(false, vec![&contextm.matchstr]);
+                    let self_pathsearch = PathSearch {
+                        path: self_path,
+                        filepath: contextm.filepath.clone(),
+                        point: contextm.point,
+                    };
+                    let m = Match {
+                        matchstr: trait_name.name.clone(),
+                        filepath: filepath.to_path_buf(),
+                        point: header.impl_start(),
+                        coords: None,
+                        local: true,
+                        mtype: MatchType::TraitImpl,
+                        contextstr: "".into(),
+                        generic_args: vec![gen_arg.name().to_owned()],
+                        generic_types: vec![self_pathsearch],
+                        docs: String::new(),
+                    };
+                    debug!("Found a trait! {:?}", m);
+                    out.push(m);
                 }
             }
         }
