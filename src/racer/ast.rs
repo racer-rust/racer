@@ -206,8 +206,8 @@ fn destructure_pattern_to_ty(
     session: &Session,
 ) -> Option<Ty> {
     debug!(
-        "destructure_pattern_to_ty point {:?} ty {:?}    ||||||||    pat: {:?}",
-        point, ty, pat
+        "destructure_pattern_to_ty point {:?} ty {:?} pat: {:?}",
+        point, ty, pat.node
     );
     match pat.node {
         PatKind::Ident(_, ref spannedident, _) => {
@@ -741,9 +741,9 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
 
 // gets generics info from the context match
 fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session) -> Option<Ty> {
+    debug!("path_to_match_including_generics: {:?}  {:?}", ty, contextm);
     match ty {
         Ty::PathSearch(ref fieldtypepath, ref scope) => {
-            debug!("path_to_match_including_generics: {:?}  {:?}", ty, contextm);
             if fieldtypepath.segments.len() == 1 {
                 let typename = &fieldtypepath.segments[0].name;
                 // could have generic args! - try and resolve them
@@ -769,11 +769,18 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
                 if gentypefound {
                     let mut out = find_type_match(&typepath, &scope.filepath, scope.point, session);
                     // Fix the paths on the generic types in out
-                    // TODO(kngwyu): Only do this for Enum and Struct
+                    // TODO(kngwyu): I DON'T KNOW WHAT THIS CODE DO COMPLETELY
                     if let Some(Ty::Match(ref mut m)) = out {
                         for type_search in contextm.resolved_generics() {
                             for gen_param in m.generics_mut() {
-                                if gen_param.name() == &type_search.path.segments[0].name {
+                                debug!(
+                                    "gen_param: {:?}, type_search: {:?}",
+                                    gen_param, type_search
+                                );
+                                let same_name = gen_param.resolved().map_or(false, |typ| {
+                                    typ.path.segments[0].name == type_search.path.segments[0].name
+                                });
+                                if same_name {
                                     gen_param.resolve(type_search.to_owned());
                                 }
                             }
@@ -1247,7 +1254,6 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for FnArgTypeVisitor<'c, 's> {
     ) {
         debug!("[FnArgTypeVisitor::visit_fn] inputs: {:?}", fd.inputs);
         // Get generics arguments here (just for speed up)
-        let filepath = &self.scope.filepath;
         self.result = fd
             .inputs
             .iter()

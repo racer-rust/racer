@@ -1,5 +1,5 @@
 use ast::with_error_checking_parse;
-use core::{Match, MatchType, Session};
+use core::{Match, Session};
 use typeinf::get_function_declaration;
 
 use syntax::ast::ImplItemKind;

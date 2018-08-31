@@ -578,9 +578,6 @@ impl ImplHeader {
     pub(crate) fn generics(&self) -> &GenericsArgs {
         &self.generics
     }
-    pub(crate) fn generics_mut(&mut self) -> &mut GenericsArgs {
-        &mut self.generics
-    }
     pub(crate) fn impl_start(&self) -> BytePos {
         self.impl_start
     }

@@ -1,4 +1,4 @@
-use ast_types::{GenericsArgs, PathAliasKind, PathSegment};
+use ast_types::{PathAliasKind, PathSegment};
 use core::MatchType::{
     self, Const, Enum, EnumVariant, For, Function, IfLet, Let, Macro, Module, Static, Struct,
     Trait, Type, WhileLet,
