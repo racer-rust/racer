@@ -1,4 +1,4 @@
-use ast_types::{ImplHeader, Path, PathSearch, TraitBounds, Ty};
+use ast_types::{GenericsArgs, ImplHeader, Path, PathSearch, TraitBounds, Ty, TypeParameter};
 use codecleaner;
 use codeiter::StmtIndicesIter;
 use matchers::ImportInfo;
@@ -28,7 +28,7 @@ use util;
 /// [`Match`]: struct.Match.html
 #[derive(Clone, Debug, PartialEq)]
 pub enum MatchType {
-    Struct,
+    Struct(Box<GenericsArgs>),
     Module,
     MatchArm,
     Function,
@@ -39,9 +39,7 @@ pub enum MatchType {
     WhileLet,
     For,
     StructField,
-    Impl,
-    TraitImpl,
-    Enum,
+    Enum(Box<GenericsArgs>),
     /// EnumVariant needs to have Enum type to complete methods
     EnumVariant(Option<Box<Match>>),
     Type,
@@ -56,9 +54,21 @@ pub enum MatchType {
 }
 
 impl MatchType {
-    fn is_function(&self) -> bool {
+    pub fn is_function(&self) -> bool {
         match self {
             MatchType::Function | MatchType::Method(_) => true,
+            _ => false,
+        }
+    }
+    pub fn is_enum(&self) -> bool {
+        match self {
+            MatchType::Enum(_) => true,
+            _ => false,
+        }
+    }
+    pub fn is_struct(&self) -> bool {
+        match self {
+            MatchType::Struct(_) => true,
             _ => false,
         }
     }
@@ -274,8 +284,6 @@ pub struct Match {
     pub local: bool,
     pub mtype: MatchType,
     pub contextstr: String,
-    pub generic_args: Vec<String>,
-    pub generic_types: Vec<PathSearch>, // generic types are evaluated lazily
     pub docs: String,
 }
 
@@ -289,6 +297,31 @@ impl Match {
         self.point == other.point
             && self.matchstr == other.matchstr
             && self.filepath == other.filepath
+    }
+    pub(crate) fn generics(&self) -> impl Iterator<Item = &TypeParameter> {
+        let opt = match self.mtype {
+            MatchType::Struct(ref gen_arg) | MatchType::Enum(ref gen_arg) => Some(&**gen_arg),
+            MatchType::Method(ref header) => Some(header.generics()),
+            _ => None,
+        };
+        opt.into_iter().flat_map(|gen_arg| gen_arg.args())
+    }
+    pub(crate) fn resolved_generics(&self) -> impl Iterator<Item = &PathSearch> {
+        let opt = match self.mtype {
+            MatchType::Struct(ref gen_arg) | MatchType::Enum(ref gen_arg) => Some(&**gen_arg),
+            MatchType::Method(ref header) => Some(header.generics()),
+            _ => None,
+        };
+        opt.into_iter()
+            .flat_map(|gen_arg| gen_arg.args())
+            .filter_map(|ty_param| ty_param.resolved.as_ref())
+    }
+    pub(crate) fn generics_mut(&mut self) -> impl Iterator<Item = &mut TypeParameter> {
+        let opt = match &mut self.mtype {
+            MatchType::Struct(gen_arg) | MatchType::Enum(gen_arg) => Some(&mut **gen_arg),
+            _ => None,
+        };
+        opt.into_iter().flat_map(|gen_arg| gen_arg.args_mut())
     }
 }
 
@@ -345,14 +378,12 @@ impl fmt::Debug for Match {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "Match [{:?}, {:?}, {:?}, {:?}, {:?}, {:?}, {:?} |{}|]",
+            "Match [{:?}, {:?}, {:?}, {:?}, {:?}, |{}|]",
             self.matchstr,
             self.filepath.display(),
             self.point,
             self.local,
             self.mtype,
-            self.generic_args,
-            self.generic_types,
             self.contextstr
         )
     }

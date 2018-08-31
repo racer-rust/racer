@@ -2881,7 +2881,7 @@ fn closure_scope_dont_match_type_annotations() {
 
     let got = get_definition(src, None);
     println!("{:?}", got);
-    assert_eq!(MatchType::Struct, got.mtype);
+    assert!(got.mtype.is_struct());
     assert_eq!(2, got.coords.unwrap().row.0);
 }
 
@@ -3173,7 +3173,7 @@ fn closure_dont_detect_normal_pipes() {
 
     let got = get_definition(src, None);
     assert_eq!("Fruit", got.matchstr);
-    assert_eq!(got.mtype, MatchType::Enum);
+    assert!(got.mtype.is_enum());
 }
 
 #[test]

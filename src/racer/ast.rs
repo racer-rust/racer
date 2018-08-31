@@ -444,7 +444,7 @@ fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
 
 fn find_type_match(path: &RacerPath, fpath: &Path, pos: BytePos, session: &Session) -> Option<Ty> {
     debug!("find_type_match {:?}, {:?}", path, fpath);
-    let res = resolve_path_with_str(
+    let mut res = resolve_path_with_str(
         path,
         fpath,
         pos,
@@ -455,20 +455,17 @@ fn find_type_match(path: &RacerPath, fpath: &Path, pos: BytePos, session: &Sessi
     .and_then(|m| match m.mtype {
         MatchType::Type => get_type_of_typedef(&m, session),
         _ => Some(m),
-    });
-
-    res.and_then(|mut m| {
-        // add generic types to match (if any)
-        let mut types: Vec<PathSearch> = path
-            .generic_types()
-            .map(|typepath| PathSearch {
-                path: typepath.clone(),
-                filepath: fpath.to_path_buf(),
-                point: pos,
-            }).collect();
-        m.generic_types.append(&mut types);
-        Some(Ty::Match(m))
-    })
+    })?;
+    // TODO: 'Type' support
+    // if res is Enum/Struct and has a generic type paramter, let's resolve it.
+    for (mut param, typ) in res.generics_mut().zip(path.generic_types()) {
+        param.resolve(PathSearch {
+            path: typ.clone(),
+            filepath: fpath.to_owned(),
+            point: pos,
+        })
+    }
+    Some(Ty::Match(res))
 }
 
 pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match> {
@@ -553,11 +550,11 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 self.result = self.result.take().and_then(|m| {
                     if let Ty::Match(m) = m {
                         match m.mtype {
-                            MatchType::Function => {
+                            MatchType::Function | MatchType::Method(_) => {
                                 typeinf::get_return_type_of_function(&m, &m, self.session)
                                     .and_then(|ty| path_to_match(ty, self.session))
                             }
-                            MatchType::Struct | MatchType::Enum => Some(Ty::Match(m)),
+                            MatchType::Struct(_) | MatchType::Enum(_) => Some(Ty::Match(m)),
                             _ => {
                                 debug!(
                                     "ExprTypeVisitor: Cannot handle ExprCall of {:?} type",
@@ -681,21 +678,17 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     // HACK for speed up (kngwyu)
                     // Yeah there're many corner cases but it'll work well in most cases
                     if m.matchstr == "Result" || m.matchstr == "Option" {
-                        m.generic_types.get(0).and_then(|ok_var| {
+                        debug!("Option or Result: {:?}", m);
+                        m.resolved_generics().next().and_then(|ok_param| {
                             find_type_match(
-                                &ok_var.path,
-                                &ok_var.filepath,
-                                ok_var.point,
+                                &ok_param.path,
+                                &ok_param.filepath,
+                                ok_param.point,
                                 self.session,
                             )
                         })
                     } else {
-                        debug!(
-                            "Unable to desugar Try expression; type was {} with arity {} of {}",
-                            m.matchstr,
-                            m.generic_types.len(),
-                            m.generic_args.len()
-                        );
+                        debug!("Unable to desugar Try expression; type was {:?}", m);
                         None
                     }
                 } else {
@@ -750,49 +743,40 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
 fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session) -> Option<Ty> {
     match ty {
         Ty::PathSearch(ref fieldtypepath, ref scope) => {
-            debug!("path_to_match_including_generics: {:?}  {:?}", ty, contextm);
+            println!("path_to_match_including_generics: {:?}  {:?}", ty, contextm);
             if fieldtypepath.segments.len() == 1 {
+                let typename = &fieldtypepath.segments[0].name;
                 // could have generic args! - try and resolve them
-                let typename = fieldtypepath.segments[0].name.clone();
-                let it = contextm
-                    .generic_args
-                    .iter()
-                    .cloned()
-                    .zip(contextm.generic_types.iter().cloned());
-                let mut typepath = fieldtypepath.clone();
+                let mut typepath = fieldtypepath.to_owned();
                 let mut gentypefound = false;
-
-                for (name, typesearch) in it.clone() {
-                    if name == typename {
-                        // yes! a generic type match!
+                for type_param in contextm.generics() {
+                    let resolved = try_continue!(type_param.resolved());
+                    if type_param.name() == typename {
                         return find_type_match(
-                            &typesearch.path,
-                            &typesearch.filepath,
-                            typesearch.point,
+                            &resolved.path,
+                            &resolved.filepath,
+                            resolved.point,
                             session,
                         );
                     }
-
                     for typ in &mut typepath.segments[0].types {
-                        let gentypename = typ.segments[0].name.clone();
-                        if name == gentypename {
-                            // A generic type on ty matches one on contextm
-                            *typ = typesearch.path.clone(); // Overwrite the type with the one from contextm
+                        if type_param.name() == &typ.segments[0].name {
+                            *typ = resolved.path.clone();
                             gentypefound = true;
                         }
                     }
                 }
-
                 if gentypefound {
                     let mut out = find_type_match(&typepath, &scope.filepath, scope.point, session);
-
                     // Fix the paths on the generic types in out
+                    // TODO(kngwyu): Only do this for Enum and Struct
+
                     if let Some(Ty::Match(ref mut m)) = out {
-                        for (_, typesearch) in it {
-                            for gentypematch in m.generic_types.iter_mut().filter(|ty| {
-                                ty.path.segments[0].name == typesearch.path.segments[0].name
-                            }) {
-                                *gentypematch = typesearch.clone();
+                        for type_search in contextm.resolved_generics() {
+                            for gen_param in m.generics_mut() {
+                                if gen_param.name() == &type_search.path.segments[0].name {
+                                    gen_param.resolve(type_search.to_owned());
+                                }
                             }
                         }
                     }
@@ -838,19 +822,10 @@ fn find_type_match_including_generics(
     if fieldtypepath.segments.len() == 1 {
         // could be a generic arg! - try and resolve it
         let typename = &fieldtypepath.segments[0].name;
-        let it = structm
-            .generic_args
-            .iter()
-            .zip(structm.generic_types.iter());
-        for (name, typesearch) in it {
-            if name == typename {
-                // yes! a generic type match!
-                return find_type_match(
-                    &typesearch.path,
-                    &typesearch.filepath,
-                    typesearch.point,
-                    session,
-                );
+        for type_param in structm.generics() {
+            if type_param.name() == typename {
+                let path = type_param.to_racer_path();
+                return find_type_match(&path, &type_param.filepath, type_param.point, session);
             }
         }
     }

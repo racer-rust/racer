@@ -5,8 +5,7 @@ use nameres;
 use std::fmt;
 use std::path::{Path as FilePath, PathBuf};
 use syntax::ast::{
-    self, GenericArg, GenericArgs, GenericBound, GenericBounds, GenericParamKind, TraitRef, TyKind,
-    WherePredicate,
+    self, GenericBound, GenericBounds, GenericParamKind, TraitRef, TyKind, WherePredicate,
 };
 use syntax::print::pprust;
 use syntax::source_map;
@@ -153,9 +152,9 @@ impl Path {
             let mut types = Vec::new();
             // TODO: support GenericArgs::Parenthesized (A path like `Foo(A,B) -> C`)
             if let Some(ref params) = seg.args {
-                if let GenericArgs::AngleBracketed(ref angle_args) = **params {
+                if let ast::GenericArgs::AngleBracketed(ref angle_args) = **params {
                     angle_args.args.iter().for_each(|arg| {
-                        if let GenericArg::Type(ty) = arg {
+                        if let ast::GenericArg::Type(ty) = arg {
                             if let TyKind::Path(_, ref path) = ty.node {
                                 types.push(Path::from_ast(path));
                             }
@@ -403,19 +402,27 @@ impl TraitBounds {
     fn extend(&mut self, other: Self) {
         self.0.extend(other.0)
     }
+    fn to_paths(&self) -> Vec<Path> {
+        self.0.iter().map(|paths| paths.path.clone()).collect()
+    }
 }
 
 /// Argument of generics like T: From<String>
 /// It's intended to use this type only for declaration of type parameter.
 // TODO: impl trait's name
+// TODO: it has too many PathBuf
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypeParameter {
     /// the name of type parameter declared in generics, like 'T'
     pub name: String,
     /// The point 'T' appears
     pub point: BytePos,
+    /// file path
+    pub filepath: PathBuf,
     /// bounds
     pub bounds: TraitBounds,
+    /// Resolved Type
+    pub resolved: Option<PathSearch>,
 }
 
 impl TypeParameter {
@@ -432,10 +439,21 @@ impl TypeParameter {
             local: false,
             mtype: MatchType::TypeParameter(Box::new(self.bounds)),
             contextstr: String::new(),
-            generic_args: Vec::new(),
-            generic_types: Vec::new(),
             docs: String::new(),
         })
+    }
+    pub(crate) fn resolve(&mut self, paths: PathSearch) {
+        self.resolved = Some(paths);
+    }
+    pub(crate) fn resolved(&self) -> Option<&PathSearch> {
+        self.resolved.as_ref()
+    }
+    pub fn to_racer_path(&self) -> Path {
+        let segment = PathSegment {
+            name: self.name.clone(),
+            types: self.bounds.to_paths(),
+        };
+        Path::single(segment)
     }
 }
 
@@ -470,7 +488,9 @@ impl GenericsArgs {
                     args.push(TypeParameter {
                         name: param_name,
                         point: BytePos::from((point as i32 + offset) as u32),
+                        filepath: filepath.as_ref().to_path_buf(),
                         bounds,
+                        resolved: None,
                     })
                 }
             }
@@ -504,8 +524,11 @@ impl GenericsArgs {
     pub fn get_idents(&self) -> Vec<String> {
         self.0.iter().map(|g| g.name.clone()).collect()
     }
-    pub fn params(&self) -> impl Iterator<Item = &TypeParameter> {
+    pub fn args(&self) -> impl Iterator<Item = &TypeParameter> {
         self.0.iter()
+    }
+    pub fn args_mut(&mut self) -> impl Iterator<Item = &mut TypeParameter> {
+        self.0.iter_mut()
     }
 }
 
@@ -554,6 +577,9 @@ impl ImplHeader {
     }
     pub(crate) fn generics(&self) -> &GenericsArgs {
         &self.generics
+    }
+    pub(crate) fn generics_mut(&mut self) -> &mut GenericsArgs {
+        &mut self.generics
     }
     pub(crate) fn impl_start(&self) -> BytePos {
         self.impl_start

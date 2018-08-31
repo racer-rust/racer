@@ -1,4 +1,4 @@
-use ast_types::{PathAliasKind, PathSegment};
+use ast_types::{GenericsArgs, PathAliasKind, PathSegment};
 use core::MatchType::{
     self, Const, Enum, EnumVariant, For, Function, IfLet, Let, Macro, Module, Static, Struct,
     Trait, Type, WhileLet,
@@ -197,8 +197,6 @@ fn match_pattern_start(
                     local: context.is_local,
                     mtype: mtype,
                     contextstr: first_line(blob),
-                    generic_args: Vec::new(),
-                    generic_types: Vec::new(),
                     docs: String::new(),
                 });
             }
@@ -243,8 +241,6 @@ fn match_pattern_let(
                     local: context.is_local,
                     mtype: mtype.clone(),
                     contextstr: first_line(blob),
-                    generic_args: Vec::new(),
-                    generic_types: Vec::new(),
                     docs: String::new(),
                 });
                 if context.search_type == ExactMatch {
@@ -285,8 +281,6 @@ pub fn match_for(msrc: &str, context: &MatchCxt) -> Vec<Match> {
                 local: context.is_local,
                 mtype: For,
                 contextstr: first_line(blob),
-                generic_args: Vec::new(),
-                generic_types: Vec::new(),
                 docs: String::new(),
             });
         }
@@ -349,8 +343,6 @@ pub fn match_extern_crate(msrc: Src, context: &MatchCxt, session: &Session) -> O
                     local: false,
                     mtype: Module,
                     contextstr: cratepath.to_str().unwrap().to_owned(),
-                    generic_args: Vec::new(),
-                    generic_types: Vec::new(),
                     docs: find_mod_doc(&raw_src, BytePos::ZERO),
                 });
             }
@@ -372,8 +364,6 @@ pub fn match_mod(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Mat
             local: false,
             mtype: Module,
             contextstr: context.filepath.to_str().unwrap().to_owned(),
-            generic_args: Vec::new(),
-            generic_types: Vec::new(),
             docs: String::new(),
         });
     } else {
@@ -394,8 +384,6 @@ pub fn match_mod(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Mat
                 local: false,
                 mtype: Module,
                 contextstr: modpath.to_str().unwrap().to_owned(),
-                generic_args: Vec::new(),
-                generic_types: Vec::new(),
                 docs: find_mod_doc(&doc_src, BytePos::ZERO),
             });
         }
@@ -419,8 +407,6 @@ pub fn match_mod(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Mat
                 local: false,
                 mtype: Module,
                 contextstr: context,
-                generic_args: Vec::new(),
-                generic_types: Vec::new(),
                 docs: find_mod_doc(&doc_src, BytePos::ZERO),
             });
         }
@@ -451,13 +437,11 @@ pub fn match_struct(msrc: Src, context: &MatchCxt, session: &Session) -> Option<
     let (start, s) = context.get_key_ident(blob, "struct", &[])?;
 
     debug!("found a struct |{}|", s);
-
-    let generics = if let Some(generics_end) = find_generics_end(&blob[start.0..]) {
-        let header = format!("struct {}();", &blob[start.0..=(start + generics_end).0]);
-        ast::parse_generics(header, context.filepath).get_idents()
-    } else {
-        Vec::new()
-    };
+    let generics =
+        find_generics_end(&blob[start.0..]).map_or_else(Default::default, |generics_end| {
+            let header = format!("struct {}();", &blob[start.0..=(start + generics_end).0]);
+            ast::parse_generics(header, context.filepath)
+        });
     let start = context.range.start + start;
     let doc_src = session.load_raw_src_ranged(&msrc, context.filepath);
     Some(Match {
@@ -466,10 +450,8 @@ pub fn match_struct(msrc: Src, context: &MatchCxt, session: &Session) -> Option<
         point: start,
         coords: None,
         local: context.is_local,
-        mtype: Struct,
+        mtype: Struct(Box::new(generics)),
         contextstr: get_context(blob, "{"),
-        generic_args: generics,
-        generic_types: Vec::new(),
         docs: find_doc(&doc_src, start),
     })
 }
@@ -488,8 +470,6 @@ pub fn match_type(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Ma
         local: context.is_local,
         mtype: Type,
         contextstr: first_line(blob),
-        generic_args: Vec::new(),
-        generic_types: Vec::new(),
         docs: find_doc(&doc_src, start),
     })
 }
@@ -508,8 +488,6 @@ pub fn match_trait(msrc: Src, context: &MatchCxt, session: &Session) -> Option<M
         local: context.is_local,
         mtype: Trait,
         contextstr: get_context(blob, "{"),
-        generic_args: Vec::new(),
-        generic_types: Vec::new(),
         docs: find_doc(&doc_src, start),
     })
 }
@@ -534,8 +512,6 @@ pub fn match_enum_variants(msrc: &str, context: &MatchCxt) -> vec::IntoIter<Matc
                     local: context.is_local,
                     mtype: EnumVariant(None),
                     contextstr: first_line(&blob[offset.0..]),
-                    generic_args: Vec::new(),
-                    generic_types: Vec::new(),
                     docs: find_doc(msrc, start),
                 };
                 out.push(m);
@@ -551,12 +527,11 @@ pub fn match_enum(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Ma
 
     debug!("found!! an enum |{}|", s);
 
-    let generics = if let Some(generics_end) = find_generics_end(&blob[start.0..]) {
-        let header = format!("enum {}{{}}", &blob[start.0..=(start + generics_end).0]);
-        ast::parse_generics(header, context.filepath).get_idents()
-    } else {
-        Vec::new()
-    };
+    let generics =
+        find_generics_end(&blob[start.0..]).map_or_else(Default::default, |generics_end| {
+            let header = format!("enum {}{{}}", &blob[start.0..=(start + generics_end).0]);
+            ast::parse_generics(header, context.filepath)
+        });
     let start = context.range.start + start;
     let doc_src = session.load_raw_src_ranged(&msrc, context.filepath);
     Some(Match {
@@ -565,10 +540,8 @@ pub fn match_enum(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Ma
         point: start,
         coords: None,
         local: context.is_local,
-        mtype: Enum,
+        mtype: Enum(Box::new(generics)),
         contextstr: first_line(blob),
-        generic_args: generics,
-        generic_types: Vec::new(),
         docs: find_doc(&doc_src, start),
     })
 }
@@ -717,8 +690,6 @@ pub fn match_fn(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Matc
         local: context.is_local,
         mtype: Function,
         contextstr: get_context(blob, "{"),
-        generic_args: Vec::new(),
-        generic_types: Vec::new(),
         docs: find_doc(&doc_src, start),
     })
 }
@@ -740,8 +711,6 @@ pub fn match_macro(msrc: Src, context: &MatchCxt, session: &Session) -> Option<M
         local: context.is_local,
         mtype: Macro,
         contextstr: first_line(blob),
-        generic_args: Vec::new(),
-        generic_types: Vec::new(),
         docs: find_doc(&doc_src, context.range.start),
     })
 }

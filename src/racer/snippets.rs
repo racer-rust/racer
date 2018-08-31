@@ -31,7 +31,7 @@ use syntax::ast::ImplItemKind;
 /// assert_eq!(snip, "canonicalize(${1:path})");
 /// ```
 pub fn snippet_for_match(m: &Match, session: &Session) -> String {
-    if m.mtype == MatchType::Function {
+    if m.mtype.is_function() {
         let method = get_function_declaration(m, session);
         if let Some(m) = MethodInfo::from_source_str(&method) {
             m.snippet()
