@@ -429,11 +429,11 @@ impl TypeParameter {
     pub fn name(&self) -> &str {
         &(*self.name)
     }
-    pub(crate) fn into_match<P: AsRef<FilePath>>(self, filepath: &P) -> Option<Match> {
+    pub(crate) fn into_match(self) -> Option<Match> {
         // TODO: contextstr, local
         Some(Match {
             matchstr: self.name,
-            filepath: filepath.as_ref().to_path_buf(),
+            filepath: self.filepath,
             point: self.point,
             coords: None,
             local: false,

@@ -101,6 +101,19 @@ pub fn search_for_impl_methods(
             }
         }
         let trait_match = try_continue!(header.resolve_trait(session, &ImportInfo::default()));
+        let src = session.load_source_file(&trait_match.filepath);
+        if let Some(n) = src[trait_match.point.0..].find('{') {
+            let point = trait_match.point.increment() + n.into();
+            for m in search_scope_for_methods(
+                point,
+                src.as_src(),
+                fieldsearchstr,
+                &trait_match.filepath,
+                search_type,
+            ) {
+                out.push(m);
+            }
+        }
         // TODO: add deref support here?
         // if m.matchstr == "Deref" {
         //     out.extend(search_for_deref_matches(

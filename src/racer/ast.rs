@@ -743,7 +743,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
 fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session) -> Option<Ty> {
     match ty {
         Ty::PathSearch(ref fieldtypepath, ref scope) => {
-            println!("path_to_match_including_generics: {:?}  {:?}", ty, contextm);
+            debug!("path_to_match_including_generics: {:?}  {:?}", ty, contextm);
             if fieldtypepath.segments.len() == 1 {
                 let typename = &fieldtypepath.segments[0].name;
                 // could have generic args! - try and resolve them
@@ -770,7 +770,6 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
                     let mut out = find_type_match(&typepath, &scope.filepath, scope.point, session);
                     // Fix the paths on the generic types in out
                     // TODO(kngwyu): Only do this for Enum and Struct
-
                     if let Some(Ty::Match(ref mut m)) = out {
                         for type_search in contextm.resolved_generics() {
                             for gen_param in m.generics_mut() {
@@ -823,9 +822,15 @@ fn find_type_match_including_generics(
         // could be a generic arg! - try and resolve it
         let typename = &fieldtypepath.segments[0].name;
         for type_param in structm.generics() {
-            if type_param.name() == typename {
-                let path = type_param.to_racer_path();
-                return find_type_match(&path, &type_param.filepath, type_param.point, session);
+            if let Some(type_search) = type_param.resolved() {
+                if type_param.name() == typename {
+                    return find_type_match(
+                        &type_search.path,
+                        &type_search.filepath,
+                        type_search.point,
+                        session,
+                    );
+                }
             }
         }
     }
@@ -1265,7 +1270,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for FnArgTypeVisitor<'c, 's> {
                     if segments.len() == 1 {
                         let name = &segments[0].name;
                         if let Some(bounds) = self.generics.find_type_param(name) {
-                            let res = bounds.to_owned().into_match(filepath)?;
+                            let res = bounds.to_owned().into_match()?;
                             return Some(Ty::Match(res));
                         }
                     }

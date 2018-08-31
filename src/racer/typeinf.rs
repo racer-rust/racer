@@ -91,6 +91,11 @@ fn generates_skeleton_for_mod() {
 
 fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
     debug!("get_type_of_self_arg {:?}", m);
+    // match m.mtype {
+    //     core::MatchType::Method(impl_header) => {}
+    //     core::MatchType::Trait => {}
+    //     _ => {}
+    // }
     get_type_of_self(m.point, &m.filepath, m.local, msrc, session)
 }
 
@@ -462,19 +467,12 @@ pub fn get_return_type_of_function(
         debug!("get_return_type_of_function: passing in |{}|", decl);
         ast::parse_fn_output(decl, Scope::from_match(fnmatch))
     });
-
     // Convert output arg of type Self to the correct type
     if let Some(Ty::PathSearch(ref path, _)) = out {
         if let Some(ref path_seg) = path.segments.get(0) {
             if "Self" == path_seg.name {
                 return get_type_of_self_arg(fnmatch, src.as_src(), session);
             }
-        }
-    }
-
-    // Convert a generic output arg to the correct type
-    if let Some(Ty::PathSearch(ref path, _)) = out {
-        if let Some(ref path_seg) = path.segments.get(0) {
             if path.segments.len() == 1 && path_seg.types.is_empty() {
                 for type_param in fnmatch.generics() {
                     if type_param.name() == &path_seg.name {
@@ -483,6 +481,6 @@ pub fn get_return_type_of_function(
                 }
             }
         }
-    };
+    }
     out
 }
