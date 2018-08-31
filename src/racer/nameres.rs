@@ -1527,7 +1527,44 @@ pub fn get_super_scope(
     }
 }
 
-fn get_impls(
+fn get_enum_variants(
+    search_path: &PathSegment,
+    search_type: SearchType,
+    context: &Match,
+    session: &Session,
+) -> Vec<Match> {
+    let mut out = Vec::new();
+    match context.mtype {
+        MatchType::Enum => {
+            let filesrc = session.load_source_file(&context.filepath);
+            let scopestart = scopes::find_stmt_start(filesrc.as_src(), context.point)
+                .expect("[resolve_path] statement start was not found");
+            let scopesrc = filesrc.get_src_from_start(scopestart);
+            if let Some(blob_range) = scopesrc.iter_stmts().nth(0) {
+                let match_cxt = MatchCxt {
+                    filepath: &context.filepath,
+                    search_str: &search_path.name,
+                    search_type,
+                    range: blob_range.shift(scopestart),
+                    is_local: true,
+                };
+                for mut enum_var in matchers::match_enum_variants(&filesrc, &match_cxt) {
+                    debug!(
+                        "Found enum variant {} with enum type {}",
+                        enum_var.matchstr, context.matchstr
+                    );
+                    // return Match which has enum simultaneously, for method completion
+                    enum_var.mtype = MatchType::EnumVariant(Some(Box::new(context.clone())));
+                    out.push(enum_var);
+                }
+            }
+        }
+        _ => {}
+    }
+    out
+}
+
+fn get_impled_items(
     search_path: &PathSegment,
     namespace: Namespace,
     search_type: SearchType,
@@ -1536,92 +1573,80 @@ fn get_impls(
     import_info: &ImportInfo,
 ) -> Vec<Match> {
     let mut out = Vec::new();
-    // match context.mtype {
-    //     MatchType::Enum => {
-    //         let filesrc = session.load_source_file(&context.filepath);
-    //         let scopestart = scopes::find_stmt_start(filesrc.as_src(), context.point)
-    //             .expect("[resolve_path] statement start was not found");
-    //         let scopesrc = filesrc.get_src_from_start(scopestart);
-    //         if let Some(blob_range) = scopesrc.iter_stmts().nth(0) {
-    //             let match_cxt = MatchCxt {
-    //                 filepath: &context.filepath,
-    //                 search_str: &search_path.name,
-    //                 search_type,
-    //                 range: blob_range.shift(scopestart),
-    //                 is_local: true,
-    //             };
-    //             for mut enum_var in matchers::match_enum_variants(&filesrc, &match_cxt) {
-    //                 debug!(
-    //                     "Found enum variant {} with enum type {}",
-    //                     enum_var.matchstr, context.matchstr
-    //                 );
-    //                 // return Match which has enum simultaneously, for method completion
-    //                 enum_var.mtype = MatchType::EnumVariant(Some(Box::new(context.clone())));
-    //                 out.push(enum_var);
-    //             }
-    //         }
-    //     }
-    //     MatchType::Struct => {}
-    //     _ => return out,
-    // }
 
-    // for m_impl in search_for_impls(
-    //     context.point,
-    //     &context.matchstr,
-    //     &context.filepath,
-    //     context.local,
-    //     true,
-    //     session,
-    //     import_info,
-    // ) {
-    //     if m_impl.mtype != MatchType::Impl || m_impl.mtype != MatchType::TraitImpl {
-    //         continue;
-    //     }
-    //     let src = session.load_source_file(&m_impl.filepath);
-    //     // find the opening brace and skip to it.
-    //     if let Some(n) = src[m_impl.point.0..].find('{') {
-    //         let point = m_impl.point + BytePos(n + 1);
-    //         out.extend(search_scope(
-    //             point,
-    //             point,
-    //             src.as_src(),
-    //             &search_path,
-    //             &m_impl.filepath,
-    //             search_type,
-    //             m_impl.local,
-    //             namespace,
-    //             session,
-    //             import_info,
-    //         ));
-    //     }
-    //     for m_gen in search_for_generic_impls(
-    //         m_impl.point,
-    //         &m_impl.matchstr,
-    //         &context,
-    //         &m_impl.filepath,
-    //         session,
-    //     ) {
-    //         debug!("found generic impl!! {:?}", m_gen);
-    //         let src = session.load_source_file(&m_gen.filepath);
-    //         // find the opening brace and skip to it.
-    //         if let Some(n) = src[m_gen.point.0..].find('{') {
-    //             let point = m_gen.point + BytePos(n + 1);
-    //             out.extend(search_scope(
-    //                 point,
-    //                 point,
-    //                 src.as_src(),
-    //                 search_path,
-    //                 &m_gen.filepath,
-    //                 search_type,
-    //                 m_gen.local,
-    //                 namespace,
-    //                 session,
-    //                 import_info,
-    //             ));
-    //         }
-    //     }
-    // }
+    for header in search_for_impls(
+        context.point,
+        &context.matchstr,
+        &context.filepath,
+        context.local,
+        session,
+    ) {
+        let src = session.load_source_file(header.file_path());
+        // find the opening brace and skip to it.
+        if let Some(n) = src[header.impl_start().0..].find('{') {
+            let point = header.impl_start() + BytePos(n + 1);
+            out.extend(search_scope(
+                point,
+                point,
+                src.as_src(),
+                &search_path,
+                header.file_path(),
+                search_type,
+                header.is_local(),
+                namespace,
+                session,
+                import_info,
+            ));
+        }
+        let trait_match = try_continue!(header.resolve_trait(session, import_info));
+        for timpl_header in search_for_generic_impls(
+            trait_match.point,
+            &trait_match.matchstr,
+            &trait_match.filepath,
+            session,
+        ) {
+            debug!("found generic impl!! {:?}", timpl_header);
+            let src = session.load_source_file(timpl_header.file_path());
+            // find the opening brace and skip to it.
+            let impl_start = timpl_header.impl_start();
+            if let Some(n) = src[impl_start.0..].find('{') {
+                let point = impl_start + BytePos(n + 1);
+                out.extend(search_scope(
+                    point,
+                    point,
+                    src.as_src(),
+                    search_path,
+                    timpl_header.file_path(),
+                    search_type,
+                    timpl_header.is_local(),
+                    namespace,
+                    session,
+                    import_info,
+                ));
+            }
+        }
+    }
     out
+}
+
+fn get_path_items(
+    search_path: &PathSegment,
+    namespace: Namespace,
+    search_type: SearchType,
+    context: &Match,
+    session: &Session,
+    import_info: &ImportInfo,
+) -> Vec<Match> {
+    let mut vec = get_enum_variants(search_path, search_type, context, session);
+    vec.extend(get_impled_items(
+        search_path,
+        namespace,
+        search_type,
+        context,
+        session,
+        import_info,
+    ));
+    vec
 }
 
 pub fn resolve_path(
@@ -1720,7 +1745,7 @@ pub fn resolve_path(
                 ));
             }
             MatchType::Enum | MatchType::Struct => {
-                out.extend(get_impls(
+                out.extend(get_path_items(
                     &path.segments[len - 1],
                     namespace,
                     search_type,
@@ -1731,7 +1756,7 @@ pub fn resolve_path(
             }
             MatchType::Type => {
                 if let Some(match_) = ast::get_type_of_typedef(&m, session) {
-                    out.extend(get_impls(
+                    out.extend(get_path_items(
                         &path.segments[len - 1],
                         namespace,
                         search_type,
