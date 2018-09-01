@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::{self, vec};
 
-use ast_types::{ImplHeader, Path as RacerPath, PathPrefix, PathSearch, PathSegment, Ty};
+use ast_types::{ImplHeader, Path as RacerPath, PathPrefix, PathSegment, Ty};
 use core::Namespace;
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{BytePos, ByteRange, Coordinate, Match, MatchType, Session, SessionExt, Src};
@@ -85,6 +85,7 @@ pub fn search_for_impl_methods(
 
     for header in search_for_impls(point, implsearchstr, fpath, local, session) {
         debug!("found impl!! |{:?}| looking for methods", header);
+        let mut found_methods = HashSet::new();
         let src = session.load_source_file(header.file_path());
         for m in search_scope_for_methods(
             header.scope_start(),
@@ -93,6 +94,7 @@ pub fn search_for_impl_methods(
             header.file_path(),
             search_type,
         ) {
+            found_methods.insert(calculate_str_hash(&m.matchstr));
             out.push(m);
         }
         let trait_path = try_continue!(header.trait_path());
@@ -114,6 +116,7 @@ pub fn search_for_impl_methods(
                     session,
                 ));
             }
+            continue;
         }
         let trait_match = try_continue!(header.resolve_trait(session, &ImportInfo::default()));
         let src = session.load_source_file(&trait_match.filepath);
@@ -126,7 +129,9 @@ pub fn search_for_impl_methods(
                 &trait_match.filepath,
                 search_type,
             ) {
-                out.push(m);
+                if !found_methods.contains(&calculate_str_hash(&m.matchstr)) {
+                    out.push(m);
+                }
             }
         }
         for gen_impl_header in search_for_generic_impls(
@@ -369,7 +374,7 @@ fn search_for_impls(
             let decl = blob[..n + 1].to_owned() + "}";
             let start = blob_range.start + scope_start;
             let impl_header = try_continue!(ast::parse_impl(
-                blob.to_owned(),
+                decl,
                 filepath,
                 blob_range.start + scope_start,
                 local,
