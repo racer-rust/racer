@@ -433,10 +433,10 @@ fn completes_trait_bounded_methods_generic_return() {
     let cursor1 = Coordinate::new(24, 24);
     let cursor2 = Coordinate::new(25, 25);
     let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
-    let got2 = complete_from_file(&path, cursor2, &session).nth(0).unwrap();
-    println!("{:?}", got1);
-    println!("{:?}", got2);
+    println!("got1: {:?}", got1);
     assert_eq!(got1.matchstr, "structfn");
+    let got2 = complete_from_file(&path, cursor2, &session).nth(0).unwrap();
+    println!("{:?}", got2);
     assert_eq!(got2.matchstr, "traitfn");
 }
 
@@ -2245,12 +2245,6 @@ fn finds_unsafe_fn() {
 #[test]
 fn completes_methods_on_deref_type() {
     let modsrc = "
-    pub trait Deref {
-        type Target: ?Sized;
-
-        fn deref(&self) -> &Self::Target;
-    }
-
     pub struct B {
         c: C,
     }
@@ -2327,12 +2321,6 @@ fn finds_self_param_when_fn_has_generic_closure_arg() {
 #[test]
 fn completes_methods_on_deref_generic_type() {
     let modsrc = "
-    pub trait Deref {
-        type Target: ?Sized;
-
-        fn deref(&self) -> &Self::Target;
-    }
-
     pub struct B<T> {
         c: T,
     }
@@ -2881,7 +2869,7 @@ fn closure_scope_dont_match_type_annotations() {
 
     let got = get_definition(src, None);
     println!("{:?}", got);
-    assert_eq!(MatchType::Struct, got.mtype);
+    assert!(got.mtype.is_struct());
     assert_eq!(2, got.coords.unwrap().row.0);
 }
 
@@ -3173,7 +3161,7 @@ fn closure_dont_detect_normal_pipes() {
 
     let got = get_definition(src, None);
     assert_eq!("Fruit", got.matchstr);
-    assert_eq!(got.mtype, MatchType::Enum);
+    assert!(got.mtype.is_enum());
 }
 
 #[test]
@@ -4390,7 +4378,6 @@ fn follows_rand_crate() {
 }
 
 #[test]
-#[ignore]
 fn completes_trait_method_only_once() {
     let src = "
     trait Trait {
@@ -4398,6 +4385,7 @@ fn completes_trait_method_only_once() {
     }
     struct S;
     impl Trait for S {
+        type A = usize;
         fn function(&self) -> usize { 6 }
     }
     fn main() {

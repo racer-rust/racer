@@ -91,9 +91,15 @@ fn generates_skeleton_for_mod() {
 
 fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
     debug!("get_type_of_self_arg {:?}", m);
+    // match m.mtype {
+    //     core::MatchType::Method(impl_header) => {}
+    //     core::MatchType::Trait => {}
+    //     _ => {}
+    // }
     get_type_of_self(m.point, &m.filepath, m.local, msrc, session)
 }
 
+// TODO(kngwyu): parse correctly
 pub fn get_type_of_self(
     point: BytePos,
     filepath: &Path,
@@ -106,7 +112,7 @@ pub fn get_type_of_self(
     debug!("get_type_of_self_arg impl skeleton |{}|", decl);
 
     if decl.starts_with("impl") {
-        let implres = ast::parse_impl(decl, filepath, start)?;
+        let implres = ast::parse_impl(decl, filepath, start, local, start)?;
         debug!("get_type_of_self_arg implres |{:?}|", implres);
         resolve_path_with_str(
             implres.self_path(),
@@ -128,8 +134,6 @@ pub fn get_type_of_self(
                 local: local,
                 mtype: core::MatchType::Trait,
                 contextstr: matchers::first_line(&msrc[start.0..]),
-                generic_args: Vec::new(),
-                generic_types: Vec::new(),
                 docs: String::new(),
             }))
         })
@@ -297,7 +301,7 @@ pub fn get_struct_field_type(
     session: &Session,
 ) -> Option<Ty> {
     // temporary fix for https://github.com/rust-lang-nursery/rls/issues/783
-    if structmatch.mtype != core::MatchType::Struct {
+    if !structmatch.mtype.is_struct() {
         warn!(
             "get_struct_filed_type is called for {:?}",
             structmatch.mtype
@@ -340,7 +344,7 @@ pub fn get_tuplestruct_field_type(
             }).expect("Tuple enum variant should have `(` in definition");
         "struct ".to_owned() + &src[structmatch.point.0..to.increment().0] + ";"
     } else {
-        assert!(structmatch.mtype == core::MatchType::Struct);
+        assert!(structmatch.mtype.is_struct());
         let opoint = scopes::expect_stmt_start(src.as_src(), structmatch.point);
         (*get_first_stmt(src.as_src().shift_start(opoint))).to_owned()
     };
@@ -374,12 +378,13 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<Ty> {
         core::MatchType::For => get_type_of_for_expr(&m, msrc, session),
         core::MatchType::FnArg => get_type_of_fnarg(&m, msrc, session),
         core::MatchType::MatchArm => get_type_from_match_arm(&m, msrc, session),
-        core::MatchType::Struct
-        | core::MatchType::Enum
+        core::MatchType::Struct(_)
+        | core::MatchType::Enum(_)
         | core::MatchType::Function
+        | core::MatchType::Method(_)
         | core::MatchType::Module => Some(Ty::Match(m)),
         core::MatchType::EnumVariant(Some(boxed_enum)) => {
-            if boxed_enum.mtype == core::MatchType::Enum {
+            if boxed_enum.mtype.is_enum() {
                 Some(Ty::Match(*boxed_enum))
             } else {
                 debug!("EnumVariant has not-enum type: {:?}", boxed_enum.mtype);
@@ -463,27 +468,20 @@ pub fn get_return_type_of_function(
         debug!("get_return_type_of_function: passing in |{}|", decl);
         ast::parse_fn_output(decl, Scope::from_match(fnmatch))
     });
-
     // Convert output arg of type Self to the correct type
     if let Some(Ty::PathSearch(ref path, _)) = out {
         if let Some(ref path_seg) = path.segments.get(0) {
             if "Self" == path_seg.name {
                 return get_type_of_self_arg(fnmatch, src.as_src(), session);
             }
-        }
-    }
-
-    // Convert a generic output arg to the correct type
-    if let Some(Ty::PathSearch(ref path, _)) = out {
-        if let Some(ref path_seg) = path.segments.get(0) {
             if path.segments.len() == 1 && path_seg.types.is_empty() {
-                for type_name in &fnmatch.generic_args {
-                    if type_name == &path_seg.name {
+                for type_param in fnmatch.generics() {
+                    if type_param.name() == &path_seg.name {
                         return Some(Ty::Match(contextm.clone()));
                     }
                 }
             }
         }
-    };
+    }
     out
 }

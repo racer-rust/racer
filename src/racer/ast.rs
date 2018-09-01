@@ -206,8 +206,8 @@ fn destructure_pattern_to_ty(
     session: &Session,
 ) -> Option<Ty> {
     debug!(
-        "destructure_pattern_to_ty point {:?} ty {:?}    ||||||||    pat: {:?}",
-        point, ty, pat
+        "destructure_pattern_to_ty point {:?} ty {:?} pat: {:?}",
+        point, ty, pat.node
     );
     match pat.node {
         PatKind::Ident(_, ref spannedident, _) => {
@@ -444,7 +444,7 @@ fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
 
 fn find_type_match(path: &RacerPath, fpath: &Path, pos: BytePos, session: &Session) -> Option<Ty> {
     debug!("find_type_match {:?}, {:?}", path, fpath);
-    let res = resolve_path_with_str(
+    let mut res = resolve_path_with_str(
         path,
         fpath,
         pos,
@@ -455,20 +455,17 @@ fn find_type_match(path: &RacerPath, fpath: &Path, pos: BytePos, session: &Sessi
     .and_then(|m| match m.mtype {
         MatchType::Type => get_type_of_typedef(&m, session),
         _ => Some(m),
-    });
-
-    res.and_then(|mut m| {
-        // add generic types to match (if any)
-        let mut types: Vec<PathSearch> = path
-            .generic_types()
-            .map(|typepath| PathSearch {
-                path: typepath.clone(),
-                filepath: fpath.to_path_buf(),
-                point: pos,
-            }).collect();
-        m.generic_types.append(&mut types);
-        Some(Ty::Match(m))
-    })
+    })?;
+    // TODO: 'Type' support
+    // if res is Enum/Struct and has a generic type paramter, let's resolve it.
+    for (mut param, typ) in res.generics_mut().zip(path.generic_types()) {
+        param.resolve(PathSearch {
+            path: typ.clone(),
+            filepath: fpath.to_owned(),
+            point: pos,
+        })
+    }
+    Some(Ty::Match(res))
 }
 
 pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match> {
@@ -553,11 +550,11 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 self.result = self.result.take().and_then(|m| {
                     if let Ty::Match(m) = m {
                         match m.mtype {
-                            MatchType::Function => {
+                            MatchType::Function | MatchType::Method(_) => {
                                 typeinf::get_return_type_of_function(&m, &m, self.session)
                                     .and_then(|ty| path_to_match(ty, self.session))
                             }
-                            MatchType::Struct | MatchType::Enum => Some(Ty::Match(m)),
+                            MatchType::Struct(_) | MatchType::Enum(_) => Some(Ty::Match(m)),
                             _ => {
                                 debug!(
                                     "ExprTypeVisitor: Cannot handle ExprCall of {:?} type",
@@ -681,21 +678,17 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     // HACK for speed up (kngwyu)
                     // Yeah there're many corner cases but it'll work well in most cases
                     if m.matchstr == "Result" || m.matchstr == "Option" {
-                        m.generic_types.get(0).and_then(|ok_var| {
+                        debug!("Option or Result: {:?}", m);
+                        m.resolved_generics().next().and_then(|ok_param| {
                             find_type_match(
-                                &ok_var.path,
-                                &ok_var.filepath,
-                                ok_var.point,
+                                &ok_param.path,
+                                &ok_param.filepath,
+                                ok_param.point,
                                 self.session,
                             )
                         })
                     } else {
-                        debug!(
-                            "Unable to desugar Try expression; type was {} with arity {} of {}",
-                            m.matchstr,
-                            m.generic_types.len(),
-                            m.generic_args.len()
-                        );
+                        debug!("Unable to desugar Try expression; type was {:?}", m);
                         None
                     }
                 } else {
@@ -748,51 +741,48 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
 
 // gets generics info from the context match
 fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session) -> Option<Ty> {
+    debug!("path_to_match_including_generics: {:?}  {:?}", ty, contextm);
     match ty {
         Ty::PathSearch(ref fieldtypepath, ref scope) => {
-            debug!("path_to_match_including_generics: {:?}  {:?}", ty, contextm);
             if fieldtypepath.segments.len() == 1 {
+                let typename = &fieldtypepath.segments[0].name;
                 // could have generic args! - try and resolve them
-                let typename = fieldtypepath.segments[0].name.clone();
-                let it = contextm
-                    .generic_args
-                    .iter()
-                    .cloned()
-                    .zip(contextm.generic_types.iter().cloned());
-                let mut typepath = fieldtypepath.clone();
+                let mut typepath = fieldtypepath.to_owned();
                 let mut gentypefound = false;
-
-                for (name, typesearch) in it.clone() {
-                    if name == typename {
-                        // yes! a generic type match!
+                for type_param in contextm.generics() {
+                    let resolved = try_continue!(type_param.resolved());
+                    if type_param.name() == typename {
                         return find_type_match(
-                            &typesearch.path,
-                            &typesearch.filepath,
-                            typesearch.point,
+                            &resolved.path,
+                            &resolved.filepath,
+                            resolved.point,
                             session,
                         );
                     }
-
                     for typ in &mut typepath.segments[0].types {
-                        let gentypename = typ.segments[0].name.clone();
-                        if name == gentypename {
-                            // A generic type on ty matches one on contextm
-                            *typ = typesearch.path.clone(); // Overwrite the type with the one from contextm
+                        if type_param.name() == &typ.segments[0].name {
+                            *typ = resolved.path.clone();
                             gentypefound = true;
                         }
                     }
                 }
-
                 if gentypefound {
                     let mut out = find_type_match(&typepath, &scope.filepath, scope.point, session);
-
                     // Fix the paths on the generic types in out
+                    // TODO(kngwyu): I DON'T KNOW WHAT THIS CODE DO COMPLETELY
                     if let Some(Ty::Match(ref mut m)) = out {
-                        for (_, typesearch) in it {
-                            for gentypematch in m.generic_types.iter_mut().filter(|ty| {
-                                ty.path.segments[0].name == typesearch.path.segments[0].name
-                            }) {
-                                *gentypematch = typesearch.clone();
+                        for type_search in contextm.resolved_generics() {
+                            for gen_param in m.generics_mut() {
+                                debug!(
+                                    "gen_param: {:?}, type_search: {:?}",
+                                    gen_param, type_search
+                                );
+                                let same_name = gen_param.resolved().map_or(false, |typ| {
+                                    typ.path.segments[0].name == type_search.path.segments[0].name
+                                });
+                                if same_name {
+                                    gen_param.resolve(type_search.to_owned());
+                                }
                             }
                         }
                     }
@@ -838,19 +828,16 @@ fn find_type_match_including_generics(
     if fieldtypepath.segments.len() == 1 {
         // could be a generic arg! - try and resolve it
         let typename = &fieldtypepath.segments[0].name;
-        let it = structm
-            .generic_args
-            .iter()
-            .zip(structm.generic_types.iter());
-        for (name, typesearch) in it {
-            if name == typename {
-                // yes! a generic type match!
-                return find_type_match(
-                    &typesearch.path,
-                    &typesearch.filepath,
-                    typesearch.point,
-                    session,
-                );
+        for type_param in structm.generics() {
+            if let Some(type_search) = type_param.resolved() {
+                if type_param.name() == typename {
+                    return find_type_match(
+                        &type_search.path,
+                        &type_search.filepath,
+                        type_search.point,
+                        session,
+                    );
+                }
             }
         }
     }
@@ -887,6 +874,7 @@ impl<'ast> visit::Visitor<'ast> for StructVisitor {
     }
 }
 
+#[derive(Debug)]
 pub struct TypeVisitor {
     pub name: Option<String>,
     pub type_: Option<RacerPath>,
@@ -936,14 +924,18 @@ pub struct ImplVisitor<'p> {
     pub result: Option<ImplHeader>,
     filepath: &'p Path,
     offset: BytePos,
+    block_start: BytePos, // the point { appears
+    local: bool,
 }
 
 impl<'p> ImplVisitor<'p> {
-    fn new(filepath: &'p Path, offset: BytePos) -> Self {
+    fn new(filepath: &'p Path, offset: BytePos, local: bool, block_start: BytePos) -> Self {
         ImplVisitor {
             result: None,
             filepath,
             offset,
+            block_start,
+            local,
         }
     }
 }
@@ -958,7 +950,9 @@ impl<'ast, 'p> visit::Visitor<'ast> for ImplVisitor<'p> {
                 otrait,
                 self_typ,
                 self.offset,
+                self.local,
                 impl_start,
+                self.block_start,
             );
         }
     }
@@ -1060,8 +1054,14 @@ pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, BytePos, Opt
     v.fields
 }
 
-pub fn parse_impl(s: String, path: &Path, offset: BytePos) -> Option<ImplHeader> {
-    let mut v = ImplVisitor::new(path, offset);
+pub fn parse_impl(
+    s: String,
+    path: &Path,
+    offset: BytePos,
+    local: bool,
+    scope_start: BytePos,
+) -> Option<ImplHeader> {
+    let mut v = ImplVisitor::new(path, offset, local, scope_start);
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.result
 }
@@ -1094,23 +1094,6 @@ pub fn parse_generics(s: String, filepath: &Path) -> GenericsArgs {
     };
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.result
-}
-
-pub fn parse_generics_and_impl(
-    s: String,
-    filepath: &Path,
-    offset: BytePos,
-) -> (GenericsArgs, Option<ImplHeader>) {
-    let mut v = GenericsVisitor {
-        result: GenericsArgs::default(),
-        filepath: filepath,
-    };
-    let mut w = ImplVisitor::new(filepath, offset);
-    with_stmt(s, |stmt| {
-        visit::walk_stmt(&mut v, stmt);
-        visit::walk_stmt(&mut w, stmt);
-    });
-    (v.result, w.result)
 }
 
 pub fn parse_type(s: String) -> TypeVisitor {
@@ -1281,7 +1264,6 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for FnArgTypeVisitor<'c, 's> {
     ) {
         debug!("[FnArgTypeVisitor::visit_fn] inputs: {:?}", fd.inputs);
         // Get generics arguments here (just for speed up)
-        let filepath = &self.scope.filepath;
         self.result = fd
             .inputs
             .iter()
@@ -1304,7 +1286,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for FnArgTypeVisitor<'c, 's> {
                     if segments.len() == 1 {
                         let name = &segments[0].name;
                         if let Some(bounds) = self.generics.find_type_param(name) {
-                            let res = bounds.to_owned().into_match(filepath)?;
+                            let res = bounds.to_owned().into_match()?;
                             return Some(Ty::Match(res));
                         }
                     }

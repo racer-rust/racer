@@ -1,11 +1,11 @@
 //! type conversion between racer types and libsyntax types
 use core::{self, BytePos, Match, MatchType, Scope, Session};
+use matchers::ImportInfo;
 use nameres;
 use std::fmt;
 use std::path::{Path as FilePath, PathBuf};
 use syntax::ast::{
-    self, GenericArg, GenericArgs, GenericBound, GenericBounds, GenericParamKind, TraitRef, TyKind,
-    WherePredicate,
+    self, GenericBound, GenericBounds, GenericParamKind, TraitRef, TyKind, WherePredicate,
 };
 use syntax::print::pprust;
 use syntax::source_map;
@@ -145,6 +145,10 @@ pub struct Path {
 }
 
 impl Path {
+    pub fn is_single(&self) -> bool {
+        self.segments.len() == 1
+    }
+
     pub fn from_ast(path: &ast::Path) -> Path {
         let mut segments = Vec::new();
         for seg in path.segments.iter() {
@@ -152,9 +156,9 @@ impl Path {
             let mut types = Vec::new();
             // TODO: support GenericArgs::Parenthesized (A path like `Foo(A,B) -> C`)
             if let Some(ref params) = seg.args {
-                if let GenericArgs::AngleBracketed(ref angle_args) = **params {
+                if let ast::GenericArgs::AngleBracketed(ref angle_args) = **params {
                     angle_args.args.iter().for_each(|arg| {
-                        if let GenericArg::Type(ty) = arg {
+                        if let ast::GenericArg::Type(ty) = arg {
                             if let TyKind::Path(_, ref path) = ty.node {
                                 types.push(Path::from_ast(path));
                             }
@@ -229,6 +233,10 @@ impl Path {
 
     pub fn len(&self) -> usize {
         self.segments.len()
+    }
+
+    pub fn name(&self) -> Option<&str> {
+        self.segments.last().map(|seg| &*seg.name)
     }
 }
 
@@ -398,46 +406,65 @@ impl TraitBounds {
     fn extend(&mut self, other: Self) {
         self.0.extend(other.0)
     }
+    fn to_paths(&self) -> Vec<Path> {
+        self.0.iter().map(|paths| paths.path.clone()).collect()
+    }
 }
 
 /// Argument of generics like T: From<String>
 /// It's intended to use this type only for declaration of type parameter.
 // TODO: impl trait's name
+// TODO: it has too many PathBuf
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypeParameter {
     /// the name of type parameter declared in generics, like 'T'
     pub name: String,
     /// The point 'T' appears
     pub point: BytePos,
+    /// file path
+    pub filepath: PathBuf,
     /// bounds
     pub bounds: TraitBounds,
+    /// Resolved Type
+    pub resolved: Option<PathSearch>,
 }
 
 impl TypeParameter {
     pub fn name(&self) -> &str {
         &(*self.name)
     }
-    pub(crate) fn into_match<P: AsRef<FilePath>>(self, filepath: &P) -> Option<Match> {
+    pub(crate) fn into_match(self) -> Option<Match> {
         // TODO: contextstr, local
         Some(Match {
             matchstr: self.name,
-            filepath: filepath.as_ref().to_path_buf(),
+            filepath: self.filepath,
             point: self.point,
             coords: None,
             local: false,
             mtype: MatchType::TypeParameter(Box::new(self.bounds)),
             contextstr: String::new(),
-            generic_args: Vec::new(),
-            generic_types: Vec::new(),
             docs: String::new(),
         })
+    }
+    pub(crate) fn resolve(&mut self, paths: PathSearch) {
+        self.resolved = Some(paths);
+    }
+    pub(crate) fn resolved(&self) -> Option<&PathSearch> {
+        self.resolved.as_ref()
+    }
+    pub fn to_racer_path(&self) -> Path {
+        let segment = PathSegment {
+            name: self.name.clone(),
+            types: self.bounds.to_paths(),
+        };
+        Path::single(segment)
     }
 }
 
 /// List of Args in generics, e.g. <T: Clone, U, P>
 /// Now it's intended to use only for type parameters
 // TODO: should we extend this type enable to handle both type parameters and true types?
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct GenericsArgs(pub Vec<TypeParameter>);
 
 impl GenericsArgs {
@@ -465,7 +492,9 @@ impl GenericsArgs {
                     args.push(TypeParameter {
                         name: param_name,
                         point: BytePos::from((point as i32 + offset) as u32),
+                        filepath: filepath.as_ref().to_path_buf(),
                         bounds,
+                        resolved: None,
                     })
                 }
             }
@@ -499,19 +528,37 @@ impl GenericsArgs {
     pub fn get_idents(&self) -> Vec<String> {
         self.0.iter().map(|g| g.name.clone()).collect()
     }
-    pub fn params(&self) -> impl Iterator<Item = &TypeParameter> {
+    pub fn args(&self) -> impl Iterator<Item = &TypeParameter> {
         self.0.iter()
+    }
+    pub fn args_mut(&mut self) -> impl Iterator<Item = &mut TypeParameter> {
+        self.0.iter_mut()
+    }
+    pub fn search_param_by_path(&self, path: &Path) -> Option<(usize, &TypeParameter)> {
+        if !path.is_single() {
+            return None;
+        }
+        let query = &path.segments[0].name;
+        for (i, typ) in self.0.iter().enumerate() {
+            if typ.name() == query {
+                return Some((i, typ));
+            }
+        }
+        None
     }
 }
 
 /// `Impl` information
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ImplHeader {
-    self_: Path,
-    trait_: Option<Path>,
+    self_path: Path,
+    trait_path: Option<Path>,
     generics: GenericsArgs,
     filepath: PathBuf,
+    // TODO: should be removed
+    local: bool,
     impl_start: BytePos,
+    block_start: BytePos,
 }
 
 impl ImplHeader {
@@ -521,24 +568,28 @@ impl ImplHeader {
         otrait: &Option<TraitRef>,
         self_type: &ast::Ty,
         offset: BytePos,
+        local: bool,
         impl_start: BytePos,
+        block_start: BytePos,
     ) -> Option<Self> {
         let generics = GenericsArgs::from_generics(generics, path, offset.0 as i32);
-        let self_ = destruct_ref_ptr(&self_type.node).map(Path::from_ast)?;
-        let trait_ = otrait.as_ref().map(|tref| Path::from_ast(&tref.path));
+        let self_path = destruct_ref_ptr(&self_type.node).map(Path::from_ast)?;
+        let trait_path = otrait.as_ref().map(|tref| Path::from_ast(&tref.path));
         Some(ImplHeader {
-            self_,
-            trait_,
+            self_path,
+            trait_path,
             generics,
             filepath: path.to_owned(),
+            local,
             impl_start,
+            block_start,
         })
     }
     pub(crate) fn self_path(&self) -> &Path {
-        &self.self_
+        &self.self_path
     }
     pub(crate) fn trait_path(&self) -> Option<&Path> {
-        self.trait_.as_ref()
+        self.trait_path.as_ref()
     }
     pub(crate) fn file_path(&self) -> &FilePath {
         self.filepath.as_ref()
@@ -548,6 +599,31 @@ impl ImplHeader {
     }
     pub(crate) fn impl_start(&self) -> BytePos {
         self.impl_start
+    }
+    // TODO: should be removed
+    pub(crate) fn is_local(&self) -> bool {
+        self.local || self.trait_path.is_some()
+    }
+    pub(crate) fn is_trait(&self) -> bool {
+        self.trait_path.is_some()
+    }
+    pub(crate) fn resolve_trait(
+        &self,
+        session: &Session,
+        import_info: &ImportInfo,
+    ) -> Option<Match> {
+        nameres::resolve_path(
+            self.trait_path()?,
+            self.file_path(),
+            self.impl_start,
+            core::SearchType::ExactMatch,
+            core::Namespace::Type,
+            session,
+            import_info,
+        ).nth(0)
+    }
+    pub(crate) fn scope_start(&self) -> BytePos {
+        self.block_start.increment()
     }
 }
 
