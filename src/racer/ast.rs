@@ -1,6 +1,6 @@
 use ast_types::Path as RacerPath;
 use ast_types::{
-    self, GenericsArgs, ImplHeader, PathAlias, PathAliasKind, PathSearch, TraitBounds, Ty,
+    self, GenericsArgs, ImplHeader, PathAlias, PathAliasKind, PathSearch, Pattern, TraitBounds, Ty,
 };
 use core::{self, BytePos, ByteRange, Match, MatchType, Scope, Session, SessionExt};
 use nameres::{self, resolve_path_with_str};
@@ -1329,4 +1329,49 @@ where
             ));
         }
     }
+}
+
+/// Visitor for for ~ in .. statement
+pub(crate) struct ForStmtVisitor<'r, 's: 'r> {
+    pub(crate) for_pat: Option<Pattern>,
+    pub(crate) in_expr: Option<Ty>,
+    scope: Scope,
+    session: &'r Session<'s>,
+}
+
+impl<'ast, 'r, 's> visit::Visitor<'ast> for ForStmtVisitor<'r, 's> {
+    fn visit_expr(&mut self, ex: &'ast ast::Expr) {
+        if let ExprKind::ForLoop(ref pat, ref expr, _, _) = ex.node {
+            let mut expr_visitor = ExprTypeVisitor {
+                scope: self.scope.clone(),
+                session: self.session,
+                result: None,
+            };
+            expr_visitor.visit_expr(expr);
+            self.for_pat = Pattern::from_ast(&pat.node);
+            if let Some(ref for_) = self.for_pat {
+                match for_ {
+                    Pattern::Ident(..) | Pattern::Tuple(..) | Pattern::Ref(..) => {
+                        self.in_expr = expr_visitor.result;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
+pub(crate) fn parse_for_stmt<'r, 's: 'r>(
+    s: String,
+    scope: Scope,
+    session: &'r Session<'s>,
+) -> ForStmtVisitor<'r, 's> {
+    let mut v = ForStmtVisitor {
+        for_pat: None,
+        in_expr: None,
+        scope,
+        session,
+    };
+    with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
+    v
 }

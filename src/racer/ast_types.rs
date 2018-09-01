@@ -5,8 +5,10 @@ use nameres;
 use std::fmt;
 use std::path::{Path as FilePath, PathBuf};
 use syntax::ast::{
-    self, GenericBound, GenericBounds, GenericParamKind, TraitRef, TyKind, WherePredicate,
+    self, GenericBound, GenericBounds, GenericParamKind, PatKind, TraitRef, TyKind, WherePredicate,
 };
+// we can only re-export types without thread-local interned string
+pub use syntax::ast::{BindingMode, Mutability};
 use syntax::print::pprust;
 use syntax::source_map;
 
@@ -111,6 +113,73 @@ impl fmt::Display for Ty {
             Ty::RefPtr(ref ty) => write!(f, "&{}", ty),
             Ty::Unsupported => write!(f, "_"),
         }
+    }
+}
+
+/// Compatible type for syntax::ast::PatKind
+/// but currently doesn't support all kinds
+#[derive(Clone, Debug, PartialEq)]
+pub enum Pattern {
+    Wild,
+    Ident(BindingMode, String),
+    Struct(Path, Vec<FieldPat>),
+    TupleStruct(Path, Vec<Pattern>),
+    Path(Path),
+    Tuple(Vec<Pattern>),
+    Ref(Box<Pattern>, Mutability),
+    Lit,
+    Range,
+}
+
+impl Pattern {
+    pub fn from_ast(pat: &PatKind) -> Option<Self> {
+        Some(match pat {
+            PatKind::Wild => Pattern::Wild,
+            PatKind::Ident(bi, ident, _) => Pattern::Ident(*bi, ident.to_string()),
+            PatKind::Struct(path, fields, _) => {
+                let path = Path::from_ast(path);
+                let fields = fields
+                    .iter()
+                    .filter_map(|fld| FieldPat::from_ast(&fld.node))
+                    .collect();
+                Pattern::Struct(path, fields)
+            }
+            PatKind::TupleStruct(path, pats, _) => {
+                let path = Path::from_ast(path);
+                let pats = pats
+                    .iter()
+                    .filter_map(|pat| Pattern::from_ast(&pat.node))
+                    .collect();
+                Pattern::TupleStruct(path, pats)
+            }
+            PatKind::Path(_, path) => Pattern::Path(Path::from_ast(&path)),
+            PatKind::Tuple(pats, _) => {
+                let pats = pats
+                    .iter()
+                    .filter_map(|pat| Pattern::from_ast(&pat.node))
+                    .collect();
+                Pattern::Tuple(pats)
+            }
+            PatKind::Ref(pat, mut_) => Pattern::Ref(Box::new(Pattern::from_ast(&pat.node)?), *mut_),
+            PatKind::Lit(_) => Pattern::Lit,
+            PatKind::Range(..) => Pattern::Range,
+            _ => return None,
+        })
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FieldPat {
+    pub field_name: String,
+    pub pat: Box<Pattern>,
+}
+
+impl FieldPat {
+    pub fn from_ast(fpat: &ast::FieldPat) -> Option<Self> {
+        Some(FieldPat {
+            field_name: fpat.ident.to_string(),
+            pat: Box::new(Pattern::from_ast(&fpat.pat.node)?),
+        })
     }
 }
 

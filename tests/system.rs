@@ -4396,3 +4396,31 @@ fn completes_trait_method_only_once() {
     let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "function");
 }
+
+#[test]
+fn completes_methods_for_for_arg() {
+    let src = "
+    fn main() {
+        let v: Vec<String> = vec![];
+        for s in v {
+            s.ca~
+        }
+    }
+    ";
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "capacity");
+}
+
+#[test]
+fn completes_methods_for_tupled_for_arg() {
+    let src = "
+    fn main() {
+        let v: Vec<(String, usize)> = vec![];
+        for (s, i) in v {
+            s.ca~
+        }
+    }
+    ";
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "capacity");
+}

@@ -112,7 +112,6 @@ pub fn search_for_impl_methods(
                     match_request,
                     &header,
                     fieldsearchstr,
-                    fpath,
                     session,
                 ));
             }
@@ -345,7 +344,6 @@ fn impl_scope_start(blob: &str) -> Option<usize> {
     None
 }
 
-// this function shouldn't be looked from outer
 // get impl headers from scope
 fn search_for_impls(
     pos: BytePos,
@@ -386,6 +384,66 @@ fn search_for_impls(
                 .map_or(false, |name| symbol_matches(ExactMatch, searchstr, name));
             if matched {
                 out.push(impl_header);
+            }
+        }
+    }
+    out
+}
+
+// trait_only version of search_for_impls
+// needs both `Self` type name and trait name
+fn search_trait_impls(
+    pos: BytePos,
+    self_search: &str,
+    trait_search: &str,
+    once: bool,
+    filepath: &Path,
+    local: bool,
+    session: &Session,
+) -> Vec<ImplHeader> {
+    debug!(
+        "search_trait_impls {:?}, {}, {}, {:?}",
+        pos,
+        self_search,
+        trait_search,
+        filepath.display()
+    );
+    let s = session.load_source_file(filepath);
+    let scope_start = scopes::scope_start(s.as_src(), pos);
+    let src = s.get_src_from_start(scope_start);
+
+    let mut out = Vec::new();
+    for blob_range in src.iter_stmts() {
+        let blob = &src[blob_range.to_range()];
+        if let Some(n) = impl_scope_start(blob) {
+            if !txt_matches(ExactMatch, self_search, &blob[..n + 1]) {
+                continue;
+            }
+            let decl = blob[..n + 1].to_owned() + "}";
+            let start = blob_range.start + scope_start;
+            let impl_header = try_continue!(ast::parse_impl(
+                decl,
+                filepath,
+                blob_range.start + scope_start,
+                local,
+                start + n.into(),
+            ));
+            let self_matched = impl_header
+                .self_path()
+                .name()
+                .map_or(false, |name| symbol_matches(ExactMatch, self_search, name));
+            if !self_matched {
+                continue;
+            }
+            let trait_matched = impl_header
+                .trait_path()
+                .and_then(|tpath| Some(symbol_matches(ExactMatch, trait_search, tpath.name()?)))
+                .unwrap_or(false);
+            if trait_matched {
+                out.push(impl_header);
+                if once {
+                    break;
+                }
             }
         }
     }
@@ -2043,7 +2101,7 @@ pub fn search_for_field_or_method(
     searchstr: &str,
     search_type: SearchType,
     session: &Session,
-) -> vec::IntoIter<Match> {
+) -> Vec<Match> {
     let m = context;
     let mut out = Vec::new();
     // for Trait and TypeParameter
@@ -2130,7 +2188,7 @@ pub fn search_for_field_or_method(
             );
         }
     };
-    out.into_iter()
+    out
 }
 
 fn search_for_deref_matches(
@@ -2138,10 +2196,22 @@ fn search_for_deref_matches(
     type_match: &Match,      // the type which implements Deref
     impl_header: &ImplHeader,
     fieldsearchstr: &str,
-    fpath: &Path,
     session: &Session,
 ) -> Vec<Match> {
-    let mut out = Vec::new();
+    get_assoc_type_from_header(target_path, type_match, impl_header, session).map_or_else(
+        Vec::new,
+        |ty_match| {
+            search_for_field_or_method(ty_match, fieldsearchstr, SearchType::StartsWith, session)
+        },
+    )
+}
+
+fn get_assoc_type_from_header(
+    target_path: &RacerPath, // target = ~
+    type_match: &Match,      // the type which implements Deref
+    impl_header: &ImplHeader,
+    session: &Session,
+) -> Option<Match> {
     debug!(
         "[search_for_deref_matches] target: {:?} impl: {:?}",
         target_path, impl_header
@@ -2149,39 +2219,26 @@ fn search_for_deref_matches(
     if let Some((pos, _)) = impl_header.generics().search_param_by_path(target_path) {
         if let Some(path_search) = type_match.resolved_generics().nth(pos) {
             // TODO(kngwyu): does it work for nested generics?
-            if let Some(type_match) = resolve_path_with_str(
+            return resolve_path_with_str(
                 &path_search.path,
                 &path_search.filepath,
                 BytePos::ZERO,
                 SearchType::ExactMatch,
                 Namespace::Type,
                 session,
-            ).nth(0)
-            {
-                out.extend(search_for_field_or_method(
-                    type_match,
-                    fieldsearchstr,
-                    SearchType::StartsWith,
-                    session,
-                ));
-            }
+            ).nth(0);
         }
     } else {
-        let type_match = resolve_path_with_str(
+        return resolve_path_with_str(
             &target_path,
-            fpath,
+            impl_header.file_path(),
             BytePos::ZERO,
             SearchType::ExactMatch,
             Namespace::Type,
             session,
         ).nth(0);
-        if let Some(m) = type_match {
-            let methods =
-                search_for_field_or_method(m, fieldsearchstr, SearchType::StartsWith, session);
-            out.extend(methods);
-        }
     }
-    out
+    None
 }
 
 fn get_std_macros(
@@ -2300,4 +2357,26 @@ fn get_std_macros_(
             })
         }));
     }
+}
+
+pub(crate) fn get_intoiter_target(selfm: &Match, session: &Session) -> Option<Match> {
+    let into_iter_header = search_trait_impls(
+        selfm.point,
+        &selfm.matchstr,
+        "IntoIterator",
+        true,
+        &selfm.filepath,
+        selfm.local,
+        session,
+    ).into_iter()
+    .next()?;
+    let item = search_scope_for_impled_assoc_types(
+        &into_iter_header,
+        "Item",
+        core::SearchType::ExactMatch,
+        session,
+    );
+    item.get(0).and_then(|(_, item_path)| {
+        get_assoc_type_from_header(item_path, selfm, &into_iter_header, session)
+    })
 }
