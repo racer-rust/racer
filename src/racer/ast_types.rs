@@ -145,6 +145,10 @@ pub struct Path {
 }
 
 impl Path {
+    pub fn is_single(&self) -> bool {
+        self.segments.len() == 1
+    }
+
     pub fn from_ast(path: &ast::Path) -> Path {
         let mut segments = Vec::new();
         for seg in path.segments.iter() {
@@ -529,6 +533,18 @@ impl GenericsArgs {
     }
     pub fn args_mut(&mut self) -> impl Iterator<Item = &mut TypeParameter> {
         self.0.iter_mut()
+    }
+    pub fn search_param_by_path(&self, path: &Path) -> Option<(usize, &TypeParameter)> {
+        if !path.is_single() {
+            return None;
+        }
+        let query = &path.segments[0].name;
+        for (i, typ) in self.0.iter().enumerate() {
+            if typ.name() == query {
+                return Some((i, typ));
+            }
+        }
+        None
     }
 }
 

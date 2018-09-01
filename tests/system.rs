@@ -432,9 +432,9 @@ fn completes_trait_bounded_methods_generic_return() {
     let session = racer::Session::new(&cache);
     let cursor1 = Coordinate::new(24, 24);
     let cursor2 = Coordinate::new(25, 25);
-    // let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
-    // println!("got1: {:?}", got1);
-    // assert_eq!(got1.matchstr, "structfn");
+    let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
+    println!("got1: {:?}", got1);
+    assert_eq!(got1.matchstr, "structfn");
     let got2 = complete_from_file(&path, cursor2, &session).nth(0).unwrap();
     println!("{:?}", got2);
     assert_eq!(got2.matchstr, "traitfn");
@@ -2245,12 +2245,6 @@ fn finds_unsafe_fn() {
 #[test]
 fn completes_methods_on_deref_type() {
     let modsrc = "
-    pub trait Deref {
-        type Target: ?Sized;
-
-        fn deref(&self) -> &Self::Target;
-    }
-
     pub struct B {
         c: C,
     }
@@ -2327,12 +2321,6 @@ fn finds_self_param_when_fn_has_generic_closure_arg() {
 #[test]
 fn completes_methods_on_deref_generic_type() {
     let modsrc = "
-    pub trait Deref {
-        type Target: ?Sized;
-
-        fn deref(&self) -> &Self::Target;
-    }
-
     pub struct B<T> {
         c: T,
     }

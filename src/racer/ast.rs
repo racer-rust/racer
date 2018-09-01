@@ -874,6 +874,7 @@ impl<'ast> visit::Visitor<'ast> for StructVisitor {
     }
 }
 
+#[derive(Debug)]
 pub struct TypeVisitor {
     pub name: Option<String>,
     pub type_: Option<RacerPath>,
@@ -1327,14 +1328,5 @@ where
                 self.offset,
             ));
         }
-    }
-}
-
-/// Visitor for impl items
-pub struct ImplItemVisitor {}
-
-impl<'ast> visit::Visitor<'ast> for ImplItemVisitor {
-    fn visit_impl_item(&mut self, item: &'ast ast::ImplItem) {
-        println!("{:?}", item.node);
     }
 }

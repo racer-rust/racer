@@ -95,6 +95,26 @@ pub fn search_for_impl_methods(
         ) {
             out.push(m);
         }
+        let trait_path = try_continue!(header.trait_path());
+        // search methods coerced by deref
+        if trait_path.name() == Some("Deref") {
+            let target = search_scope_for_impled_assoc_types(
+                &header,
+                "Target",
+                SearchType::ExactMatch,
+                session,
+            );
+            if let Some((_, target_path)) = target.get(0) {
+                out.extend(search_for_deref_matches(
+                    target_path,
+                    match_request,
+                    &header,
+                    fieldsearchstr,
+                    fpath,
+                    session,
+                ));
+            }
+        }
         let trait_match = try_continue!(header.resolve_trait(session, &ImportInfo::default()));
         let src = session.load_source_file(&trait_match.filepath);
         if let Some(n) = src[trait_match.point.0..].find('{') {
@@ -108,15 +128,6 @@ pub fn search_for_impl_methods(
             ) {
                 out.push(m);
             }
-        }
-        if trait_match.matchstr == "Deref" {
-            out.extend(search_for_deref_matches(
-                &trait_match,
-                match_request,
-                fieldsearchstr,
-                fpath,
-                session,
-            ));
         }
         for gen_impl_header in search_for_generic_impls(
             trait_match.point,
@@ -232,18 +243,37 @@ fn search_generic_impl_scope_for_methods(
     out.into_iter()
 }
 
-fn search_scope_for_assoc_types(
+fn search_scope_for_impled_assoc_types(
     header: &ImplHeader,
     searchstr: &str,
     search_type: SearchType,
     session: &Session,
-) -> Vec<ast::TypeVisitor> {
+) -> Vec<(String, RacerPath)> {
     let src = session.load_source_file(header.file_path());
-    let impl_scope = {
-        let impls = header.impl_start();
-    };
-    //    let src = src.shift_start();
-    vec![]
+    let scope_src = src.as_src().shift_start(header.scope_start());
+    let mut out = vec![];
+    for blob_range in scope_src.iter_stmts() {
+        let blob = &scope_src[blob_range.to_range()];
+        if blob.starts_with("type") {
+            let ast::TypeVisitor { name, type_ } = ast::parse_type(blob.to_owned());
+            let name = try_continue!(name);
+            let type_ = try_continue!(type_);
+            match search_type {
+                SearchType::ExactMatch => {
+                    if &name == searchstr {
+                        out.push((name, type_));
+                        break;
+                    }
+                }
+                SearchType::StartsWith => {
+                    if name.starts_with(searchstr) {
+                        out.push((name, type_));
+                    }
+                }
+            }
+        }
+    }
+    out
 }
 
 // TODO(kngwyu): needs ImplHeader
@@ -337,7 +367,6 @@ fn search_for_impls(
                 continue;
             }
             let decl = blob[..n + 1].to_owned() + "}";
-            println!("impl decl: {}", decl);
             let start = blob_range.start + scope_start;
             let impl_header = try_continue!(ast::parse_impl(
                 blob.to_owned(),
@@ -2100,80 +2129,54 @@ pub fn search_for_field_or_method(
 }
 
 fn search_for_deref_matches(
-    impl_match: &Match,
-    type_match: &Match,
+    target_path: &RacerPath, // target = ~
+    type_match: &Match,      // the type which implements Deref
+    impl_header: &ImplHeader,
     fieldsearchstr: &str,
     fpath: &Path,
     session: &Session,
-) -> vec::IntoIter<Match> {
-    debug!(
-        "Found a Deref Implementation for {}, Searching for Methods on the Deref Type",
-        type_match.matchstr
-    );
+) -> Vec<Match> {
     let mut out = Vec::new();
-    // Should be completely rewritten
-    // if let Some(type_arg) = impl_match.generic_args.first() {
-    //     // If Deref to a generic type
-    //     if let Some(inner_type_path) = generic_arg_to_path(&type_arg, type_match) {
-    //         let type_match = resolve_path_with_str(
-    //             &inner_type_path.path,
-    //             &inner_type_path.filepath,
-    //             BytePos::ZERO,
-    //             SearchType::ExactMatch,
-    //             Namespace::Type,
-    //             session,
-    //         ).nth(0);
-    //         let subpath = get_subpathsearch(&inner_type_path);
-    //         if let Some(mut m) = type_match {
-    //             if let Some(path) = subpath {
-    //                 m.generic_types.push(path);
-    //             }
-    //             let methods =
-    //                 search_for_field_or_method(m, fieldsearchstr, SearchType::StartsWith, session);
-    //             out.extend(methods);
-    //         };
-    //     }
-    //     // If Deref to an ordinary type
-    //     else {
-    //         let deref_type_path = RacerPath::single(impl_match.generic_args[0].clone().into());
-    //         let type_match = resolve_path_with_str(
-    //             &deref_type_path,
-    //             fpath,
-    //             BytePos::ZERO,
-    //             SearchType::ExactMatch,
-    //             Namespace::Type,
-    //             session,
-    //         ).nth(0);
-    //         if let Some(m) = type_match {
-    //             let methods =
-    //                 search_for_field_or_method(m, fieldsearchstr, SearchType::StartsWith, session);
-    //             out.extend(methods);
-    //         }
-    //     }
-    // }
-    out.into_iter()
-}
-
-// fn generic_arg_to_path(type_str: &str, m: &Match) -> Option<PathSearch> {
-//     debug!("Attempting to find type match for {} in {:?}", type_str, m);
-//     if let Some(match_pos) = m.generic_args.iter().position(|x| *x == type_str) {
-//         if let Some(gen_type) = m.generic_types.get(match_pos) {
-//             return Some(gen_type.clone());
-//         }
-//     }
-//     None
-// }
-
-fn get_subpathsearch(pathsearch: &PathSearch) -> Option<PathSearch> {
-    pathsearch.path.segments.get(0).and_then(|seg| {
-        seg.types.get(0).and_then(|first_type| {
-            Some(PathSearch {
-                path: first_type.clone(),
-                filepath: pathsearch.filepath.clone(),
-                point: pathsearch.point,
-            })
-        })
-    })
+    debug!(
+        "[search_for_deref_matches] target: {:?} impl: {:?}",
+        target_path, impl_header
+    );
+    if let Some((pos, _)) = impl_header.generics().search_param_by_path(target_path) {
+        if let Some(path_search) = type_match.resolved_generics().nth(pos) {
+            // TODO(kngwyu): does it work for nested generics?
+            if let Some(type_match) = resolve_path_with_str(
+                &path_search.path,
+                &path_search.filepath,
+                BytePos::ZERO,
+                SearchType::ExactMatch,
+                Namespace::Type,
+                session,
+            ).nth(0)
+            {
+                out.extend(search_for_field_or_method(
+                    type_match,
+                    fieldsearchstr,
+                    SearchType::StartsWith,
+                    session,
+                ));
+            }
+        }
+    } else {
+        let type_match = resolve_path_with_str(
+            &target_path,
+            fpath,
+            BytePos::ZERO,
+            SearchType::ExactMatch,
+            Namespace::Type,
+            session,
+        ).nth(0);
+        if let Some(m) = type_match {
+            let methods =
+                search_for_field_or_method(m, fieldsearchstr, SearchType::StartsWith, session);
+            out.extend(methods);
+        }
+    }
+    out
 }
 
 fn get_std_macros(
