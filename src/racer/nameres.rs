@@ -86,19 +86,14 @@ pub fn search_for_impl_methods(
     for header in search_for_impls(point, implsearchstr, fpath, local, session) {
         debug!("found impl!! |{:?}| looking for methods", header);
         let src = session.load_source_file(header.file_path());
-        let impl_start = header.impl_start();
-        // find the opening brace and skip to it.
-        if let Some(n) = src[impl_start.0..].find('{') {
-            let point = impl_start.increment() + n.into();
-            for m in search_scope_for_methods(
-                point,
-                src.as_src(),
-                fieldsearchstr,
-                header.file_path(),
-                search_type,
-            ) {
-                out.push(m);
-            }
+        for m in search_scope_for_methods(
+            header.scope_start(),
+            src.as_src(),
+            fieldsearchstr,
+            header.file_path(),
+            search_type,
+        ) {
+            out.push(m);
         }
         let trait_match = try_continue!(header.resolve_trait(session, &ImportInfo::default()));
         let src = session.load_source_file(&trait_match.filepath);
@@ -114,16 +109,15 @@ pub fn search_for_impl_methods(
                 out.push(m);
             }
         }
-        // TODO: add deref support here?
-        // if m.matchstr == "Deref" {
-        //     out.extend(search_for_deref_matches(
-        //         &m,
-        //         match_request,
-        //         fieldsearchstr,
-        //         fpath,
-        //         session,
-        //     ));
-        // }
+        if trait_match.matchstr == "Deref" {
+            out.extend(search_for_deref_matches(
+                &trait_match,
+                match_request,
+                fieldsearchstr,
+                fpath,
+                session,
+            ));
+        }
         for gen_impl_header in search_for_generic_impls(
             trait_match.point,
             &trait_match.matchstr,
@@ -132,19 +126,14 @@ pub fn search_for_impl_methods(
         ) {
             debug!("found generic impl!! {:?}", gen_impl_header);
             let src = session.load_source_file(gen_impl_header.file_path());
-            let start = gen_impl_header.impl_start();
-            // find the opening brace and skip to it.
-            if let Some(n) = src[start.0..].find('{') {
-                let point = start.increment() + n.into();
-                for gen_method in search_generic_impl_scope_for_methods(
-                    point,
-                    src.as_src(),
-                    fieldsearchstr,
-                    &gen_impl_header,
-                    search_type,
-                ) {
-                    out.push(gen_method);
-                }
+            for gen_method in search_generic_impl_scope_for_methods(
+                gen_impl_header.scope_start(),
+                src.as_src(),
+                fieldsearchstr,
+                &gen_impl_header,
+                search_type,
+            ) {
+                out.push(gen_method);
             }
         }
     }
@@ -243,6 +232,20 @@ fn search_generic_impl_scope_for_methods(
     out.into_iter()
 }
 
+fn search_scope_for_assoc_types(
+    header: &ImplHeader,
+    searchstr: &str,
+    search_type: SearchType,
+    session: &Session,
+) -> Vec<ast::TypeVisitor> {
+    let src = session.load_source_file(header.file_path());
+    let impl_scope = {
+        let impls = header.impl_start();
+    };
+    //    let src = src.shift_start();
+    vec![]
+}
+
 // TODO(kngwyu): needs ImplHeader
 /// Look for static trait functions. This fn doesn't search for _method_ declarations
 /// or implementations as `search_scope_for_methods` already handles that.
@@ -334,12 +337,14 @@ fn search_for_impls(
                 continue;
             }
             let decl = blob[..n + 1].to_owned() + "}";
-            debug!("impl decl: {}", decl);
+            println!("impl decl: {}", decl);
+            let start = blob_range.start + scope_start;
             let impl_header = try_continue!(ast::parse_impl(
-                decl,
+                blob.to_owned(),
                 filepath,
                 blob_range.start + scope_start,
                 local,
+                start + n.into(),
             ));
             let matched = impl_header
                 .self_path()
@@ -371,8 +376,8 @@ fn cached_generic_impls(
                     let blob = &src[blob_range.to_range()];
                     let n = impl_scope_start(blob)?;
                     let decl = blob[..n + 1].to_owned() + "}";
-                    ast::parse_impl(decl, filepath, blob_range.start + scope_start, true)
-                        .map(Rc::new)
+                    let start = blob_range.start + scope_start;
+                    ast::parse_impl(decl, filepath, start, true, start + n.into()).map(Rc::new)
                 }).collect()
         }).clone()
 }
@@ -1569,22 +1574,19 @@ fn get_impled_items(
         session,
     ) {
         let src = session.load_source_file(header.file_path());
-        // find the opening brace and skip to it.
-        if let Some(n) = src[header.impl_start().0..].find('{') {
-            let point = header.impl_start() + BytePos(n + 1);
-            out.extend(search_scope(
-                point,
-                point,
-                src.as_src(),
-                &search_path,
-                header.file_path(),
-                search_type,
-                header.is_local(),
-                namespace,
-                session,
-                import_info,
-            ));
-        }
+        let point = header.scope_start();
+        out.extend(search_scope(
+            point,
+            point,
+            src.as_src(),
+            &search_path,
+            header.file_path(),
+            search_type,
+            header.is_local(),
+            namespace,
+            session,
+            import_info,
+        ));
         let trait_match = try_continue!(header.resolve_trait(session, import_info));
         for timpl_header in search_for_generic_impls(
             trait_match.point,
@@ -1594,23 +1596,19 @@ fn get_impled_items(
         ) {
             debug!("found generic impl!! {:?}", timpl_header);
             let src = session.load_source_file(timpl_header.file_path());
-            // find the opening brace and skip to it.
-            let impl_start = timpl_header.impl_start();
-            if let Some(n) = src[impl_start.0..].find('{') {
-                let point = impl_start + BytePos(n + 1);
-                out.extend(search_scope(
-                    point,
-                    point,
-                    src.as_src(),
-                    search_path,
-                    timpl_header.file_path(),
-                    search_type,
-                    timpl_header.is_local(),
-                    namespace,
-                    session,
-                    import_info,
-                ));
-            }
+            let point = timpl_header.scope_start();
+            out.extend(search_scope(
+                point,
+                point,
+                src.as_src(),
+                search_path,
+                timpl_header.file_path(),
+                search_type,
+                timpl_header.is_local(),
+                namespace,
+                session,
+                import_info,
+            ));
         }
     }
     out
@@ -2153,7 +2151,6 @@ fn search_for_deref_matches(
     //         }
     //     }
     // }
-
     out.into_iter()
 }
 

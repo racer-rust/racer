@@ -542,6 +542,7 @@ pub struct ImplHeader {
     // TODO: should be removed
     local: bool,
     impl_start: BytePos,
+    block_start: BytePos,
 }
 
 impl ImplHeader {
@@ -553,6 +554,7 @@ impl ImplHeader {
         offset: BytePos,
         local: bool,
         impl_start: BytePos,
+        block_start: BytePos,
     ) -> Option<Self> {
         let generics = GenericsArgs::from_generics(generics, path, offset.0 as i32);
         let self_path = destruct_ref_ptr(&self_type.node).map(Path::from_ast)?;
@@ -564,6 +566,7 @@ impl ImplHeader {
             filepath: path.to_owned(),
             local,
             impl_start,
+            block_start,
         })
     }
     pub(crate) fn self_path(&self) -> &Path {
@@ -602,6 +605,9 @@ impl ImplHeader {
             session,
             import_info,
         ).nth(0)
+    }
+    pub(crate) fn scope_start(&self) -> BytePos {
+        self.block_start.increment()
     }
 }
 

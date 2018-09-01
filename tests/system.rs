@@ -4390,7 +4390,6 @@ fn follows_rand_crate() {
 }
 
 #[test]
-#[ignore]
 fn completes_trait_method_only_once() {
     let src = "
     trait Trait {
@@ -4398,6 +4397,7 @@ fn completes_trait_method_only_once() {
     }
     struct S;
     impl Trait for S {
+        type A = usize;
         fn function(&self) -> usize { 6 }
     }
     fn main() {

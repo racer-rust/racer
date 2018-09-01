@@ -99,6 +99,7 @@ fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
     get_type_of_self(m.point, &m.filepath, m.local, msrc, session)
 }
 
+// TODO(kngwyu): parse correctly
 pub fn get_type_of_self(
     point: BytePos,
     filepath: &Path,
@@ -111,7 +112,7 @@ pub fn get_type_of_self(
     debug!("get_type_of_self_arg impl skeleton |{}|", decl);
 
     if decl.starts_with("impl") {
-        let implres = ast::parse_impl(decl, filepath, start, local)?;
+        let implres = ast::parse_impl(decl, filepath, start, local, start)?;
         debug!("get_type_of_self_arg implres |{:?}|", implres);
         resolve_path_with_str(
             implres.self_path(),

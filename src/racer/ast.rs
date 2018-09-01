@@ -923,15 +923,17 @@ pub struct ImplVisitor<'p> {
     pub result: Option<ImplHeader>,
     filepath: &'p Path,
     offset: BytePos,
+    block_start: BytePos, // the point { appears
     local: bool,
 }
 
 impl<'p> ImplVisitor<'p> {
-    fn new(filepath: &'p Path, offset: BytePos, local: bool) -> Self {
+    fn new(filepath: &'p Path, offset: BytePos, local: bool, block_start: BytePos) -> Self {
         ImplVisitor {
             result: None,
             filepath,
             offset,
+            block_start,
             local,
         }
     }
@@ -949,6 +951,7 @@ impl<'ast, 'p> visit::Visitor<'ast> for ImplVisitor<'p> {
                 self.offset,
                 self.local,
                 impl_start,
+                self.block_start,
             );
         }
     }
@@ -1050,8 +1053,14 @@ pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, BytePos, Opt
     v.fields
 }
 
-pub fn parse_impl(s: String, path: &Path, offset: BytePos, local: bool) -> Option<ImplHeader> {
-    let mut v = ImplVisitor::new(path, offset, local);
+pub fn parse_impl(
+    s: String,
+    path: &Path,
+    offset: BytePos,
+    local: bool,
+    scope_start: BytePos,
+) -> Option<ImplHeader> {
+    let mut v = ImplVisitor::new(path, offset, local, scope_start);
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.result
 }
@@ -1318,5 +1327,14 @@ where
                 self.offset,
             ));
         }
+    }
+}
+
+/// Visitor for impl items
+pub struct ImplItemVisitor {}
+
+impl<'ast> visit::Visitor<'ast> for ImplItemVisitor {
+    fn visit_impl_item(&mut self, item: &'ast ast::ImplItem) {
+        println!("{:?}", item.node);
     }
 }
