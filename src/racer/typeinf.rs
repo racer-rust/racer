@@ -251,7 +251,7 @@ fn get_type_of_for_arg(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
         warn!("[get_type_of_for_expr] invalid match type: {:?}", m.mtype);
         return None;
     }
-    debug!("[get_type_of_for_expr] match: {:?}", m);
+    println!("[get_type_of_for_expr] match: {:?}", m);
     let res = ast::parse_for_stmt(m.contextstr.clone(), Scope::from_match(m), session);
     let for_pat = res.for_pat?;
     println!("{:?}", for_pat);

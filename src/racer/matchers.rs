@@ -240,7 +240,7 @@ fn match_pattern_let(
                     coords: None,
                     local: context.is_local,
                     mtype: mtype.clone(),
-                    contextstr: first_line(blob),
+                    contextstr: blob.to_owned(),
                     docs: String::new(),
                 });
                 if context.search_type == ExactMatch {
@@ -280,7 +280,7 @@ pub fn match_for(msrc: &str, context: &MatchCxt) -> Vec<Match> {
                 coords: None,
                 local: context.is_local,
                 mtype: For,
-                contextstr: first_line(blob),
+                contextstr: blob.to_owned(),
                 docs: String::new(),
             });
         }

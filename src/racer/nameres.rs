@@ -395,14 +395,14 @@ fn search_for_impls(
 fn search_trait_impls(
     pos: BytePos,
     self_search: &str,
-    trait_search: &str,
+    trait_search: &[&str],
     once: bool,
     filepath: &Path,
     local: bool,
     session: &Session,
 ) -> Vec<ImplHeader> {
     debug!(
-        "search_trait_impls {:?}, {}, {}, {:?}",
+        "search_trait_impls {:?}, {}, {:?}, {:?}",
         pos,
         self_search,
         trait_search,
@@ -435,10 +435,13 @@ fn search_trait_impls(
             if !self_matched {
                 continue;
             }
-            let trait_matched = impl_header
-                .trait_path()
-                .and_then(|tpath| Some(symbol_matches(ExactMatch, trait_search, tpath.name()?)))
-                .unwrap_or(false);
+            let trait_matched = {
+                let trait_name =
+                    try_continue!(impl_header.trait_path().and_then(|tpath| tpath.name()));
+                trait_search
+                    .into_iter()
+                    .any(|ts| symbol_matches(ExactMatch, ts, trait_name))
+            };
             if trait_matched {
                 out.push(impl_header);
                 if once {
@@ -549,7 +552,7 @@ fn search_scope_headers(
         // 'if let' can be an expression, so might not be at the start of the stmt
         } else if let Some(n) = preblock.find("if let") {
             let ifletstart = stmtstart + n.into();
-            let src = msrc[ifletstart.0..scopestart.increment().0].to_owned() + "}";
+            let src = msrc[ifletstart.0..scopestart.0].trim().to_owned() + "{}";
             if txt_matches(search_type, search_str, &src) {
                 let match_cxt = get_cxt(src.len());
                 let mut out = matchers::match_if_let(&src, &match_cxt);
@@ -559,7 +562,7 @@ fn search_scope_headers(
                 return out.into_iter();
             }
         } else if preblock.starts_with("while let") {
-            let src = msrc[stmtstart.0..scopestart.increment().0].to_owned() + "}";
+            let src = msrc[stmtstart.0..scopestart.0].trim().to_owned() + "{}";
             if txt_matches(search_type, search_str, &src) {
                 let match_cxt = get_cxt(src.len());
                 let mut out = matchers::match_while_let(&src, &match_cxt);
@@ -569,7 +572,8 @@ fn search_scope_headers(
                 return out.into_iter();
             }
         } else if preblock.starts_with("for ") {
-            let src = msrc[stmtstart.0..scopestart.increment().0].to_owned() + "}";
+            let src = msrc[stmtstart.0..scopestart.0].trim().to_owned() + "{}";
+            println!("{:?}", src);
             if txt_matches(search_type, search_str, &msrc[..scopestart.0]) {
                 let match_cxt = get_cxt(src.len());
                 let mut out = matchers::match_for(&src, &match_cxt);
@@ -2360,10 +2364,10 @@ fn get_std_macros_(
 }
 
 pub(crate) fn get_intoiter_target(selfm: &Match, session: &Session) -> Option<Match> {
-    let into_iter_header = search_trait_impls(
+    let iter_header = search_trait_impls(
         selfm.point,
         &selfm.matchstr,
-        "IntoIterator",
+        &["IntoIterator", "Iterator"],
         true,
         &selfm.filepath,
         selfm.local,
@@ -2371,12 +2375,12 @@ pub(crate) fn get_intoiter_target(selfm: &Match, session: &Session) -> Option<Ma
     ).into_iter()
     .next()?;
     let item = search_scope_for_impled_assoc_types(
-        &into_iter_header,
+        &iter_header,
         "Item",
         core::SearchType::ExactMatch,
         session,
     );
     item.get(0).and_then(|(_, item_path)| {
-        get_assoc_type_from_header(item_path, selfm, &into_iter_header, session)
+        get_assoc_type_from_header(item_path, selfm, &iter_header, session)
     })
 }
