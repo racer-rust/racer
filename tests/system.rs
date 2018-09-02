@@ -233,42 +233,7 @@ fn completes_via_parent_scope_let() {
 
 #[test]
 fn completes_for_vec_field_and_method() {
-    let modsrc = "
-    pub trait IntoIterator {
-        type Item;
-
-        type IntoIter: Iterator<Item=Self::Item>;
-
-        fn into_iter(self) -> Self::IntoIter;
-    }
-
-    impl<T> IntoIterator for Vec<T> {
-        type Item = T;
-        type IntoIter = IntoIter<T>;
-
-        fn into_iter(mut self) -> IntoIter<T> {}
-    }
-
-    pub struct IntoIter<T> {}
-
-    impl<T> Iterator for IntoIter<T> {
-        type Item = T;
-
-        fn next(&mut self) -> Option<T> {}
-    }
-
-    pub struct Vec<T> {}
-
-    pub enum Option<T> {
-        None,
-        Some(T)
-    }
-    ";
     let src = "
-    pub mod mymod;
-    use mymod::{Vec, IntoIter, IntoIterator, Option};
-    use Option::{Some, None};
-
     struct St
     {
         stfield: i32,
@@ -292,17 +257,14 @@ fn completes_for_vec_field_and_method() {
     ";
 
     let dir = TmpDir::new();
-    let _mymod = dir.write_file("mymod.rs", modsrc);
     let path = dir.write_file("src.rs", src);
     let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
-    let cursor1 = Coordinate::new(22, 18);
+    let cursor1 = Coordinate::new(18, 18);
     let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
-    println!("{:?}", got1);
     assert_eq!("stfield", got1.matchstr);
-    let cursor2 = Coordinate::new(23, 18);
+    let cursor2 = Coordinate::new(19, 18);
     let got2 = complete_from_file(&path, cursor2, &session).nth(0).unwrap();
-    println!("{:?}", got2);
     assert_eq!("stmethod", got2.matchstr);
 }
 
@@ -441,48 +403,8 @@ fn completes_trait_bounded_methods_generic_return() {
 }
 
 #[test]
-fn completes_iter_variable_methods() {
-    let modsrc = "
-    pub trait Iterator {
-        type Item;
-
-        fn next(&mut self) -> Option<Self::Item>;
-    }
-
-    pub trait IntoIterator {
-        type Item;
-
-        type IntoIter: Iterator<Item=Self::Item>;
-
-        fn into_iter(self) -> Self::IntoIter;
-    }
-
-    impl<I: Iterator> IntoIterator for I {
-        type Item = I::Item;
-        type IntoIter = I;
-
-        fn into_iter(self) -> I {
-            self
-        }
-    }
-
-    impl<T> Iterator for IntoIter<T> {
-        type Item = T;
-
-        fn next(&mut self) -> Option<T> {}
-    }
-
-    pub enum Option<T> {
-        None,
-        Some(T)
-    }
-    ";
-
+fn completes_iter_variable_fiedlds() {
     let src = "
-    pub mod mymod;
-    use mymod::{Iterator, Option};
-    use Option::{Some, None};
-
     struct St {
         pub item: StItem,
         pub used: bool
@@ -493,7 +415,7 @@ fn completes_iter_variable_methods() {
     }
 
     impl Iterator for St {
-        type Item: StItem;
+        type Item = StItem;
 
         fn next(&mut self) -> Option<StItem> {
             if self.used {
@@ -516,61 +438,13 @@ fn completes_iter_variable_methods() {
         }
     }
     ";
-
-    let dir = TmpDir::new();
-    let _mymod = dir.write_file("mymod.rs", modsrc);
-    let got = get_one_completion(src, Some(dir));
+    let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "field");
 }
 
 #[test]
+#[ignore]
 fn completes_for_vec_iter_field_and_method() {
-    let modsrc = "
-    pub trait Iterator {
-        type Item;
-
-        fn next(&mut self) -> Option<Self::Item>;
-    }
-
-    pub trait IntoIterator {
-        type Item;
-
-        type IntoIter: Iterator<Item=Self::Item>;
-
-        fn into_iter(self) -> Self::IntoIter;
-    }
-
-    impl<T> IntoIterator for Vec<T> {
-        type Item = T;
-        type IntoIter = IntoIter<T>;
-
-        fn into_iter(mut self) -> IntoIter<T> {}
-    }
-
-    pub struct IntoIter<T> {}
-
-    impl<T> Iterator for IntoIter<T> {
-        type Item = T;
-
-        fn next(&mut self) -> Option<T> {}
-    }
-
-    impl<I: Iterator> IntoIterator for I {
-        type Item = I::Item;
-        type IntoIter = I;
-
-        fn into_iter(self) -> I {
-            self
-        }
-    }
-
-    pub struct Vec<T> {}
-
-    pub enum Option<T> {
-        None,
-        Some(T)
-    }
-    ";
     let src = "
     pub mod mymod;
     use mymod::{Vec, IntoIter, IntoIterator, Option};
@@ -597,19 +471,15 @@ fn completes_for_vec_iter_field_and_method() {
         }
     }
     ";
-
     let dir = TmpDir::new();
-    let _mymod = dir.write_file("mymod.rs", modsrc);
     let path = dir.write_file("src.rs", src);
     let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
     let cursor1 = Coordinate::new(22, 18);
     let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
-    println!("{:?}", got1);
     assert_eq!("stfield", got1.matchstr);
     let cursor2 = Coordinate::new(23, 18);
     let got2 = complete_from_file(&path, cursor2, &session).nth(0).unwrap();
-    println!("{:?}", got2);
     assert_eq!("stmethod", got2.matchstr);
 }
 
@@ -4395,4 +4265,64 @@ fn completes_trait_method_only_once() {
     ";
     let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "function");
+}
+
+#[test]
+fn completes_methods_for_for_arg() {
+    let src = "
+    fn main() {
+        let v: Vec<String> = vec![];
+        for s in v {
+            s.ca~
+        }
+    }
+    ";
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "capacity");
+}
+
+#[test]
+#[ignore]
+fn completes_methods_for_tupled_for_arg() {
+    let src = "
+    fn main() {
+        let v: Vec<(String, usize)> = vec![];
+        for (s, i) in v {
+            s.ca~
+        }
+    }
+    ";
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "capacity");
+}
+
+#[test]
+#[ignore]
+fn completes_methods_for_ref_for_arg() {
+    let src = "
+    fn main() {
+        let v: Vec<&String> = vec![];
+        for &s in v {
+            s.ca~
+        }
+    }
+    ";
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "capacity");
+}
+
+#[test]
+#[ignore]
+fn completes_methods_for_tupls_for_arg() {
+    let src = "
+    fn main() {
+        struct St(String);
+        let v: Vec<St> = vec![];
+        for St(s) in &v {
+            s.cap~
+        }
+    }
+    ";
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "capacity");
 }

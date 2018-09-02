@@ -1,13 +1,13 @@
 //! Type inference
 //! THIS MODULE IS ENTIRELY TOO UGLY SO REALLY NEADS REFACTORING(kngwyu)
 use ast;
-use ast_types::Ty;
+use ast_types::{destruct_pat_with_ty, Pat, Ty};
 use core;
 use core::Namespace;
 use core::SearchType::ExactMatch;
 use core::{BytePos, MaskedSource, Match, Scope, Session, SessionExt, Src};
 use matchers;
-use nameres::resolve_path_with_str;
+use nameres;
 use scopes;
 use std::path::Path;
 use util::{self, txt_matches};
@@ -28,6 +28,7 @@ pub fn generate_skeleton_for_parsing(src: &str) -> String {
     src[..n.0 + 1].to_owned() + "}"
 }
 
+// TODO(kngwyu): use libsyntax parser
 pub fn first_param_is_self(blob: &str) -> bool {
     // Restricted visibility introduces the possibility of `pub(in ...)` at the start
     // of a method declaration. To counteract this, we restrict the search to only
@@ -114,7 +115,7 @@ pub fn get_type_of_self(
     if decl.starts_with("impl") {
         let implres = ast::parse_impl(decl, filepath, start, local, start)?;
         debug!("get_type_of_self_arg implres |{:?}|", implres);
-        resolve_path_with_str(
+        nameres::resolve_path_with_str(
             implres.self_path(),
             filepath,
             start,
@@ -246,52 +247,44 @@ fn get_type_of_let_block_expr(m: &Match, msrc: Src, session: &Session, prefix: &
     }
 }
 
-// TODO: it's inefficient(kngwyu)
-fn get_type_of_for_expr(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
-    let stmtstart = scopes::expect_stmt_start(msrc, m.point);
-    let stmt = msrc.shift_start(stmtstart);
-    let forpos = stmt
-        .find("for ")
-        .expect("`for` should appear in for .. in loop");
-    let inpos = stmt
-        .find(" in ")
-        .expect("`in` should appear in for .. in loop");
-    // XXX: this need not be the correct brace, see generate_skeleton_for_parsing
-    let bracepos = stmt
-        .find('{')
-        .expect("for-loop should have an opening brace");
-    let mut src = stmt[..forpos].to_owned();
-    src.push_str("if let Some(");
-    src.push_str(&stmt[forpos + 4..inpos]);
-    src.push_str(") = ");
-    let iter_stmt = &stmt[inpos + 4..bracepos];
-
-    // TODO: Remove these lines when iter()/iter_mut() method lookup on
-    //       built in types is properly supported
-    let mut iter_stmt_trimmed = iter_stmt.replace(".iter()", ".into_iter()");
-    iter_stmt_trimmed = iter_stmt_trimmed.replace(".iter_mut()", ".into_iter()");
-
-    src.push_str(&iter_stmt_trimmed);
-    src = src.trim_right().to_owned();
-    src.push_str(".into_iter().next() { }}");
-
-    let src = MaskedSource::new(&src);
-
-    if let Some(range) = src.as_src().iter_stmts().next() {
-        let blob = &src[range.to_range()];
-        debug!(
-            "get_type_of_for_expr: |{}| {:?} {:?} {} {:?}",
-            blob, m.point, stmtstart, forpos, range.start
-        );
-
-        let pos = m.point + BytePos(8) - stmtstart - forpos.into() - range.start;
-        let scope = Scope {
-            filepath: m.filepath.clone(),
-            point: stmtstart,
-        };
-        ast::get_let_type(blob.to_owned(), pos, scope, session)
-    } else {
-        None
+fn get_type_of_for_arg(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
+    if m.mtype != core::MatchType::For {
+        warn!("[get_type_of_for_expr] invalid match type: {:?}", m.mtype);
+        return None;
+    }
+    let res = ast::parse_for_stmt(m.contextstr.clone(), Scope::from_match(m), session);
+    debug!(
+        "[get_type_of_for_expr] match: {:?}, for: {:?}, in: {:?},",
+        m, res.for_pat, res.in_expr
+    );
+    fn get_item(ty: Ty, session: &Session) -> Option<Ty> {
+        match ty {
+            Ty::Match(ma) => nameres::get_intoiter_target(&ma, session).map(Ty::Match),
+            Ty::PathSearch(paths) => {
+                nameres::get_intoiter_target(&paths.resolve(session)?, session).map(Ty::Match)
+            }
+            _ => None,
+        }
+    }
+    match res.for_pat? {
+        Pat::Ident(_bi, name) => {
+            if name != m.matchstr {
+                return None;
+            }
+            get_item(res.in_expr?, session)
+        }
+        Pat::Tuple(_pats) => {
+            // currently unsupported
+            None
+        }
+        Pat::Ref(pat, _) => {
+            let target = get_item(res.in_expr?, session)?;
+            let (_, ty) = destruct_pat_with_ty(*pat, target);
+            Some(ty)
+        }
+        Pat::Struct(_path, _pats) => None,
+        Pat::TupleStruct(_path, _pats) => None,
+        _ => None,
     }
 }
 
@@ -375,7 +368,7 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<Ty> {
         core::MatchType::Let => get_type_of_let_expr(&m, msrc, session),
         core::MatchType::IfLet => get_type_of_let_block_expr(&m, msrc, session, "if let"),
         core::MatchType::WhileLet => get_type_of_let_block_expr(&m, msrc, session, "while let"),
-        core::MatchType::For => get_type_of_for_expr(&m, msrc, session),
+        core::MatchType::For => get_type_of_for_arg(&m, msrc, session),
         core::MatchType::FnArg => get_type_of_fnarg(&m, msrc, session),
         core::MatchType::MatchArm => get_type_from_match_arm(&m, msrc, session),
         core::MatchType::Struct(_)
@@ -469,7 +462,8 @@ pub fn get_return_type_of_function(
         ast::parse_fn_output(decl, Scope::from_match(fnmatch))
     });
     // Convert output arg of type Self to the correct type
-    if let Some(Ty::PathSearch(ref path, _)) = out {
+    if let Some(Ty::PathSearch(ref paths)) = out {
+        let path = &paths.path;
         if let Some(ref path_seg) = path.segments.get(0) {
             if "Self" == path_seg.name {
                 return get_type_of_self_arg(fnmatch, src.as_src(), session);

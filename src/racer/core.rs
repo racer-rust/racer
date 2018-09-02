@@ -1280,7 +1280,8 @@ pub fn find_definition_(
                         searchstr,
                         SearchType::ExactMatch,
                         session,
-                    ).filter(|m| m.mtype == match_type)
+                    ).into_iter()
+                    .filter(|m| m.mtype == match_type)
                     .nth(0)
                 } else {
                     None
