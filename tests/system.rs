@@ -4282,12 +4282,44 @@ fn completes_methods_for_for_arg() {
 }
 
 #[test]
+#[ignore]
 fn completes_methods_for_tupled_for_arg() {
     let src = "
     fn main() {
         let v: Vec<(String, usize)> = vec![];
         for (s, i) in v {
             s.ca~
+        }
+    }
+    ";
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "capacity");
+}
+
+#[test]
+#[ignore]
+fn completes_methods_for_ref_for_arg() {
+    let src = "
+    fn main() {
+        let v: Vec<&String> = vec![];
+        for &s in v {
+            s.ca~
+        }
+    }
+    ";
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "capacity");
+}
+
+#[test]
+#[ignore]
+fn completes_methods_for_tupls_for_arg() {
+    let src = "
+    fn main() {
+        struct St(String);
+        let v: Vec<St> = vec![];
+        for St(s) in &v {
+            s.cap~
         }
     }
     ";

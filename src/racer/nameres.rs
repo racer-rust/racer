@@ -573,7 +573,6 @@ fn search_scope_headers(
             }
         } else if preblock.starts_with("for ") {
             let src = msrc[stmtstart.0..scopestart.0].trim().to_owned() + "{}";
-            println!("{:?}", src);
             if txt_matches(search_type, search_str, &msrc[..scopestart.0]) {
                 let match_cxt = get_cxt(src.len());
                 let mut out = matchers::match_for(&src, &match_cxt);

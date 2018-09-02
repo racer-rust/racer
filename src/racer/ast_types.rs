@@ -1,4 +1,5 @@
 //! type conversion between racer types and libsyntax types
+use super::ast::find_type_match;
 use core::{self, BytePos, Match, MatchType, Scope, Session};
 use matchers::ImportInfo;
 use nameres;
@@ -40,7 +41,7 @@ impl AsRef<Path> for PathAlias {
 #[derive(Debug, Clone)]
 pub enum Ty {
     Match(Match),
-    PathSearch(Path, Scope), // A path + the scope to be able to resolve it
+    PathSearch(PathSearch), // A path + the scope to be able to resolve it
     Tuple(Vec<Ty>),
     FixedLengthVec(Box<Ty>, String), // ty, length expr as string
     RefPtr(Box<Ty>),
@@ -49,6 +50,24 @@ pub enum Ty {
 }
 
 impl Ty {
+    pub(crate) fn wrap_by_ref(self, u: usize) -> Ty {
+        let mut ty = self;
+        for _ in 0..u {
+            ty = Ty::RefPtr(Box::new(ty));
+        }
+        ty
+    }
+
+    pub(crate) fn destruct_ref(self) -> (Ty, usize) {
+        fn destruct_ref_inner(ty: Ty, cur: usize) -> (Ty, usize) {
+            if let Ty::RefPtr(ty) = ty {
+                destruct_ref_inner(*ty, cur + 1)
+            } else {
+                (ty, cur)
+            }
+        }
+        destruct_ref_inner(self, 0)
+    }
     pub(crate) fn from_ast(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
         match ty.node {
             TyKind::Tup(ref items) => {
@@ -64,7 +83,11 @@ impl Ty {
             TyKind::Rptr(ref _lifetime, ref ty) => {
                 Ty::from_ast(&ty.ty, scope).map(|ref_ty| Ty::RefPtr(Box::new(ref_ty)))
             }
-            TyKind::Path(_, ref path) => Some(Ty::PathSearch(Path::from_ast(path), scope.clone())),
+            TyKind::Path(_, ref path) => Some(Ty::PathSearch(PathSearch {
+                path: Path::from_ast(path),
+                filepath: scope.filepath.clone(),
+                point: scope.point,
+            })),
             TyKind::Array(ref ty, ref expr) => Ty::from_ast(ty, scope).map(|racer_ty| {
                 Ty::FixedLengthVec(Box::new(racer_ty), pprust::expr_to_string(&expr.value))
             }),
@@ -84,7 +107,7 @@ impl fmt::Display for Ty {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Ty::Match(ref m) => write!(f, "{}", m.matchstr),
-            Ty::PathSearch(ref p, _) => write!(f, "{}", p),
+            Ty::PathSearch(ref p) => write!(f, "{}", p.path),
             Ty::Tuple(ref vec) => {
                 let mut first = true;
                 write!(f, "(")?;
@@ -119,67 +142,68 @@ impl fmt::Display for Ty {
 /// Compatible type for syntax::ast::PatKind
 /// but currently doesn't support all kinds
 #[derive(Clone, Debug, PartialEq)]
-pub enum Pattern {
+pub enum Pat {
     Wild,
     Ident(BindingMode, String),
     Struct(Path, Vec<FieldPat>),
-    TupleStruct(Path, Vec<Pattern>),
+    TupleStruct(Path, Vec<Pat>),
     Path(Path),
-    Tuple(Vec<Pattern>),
-    Ref(Box<Pattern>, Mutability),
+    Tuple(Vec<Pat>),
+    Box,
+    Ref(Box<Pat>, Mutability),
     Lit,
     Range,
+    Slice,
+    Mac,
 }
 
-impl Pattern {
-    pub fn from_ast(pat: &PatKind) -> Option<Self> {
-        Some(match pat {
-            PatKind::Wild => Pattern::Wild,
-            PatKind::Ident(bi, ident, _) => Pattern::Ident(*bi, ident.to_string()),
+impl Pat {
+    pub fn from_ast(pat: &PatKind) -> Self {
+        match pat {
+            PatKind::Wild => Pat::Wild,
+            PatKind::Ident(bi, ident, _) => Pat::Ident(*bi, ident.to_string()),
             PatKind::Struct(path, fields, _) => {
                 let path = Path::from_ast(path);
                 let fields = fields
                     .iter()
-                    .filter_map(|fld| FieldPat::from_ast(&fld.node))
+                    .map(|fld| FieldPat::from_ast(&fld.node))
                     .collect();
-                Pattern::Struct(path, fields)
+                Pat::Struct(path, fields)
             }
             PatKind::TupleStruct(path, pats, _) => {
                 let path = Path::from_ast(path);
-                let pats = pats
-                    .iter()
-                    .filter_map(|pat| Pattern::from_ast(&pat.node))
-                    .collect();
-                Pattern::TupleStruct(path, pats)
+                let pats = pats.iter().map(|pat| Pat::from_ast(&pat.node)).collect();
+                Pat::TupleStruct(path, pats)
             }
-            PatKind::Path(_, path) => Pattern::Path(Path::from_ast(&path)),
+            PatKind::Path(_, path) => Pat::Path(Path::from_ast(&path)),
             PatKind::Tuple(pats, _) => {
-                let pats = pats
-                    .iter()
-                    .filter_map(|pat| Pattern::from_ast(&pat.node))
-                    .collect();
-                Pattern::Tuple(pats)
+                let pats = pats.iter().map(|pat| Pat::from_ast(&pat.node)).collect();
+                Pat::Tuple(pats)
             }
-            PatKind::Ref(pat, mut_) => Pattern::Ref(Box::new(Pattern::from_ast(&pat.node)?), *mut_),
-            PatKind::Lit(_) => Pattern::Lit,
-            PatKind::Range(..) => Pattern::Range,
-            _ => return None,
-        })
+            PatKind::Box(_) => Pat::Box,
+            PatKind::Ref(pat, mut_) => Pat::Ref(Box::new(Pat::from_ast(&pat.node)), *mut_),
+            PatKind::Lit(_) => Pat::Lit,
+            PatKind::Range(..) => Pat::Range,
+            PatKind::Slice(..) => Pat::Slice,
+            // ignore paren
+            PatKind::Paren(pat) => Pat::from_ast(&pat.node),
+            PatKind::Mac(_) => Pat::Mac,
+        }
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct FieldPat {
     pub field_name: String,
-    pub pat: Box<Pattern>,
+    pub pat: Box<Pat>,
 }
 
 impl FieldPat {
-    pub fn from_ast(fpat: &ast::FieldPat) -> Option<Self> {
-        Some(FieldPat {
+    pub fn from_ast(fpat: &ast::FieldPat) -> Self {
+        FieldPat {
             field_name: fpat.ident.to_string(),
-            pat: Box::new(Pattern::from_ast(&fpat.pat.node)?),
-        })
+            pat: Box::new(Pat::from_ast(&fpat.pat.node)),
+        }
     }
 }
 
@@ -395,6 +419,17 @@ pub struct PathSearch {
     pub path: Path,
     pub filepath: PathBuf,
     pub point: BytePos,
+}
+
+impl PathSearch {
+    pub(crate) fn resolve(&self, session: &Session) -> Option<Match> {
+        if let Some(Ty::Match(m)) = find_type_match(&self.path, &self.filepath, self.point, session)
+        {
+            Some(m)
+        } else {
+            None
+        }
+    }
 }
 
 impl fmt::Debug for PathSearch {
@@ -701,5 +736,12 @@ fn destruct_ref_ptr(ty: &TyKind) -> Option<&ast::Path> {
         TyKind::Rptr(_, ref ty) => destruct_ref_ptr(&ty.ty.node),
         TyKind::Path(_, ref path) => Some(path),
         _ => None,
+    }
+}
+
+pub(crate) fn destruct_pat_with_ty(pat: Pat, ty: Ty) -> (Pat, Ty) {
+    match (pat, ty) {
+        (Pat::Ref(pat, _), Ty::RefPtr(ty)) => (*pat, *ty),
+        (x, y) => (x, y),
     }
 }

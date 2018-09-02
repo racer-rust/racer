@@ -1,6 +1,6 @@
 use ast_types::Path as RacerPath;
 use ast_types::{
-    self, GenericsArgs, ImplHeader, PathAlias, PathAliasKind, PathSearch, Pattern, TraitBounds, Ty,
+    self, GenericsArgs, ImplHeader, Pat, PathAlias, PathAliasKind, PathSearch, TraitBounds, Ty,
 };
 use core::{self, BytePos, ByteRange, Match, MatchType, Scope, Session, SessionExt};
 use nameres::{self, resolve_path_with_str};
@@ -434,15 +434,20 @@ fn resolve_ast_path(
 
 fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
     match ty {
-        Ty::PathSearch(ref path, ref scope) => {
-            find_type_match(path, &scope.filepath, scope.point, session)
+        Ty::PathSearch(paths) => {
+            find_type_match(&paths.path, &paths.filepath, paths.point, session)
         }
         Ty::RefPtr(ty) => path_to_match(*ty, session),
         _ => Some(ty),
     }
 }
 
-fn find_type_match(path: &RacerPath, fpath: &Path, pos: BytePos, session: &Session) -> Option<Ty> {
+pub(crate) fn find_type_match(
+    path: &RacerPath,
+    fpath: &Path,
+    pos: BytePos,
+    session: &Session,
+) -> Option<Ty> {
     debug!("find_type_match {:?}, {:?}", path, fpath);
     let mut res = resolve_path_with_str(
         path,
@@ -743,7 +748,8 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
 fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session) -> Option<Ty> {
     debug!("path_to_match_including_generics: {:?}  {:?}", ty, contextm);
     match ty {
-        Ty::PathSearch(ref fieldtypepath, ref scope) => {
+        Ty::PathSearch(ref paths) => {
+            let fieldtypepath = &paths.path;
             if fieldtypepath.segments.len() == 1 {
                 let typename = &fieldtypepath.segments[0].name;
                 // could have generic args! - try and resolve them
@@ -767,7 +773,7 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
                     }
                 }
                 if gentypefound {
-                    let mut out = find_type_match(&typepath, &scope.filepath, scope.point, session);
+                    let mut out = find_type_match(&typepath, &paths.filepath, paths.point, session);
                     // Fix the paths on the generic types in out
                     // TODO(kngwyu): I DON'T KNOW WHAT THIS CODE DO COMPLETELY
                     if let Some(Ty::Match(ref mut m)) = out {
@@ -790,7 +796,7 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
                 }
             }
 
-            find_type_match(fieldtypepath, &scope.filepath, scope.point, session)
+            find_type_match(&fieldtypepath, &paths.filepath, paths.point, session)
         }
         _ => Some(ty),
     }
@@ -805,9 +811,9 @@ fn find_type_match_including_generics(
 ) -> Option<Ty> {
     assert_eq!(&structm.filepath, filepath);
     let fieldtypepath = match *fieldtype {
-        Ty::PathSearch(ref path, _) => path,
+        Ty::PathSearch(ref paths) => &paths.path,
         Ty::RefPtr(ref ty) => match *ty.as_ref() {
-            Ty::PathSearch(ref path, _) => path,
+            Ty::PathSearch(ref paths) => &paths.path,
             _ => {
                 debug!(
                     "EXPECTING A PATH!! Cannot handle other types yet. {:?}",
@@ -1280,8 +1286,8 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for FnArgTypeVisitor<'c, 's> {
                             self.session,
                         )
                     }).map(destruct_ty_refptr)?;
-                if let Ty::PathSearch(ref path, ref scope) = ty {
-                    let segments = &path.segments;
+                if let Ty::PathSearch(ref paths) = ty {
+                    let segments = &paths.path.segments;
                     // now we want to get 'T' from fn f<T>(){}, so segments.len() == 1
                     if segments.len() == 1 {
                         let name = &segments[0].name;
@@ -1290,7 +1296,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for FnArgTypeVisitor<'c, 's> {
                             return Some(Ty::Match(res));
                         }
                     }
-                    find_type_match(path, &scope.filepath, scope.point, self.session)
+                    find_type_match(&paths.path, &paths.filepath, paths.point, self.session)
                 } else {
                     Some(ty)
                 }
@@ -1333,7 +1339,7 @@ where
 
 /// Visitor for for ~ in .. statement
 pub(crate) struct ForStmtVisitor<'r, 's: 'r> {
-    pub(crate) for_pat: Option<Pattern>,
+    pub(crate) for_pat: Option<Pat>,
     pub(crate) in_expr: Option<Ty>,
     scope: Scope,
     session: &'r Session<'s>,
@@ -1348,15 +1354,8 @@ impl<'ast, 'r, 's> visit::Visitor<'ast> for ForStmtVisitor<'r, 's> {
                 result: None,
             };
             expr_visitor.visit_expr(expr);
-            self.for_pat = Pattern::from_ast(&pat.node);
-            if let Some(ref for_) = self.for_pat {
-                match for_ {
-                    Pattern::Ident(..) | Pattern::Tuple(..) | Pattern::Ref(..) => {
-                        self.in_expr = expr_visitor.result;
-                    }
-                    _ => {}
-                }
-            }
+            self.in_expr = expr_visitor.result;
+            self.for_pat = Some(Pat::from_ast(&pat.node));
         }
     }
 }

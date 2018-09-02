@@ -1,7 +1,7 @@
 //! Type inference
 //! THIS MODULE IS ENTIRELY TOO UGLY SO REALLY NEADS REFACTORING(kngwyu)
 use ast;
-use ast_types::{Pattern, Ty};
+use ast_types::{destruct_pat_with_ty, Pat, Ty};
 use core;
 use core::Namespace;
 use core::SearchType::ExactMatch;
@@ -28,6 +28,7 @@ pub fn generate_skeleton_for_parsing(src: &str) -> String {
     src[..n.0 + 1].to_owned() + "}"
 }
 
+// TODO(kngwyu): use libsyntax parser
 pub fn first_param_is_self(blob: &str) -> bool {
     // Restricted visibility introduces the possibility of `pub(in ...)` at the start
     // of a method declaration. To counteract this, we restrict the search to only
@@ -251,30 +252,40 @@ fn get_type_of_for_arg(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
         warn!("[get_type_of_for_expr] invalid match type: {:?}", m.mtype);
         return None;
     }
-    println!("[get_type_of_for_expr] match: {:?}", m);
     let res = ast::parse_for_stmt(m.contextstr.clone(), Scope::from_match(m), session);
-    let for_pat = res.for_pat?;
-    println!("{:?}", for_pat);
-    match for_pat {
-        Pattern::Ident(bi, name) => if name == m.matchstr {
-            if let Ty::Match(ma) = res.in_expr? {
-                return nameres::get_intoiter_target(&ma, session).map(Ty::Match);
+    debug!(
+        "[get_type_of_for_expr] match: {:?}, for: {:?}, in: {:?},",
+        m, res.for_pat, res.in_expr
+    );
+    fn get_item(ty: Ty, session: &Session) -> Option<Ty> {
+        match ty {
+            Ty::Match(ma) => nameres::get_intoiter_target(&ma, session).map(Ty::Match),
+            Ty::PathSearch(paths) => {
+                nameres::get_intoiter_target(&paths.resolve(session)?, session).map(Ty::Match)
             }
-        },
-        Pattern::Tuple(pats) => {}
-        Pattern::Ref(pat, _) => {}
-        Pattern::Struct(path, pats) => {}
-        Pattern::TupleStruct(path, pats) => {}
-        _ => {
-            debug!("[get_type_of_for_expr] unsupported pattern: {:?}", for_pat);
+            _ => None,
         }
     }
-    // let gen_impl =
-    //     nameres::search_for_trait_impls(BytePos::ZERO, "IntoIterator", &in_expr, true, session);
-    // for m in gen_impl {
-    //     println!("{} {:?}", m.matchstr, m.mtype);
-    // }
-    None
+    match res.for_pat? {
+        Pat::Ident(_bi, name) => {
+            if name != m.matchstr {
+                return None;
+            }
+            get_item(res.in_expr?, session)
+        }
+        Pat::Tuple(_pats) => {
+            // currently unsupported
+            None
+        }
+        Pat::Ref(pat, _) => {
+            let target = get_item(res.in_expr?, session)?;
+            let (_, ty) = destruct_pat_with_ty(*pat, target);
+            Some(ty)
+        }
+        Pat::Struct(_path, _pats) => None,
+        Pat::TupleStruct(_path, _pats) => None,
+        _ => None,
+    }
 }
 
 pub fn get_struct_field_type(
@@ -451,7 +462,8 @@ pub fn get_return_type_of_function(
         ast::parse_fn_output(decl, Scope::from_match(fnmatch))
     });
     // Convert output arg of type Self to the correct type
-    if let Some(Ty::PathSearch(ref path, _)) = out {
+    if let Some(Ty::PathSearch(ref paths)) = out {
+        let path = &paths.path;
         if let Some(ref path_seg) = path.segments.get(0) {
             if "Self" == path_seg.name {
                 return get_type_of_self_arg(fnmatch, src.as_src(), session);
