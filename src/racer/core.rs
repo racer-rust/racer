@@ -1,4 +1,4 @@
-use ast_types::{GenericsArgs, ImplHeader, Path, PathSearch, TraitBounds, Ty, TypeParameter};
+use ast_types::{GenericsArgs, ImplHeader, Path, TraitBounds, Ty, TypeParameter};
 use codecleaner;
 use codeiter::StmtIndicesIter;
 use matchers::ImportInfo;

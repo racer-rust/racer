@@ -741,8 +741,6 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
             if fieldtypepath.segments.len() == 1 {
                 let typename = &fieldtypepath.segments[0].name;
                 // could have generic args! - try and resolve them
-                let mut typepath = fieldtypepath.to_owned();
-                let mut gentypefound = false;
                 for type_param in contextm.generics() {
                     let resolved = try_continue!(type_param.resolved());
                     if type_param.name() == typename {
@@ -750,7 +748,6 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
                     }
                 }
             }
-
             find_type_match(&fieldtypepath, &paths.filepath, paths.point, session)
         }
         _ => Some(ty),

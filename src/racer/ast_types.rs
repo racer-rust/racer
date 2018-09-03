@@ -57,7 +57,6 @@ impl Ty {
         }
         ty
     }
-
     pub(crate) fn destruct_ref(self) -> (Ty, usize) {
         fn destruct_ref_inner(ty: Ty, cur: usize) -> (Ty, usize) {
             if let Ty::RefPtr(ty) = ty {
@@ -577,18 +576,6 @@ impl TypeParameter {
     }
     pub(crate) fn resolved(&self) -> Option<&Ty> {
         self.resolved.as_ref()
-    }
-    pub(crate) fn to_racer_path(&self) -> Path {
-        let scope = Scope::new(self.filepath.clone(), self.point);
-        let segment = PathSegment {
-            name: self.name.clone(),
-            generics: self
-                .bounds
-                .paths()
-                .map(|p| Ty::PathSearch(PathSearch::new(p.to_owned(), scope.clone())))
-                .collect(),
-        };
-        Path::single(segment)
     }
 }
 
