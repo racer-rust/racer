@@ -1131,7 +1131,6 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
                     SearchType::StartsWith,
                     session,
                 ));
-                println!("{:?}", out);
             }
         }
     }

@@ -537,7 +537,7 @@ fn search_scope_headers(
     };
     if let Some(stmtstart) = scopes::find_stmt_start(msrc, scopestart) {
         let preblock = &msrc[stmtstart.0..scopestart.0];
-        println!("search_scope_headers preblock is |{}|", preblock);
+        debug!("search_scope_headers preblock is |{}|", preblock);
 
         if preblock_is_fn(preblock) {
             return search_fn_args(
