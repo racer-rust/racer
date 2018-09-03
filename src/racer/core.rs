@@ -1,4 +1,4 @@
-use ast_types::{GenericsArgs, ImplHeader, Path, PathSearch, TraitBounds, Ty, TypeParameter};
+use ast_types::{GenericsArgs, ImplHeader, Path, TraitBounds, Ty, TypeParameter};
 use codecleaner;
 use codeiter::StmtIndicesIter;
 use matchers::ImportInfo;
@@ -306,7 +306,7 @@ impl Match {
         };
         opt.into_iter().flat_map(|gen_arg| gen_arg.args())
     }
-    pub(crate) fn resolved_generics(&self) -> impl Iterator<Item = &PathSearch> {
+    pub(crate) fn resolved_generics(&self) -> impl Iterator<Item = &Ty> {
         let opt = match self.mtype {
             MatchType::Struct(ref gen_arg) | MatchType::Enum(ref gen_arg) => Some(&**gen_arg),
             MatchType::Method(ref header) => Some(header.generics()),
@@ -316,6 +316,7 @@ impl Match {
             .flat_map(|gen_arg| gen_arg.args())
             .filter_map(|ty_param| ty_param.resolved.as_ref())
     }
+    // currently we can't resolve method's type parameter
     pub(crate) fn generics_mut(&mut self) -> impl Iterator<Item = &mut TypeParameter> {
         let opt = match &mut self.mtype {
             MatchType::Struct(gen_arg) | MatchType::Enum(gen_arg) => Some(&mut **gen_arg),
@@ -396,6 +397,13 @@ pub struct Scope {
 }
 
 impl Scope {
+    pub fn new(path: path::PathBuf, pos: BytePos) -> Self {
+        Scope {
+            filepath: path,
+            point: pos,
+        }
+    }
+
     pub fn from_match(m: &Match) -> Scope {
         Scope {
             filepath: m.filepath.clone(),
@@ -1115,34 +1123,19 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
         }
         CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
-            debug!("complete_from_file context is {:?}", context);
+            println!("complete_from_file context is {:?}", context);
             if let Some(ty) = context {
-                complete_field_for_ty(ty, searchstr, SearchType::StartsWith, session, &mut out);
+                out.extend(nameres::get_field_matches_from_ty(
+                    ty,
+                    searchstr,
+                    SearchType::StartsWith,
+                    session,
+                ));
             }
         }
     }
 
     out
-}
-
-fn complete_field_for_ty(
-    ty: Ty,
-    searchstr: &str,
-    stype: SearchType,
-    session: &Session,
-    out: &mut Vec<Match>,
-) {
-    // TODO would be nice if this and other methods could operate on a ref instead of requiring
-    // ownership
-    match ty {
-        Ty::Match(m) => {
-            for m in nameres::search_for_field_or_method(m, searchstr, stype, session) {
-                out.push(m)
-            }
-        }
-        Ty::RefPtr(m) => complete_field_for_ty(*m, searchstr, stype, session, out),
-        _ => {}
-    }
 }
 
 /// Find the definition for item at given a file, source, and cursor index
@@ -1266,26 +1259,12 @@ pub fn find_definition_(
         CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
             debug!("context is {:?}", context);
-
-            let match_type: MatchType = if src[range.end.0..].starts_with('(') {
-                MatchType::Function
-            } else {
-                MatchType::StructField
-            };
+            let only_method = src[range.end.0..].starts_with('(');
             context.and_then(|ty| {
-                // for now, just handle matches
-                if let Ty::Match(m) = ty {
-                    nameres::search_for_field_or_method(
-                        m,
-                        searchstr,
-                        SearchType::ExactMatch,
-                        session,
-                    ).into_iter()
-                    .filter(|m| m.mtype == match_type)
-                    .nth(0)
-                } else {
-                    None
-                }
+                nameres::get_field_matches_from_ty(ty, searchstr, SearchType::ExactMatch, session)
+                    .into_iter()
+                    .filter(|m| !only_method || m.mtype.is_function())
+                    .next()
             })
         }
     }

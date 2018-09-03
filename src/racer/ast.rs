@@ -1,7 +1,5 @@
 use ast_types::Path as RacerPath;
-use ast_types::{
-    self, GenericsArgs, ImplHeader, Pat, PathAlias, PathAliasKind, PathSearch, TraitBounds, Ty,
-};
+use ast_types::{self, GenericsArgs, ImplHeader, Pat, PathAlias, PathAliasKind, TraitBounds, Ty};
 use core::{self, BytePos, ByteRange, Match, MatchType, Scope, Session, SessionExt};
 use nameres::{self, resolve_path_with_str};
 use scopes;
@@ -89,12 +87,12 @@ impl<'ast> visit::Visitor<'ast> for UseVisitor {
         ) -> (Vec<PathAlias>, bool) {
             let mut res = vec![];
             let mut path = if let Some(parent) = parent_path {
-                let relative_path = RacerPath::from_ast(&use_tree.prefix);
+                let relative_path = RacerPath::from_ast_nogen(&use_tree.prefix);
                 let mut path = parent.clone();
                 path.extend(relative_path);
                 path
             } else {
-                RacerPath::from_ast(&use_tree.prefix)
+                RacerPath::from_ast_nogen(&use_tree.prefix)
             };
             let mut contains_glob = false;
             match use_tree.kind {
@@ -420,7 +418,8 @@ fn resolve_ast_path(
     pos: BytePos,
     session: &Session,
 ) -> Option<Match> {
-    let path = RacerPath::from_ast(path);
+    let scope = Scope::new(filepath.to_owned(), pos);
+    let path = RacerPath::from_ast(path, &scope);
     debug!("resolve_ast_path {:?}", path);
     nameres::resolve_path_with_str(
         &path,
@@ -464,11 +463,7 @@ pub(crate) fn find_type_match(
     // TODO: 'Type' support
     // if res is Enum/Struct and has a generic type paramter, let's resolve it.
     for (mut param, typ) in res.generics_mut().zip(path.generic_types()) {
-        param.resolve(PathSearch {
-            path: typ.clone(),
-            filepath: fpath.to_owned(),
-            point: pos,
-        })
+        param.resolve(typ.to_owned());
     }
     Some(Ty::Match(res))
 }
@@ -478,13 +473,13 @@ pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match>
     let msrc = session.load_source_file(&m.filepath);
     let blobstart = m.point - BytePos(5); // 5 == "type ".len()
     let blob = msrc.get_src_from_start(blobstart);
-
     blob.iter_stmts()
         .nth(0)
         .and_then(|range| {
             let blob = msrc[range.shift(blobstart).to_range()].to_owned();
             debug!("get_type_of_typedef blob string {}", blob);
-            let res = parse_type(blob);
+            let scope = Scope::new(m.filepath.clone(), range.start);
+            let res = parse_type(blob, &scope);
             debug!("get_type_of_typedef parsed type {:?}", res.type_);
             res.type_
         }).and_then(|type_| {
@@ -574,7 +569,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 });
             }
             ExprKind::Struct(ref path, _, _) => {
-                let pathvec = RacerPath::from_ast(path);
+                let pathvec = RacerPath::from_ast(path, &self.scope);
                 self.result = find_type_match(
                     &pathvec,
                     &self.scope.filepath,
@@ -684,14 +679,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     // Yeah there're many corner cases but it'll work well in most cases
                     if m.matchstr == "Result" || m.matchstr == "Option" {
                         debug!("Option or Result: {:?}", m);
-                        m.resolved_generics().next().and_then(|ok_param| {
-                            find_type_match(
-                                &ok_param.path,
-                                &ok_param.filepath,
-                                ok_param.point,
-                                self.session,
-                            )
-                        })
+                        m.resolved_generics().next().map(|x| x.to_owned())
                     } else {
                         debug!("Unable to desugar Try expression; type was {:?}", m);
                         None
@@ -753,49 +741,13 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
             if fieldtypepath.segments.len() == 1 {
                 let typename = &fieldtypepath.segments[0].name;
                 // could have generic args! - try and resolve them
-                let mut typepath = fieldtypepath.to_owned();
-                let mut gentypefound = false;
                 for type_param in contextm.generics() {
                     let resolved = try_continue!(type_param.resolved());
                     if type_param.name() == typename {
-                        return find_type_match(
-                            &resolved.path,
-                            &resolved.filepath,
-                            resolved.point,
-                            session,
-                        );
+                        return Some(resolved.to_owned());
                     }
-                    for typ in &mut typepath.segments[0].types {
-                        if type_param.name() == &typ.segments[0].name {
-                            *typ = resolved.path.clone();
-                            gentypefound = true;
-                        }
-                    }
-                }
-                if gentypefound {
-                    let mut out = find_type_match(&typepath, &paths.filepath, paths.point, session);
-                    // Fix the paths on the generic types in out
-                    // TODO(kngwyu): I DON'T KNOW WHAT THIS CODE DO COMPLETELY
-                    if let Some(Ty::Match(ref mut m)) = out {
-                        for type_search in contextm.resolved_generics() {
-                            for gen_param in m.generics_mut() {
-                                debug!(
-                                    "gen_param: {:?}, type_search: {:?}",
-                                    gen_param, type_search
-                                );
-                                let same_name = gen_param.resolved().map_or(false, |typ| {
-                                    typ.path.segments[0].name == type_search.path.segments[0].name
-                                });
-                                if same_name {
-                                    gen_param.resolve(type_search.to_owned());
-                                }
-                            }
-                        }
-                    }
-                    return out;
                 }
             }
-
             find_type_match(&fieldtypepath, &paths.filepath, paths.point, session)
         }
         _ => Some(ty),
@@ -831,19 +783,20 @@ fn find_type_match_including_generics(
         }
     };
 
+    // TODO(kngwyu): why len() == 1
     if fieldtypepath.segments.len() == 1 {
         // could be a generic arg! - try and resolve it
         let typename = &fieldtypepath.segments[0].name;
         for type_param in structm.generics() {
-            if let Some(type_search) = type_param.resolved() {
-                if type_param.name() == typename {
-                    return find_type_match(
-                        &type_search.path,
-                        &type_search.filepath,
-                        type_search.point,
-                        session,
-                    );
-                }
+            let resolved = try_continue!(type_param.resolved());
+            if type_param.name() == typename {
+                return Some(resolved.to_owned());
+                // return find_type_match(
+                //     &type_search.path,
+                //     &type_search.filepath,
+                //     type_search.point,
+                //     session,
+                // );
             }
         }
     }
@@ -881,12 +834,13 @@ impl<'ast> visit::Visitor<'ast> for StructVisitor {
 }
 
 #[derive(Debug)]
-pub struct TypeVisitor {
+pub struct TypeVisitor<'s> {
     pub name: Option<String>,
     pub type_: Option<RacerPath>,
+    scope: &'s Scope,
 }
 
-impl<'ast> visit::Visitor<'ast> for TypeVisitor {
+impl<'ast, 's> visit::Visitor<'ast> for TypeVisitor<'s> {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::Ty(ref ty, _) = item.node {
             self.name = Some(item.ident.name.to_string());
@@ -894,14 +848,14 @@ impl<'ast> visit::Visitor<'ast> for TypeVisitor {
             let typepath = match ty.node {
                 TyKind::Rptr(_, ref ty) => match ty.ty.node {
                     TyKind::Path(_, ref path) => {
-                        let type_ = RacerPath::from_ast(path);
+                        let type_ = RacerPath::from_ast(path, self.scope);
                         debug!("type type is {:?}", type_);
                         Some(type_)
                     }
                     _ => None,
                 },
                 TyKind::Path(_, ref path) => {
-                    let type_ = RacerPath::from_ast(path);
+                    let type_ = RacerPath::from_ast(path, self.scope);
                     debug!("type type is {:?}", type_);
                     Some(type_)
                 }
@@ -1102,10 +1056,11 @@ pub fn parse_generics(s: String, filepath: &Path) -> GenericsArgs {
     v.result
 }
 
-pub fn parse_type(s: String) -> TypeVisitor {
+pub fn parse_type<'s>(s: String, scope: &'s Scope) -> TypeVisitor<'s> {
     let mut v = TypeVisitor {
         name: None,
         type_: None,
+        scope,
     };
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v
@@ -1355,7 +1310,7 @@ impl<'ast, 'r, 's> visit::Visitor<'ast> for ForStmtVisitor<'r, 's> {
             };
             expr_visitor.visit_expr(expr);
             self.in_expr = expr_visitor.result;
-            self.for_pat = Some(Pat::from_ast(&pat.node));
+            self.for_pat = Some(Pat::from_ast(&pat.node, &self.scope));
         }
     }
 }

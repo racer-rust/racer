@@ -733,3 +733,10 @@ macro_rules! try_continue {
         }
     };
 }
+
+pub(crate) fn gen_tuple_fields(u: usize) -> impl Iterator<Item = &'static str> {
+    const NUM: [&'static str; 16] = [
+        "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15",
+    ];
+    NUM.into_iter().take(::std::cmp::min(u, 16)).map(|x| *x)
+}

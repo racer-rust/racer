@@ -8,7 +8,7 @@ use std::{self, vec};
 use ast_types::{ImplHeader, Path as RacerPath, PathPrefix, PathSegment, Ty};
 use core::Namespace;
 use core::SearchType::{self, ExactMatch, StartsWith};
-use core::{BytePos, ByteRange, Coordinate, Match, MatchType, Session, SessionExt, Src};
+use core::{BytePos, ByteRange, Coordinate, Match, MatchType, Scope, Session, SessionExt, Src};
 use fileres::{get_crate_file, get_module_file, get_std_file};
 use matchers::{find_doc, ImportInfo, MatchCxt};
 use util::{
@@ -256,10 +256,11 @@ fn search_scope_for_impled_assoc_types(
     let src = session.load_source_file(header.file_path());
     let scope_src = src.as_src().shift_start(header.scope_start());
     let mut out = vec![];
+    let scope = Scope::new(header.file_path().to_owned(), header.scope_start());
     for blob_range in scope_src.iter_stmts() {
         let blob = &scope_src[blob_range.to_range()];
         if blob.starts_with("type") {
-            let ast::TypeVisitor { name, type_ } = ast::parse_type(blob.to_owned());
+            let ast::TypeVisitor { name, type_, .. } = ast::parse_type(blob.to_owned(), &scope);
             let name = try_continue!(name);
             let type_ = try_continue!(type_);
             match search_type {
@@ -721,12 +722,11 @@ fn search_fn_args(
     local: bool,
 ) -> vec::IntoIter<Match> {
     let mut out = Vec::new();
-    let mut fndecl = String::new();
     // wrap in 'impl blah {}' so that methods get parsed correctly too
-    fndecl.push_str("impl blah {");
+    let mut fndecl = "impl blah {".to_owned();
     let impl_header_len = fndecl.len();
-    fndecl.push_str(&msrc[fnstart.0..open_brace_pos.increment().0]);
-    fndecl.push_str("}}");
+    fndecl += &msrc[fnstart.0..open_brace_pos.increment().0];
+    fndecl += "}}";
     debug!(
         "search_fn_args: found start of fn!! {:?} |{}| {}",
         fnstart, fndecl, searchstr
@@ -1805,10 +1805,7 @@ pub fn resolve_path(
                 if searchstr.starts_with('{') {
                     searchstr = &searchstr[1..];
                 }
-                let pathseg = PathSegment {
-                    name: searchstr.to_owned(),
-                    types: Vec::new(),
-                };
+                let pathseg = PathSegment::new(searchstr.to_owned(), vec![]);
                 debug!(
                     "searching a module '{}' for {} (whole path: {:?})",
                     m.matchstr, pathseg.name, path
@@ -1952,10 +1949,7 @@ pub fn do_external_search(
     if path.len() == 1 {
         let searchstr = path[0];
         // hack for now
-        let pathseg = PathSegment {
-            name: searchstr.to_owned(),
-            types: Vec::new(),
-        };
+        let pathseg = PathSegment::new(path[0].to_owned(), vec![]);
         out.extend(search_next_scope(
             pos,
             &pathseg,
@@ -2000,10 +1994,7 @@ pub fn do_external_search(
                         Some('{') => &path[path.len() - 1][1..],
                         _ => path[path.len() - 1],
                     };
-                    let pathseg = PathSegment {
-                        name: searchstr.to_owned(),
-                        types: Vec::new(),
-                    };
+                    let pathseg = PathSegment::new(searchstr.to_owned(), vec![]);
                     for m in search_next_scope(
                         m.point,
                         &pathseg,
@@ -2028,10 +2019,7 @@ pub fn do_external_search(
                             Some('{') => &path[path.len() - 1][1..],
                             _ => path[path.len() - 1],
                         };
-                        let pathseg = PathSegment {
-                            name: searchstr.to_owned(),
-                            types: Vec::new(),
-                        };
+                        let pathseg = PathSegment::new(searchstr.to_owned(), vec![]);
                         debug!("about to search impl scope...");
                         for m in search_next_scope(
                             impl_header.impl_start(),
@@ -2201,12 +2189,30 @@ fn search_for_deref_matches(
     fieldsearchstr: &str,
     session: &Session,
 ) -> Vec<Match> {
-    get_assoc_type_from_header(target_path, type_match, impl_header, session).map_or_else(
-        Vec::new,
-        |ty_match| {
-            search_for_field_or_method(ty_match, fieldsearchstr, SearchType::StartsWith, session)
-        },
-    )
+    get_assoc_type_from_header(target_path, type_match, impl_header, session)
+        .map_or_else(Vec::new, |ty| {
+            get_field_matches_from_ty(ty, fieldsearchstr, SearchType::StartsWith, session)
+        })
+}
+
+pub(crate) fn get_field_matches_from_ty(
+    ty: Ty,
+    searchstr: &str,
+    stype: SearchType,
+    session: &Session,
+) -> Vec<Match> {
+    match ty {
+        Ty::Match(m) => search_for_field_or_method(m, searchstr, stype, session),
+        Ty::PathSearch(paths) => paths.resolve_as_ty(session).map_or_else(Vec::new, |m| {
+            search_for_field_or_method(m, searchstr, stype, session)
+        }),
+        Ty::Tuple(v) => get_tuple_field_matches(v.len(), searchstr, stype).collect(),
+        Ty::RefPtr(ty) => {
+            // TODO(kngwyu): support impl &Type {..}
+            get_field_matches_from_ty(*ty, searchstr, stype, session)
+        }
+        _ => vec![],
+    }
 }
 
 fn get_assoc_type_from_header(
@@ -2214,34 +2220,27 @@ fn get_assoc_type_from_header(
     type_match: &Match,      // the type which implements Deref
     impl_header: &ImplHeader,
     session: &Session,
-) -> Option<Match> {
+) -> Option<Ty> {
     debug!(
         "[search_for_deref_matches] target: {:?} impl: {:?}",
         target_path, impl_header
     );
     if let Some((pos, _)) = impl_header.generics().search_param_by_path(target_path) {
-        if let Some(path_search) = type_match.resolved_generics().nth(pos) {
-            // TODO(kngwyu): does it work for nested generics?
-            return resolve_path_with_str(
-                &path_search.path,
-                &path_search.filepath,
-                BytePos::ZERO,
-                SearchType::ExactMatch,
-                Namespace::Type,
-                session,
-            ).nth(0);
-        }
+        type_match
+            .resolved_generics()
+            .nth(pos)
+            .map(|x| x.to_owned())
     } else {
-        return resolve_path_with_str(
+        resolve_path_with_str(
             &target_path,
             impl_header.file_path(),
             BytePos::ZERO,
             SearchType::ExactMatch,
             Namespace::Type,
             session,
-        ).nth(0);
+        ).nth(0)
+        .map(Ty::Match)
     }
-    None
 }
 
 fn get_std_macros(
@@ -2362,7 +2361,7 @@ fn get_std_macros_(
     }
 }
 
-pub(crate) fn get_intoiter_target(selfm: &Match, session: &Session) -> Option<Match> {
+pub(crate) fn get_iter_item(selfm: &Match, session: &Session) -> Option<Ty> {
     let iter_header = search_trait_impls(
         selfm.point,
         &selfm.matchstr,
@@ -2381,5 +2380,28 @@ pub(crate) fn get_intoiter_target(selfm: &Match, session: &Session) -> Option<Ma
     );
     item.get(0).and_then(|(_, item_path)| {
         get_assoc_type_from_header(item_path, selfm, &iter_header, session)
+    })
+}
+
+pub(crate) fn get_tuple_field_matches<'a>(
+    fields: usize,
+    search_str: &'a str,
+    search_type: SearchType,
+) -> impl 'a + Iterator<Item = Match> {
+    util::gen_tuple_fields(fields).filter_map(move |field| {
+        if txt_matches(search_type, search_str, field) {
+            Some(Match {
+                matchstr: field.to_owned(),
+                filepath: PathBuf::from("foo"),
+                point: BytePos::ZERO,
+                coords: None,
+                local: false,
+                mtype: MatchType::StructField,
+                contextstr: String::new(),
+                docs: String::new(),
+            })
+        } else {
+            None
+        }
     })
 }
