@@ -537,7 +537,7 @@ fn search_scope_headers(
     };
     if let Some(stmtstart) = scopes::find_stmt_start(msrc, scopestart) {
         let preblock = &msrc[stmtstart.0..scopestart.0];
-        debug!("search_scope_headers preblock is |{}|", preblock);
+        println!("search_scope_headers preblock is |{}|", preblock);
 
         if preblock_is_fn(preblock) {
             return search_fn_args(
@@ -2203,7 +2203,7 @@ pub(crate) fn get_field_matches_from_ty(
 ) -> Vec<Match> {
     match ty {
         Ty::Match(m) => search_for_field_or_method(m, searchstr, stype, session),
-        Ty::PathSearch(paths) => paths.resolve_as_ty(session).map_or_else(Vec::new, |m| {
+        Ty::PathSearch(paths) => paths.resolve_as_match(session).map_or_else(Vec::new, |m| {
             search_for_field_or_method(m, searchstr, stype, session)
         }),
         Ty::Tuple(v) => get_tuple_field_matches(v.len(), searchstr, stype).collect(),

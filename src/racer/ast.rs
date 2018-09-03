@@ -434,7 +434,7 @@ fn resolve_ast_path(
 fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
     match ty {
         Ty::PathSearch(paths) => {
-            find_type_match(&paths.path, &paths.filepath, paths.point, session)
+            find_type_match(&paths.path, &paths.filepath, paths.point, session).map(Ty::Match)
         }
         Ty::RefPtr(ty) => path_to_match(*ty, session),
         _ => Some(ty),
@@ -446,7 +446,7 @@ pub(crate) fn find_type_match(
     fpath: &Path,
     pos: BytePos,
     session: &Session,
-) -> Option<Ty> {
+) -> Option<Match> {
     debug!("find_type_match {:?}, {:?}", path, fpath);
     let mut res = resolve_path_with_str(
         path,
@@ -465,7 +465,7 @@ pub(crate) fn find_type_match(
     for (mut param, typ) in res.generics_mut().zip(path.generic_types()) {
         param.resolve(typ.to_owned());
     }
-    Some(Ty::Match(res))
+    Some(res)
 }
 
 pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match> {
@@ -575,7 +575,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     &self.scope.filepath,
                     self.scope.point,
                     self.session,
-                );
+                ).map(Ty::Match);
             }
 
             ExprKind::MethodCall(ref method_def, ref arguments) => {
@@ -665,7 +665,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                         &self.scope.filepath,
                         self.scope.point,
                         self.session,
-                    )
+                    ).map(Ty::Match)
                 } else {
                     Some(Ty::Unsupported)
                 };
@@ -748,7 +748,7 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
                     }
                 }
             }
-            find_type_match(&fieldtypepath, &paths.filepath, paths.point, session)
+            find_type_match(&fieldtypepath, &paths.filepath, paths.point, session).map(Ty::Match)
         }
         _ => Some(ty),
     }
@@ -791,17 +791,11 @@ fn find_type_match_including_generics(
             let resolved = try_continue!(type_param.resolved());
             if type_param.name() == typename {
                 return Some(resolved.to_owned());
-                // return find_type_match(
-                //     &type_search.path,
-                //     &type_search.filepath,
-                //     type_search.point,
-                //     session,
-                // );
             }
         }
     }
 
-    find_type_match(fieldtypepath, filepath, pos, session)
+    find_type_match(fieldtypepath, filepath, pos, session).map(Ty::Match)
 }
 
 struct StructVisitor {
@@ -1252,6 +1246,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for FnArgTypeVisitor<'c, 's> {
                         }
                     }
                     find_type_match(&paths.path, &paths.filepath, paths.point, self.session)
+                        .map(Ty::Match)
                 } else {
                     Some(ty)
                 }
@@ -1303,14 +1298,17 @@ pub(crate) struct ForStmtVisitor<'r, 's: 'r> {
 impl<'ast, 'r, 's> visit::Visitor<'ast> for ForStmtVisitor<'r, 's> {
     fn visit_expr(&mut self, ex: &'ast ast::Expr) {
         if let ExprKind::ForLoop(ref pat, ref expr, _, _) = ex.node {
-            let mut expr_visitor = ExprTypeVisitor {
-                scope: self.scope.clone(),
-                session: self.session,
-                result: None,
-            };
-            expr_visitor.visit_expr(expr);
-            self.in_expr = expr_visitor.result;
-            self.for_pat = Some(Pat::from_ast(&pat.node, &self.scope));
+            let for_pat = Pat::from_ast(&pat.node, &self.scope);
+            if !for_pat.has_type() {
+                let mut expr_visitor = ExprTypeVisitor {
+                    scope: self.scope.clone(),
+                    session: self.session,
+                    result: None,
+                };
+                expr_visitor.visit_expr(expr);
+                self.in_expr = expr_visitor.result;
+            }
+            self.for_pat = Some(for_pat);
         }
     }
 }

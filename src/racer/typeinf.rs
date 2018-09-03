@@ -1,7 +1,7 @@
 //! Type inference
 //! THIS MODULE IS ENTIRELY TOO UGLY SO REALLY NEADS REFACTORING(kngwyu)
 use ast;
-use ast_types::{destruct_pat_with_ty, Pat, Ty};
+use ast_types::{Pat, Path as RacerPath, Ty};
 use core;
 use core::Namespace;
 use core::SearchType::ExactMatch;
@@ -9,6 +9,7 @@ use core::{BytePos, MaskedSource, Match, Scope, Session, SessionExt, Src};
 use matchers;
 use nameres;
 use scopes;
+use std::boxed::FnBox;
 use std::path::Path;
 use util::{self, txt_matches};
 
@@ -247,45 +248,119 @@ fn get_type_of_let_block_expr(m: &Match, msrc: Src, session: &Session, prefix: &
     }
 }
 
+/// Decide l_value's type given r_value and ident query
+fn resolve_lvalue_ty<'a>(
+    l_value: Pat,
+    r_value: Box<dyn 'a + FnBox() -> Option<Ty>>,
+    query: &str,
+    fpath: &Path,
+    pos: BytePos,
+    session: &Session,
+) -> Option<Ty> {
+    match l_value {
+        Pat::Ident(_bi, name) => {
+            if name != query {
+                return None;
+            }
+            r_value()
+        }
+        Pat::Tuple(pats) => {
+            if let Ty::Tuple(ty) = r_value()? {
+                for (p, t) in pats.into_iter().zip(ty) {
+                    let ret = try_continue!(resolve_lvalue_ty(
+                        p,
+                        Box::new(move || Some(t)),
+                        query,
+                        fpath,
+                        pos,
+                        session,
+                    ));
+                    return Some(ret);
+                }
+            }
+            None
+        }
+        Pat::Ref(pat, _) => {
+            if let Some(ty) = r_value() {
+                if let Ty::RefPtr(ty) = ty {
+                    resolve_lvalue_ty(
+                        *pat,
+                        Box::new(move || Some(*ty)),
+                        query,
+                        fpath,
+                        pos,
+                        session,
+                    )
+                } else {
+                    resolve_lvalue_ty(*pat, Box::new(move || Some(ty)), query, fpath, pos, session)
+                }
+            } else {
+                resolve_lvalue_ty(*pat, Box::new(move || None), query, fpath, pos, session)
+            }
+        }
+        Pat::TupleStruct(path, pats) => {
+            let item = ast::find_type_match(&path, fpath, pos, session)?;
+            if !item.mtype.is_struct() {
+                return None;
+            }
+            for (pat, (_, _, t)) in pats
+                .into_iter()
+                .zip(get_tuplestruct_fields_(&item, session))
+            {
+                let ret = try_continue!(resolve_lvalue_ty(
+                    pat,
+                    Box::new(move || t),
+                    query,
+                    fpath,
+                    pos,
+                    session
+                ));
+                return Some(ret);
+            }
+            None
+        }
+        Pat::Struct(path, pats) => {
+            println!("{:?}", pats);
+            let item = ast::find_type_match(&path, fpath, pos, session)?;
+            if !item.mtype.is_struct() {
+                return None;
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
 fn get_type_of_for_arg(m: &Match, session: &Session) -> Option<Ty> {
     if m.mtype != core::MatchType::For {
         warn!("[get_type_of_for_expr] invalid match type: {:?}", m.mtype);
         return None;
     }
-    let res = ast::parse_for_stmt(m.contextstr.clone(), Scope::from_match(m), session);
+    let ast::ForStmtVisitor {
+        for_pat, in_expr, ..
+    } = ast::parse_for_stmt(m.contextstr.clone(), Scope::from_match(m), session);
     debug!(
         "[get_type_of_for_expr] match: {:?}, for: {:?}, in: {:?},",
-        m, res.for_pat, res.in_expr
+        m, for_pat, in_expr
     );
     fn get_item(ty: Ty, session: &Session) -> Option<Ty> {
         match ty {
             Ty::Match(ma) => nameres::get_iter_item(&ma, session),
             Ty::PathSearch(paths) => {
-                nameres::get_iter_item(&paths.resolve_as_ty(session)?, session)
+                nameres::get_iter_item(&paths.resolve_as_match(session)?, session)
             }
+            Ty::RefPtr(ty) => get_item(*ty, session),
             _ => None,
         }
     }
-    match res.for_pat? {
-        Pat::Ident(_bi, name) => {
-            if name != m.matchstr {
-                return None;
-            }
-            get_item(res.in_expr?, session)
-        }
-        Pat::Tuple(_pats) => {
-            // currently unsupported
-            None
-        }
-        Pat::Ref(pat, _) => {
-            let target = get_item(res.in_expr?, session)?;
-            let (_, ty) = destruct_pat_with_ty(*pat, target);
-            Some(ty)
-        }
-        Pat::Struct(_path, _pats) => None,
-        Pat::TupleStruct(_path, _pats) => None,
-        _ => None,
-    }
+    resolve_lvalue_ty(
+        for_pat?,
+        Box::new(|| in_expr.and_then(|ty| get_item(ty, session))),
+        &m.matchstr,
+        &m.filepath,
+        m.point,
+        session,
+    )
 }
 
 pub fn get_struct_field_type(
@@ -322,11 +397,10 @@ pub fn get_struct_field_type(
     None
 }
 
-pub fn get_tuplestruct_field_type(
-    fieldnum: usize,
+fn get_tuplestruct_fields_(
     structmatch: &Match,
     session: &Session,
-) -> Option<Ty> {
+) -> Vec<(String, BytePos, Option<Ty>)> {
     let src = session.load_source_file(&structmatch.filepath);
     let structsrc = if let core::MatchType::EnumVariant(_) = structmatch.mtype {
         // decorate the enum variant src to make it look like a tuple struct
@@ -342,9 +416,17 @@ pub fn get_tuplestruct_field_type(
         (*get_first_stmt(src.as_src().shift_start(opoint))).to_owned()
     };
 
-    debug!("get_tuplestruct_field_type structsrc=|{}|", structsrc);
+    debug!("[tuplestruct_fields] structsrc=|{}|", structsrc);
 
-    let fields = ast::parse_struct_fields(structsrc, Scope::from_match(structmatch));
+    ast::parse_struct_fields(structsrc, Scope::from_match(structmatch))
+}
+
+pub fn get_tuplestruct_field_type(
+    fieldnum: usize,
+    structmatch: &Match,
+    session: &Session,
+) -> Option<Ty> {
+    let fields = get_tuplestruct_fields_(structmatch, session);
 
     for (i, (_, _, ty)) in fields.into_iter().enumerate() {
         if i == fieldnum {
