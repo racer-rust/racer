@@ -652,10 +652,9 @@ pub fn match_use(
                     None
                 };
                 let mut search_path = path_alias.path;
-                search_path.segments.push(PathSegment {
-                    name: context.search_str.to_owned(),
-                    types: vec![],
-                });
+                search_path
+                    .segments
+                    .push(PathSegment::new(context.search_str.to_owned(), vec![]));
                 let mut path_iter = resolve_path(
                     &search_path,
                     context.filepath,

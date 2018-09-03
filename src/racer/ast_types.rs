@@ -38,7 +38,7 @@ impl AsRef<Path> for PathAlias {
 }
 
 // Represents a type. Equivilent to rustc's ast::Ty but can be passed across threads
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Ty {
     Match(Match),
     PathSearch(PathSearch), // A path + the scope to be able to resolve it
@@ -84,7 +84,7 @@ impl Ty {
                 Ty::from_ast(&ty.ty, scope).map(|ref_ty| Ty::RefPtr(Box::new(ref_ty)))
             }
             TyKind::Path(_, ref path) => Some(Ty::PathSearch(PathSearch {
-                path: Path::from_ast(path),
+                path: Path::from_ast(path, scope),
                 filepath: scope.filepath.clone(),
                 point: scope.point,
             })),
@@ -158,35 +158,41 @@ pub enum Pat {
 }
 
 impl Pat {
-    pub fn from_ast(pat: &PatKind) -> Self {
+    pub fn from_ast(pat: &PatKind, scope: &Scope) -> Self {
         match pat {
             PatKind::Wild => Pat::Wild,
             PatKind::Ident(bi, ident, _) => Pat::Ident(*bi, ident.to_string()),
             PatKind::Struct(path, fields, _) => {
-                let path = Path::from_ast(path);
+                let path = Path::from_ast(path, scope);
                 let fields = fields
                     .iter()
-                    .map(|fld| FieldPat::from_ast(&fld.node))
+                    .map(|fld| FieldPat::from_ast(&fld.node, scope))
                     .collect();
                 Pat::Struct(path, fields)
             }
             PatKind::TupleStruct(path, pats, _) => {
-                let path = Path::from_ast(path);
-                let pats = pats.iter().map(|pat| Pat::from_ast(&pat.node)).collect();
+                let path = Path::from_ast(path, scope);
+                let pats = pats
+                    .iter()
+                    .map(|pat| Pat::from_ast(&pat.node, scope))
+                    .collect();
                 Pat::TupleStruct(path, pats)
             }
-            PatKind::Path(_, path) => Pat::Path(Path::from_ast(&path)),
+            PatKind::Path(_, path) => Pat::Path(Path::from_ast(&path, scope)),
             PatKind::Tuple(pats, _) => {
-                let pats = pats.iter().map(|pat| Pat::from_ast(&pat.node)).collect();
+                let pats = pats
+                    .iter()
+                    .map(|pat| Pat::from_ast(&pat.node, scope))
+                    .collect();
                 Pat::Tuple(pats)
             }
             PatKind::Box(_) => Pat::Box,
-            PatKind::Ref(pat, mut_) => Pat::Ref(Box::new(Pat::from_ast(&pat.node)), *mut_),
+            PatKind::Ref(pat, mut_) => Pat::Ref(Box::new(Pat::from_ast(&pat.node, scope)), *mut_),
             PatKind::Lit(_) => Pat::Lit,
             PatKind::Range(..) => Pat::Range,
             PatKind::Slice(..) => Pat::Slice,
             // ignore paren
-            PatKind::Paren(pat) => Pat::from_ast(&pat.node),
+            PatKind::Paren(pat) => Pat::from_ast(&pat.node, scope),
             PatKind::Mac(_) => Pat::Mac,
         }
     }
@@ -199,10 +205,10 @@ pub struct FieldPat {
 }
 
 impl FieldPat {
-    pub fn from_ast(fpat: &ast::FieldPat) -> Self {
+    pub fn from_ast(fpat: &ast::FieldPat, scope: &Scope) -> Self {
         FieldPat {
             field_name: fpat.ident.to_string(),
-            pat: Box::new(Pat::from_ast(&fpat.pat.node)),
+            pat: Box::new(Pat::from_ast(&fpat.pat.node, scope)),
         }
     }
 }
@@ -242,7 +248,19 @@ impl Path {
         self.segments.len() == 1
     }
 
-    pub fn from_ast(path: &ast::Path) -> Path {
+    pub fn from_ast_nogen(path: &ast::Path) -> Path {
+        let mut segments = Vec::new();
+        for seg in path.segments.iter() {
+            let name = seg.ident.name.to_string();
+            segments.push(PathSegment::new(name, vec![]));
+        }
+        Path {
+            prefix: None,
+            segments,
+        }
+    }
+
+    pub fn from_ast(path: &ast::Path, scope: &Scope) -> Path {
         let mut segments = Vec::new();
         for seg in path.segments.iter() {
             let name = seg.ident.name.to_string();
@@ -252,8 +270,8 @@ impl Path {
                 if let ast::GenericArgs::AngleBracketed(ref angle_args) = **params {
                     angle_args.args.iter().for_each(|arg| {
                         if let ast::GenericArg::Type(ty) = arg {
-                            if let TyKind::Path(_, ref path) = ty.node {
-                                types.push(Path::from_ast(path));
+                            if let Some(ty) = Ty::from_ast(ty, scope) {
+                                types.push(ty);
                             }
                         }
                     })
@@ -267,8 +285,8 @@ impl Path {
         }
     }
 
-    pub fn generic_types(&self) -> ::std::slice::Iter<Path> {
-        self.segments[self.segments.len() - 1].types.iter()
+    pub fn generic_types(&self) -> impl Iterator<Item = &Ty> {
+        self.segments[self.segments.len() - 1].generics.iter()
     }
 
     pub fn single(seg: PathSegment) -> Path {
@@ -345,15 +363,13 @@ impl fmt::Debug for Path {
                 write!(f, "::{}", seg.name)?;
             }
 
-            if !seg.types.is_empty() {
+            if !seg.generics.is_empty() {
                 write!(f, "<")?;
-                let mut t_first = true;
-                for typath in &seg.types {
-                    if t_first {
-                        write!(f, "{:?}", typath)?;
-                        t_first = false;
+                for (i, ty) in seg.generics.iter().enumerate() {
+                    if i == 0 {
+                        write!(f, "{:?}", ty)?;
                     } else {
-                        write!(f, ",{:?}", typath)?
+                        write!(f, ",{:?}", ty)?
                     }
                 }
                 write!(f, ">")?;
@@ -374,15 +390,13 @@ impl fmt::Display for Path {
                 write!(f, "::{}", seg.name)?;
             }
 
-            if !seg.types.is_empty() {
+            if !seg.generics.is_empty() {
                 write!(f, "<")?;
-                let mut t_first = true;
-                for typath in &seg.types {
-                    if t_first {
-                        write!(f, "{}", typath)?;
-                        t_first = false;
+                for (i, ty) in seg.generics.iter().enumerate() {
+                    if i == 0 {
+                        write!(f, "{}", ty)?;
                     } else {
-                        write!(f, ", {}", typath)?
+                        write!(f, ", {}", ty)?
                     }
                 }
                 write!(f, ">")?;
@@ -395,12 +409,12 @@ impl fmt::Display for Path {
 #[derive(Debug, Clone, PartialEq)]
 pub struct PathSegment {
     pub name: String,
-    pub types: Vec<Path>,
+    pub generics: Vec<Ty>,
 }
 
 impl PathSegment {
-    pub fn new(name: String, types: Vec<Path>) -> Self {
-        PathSegment { name, types }
+    pub fn new(name: String, generics: Vec<Ty>) -> Self {
+        PathSegment { name, generics }
     }
 }
 
@@ -408,7 +422,7 @@ impl From<String> for PathSegment {
     fn from(name: String) -> Self {
         PathSegment {
             name,
-            types: Vec::new(),
+            generics: Vec::new(),
         }
     }
 }
@@ -422,7 +436,15 @@ pub struct PathSearch {
 }
 
 impl PathSearch {
-    pub(crate) fn resolve(&self, session: &Session) -> Option<Match> {
+    pub fn new(path: Path, scope: Scope) -> Self {
+        let Scope { filepath, point } = scope;
+        PathSearch {
+            path,
+            filepath,
+            point,
+        }
+    }
+    pub(crate) fn resolve_as_ty(&self, session: &Session) -> Option<Match> {
         if let Some(Ty::Match(m)) = find_type_match(&self.path, &self.filepath, self.point, session)
         {
             Some(m)
@@ -494,12 +516,12 @@ impl TraitBounds {
                 if let GenericBound::Trait(ref ptrait_ref, _) = *bound {
                     let ast_path = &ptrait_ref.trait_ref.path;
                     let source_map::BytePos(point) = ast_path.span.lo();
-                    let path = Path::from_ast(&ast_path);
-                    let path_search = PathSearch {
-                        path: path,
-                        filepath: filepath.as_ref().to_path_buf(),
-                        point: BytePos::from((point as i32 + offset) as u32),
-                    };
+                    let scope = Scope::new(
+                        filepath.as_ref().to_path_buf(),
+                        BytePos::from((point as i32 + offset) as u32),
+                    );
+                    let path = Path::from_ast(&ast_path, &scope);
+                    let path_search = PathSearch::new(path, scope);
                     Some(path_search)
                 } else {
                     None
@@ -510,8 +532,8 @@ impl TraitBounds {
     fn extend(&mut self, other: Self) {
         self.0.extend(other.0)
     }
-    fn to_paths(&self) -> Vec<Path> {
-        self.0.iter().map(|paths| paths.path.clone()).collect()
+    fn paths(&self) -> impl Iterator<Item = &Path> {
+        self.0.iter().map(|paths| &paths.path)
     }
 }
 
@@ -530,7 +552,7 @@ pub struct TypeParameter {
     /// bounds
     pub bounds: TraitBounds,
     /// Resolved Type
-    pub resolved: Option<PathSearch>,
+    pub resolved: Option<Ty>,
 }
 
 impl TypeParameter {
@@ -550,16 +572,21 @@ impl TypeParameter {
             docs: String::new(),
         })
     }
-    pub(crate) fn resolve(&mut self, paths: PathSearch) {
-        self.resolved = Some(paths);
+    pub(crate) fn resolve(&mut self, ty: Ty) {
+        self.resolved = Some(ty);
     }
-    pub(crate) fn resolved(&self) -> Option<&PathSearch> {
+    pub(crate) fn resolved(&self) -> Option<&Ty> {
         self.resolved.as_ref()
     }
-    pub fn to_racer_path(&self) -> Path {
+    pub(crate) fn to_racer_path(&self) -> Path {
+        let scope = Scope::new(self.filepath.clone(), self.point);
         let segment = PathSegment {
             name: self.name.clone(),
-            types: self.bounds.to_paths(),
+            generics: self
+                .bounds
+                .paths()
+                .map(|p| Ty::PathSearch(PathSearch::new(p.to_owned(), scope.clone())))
+                .collect(),
         };
         Path::single(segment)
     }
@@ -677,8 +704,11 @@ impl ImplHeader {
         block_start: BytePos,
     ) -> Option<Self> {
         let generics = GenericsArgs::from_generics(generics, path, offset.0 as i32);
-        let self_path = destruct_ref_ptr(&self_type.node).map(Path::from_ast)?;
-        let trait_path = otrait.as_ref().map(|tref| Path::from_ast(&tref.path));
+        let scope = Scope::new(path.to_owned(), impl_start);
+        let self_path = destruct_ref_ptr(&self_type.node).map(|p| Path::from_ast(p, &scope))?;
+        let trait_path = otrait
+            .as_ref()
+            .map(|tref| Path::from_ast(&tref.path, &scope));
         Some(ImplHeader {
             self_path,
             trait_path,

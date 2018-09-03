@@ -247,7 +247,7 @@ fn get_type_of_let_block_expr(m: &Match, msrc: Src, session: &Session, prefix: &
     }
 }
 
-fn get_type_of_for_arg(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
+fn get_type_of_for_arg(m: &Match, session: &Session) -> Option<Ty> {
     if m.mtype != core::MatchType::For {
         warn!("[get_type_of_for_expr] invalid match type: {:?}", m.mtype);
         return None;
@@ -259,9 +259,9 @@ fn get_type_of_for_arg(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
     );
     fn get_item(ty: Ty, session: &Session) -> Option<Ty> {
         match ty {
-            Ty::Match(ma) => nameres::get_intoiter_target(&ma, session).map(Ty::Match),
+            Ty::Match(ma) => nameres::get_iter_item(&ma, session),
             Ty::PathSearch(paths) => {
-                nameres::get_intoiter_target(&paths.resolve(session)?, session).map(Ty::Match)
+                nameres::get_iter_item(&paths.resolve_as_ty(session)?, session)
             }
             _ => None,
         }
@@ -368,7 +368,7 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<Ty> {
         core::MatchType::Let => get_type_of_let_expr(&m, msrc, session),
         core::MatchType::IfLet => get_type_of_let_block_expr(&m, msrc, session, "if let"),
         core::MatchType::WhileLet => get_type_of_let_block_expr(&m, msrc, session, "while let"),
-        core::MatchType::For => get_type_of_for_arg(&m, msrc, session),
+        core::MatchType::For => get_type_of_for_arg(&m, session),
         core::MatchType::FnArg => get_type_of_fnarg(&m, msrc, session),
         core::MatchType::MatchArm => get_type_from_match_arm(&m, msrc, session),
         core::MatchType::Struct(_)
@@ -468,7 +468,7 @@ pub fn get_return_type_of_function(
             if "Self" == path_seg.name {
                 return get_type_of_self_arg(fnmatch, src.as_src(), session);
             }
-            if path.segments.len() == 1 && path_seg.types.is_empty() {
+            if path.segments.len() == 1 && path_seg.generics.is_empty() {
                 for type_param in fnmatch.generics() {
                     if type_param.name() == &path_seg.name {
                         return Some(Ty::Match(contextm.clone()));

@@ -2504,7 +2504,6 @@ fn finds_method_with_same_name_as_field() {
     let a: Foo;
     a.same_na~me();
     ";
-
     let got = get_definition(src, None);
     assert_eq!("same_name", got.matchstr);
     assert_eq!(MatchType::Function, got.mtype);
