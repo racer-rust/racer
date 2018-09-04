@@ -535,134 +535,152 @@ fn search_scope_headers(
         range: ByteRange::new(0, len),
         is_local: true,
     };
-    if let Some(stmtstart) = scopes::find_stmt_start(msrc, scopestart) {
-        let preblock = &msrc[stmtstart.0..scopestart.0];
-        debug!("search_scope_headers preblock is |{}|", preblock);
+    let stmtstart = match scopes::find_stmt_start(msrc, scopestart) {
+        Some(s) => s,
+        None => return Vec::new().into_iter(),
+    };
+    let preblock = &msrc[stmtstart.0..scopestart.0];
+    debug!("search_scope_headers preblock is |{}|", preblock);
+    if preblock_is_fn(preblock) {
+        return search_fn_args(
+            stmtstart,
+            scopestart,
+            &msrc,
+            search_str,
+            filepath,
+            search_type,
+            true,
+        );
 
-        if preblock_is_fn(preblock) {
-            return search_fn_args(
-                stmtstart,
-                scopestart,
-                &msrc,
-                search_str,
-                filepath,
-                search_type,
-                true,
-            );
-
-        // 'if let' can be an expression, so might not be at the start of the stmt
-        } else if let Some(n) = preblock.find("if let") {
-            let ifletstart = stmtstart + n.into();
-            let src = msrc[ifletstart.0..scopestart.0].trim().to_owned() + "{}";
-            if txt_matches(search_type, search_str, &src) {
-                let match_cxt = get_cxt(src.len());
-                let mut out = matchers::match_if_let(&src, &match_cxt);
-                for m in &mut out {
-                    m.point += ifletstart;
-                }
-                return out.into_iter();
-            }
-        } else if preblock.starts_with("while let") {
-            let src = msrc[stmtstart.0..scopestart.0].trim().to_owned() + "{}";
-            if txt_matches(search_type, search_str, &src) {
-                let match_cxt = get_cxt(src.len());
-                let mut out = matchers::match_while_let(&src, &match_cxt);
-                for m in &mut out {
-                    m.point += stmtstart;
-                }
-                return out.into_iter();
-            }
-        } else if preblock.starts_with("for ") {
-            let src = msrc[stmtstart.0..scopestart.0].trim().to_owned() + "{}";
-            if txt_matches(search_type, search_str, &msrc[..scopestart.0]) {
-                let match_cxt = get_cxt(src.len());
-                let mut out = matchers::match_for(&src, &match_cxt);
-                for m in &mut out {
-                    m.point += stmtstart;
-                }
-                return out.into_iter();
-            }
-        } else if let Some(n) = preblock.rfind("match ") {
-            // TODO: this code is crufty. refactor me!
-            let matchstart = stmtstart + n.into();
-            let matchstmt = typeinf::get_first_stmt(msrc.shift_start(matchstart));
-            // The definition could be in the match LHS arms. Try to find this
-            let masked_matchstmt = mask_matchstmt(&matchstmt, scopestart.increment() - matchstart);
-            debug!(
-                "found match stmt, masked is len {} |{}|",
-                masked_matchstmt.len(),
-                masked_matchstmt
-            );
-
-            // Locate the match arm LHS by finding the => just before point and then backtracking
-            // be sure to be on the right side of the ... => ... arm
-            let arm = match masked_matchstmt[..(point - matchstart).0].rfind("=>") {
-                None =>
-                // we are in the first arm enum
-                {
-                    return Vec::new().into_iter()
-                }
-                Some(arm) => {
-                    // be sure not to be in the next arm enum
-                    if let Some(next_arm) = masked_matchstmt[arm + 2..].find("=>") {
-                        let enum_start = scopes::get_start_of_pattern(
-                            &masked_matchstmt,
-                            BytePos(arm + next_arm + 1),
-                        );
-                        if point > matchstart + enum_start {
-                            return Vec::new().into_iter();
-                        }
-                    }
-                    BytePos(arm)
-                }
-            };
-
-            debug!("PHIL matched arm rhs is |{}|", &masked_matchstmt[arm.0..]);
-
-            let lhs_start = scopes::get_start_of_pattern(&msrc, matchstart + arm);
-            let lhs = &msrc[lhs_start.0..(matchstart + arm).0];
-
-            // Now create a pretend match expression with just the one match arm in it
-            let faux_prefix_size = scopestart.increment() - matchstart;
-            let fauxmatchstmt = format!("{}{{{} => () }};", &msrc[matchstart.0..scopestart.0], lhs);
-
-            debug!("PHIL arm lhs is |{}|", lhs);
-            debug!(
-                "PHIL arm fauxmatchstmt is |{}|, {:?}",
-                fauxmatchstmt, faux_prefix_size
-            );
-            let mut out = Vec::new();
-            for pat_range in ast::parse_pat_idents(fauxmatchstmt) {
-                let (start, end) = (
-                    lhs_start + pat_range.start - faux_prefix_size,
-                    lhs_start + pat_range.end - faux_prefix_size,
-                );
-                let s = &msrc[start.0..end.0];
-
-                if symbol_matches(search_type, search_str, s) {
-                    out.push(Match {
-                        matchstr: s.to_owned(),
-                        filepath: filepath.to_path_buf(),
-                        point: start,
-                        coords: None,
-                        local: true,
-                        mtype: MatchType::MatchArm,
-                        contextstr: lhs.trim().to_owned(),
-                        docs: String::new(),
-                    });
-                    if let SearchType::ExactMatch = search_type {
-                        break;
-                    }
-                }
+    // 'if let' can be an expression, so might not be at the start of the stmt
+    } else if let Some(n) = preblock.find("if let") {
+        let ifletstart = stmtstart + n.into();
+        let trimed = msrc[ifletstart.0..scopestart.0].trim();
+        if txt_matches(search_type, search_str, trimed) {
+            let src = trimed.to_owned() + "{}";
+            let match_cxt = get_cxt(src.len());
+            let mut out = matchers::match_if_let(&src, &match_cxt);
+            for m in &mut out {
+                m.point += ifletstart;
             }
             return out.into_iter();
-        } else if let Some(vec) =
-            search_closure_args(search_str, preblock, stmtstart, filepath, search_type)
-        {
-            return vec.into_iter();
         }
-    }
+    } else if preblock.starts_with("while let") {
+        let trimed = msrc[stmtstart.0..scopestart.0].trim();
+        if txt_matches(search_type, search_str, trimed) {
+            let src = trimed.to_owned() + "{}";
+            let match_cxt = get_cxt(src.len());
+            let mut out = matchers::match_while_let(&src, &match_cxt);
+            for m in &mut out {
+                m.point += stmtstart;
+            }
+            return out.into_iter();
+        }
+    } else if preblock.starts_with("for ") {
+        let trimed = msrc[stmtstart.0..scopestart.0].trim();
+        if txt_matches(search_type, search_str, trimed) {
+            let src = trimed.to_owned() + "{}";
+            let match_cxt = get_cxt(src.len());
+            let mut out = matchers::match_for(&src, &match_cxt);
+            for m in &mut out {
+                m.point += stmtstart;
+            }
+            return out.into_iter();
+        }
+    } else if preblock.starts_with("impl") {
+        let trimed = msrc[stmtstart.0..scopestart.0].trim();
+        if txt_matches(search_type, search_str, trimed) {
+            let src = trimed.to_owned() + "{}";
+            let match_cxt = get_cxt(0);
+            let mut out = match matchers::match_impl(src, &match_cxt, stmtstart) {
+                Some(v) => v,
+                None => return Vec::new().into_iter(),
+            };
+            for m in &mut out {
+                m.local = true;
+                m.contextstr = trimed.to_owned();
+            }
+            return out.into_iter();
+        }
+    } else if let Some(n) = preblock.rfind("match ") {
+        // TODO: this code is crufty. refactor me!
+        let matchstart = stmtstart + n.into();
+        let matchstmt = typeinf::get_first_stmt(msrc.shift_start(matchstart));
+        // The definition could be in the match LHS arms. Try to find this
+        let masked_matchstmt = mask_matchstmt(&matchstmt, scopestart.increment() - matchstart);
+        debug!(
+            "found match stmt, masked is len {} |{}|",
+            masked_matchstmt.len(),
+            masked_matchstmt
+        );
 
+        // Locate the match arm LHS by finding the => just before point and then backtracking
+        // be sure to be on the right side of the ... => ... arm
+        let arm = match masked_matchstmt[..(point - matchstart).0].rfind("=>") {
+            None =>
+            // we are in the first arm enum
+            {
+                return Vec::new().into_iter()
+            }
+            Some(arm) => {
+                // be sure not to be in the next arm enum
+                if let Some(next_arm) = masked_matchstmt[arm + 2..].find("=>") {
+                    let enum_start = scopes::get_start_of_pattern(
+                        &masked_matchstmt,
+                        BytePos(arm + next_arm + 1),
+                    );
+                    if point > matchstart + enum_start {
+                        return Vec::new().into_iter();
+                    }
+                }
+                BytePos(arm)
+            }
+        };
+
+        debug!("PHIL matched arm rhs is |{}|", &masked_matchstmt[arm.0..]);
+
+        let lhs_start = scopes::get_start_of_pattern(&msrc, matchstart + arm);
+        let lhs = &msrc[lhs_start.0..(matchstart + arm).0];
+
+        // Now create a pretend match expression with just the one match arm in it
+        let faux_prefix_size = scopestart.increment() - matchstart;
+        let fauxmatchstmt = format!("{}{{{} => () }};", &msrc[matchstart.0..scopestart.0], lhs);
+
+        debug!("PHIL arm lhs is |{}|", lhs);
+        debug!(
+            "PHIL arm fauxmatchstmt is |{}|, {:?}",
+            fauxmatchstmt, faux_prefix_size
+        );
+        let mut out = Vec::new();
+        for pat_range in ast::parse_pat_idents(fauxmatchstmt) {
+            let (start, end) = (
+                lhs_start + pat_range.start - faux_prefix_size,
+                lhs_start + pat_range.end - faux_prefix_size,
+            );
+            let s = &msrc[start.0..end.0];
+
+            if symbol_matches(search_type, search_str, s) {
+                out.push(Match {
+                    matchstr: s.to_owned(),
+                    filepath: filepath.to_path_buf(),
+                    point: start,
+                    coords: None,
+                    local: true,
+                    mtype: MatchType::MatchArm,
+                    contextstr: lhs.trim().to_owned(),
+                    docs: String::new(),
+                });
+                if let SearchType::ExactMatch = search_type {
+                    break;
+                }
+            }
+        }
+        return out.into_iter();
+    } else if let Some(vec) =
+        search_closure_args(search_str, preblock, stmtstart, filepath, search_type)
+    {
+        return vec.into_iter();
+    }
     Vec::new().into_iter()
 }
 

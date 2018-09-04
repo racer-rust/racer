@@ -1,7 +1,7 @@
 //! Type inference
 //! THIS MODULE IS ENTIRELY TOO UGLY SO REALLY NEADS REFACTORING(kngwyu)
 use ast;
-use ast_types::{Pat, Path as RacerPath, Ty};
+use ast_types::{Pat, Ty};
 use core;
 use core::Namespace;
 use core::SearchType::ExactMatch;
@@ -86,7 +86,7 @@ pub fn first_param_is_self(blob: &str) -> bool {
 
 #[test]
 fn generates_skeleton_for_mod() {
-    let src = "mod foo { blah };";
+    let src = "mod foo { blah }";
     let out = generate_skeleton_for_parsing(src);
     assert_eq!("mod foo {}", out);
 }
@@ -320,7 +320,6 @@ fn resolve_lvalue_ty<'a>(
             None
         }
         Pat::Struct(path, pats) => {
-            println!("{:?}", pats);
             let item = ast::find_type_match(&path, fpath, pos, session)?;
             if !item.mtype.is_struct() {
                 return None;

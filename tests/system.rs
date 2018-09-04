@@ -3865,6 +3865,24 @@ mod trait_bounds {
         ";
         assert_eq!(get_only_completion(src, None).matchstr, "inherited");
     }
+
+    #[test]
+    fn completes_trait_methods_bounded_in_impl() {
+        let src = "
+        fn main() {
+            struct St<T>(T);
+            trait Trait: Sized {
+                fn method(&self);
+            }
+            impl<T: Trait> St<T> {
+                fn new(t: T) -> Self {
+                    t.met~
+                }
+            }
+        }
+        ";
+        assert_eq!(get_only_completion(src, None).matchstr, "method");
+    }
 }
 
 #[test]

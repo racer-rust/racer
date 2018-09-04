@@ -567,6 +567,19 @@ impl TypeParameter {
     pub(crate) fn resolved(&self) -> Option<&Ty> {
         self.resolved.as_ref()
     }
+    pub(crate) fn add_bound(&mut self, bound: TraitBounds) {
+        let add_bounds: Vec<_> = bound
+            .0
+            .into_iter()
+            .filter(|p| {
+                if let Some(name) = p.path.name() {
+                    self.bounds.find_by_name(name).is_none()
+                } else {
+                    true
+                }
+            }).collect();
+        self.bounds.0.extend(add_bounds);
+    }
 }
 
 /// List of Args in generics, e.g. <T: Clone, U, P>
@@ -654,6 +667,12 @@ impl GenericsArgs {
         }
         None
     }
+    // TODO(kngwyu): Result
+    pub(crate) fn add_bound(&mut self, pos: usize, bound: TraitBounds) {
+        if let Some(param) = self.0.get_mut(pos) {
+            param.add_bound(bound);
+        }
+    }
 }
 
 /// `Impl` information
@@ -661,7 +680,7 @@ impl GenericsArgs {
 pub struct ImplHeader {
     self_path: Path,
     trait_path: Option<Path>,
-    generics: GenericsArgs,
+    pub(crate) generics: GenericsArgs,
     filepath: PathBuf,
     // TODO: should be removed
     local: bool,
