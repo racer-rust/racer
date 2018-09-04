@@ -529,17 +529,9 @@ pub fn get_return_type_of_function(
 ) -> Option<Ty> {
     let src = session.load_source_file(&fnmatch.filepath);
     let point = scopes::expect_stmt_start(src.as_src(), fnmatch.point);
-    let out = src[point.0..].find(|c| c == '{' || c == ';').and_then(|n| {
+    let out = src[point.0..].find('{').and_then(|n| {
         // wrap in "impl blah { }" so that methods get parsed correctly too
-        let mut decl = String::new();
-        decl.push_str("impl blah {");
-        decl.push_str(&src[point.0..point.0 + n + 1]);
-        if decl.ends_with(';') {
-            decl.pop();
-            decl.push_str("{}}");
-        } else {
-            decl.push_str("}}");
-        }
+        let decl = "impl blah {".to_string() + &src[point.0..point.0 + n + 1] + "}}";
         debug!("get_return_type_of_function: passing in |{}|", decl);
         ast::parse_fn_output(decl, Scope::from_match(fnmatch))
     });
