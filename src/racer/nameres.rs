@@ -987,7 +987,6 @@ pub fn search_scope(
     );
 
     let scopesrc = src.shift_start(start);
-    let mut skip_next_block = false;
     let mut delayed_single_imports = Vec::new();
     let mut delayed_glob_imports = Vec::new();
     let mut codeit = scopesrc.iter_stmts();
@@ -996,24 +995,7 @@ pub fn search_scope(
     // collect up to point so we can search backwards for let bindings
     //  (these take precidence over local fn declarations etc..
     for blob_range in &mut codeit {
-        //  (e.g. #[cfg(test)])
-        if skip_next_block {
-            skip_next_block = false;
-            continue;
-        }
-
-        let blob = &scopesrc[blob_range.to_range()];
-
-        // for now skip stuff that's meant for testing. Often the test
-        // module hierarchy is incompatible with the non-test
-        // hierarchy and we get into recursive loops
-        if blob.starts_with("#[cfg(test)") {
-            skip_next_block = true;
-            continue;
-        }
-
         v.push(blob_range);
-
         if blob_range.start > point {
             break;
         }
@@ -1042,21 +1024,7 @@ pub fn search_scope(
     // since we didn't find a `let` binding, now search from top of scope for items etc..
     let mut codeit = v.into_iter().chain(codeit);
     for blob_range in &mut codeit {
-        // sometimes we need to skip blocks of code if the preceeding attribute disables it
-        //  (e.g. #[cfg(test)])
-        if skip_next_block {
-            skip_next_block = false;
-            continue;
-        }
-
         let blob = &scopesrc[blob_range.to_range()];
-        // for now skip stuff that's meant for testing. Often the test
-        // module hierarchy is incompatible with the non-test
-        // hierarchy and we get into recursive loops
-        if blob.starts_with("#[cfg(test)") {
-            skip_next_block = true;
-            continue;
-        }
 
         let is_an_import = blob.starts_with("use") || blob.starts_with("pub use");
 
