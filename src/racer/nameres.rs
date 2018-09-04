@@ -2203,7 +2203,7 @@ pub(crate) fn get_field_matches_from_ty(
 ) -> Vec<Match> {
     match ty {
         Ty::Match(m) => search_for_field_or_method(m, searchstr, stype, session),
-        Ty::PathSearch(paths) => paths.resolve_as_ty(session).map_or_else(Vec::new, |m| {
+        Ty::PathSearch(paths) => paths.resolve_as_match(session).map_or_else(Vec::new, |m| {
             search_for_field_or_method(m, searchstr, stype, session)
         }),
         Ty::Tuple(v) => get_tuple_field_matches(v.len(), searchstr, stype).collect(),

@@ -1,5 +1,5 @@
 #![cfg_attr(feature = "nightly", feature(test))]
-#![feature(try_trait)]
+#![feature(fnbox, try_trait)]
 
 #[macro_use]
 extern crate log;

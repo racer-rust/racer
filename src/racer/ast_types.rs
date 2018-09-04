@@ -50,23 +50,6 @@ pub enum Ty {
 }
 
 impl Ty {
-    pub(crate) fn wrap_by_ref(self, u: usize) -> Ty {
-        let mut ty = self;
-        for _ in 0..u {
-            ty = Ty::RefPtr(Box::new(ty));
-        }
-        ty
-    }
-    pub(crate) fn destruct_ref(self) -> (Ty, usize) {
-        fn destruct_ref_inner(ty: Ty, cur: usize) -> (Ty, usize) {
-            if let Ty::RefPtr(ty) = ty {
-                destruct_ref_inner(*ty, cur + 1)
-            } else {
-                (ty, cur)
-            }
-        }
-        destruct_ref_inner(self, 0)
-    }
     pub(crate) fn from_ast(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
         match ty.node {
             TyKind::Tup(ref items) => {
@@ -157,6 +140,18 @@ pub enum Pat {
 }
 
 impl Pat {
+    pub(crate) fn has_type(&self) -> bool {
+        match self {
+            Pat::Struct(..)
+            | Pat::TupleStruct(..)
+            | Pat::Path(_)
+            | Pat::Slice
+            | Pat::Lit
+            | Pat::Box => true,
+            Pat::Ref(pat, _) => pat.has_type(),
+            _ => false,
+        }
+    }
     pub fn from_ast(pat: &PatKind, scope: &Scope) -> Self {
         match pat {
             PatKind::Wild => Pat::Wild,
@@ -443,13 +438,8 @@ impl PathSearch {
             point,
         }
     }
-    pub(crate) fn resolve_as_ty(&self, session: &Session) -> Option<Match> {
-        if let Some(Ty::Match(m)) = find_type_match(&self.path, &self.filepath, self.point, session)
-        {
-            Some(m)
-        } else {
-            None
-        }
+    pub(crate) fn resolve_as_match(&self, session: &Session) -> Option<Match> {
+        find_type_match(&self.path, &self.filepath, self.point, session)
     }
 }
 
@@ -753,12 +743,5 @@ fn destruct_ref_ptr(ty: &TyKind) -> Option<&ast::Path> {
         TyKind::Rptr(_, ref ty) => destruct_ref_ptr(&ty.ty.node),
         TyKind::Path(_, ref path) => Some(path),
         _ => None,
-    }
-}
-
-pub(crate) fn destruct_pat_with_ty(pat: Pat, ty: Ty) -> (Pat, Ty) {
-    match (pat, ty) {
-        (Pat::Ref(pat, _), Ty::RefPtr(ty)) => (*pat, *ty),
-        (x, y) => (x, y),
     }
 }
