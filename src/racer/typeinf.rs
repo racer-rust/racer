@@ -1,7 +1,7 @@
 //! Type inference
 //! THIS MODULE IS ENTIRELY TOO UGLY SO REALLY NEADS REFACTORING(kngwyu)
 use ast;
-use ast_types::{Pat, Path as RacerPath, Ty};
+use ast_types::{Pat, Ty};
 use core;
 use core::Namespace;
 use core::SearchType::ExactMatch;
@@ -86,18 +86,13 @@ pub fn first_param_is_self(blob: &str) -> bool {
 
 #[test]
 fn generates_skeleton_for_mod() {
-    let src = "mod foo { blah };";
+    let src = "mod foo { blah }";
     let out = generate_skeleton_for_parsing(src);
     assert_eq!("mod foo {}", out);
 }
 
 fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
     debug!("get_type_of_self_arg {:?}", m);
-    // match m.mtype {
-    //     core::MatchType::Method(impl_header) => {}
-    //     core::MatchType::Trait => {}
-    //     _ => {}
-    // }
     get_type_of_self(m.point, &m.filepath, m.local, msrc, session)
 }
 
@@ -114,7 +109,19 @@ pub fn get_type_of_self(
     debug!("get_type_of_self_arg impl skeleton |{}|", decl);
 
     if decl.starts_with("impl") {
-        let implres = ast::parse_impl(decl, filepath, start, local, start)?;
+        // we have to do 2 operations around generics here
+        // 1. Checks if self's type is T
+        // 2. Checks if self's type contains T
+        let scope_start = start + decl.len().into();
+        let implres = ast::parse_impl(decl, filepath, start, local, scope_start)?;
+        if let Some((_, param)) = implres.generics().search_param_by_path(implres.self_path()) {
+            if let Some(resolved) = param.resolved() {
+                return Some(resolved.to_owned());
+            }
+            let mut m = param.to_owned().into_match();
+            m.local = local;
+            return Some(Ty::Match(m));
+        }
         debug!("get_type_of_self_arg implres |{:?}|", implres);
         nameres::resolve_path_with_str(
             implres.self_path(),
@@ -124,7 +131,17 @@ pub fn get_type_of_self(
             Namespace::Type,
             session,
         ).nth(0)
-        .map(Ty::Match)
+        .map(|mut m| {
+            match &mut m.mtype {
+                core::MatchType::Enum(gen) | core::MatchType::Struct(gen) => {
+                    for (i, param) in implres.generics.0.into_iter().enumerate() {
+                        gen.add_bound(i, param.bounds);
+                    }
+                }
+                _ => {}
+            }
+            Ty::Match(m)
+        })
     } else {
         // // must be a trait
         ast::parse_trait(decl).name.and_then(|name| {
@@ -320,7 +337,6 @@ fn resolve_lvalue_ty<'a>(
             None
         }
         Pat::Struct(path, pats) => {
-            println!("{:?}", pats);
             let item = ast::find_type_match(&path, fpath, pos, session)?;
             if !item.mtype.is_struct() {
                 return None;
@@ -369,14 +385,16 @@ pub fn get_struct_field_type(
     session: &Session,
 ) -> Option<Ty> {
     // temporary fix for https://github.com/rust-lang-nursery/rls/issues/783
-    if !structmatch.mtype.is_struct() {
-        warn!(
-            "get_struct_filed_type is called for {:?}",
-            structmatch.mtype
-        );
-        return None;
-    }
-
+    let generics = match &structmatch.mtype {
+        core::MatchType::Struct(gen) => gen,
+        _ => {
+            warn!(
+                "get_struct_filed_type is called for {:?}",
+                structmatch.mtype
+            );
+            return None;
+        }
+    };
     debug!("[get_struct_filed_type]{}, {:?}", fieldname, structmatch);
 
     let src = session.load_source_file(&structmatch.filepath);
@@ -390,9 +408,10 @@ pub fn get_struct_field_type(
     };
     let fields = ast::parse_struct_fields(structsrc.to_owned(), Scope::from_match(structmatch));
     for (field, _, ty) in fields {
-        if fieldname == field {
-            return ty;
+        if fieldname != field {
+            continue;
         }
+        return ty;
     }
     None
 }

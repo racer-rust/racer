@@ -548,9 +548,9 @@ impl TypeParameter {
     pub fn name(&self) -> &str {
         &(*self.name)
     }
-    pub(crate) fn into_match(self) -> Option<Match> {
+    pub(crate) fn into_match(self) -> Match {
         // TODO: contextstr, local
-        Some(Match {
+        Match {
             matchstr: self.name,
             filepath: self.filepath,
             point: self.point,
@@ -559,13 +559,26 @@ impl TypeParameter {
             mtype: MatchType::TypeParameter(Box::new(self.bounds)),
             contextstr: String::new(),
             docs: String::new(),
-        })
+        }
     }
     pub(crate) fn resolve(&mut self, ty: Ty) {
         self.resolved = Some(ty);
     }
     pub(crate) fn resolved(&self) -> Option<&Ty> {
         self.resolved.as_ref()
+    }
+    pub(crate) fn add_bound(&mut self, bound: TraitBounds) {
+        let add_bounds: Vec<_> = bound
+            .0
+            .into_iter()
+            .filter(|p| {
+                if let Some(name) = p.path.name() {
+                    self.bounds.find_by_name(name).is_none()
+                } else {
+                    true
+                }
+            }).collect();
+        self.bounds.0.extend(add_bounds);
     }
 }
 
@@ -654,6 +667,19 @@ impl GenericsArgs {
         }
         None
     }
+    pub fn search_param_by_name(&self, name: &str) -> Option<(usize, &TypeParameter)> {
+        for (i, typ) in self.0.iter().enumerate() {
+            if typ.name() == name {
+                return Some((i, typ));
+            }
+        }
+        None
+    }
+    pub(crate) fn add_bound(&mut self, pos: usize, bound: TraitBounds) {
+        if let Some(param) = self.0.get_mut(pos) {
+            param.add_bound(bound);
+        }
+    }
 }
 
 /// `Impl` information
@@ -661,7 +687,7 @@ impl GenericsArgs {
 pub struct ImplHeader {
     self_path: Path,
     trait_path: Option<Path>,
-    generics: GenericsArgs,
+    pub(crate) generics: GenericsArgs,
     filepath: PathBuf,
     // TODO: should be removed
     local: bool,

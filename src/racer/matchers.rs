@@ -1,4 +1,4 @@
-use ast_types::{PathAliasKind, PathSegment};
+use ast_types::{ImplHeader, PathAliasKind, PathSegment};
 use core::MatchType::{
     self, Const, Enum, EnumVariant, For, Function, IfLet, Let, Macro, Module, Static, Struct,
     Trait, Type, WhileLet,
@@ -752,4 +752,18 @@ fn find_mod_doc(msrc: &str, blobstart: BytePos) -> String {
         }
     }
     doc
+}
+
+// DON'T USE MatchCxt's range
+pub fn match_impl(decl: String, context: &MatchCxt, offset: BytePos) -> Option<Vec<Match>> {
+    let ImplHeader { generics, .. } =
+        ast::parse_impl(decl, context.filepath, offset, true, offset)?;
+    let mut out = Vec::new();
+    for type_param in generics.0 {
+        if !symbol_matches(context.search_type, context.search_str, &type_param.name) {
+            continue;
+        }
+        out.push(type_param.into_match());
+    }
+    Some(out)
 }

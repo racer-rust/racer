@@ -189,6 +189,30 @@ impl<'ast> visit::Visitor<'ast> for PatVisitor {
     }
 }
 
+pub struct PatAndGenVisitor<'f> {
+    ident_points: Vec<ByteRange>,
+    generics: GenericsArgs,
+    fpath: &'f Path,
+    offset: i32,
+}
+
+impl<'ast, 'f> visit::Visitor<'ast> for PatAndGenVisitor<'f> {
+    fn visit_pat(&mut self, p: &ast::Pat) {
+        match p.node {
+            PatKind::Ident(_, ref spannedident, _) => {
+                self.ident_points.push(spannedident.span.into());
+            }
+            _ => {
+                visit::walk_pat(self, p);
+            }
+        }
+    }
+    fn visit_generics(&mut self, g: &'ast ast::Generics) {
+        let generics = GenericsArgs::from_generics(g, self.fpath, self.offset);
+        self.generics.extend(generics);
+    }
+}
+
 fn point_is_in_span(point: BytePos, span: &Span) -> bool {
     let point: u32 = point.0 as u32;
     let (lo, hi) = destruct_span(*span);
@@ -618,15 +642,15 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 let fieldname = spannedident.name.to_string();
                 debug!("exprfield {}", fieldname);
                 self.visit_expr(subexpression);
-                self.result = self.result.as_ref().and_then(|structm| match *structm {
-                    Ty::Match(ref structm) => {
-                        typeinf::get_struct_field_type(&fieldname, structm, self.session).and_then(
+                self.result = self.result.take().and_then(|structm| match structm {
+                    Ty::Match(structm) => {
+                        typeinf::get_struct_field_type(&fieldname, &structm, self.session).and_then(
                             |fieldtypepath| {
                                 find_type_match_including_generics(
-                                    &fieldtypepath,
+                                    fieldtypepath,
                                     &structm.filepath,
                                     structm.point,
-                                    structm,
+                                    &structm,
                                     self.session,
                                 )
                             },
@@ -755,47 +779,43 @@ fn path_to_match_including_generics(ty: Ty, contextm: &Match, session: &Session)
 }
 
 fn find_type_match_including_generics(
-    fieldtype: &Ty,
+    fieldtype: Ty,
     filepath: &Path,
     pos: BytePos,
     structm: &Match,
     session: &Session,
 ) -> Option<Ty> {
     assert_eq!(&structm.filepath, filepath);
-    let fieldtypepath = match *fieldtype {
-        Ty::PathSearch(ref paths) => &paths.path,
-        Ty::RefPtr(ref ty) => match *ty.as_ref() {
-            Ty::PathSearch(ref paths) => &paths.path,
-            _ => {
-                debug!(
-                    "EXPECTING A PATH!! Cannot handle other types yet. {:?}",
-                    fieldtype
-                );
-                return None;
-            }
+    let fieldtypepath = match fieldtype {
+        Ty::PathSearch(paths) => paths.path,
+        Ty::RefPtr(ty) => match destruct_ty_refptr(*ty) {
+            Ty::PathSearch(paths) => paths.path,
+            Ty::Match(m) => return Some(Ty::Match(m)),
+            _ => return None,
         },
+        // already resolved
+        Ty::Match(m) => return Some(Ty::Match(m)),
         _ => {
-            debug!(
-                "EXPECTING A PATH!! Cannot handle other types yet. {:?}",
-                fieldtype
-            );
             return None;
         }
     };
-
-    // TODO(kngwyu): why len() == 1
+    let generics = match &structm.mtype {
+        MatchType::Struct(gen) => gen,
+        _ => return None,
+    };
     if fieldtypepath.segments.len() == 1 {
         // could be a generic arg! - try and resolve it
-        let typename = &fieldtypepath.segments[0].name;
-        for type_param in structm.generics() {
-            let resolved = try_continue!(type_param.resolved());
-            if type_param.name() == typename {
-                return Some(resolved.to_owned());
+        if let Some((_, param)) = generics.search_param_by_path(&fieldtypepath) {
+            if let Some(res) = param.resolved() {
+                return Some(res.to_owned());
             }
+            let mut m = param.to_owned().into_match();
+            m.local = structm.local;
+            return Some(Ty::Match(m));
         }
     }
 
-    find_type_match(fieldtypepath, filepath, pos, session).map(Ty::Match)
+    find_type_match(&fieldtypepath, filepath, pos, session).map(Ty::Match)
 }
 
 struct StructVisitor {
@@ -1060,6 +1080,21 @@ pub fn parse_type<'s>(s: String, scope: &'s Scope) -> TypeVisitor<'s> {
     v
 }
 
+pub fn parse_fn_args_and_generics(
+    s: String,
+    fpath: &Path,
+    offset: i32,
+) -> (Vec<ByteRange>, GenericsArgs) {
+    let mut v = PatAndGenVisitor {
+        ident_points: vec![],
+        generics: GenericsArgs::default(),
+        fpath,
+        offset,
+    };
+    with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
+    (v.ident_points, v.generics)
+}
+
 pub fn parse_fn_args(s: String) -> Vec<ByteRange> {
     parse_pat_idents(s)
 }
@@ -1241,7 +1276,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for FnArgTypeVisitor<'c, 's> {
                     if segments.len() == 1 {
                         let name = &segments[0].name;
                         if let Some(bounds) = self.generics.find_type_param(name) {
-                            let res = bounds.to_owned().into_match()?;
+                            let res = bounds.to_owned().into_match();
                             return Some(Ty::Match(res));
                         }
                     }
