@@ -763,8 +763,7 @@ pub fn match_impl(decl: String, context: &MatchCxt, offset: BytePos) -> Option<V
         if !symbol_matches(context.search_type, context.search_str, &type_param.name) {
             continue;
         }
-        let ma = try_continue!(type_param.into_match());
-        out.push(ma);
+        out.push(type_param.into_match());
     }
     Some(out)
 }

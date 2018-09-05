@@ -3867,7 +3867,7 @@ mod trait_bounds {
     }
 
     #[test]
-    fn completes_trait_methods_bounded_in_impl() {
+    fn completes_impled_bounds_for_fnarg() {
         let src = "
         fn main() {
             struct St<T>(T);
@@ -3877,6 +3877,65 @@ mod trait_bounds {
             impl<T: Trait> St<T> {
                 fn new(t: T) -> Self {
                     t.met~
+                }
+            }
+        }
+        ";
+        assert_eq!(get_only_completion(src, None).matchstr, "method");
+    }
+
+    #[test]
+    fn completes_impled_bounds_for_self() {
+        let src = "
+        fn main() {
+            trait Trait: Sized {
+                fn method(&self);
+            }
+            impl<T: Trait> Clone for T {
+                fn f(self) -> Self {
+                    self.me~
+                }
+            }
+        }
+        ";
+        assert_eq!(get_only_completion(src, None).matchstr, "method");
+    }
+
+    #[test]
+    fn completes_impled_bounds_for_self_field() {
+        let src = "
+        fn main() {
+            struct St<T> {
+                mem1: String,
+                mem2: T,
+            }
+            trait Trait: Sized {
+                fn method(&self);
+            }
+            impl<T: Trait> St<T> {
+                fn f(self) -> Self {
+                    self.mem2.m~
+                }
+            }
+        }
+        ";
+        assert_eq!(get_only_completion(src, None).matchstr, "method");
+    }
+
+    #[test]
+    fn completes_impled_bounds_for_ref_self_field() {
+        let src = "
+        fn main() {
+            struct St<'a, T> {
+                mem1: String,
+                mem2: &'a T,
+            }
+            trait Trait: Sized {
+                fn method(&self);
+            }
+            impl<T: Trait> St<T> {
+                fn f(self) -> Self {
+                    self.mem2.m~
                 }
             }
         }

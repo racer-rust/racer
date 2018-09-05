@@ -548,9 +548,9 @@ impl TypeParameter {
     pub fn name(&self) -> &str {
         &(*self.name)
     }
-    pub(crate) fn into_match(self) -> Option<Match> {
+    pub(crate) fn into_match(self) -> Match {
         // TODO: contextstr, local
-        Some(Match {
+        Match {
             matchstr: self.name,
             filepath: self.filepath,
             point: self.point,
@@ -559,7 +559,7 @@ impl TypeParameter {
             mtype: MatchType::TypeParameter(Box::new(self.bounds)),
             contextstr: String::new(),
             docs: String::new(),
-        })
+        }
     }
     pub(crate) fn resolve(&mut self, ty: Ty) {
         self.resolved = Some(ty);
@@ -667,7 +667,6 @@ impl GenericsArgs {
         }
         None
     }
-    // TODO(kngwyu): Result
     pub(crate) fn add_bound(&mut self, pos: usize, bound: TraitBounds) {
         if let Some(param) = self.0.get_mut(pos) {
             param.add_bound(bound);
