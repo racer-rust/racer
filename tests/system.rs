@@ -3780,6 +3780,21 @@ fn finds_method_definition_in_1line_closure() {
 mod trait_bounds {
     use super::*;
     #[test]
+    fn finds_type_parameter_for_fnarg() {
+        let src = "
+        fn main() {
+            trait Trait {
+                fn method(&self);
+            }
+            fn func<T: Trait>(arg: &T) {
+                arg.meth~
+            }
+        }
+        ";
+        assert_eq!(get_only_completion(src, None).matchstr, "method");
+    }
+
+    #[test]
     fn completes_methods_for_fnarg_by_trait_bounds() {
         let src = "
         fn main() {

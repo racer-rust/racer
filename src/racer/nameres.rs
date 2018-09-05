@@ -542,7 +542,7 @@ fn search_scope_headers(
     let preblock = &msrc[stmtstart.0..scopestart.0];
     debug!("search_scope_headers preblock is |{}|", preblock);
     if preblock_is_fn(preblock) {
-        return search_fn_args(
+        return search_fn_args_and_generics(
             stmtstart,
             scopestart,
             &msrc,
@@ -730,7 +730,7 @@ fn test_mask_match_stmt() {
     debug!("PHIL res is |{}|", res);
 }
 
-fn search_fn_args(
+fn search_fn_args_and_generics(
     fnstart: BytePos,
     open_brace_pos: BytePos,
     msrc: &str,
@@ -742,6 +742,7 @@ fn search_fn_args(
     let mut out = Vec::new();
     // wrap in 'impl blah {}' so that methods get parsed correctly too
     let mut fndecl = "impl blah {".to_owned();
+    let offset = fnstart.0 as i32 - fndecl.len() as i32;
     let impl_header_len = fndecl.len();
     fndecl += &msrc[fnstart.0..open_brace_pos.increment().0];
     fndecl += "}}";
@@ -750,12 +751,18 @@ fn search_fn_args(
         fnstart, fndecl, searchstr
     );
     if txt_matches(search_type, searchstr, &fndecl) {
-        let coords = ast::parse_fn_args(fndecl.clone());
-
+        let (coords, generics) = ast::parse_fn_args_and_generics(fndecl.clone(), filepath, offset);
+        for typ in generics.0 {
+            if symbol_matches(search_type, searchstr, typ.name()) {
+                let mut m = typ.into_match();
+                m.local = local;
+                m.contextstr = fndecl.clone();
+                out.push(m);
+            }
+        }
         for arg_range in coords {
             let s = &fndecl[arg_range.to_range()];
             debug!("search_fn_args: arg str is |{}|", s);
-
             if symbol_matches(search_type, searchstr, s) {
                 let m = Match {
                     matchstr: s.to_owned(),
@@ -764,7 +771,7 @@ fn search_fn_args(
                     coords: None,
                     local: local,
                     mtype: MatchType::FnArg,
-                    contextstr: s.to_owned(),
+                    contextstr: fndecl.clone(),
                     docs: String::new(),
                 };
                 debug!("search_fn_args matched: {:?}", m);
@@ -1199,11 +1206,8 @@ fn search_closure_args(
         if txt_matches(search_type, search_str, pipe_str) {
             // Add a fake body for parsing
             let closure_def = String::from(pipe_str) + "{}";
-
             let coords = ast::parse_fn_args(closure_def.clone());
-
             let mut out: Vec<Match> = Vec::new();
-
             for arg_range in coords {
                 let s = &closure_def[arg_range.to_range()];
 

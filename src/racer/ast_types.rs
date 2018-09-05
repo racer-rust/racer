@@ -667,6 +667,14 @@ impl GenericsArgs {
         }
         None
     }
+    pub fn search_param_by_name(&self, name: &str) -> Option<(usize, &TypeParameter)> {
+        for (i, typ) in self.0.iter().enumerate() {
+            if typ.name() == name {
+                return Some((i, typ));
+            }
+        }
+        None
+    }
     pub(crate) fn add_bound(&mut self, pos: usize, bound: TraitBounds) {
         if let Some(param) = self.0.get_mut(pos) {
             param.add_bound(bound);

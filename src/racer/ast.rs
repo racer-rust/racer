@@ -189,6 +189,30 @@ impl<'ast> visit::Visitor<'ast> for PatVisitor {
     }
 }
 
+pub struct PatAndGenVisitor<'f> {
+    ident_points: Vec<ByteRange>,
+    generics: GenericsArgs,
+    fpath: &'f Path,
+    offset: i32,
+}
+
+impl<'ast, 'f> visit::Visitor<'ast> for PatAndGenVisitor<'f> {
+    fn visit_pat(&mut self, p: &ast::Pat) {
+        match p.node {
+            PatKind::Ident(_, ref spannedident, _) => {
+                self.ident_points.push(spannedident.span.into());
+            }
+            _ => {
+                visit::walk_pat(self, p);
+            }
+        }
+    }
+    fn visit_generics(&mut self, g: &'ast ast::Generics) {
+        let generics = GenericsArgs::from_generics(g, self.fpath, self.offset);
+        self.generics.extend(generics);
+    }
+}
+
 fn point_is_in_span(point: BytePos, span: &Span) -> bool {
     let point: u32 = point.0 as u32;
     let (lo, hi) = destruct_span(*span);
@@ -1054,6 +1078,21 @@ pub fn parse_type<'s>(s: String, scope: &'s Scope) -> TypeVisitor<'s> {
     };
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v
+}
+
+pub fn parse_fn_args_and_generics(
+    s: String,
+    fpath: &Path,
+    offset: i32,
+) -> (Vec<ByteRange>, GenericsArgs) {
+    let mut v = PatAndGenVisitor {
+        ident_points: vec![],
+        generics: GenericsArgs::default(),
+        fpath,
+        offset,
+    };
+    with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
+    (v.ident_points, v.generics)
 }
 
 pub fn parse_fn_args(s: String) -> Vec<ByteRange> {
