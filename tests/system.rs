@@ -4446,6 +4446,18 @@ fn completes_methods_for_complex_tupled_for_arg() {
     assert_eq!(got.matchstr, "method");
 }
 
+#[test]
+fn completes_methods_vec_macro() {
+    let src = "
+    fn main() {
+        let vec = vec![];
+        let a = vec.append_ele~
+    }
+";
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "append_elements");
+}
+
 // blocked by #946
 #[test]
 #[ignore]
