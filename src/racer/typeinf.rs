@@ -336,7 +336,8 @@ fn resolve_lvalue_ty<'a>(
             }
             None
         }
-        Pat::Struct(path, pats) => {
+        // Let's implement after #946 solved
+        Pat::Struct(path, _) => {
             let item = ast::find_type_match(&path, fpath, pos, session)?;
             if !item.mtype.is_struct() {
                 return None;
@@ -385,16 +386,13 @@ pub fn get_struct_field_type(
     session: &Session,
 ) -> Option<Ty> {
     // temporary fix for https://github.com/rust-lang-nursery/rls/issues/783
-    let generics = match &structmatch.mtype {
-        core::MatchType::Struct(gen) => gen,
-        _ => {
-            warn!(
-                "get_struct_filed_type is called for {:?}",
-                structmatch.mtype
-            );
-            return None;
-        }
-    };
+    if !structmatch.mtype.is_struct() {
+        warn!(
+            "get_struct_filed_type is called for {:?}",
+            structmatch.mtype
+        );
+        return None;
+    }
     debug!("[get_struct_filed_type]{}, {:?}", fieldname, structmatch);
 
     let src = session.load_source_file(&structmatch.filepath);

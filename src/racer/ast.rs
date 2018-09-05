@@ -601,7 +601,6 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     self.session,
                 ).map(Ty::Match);
             }
-
             ExprKind::MethodCall(ref method_def, ref arguments) => {
                 let methodname = method_def.ident.name.as_str();
                 debug!("method call ast name {}", methodname);
@@ -637,7 +636,6 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     _ => None,
                 });
             }
-
             ExprKind::Field(ref subexpression, spannedident) => {
                 let fieldname = spannedident.name.to_string();
                 debug!("exprfield {}", fieldname);
@@ -659,7 +657,6 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     _ => None,
                 });
             }
-
             ExprKind::Tup(ref exprs) => {
                 let mut v = Vec::new();
                 for expr in exprs {
@@ -674,7 +671,6 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 }
                 self.result = Some(Ty::Tuple(v));
             }
-
             ExprKind::Lit(ref lit) => {
                 let ty_path = match lit.node {
                     LitKind::Str(_, _) => Some(RacerPath::from_vec(false, vec!["str"])),
@@ -694,7 +690,6 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     Some(Ty::Unsupported)
                 };
             }
-
             ExprKind::Try(ref expr) => {
                 self.visit_expr(&expr);
                 debug!("ExprKind::Try result: {:?} expr: {:?}", self.result, expr);
@@ -712,7 +707,6 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     None
                 };
             }
-
             ExprKind::Match(_, ref arms) => {
                 debug!("match expr");
 
@@ -726,7 +720,6 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     }
                 }
             }
-
             ExprKind::If(_, ref block, ref else_block)
             | ExprKind::IfLet(_, _, ref block, ref else_block) => {
                 debug!("if/iflet expr");
@@ -738,12 +731,27 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     self.visit_expr(&else_block.as_ref().unwrap());
                 }
             }
-
             ExprKind::Block(ref block, ref _label) => {
                 debug!("block expr");
                 visit::walk_block(self, &block);
             }
-
+            ExprKind::Mac(ref m) => {
+                if let Some(name) = m.node.path.segments.last().map(|seg| seg.ident) {
+                    // some ad-hoc rules
+                    if name.as_str() == "vec" {
+                        let path = RacerPath::from_iter(
+                            true,
+                            ["std", "vec", "Vec"].into_iter().map(|s| s.to_string()),
+                        );
+                        self.result = find_type_match(
+                            &path,
+                            &self.scope.filepath,
+                            self.scope.point,
+                            self.session,
+                        ).map(Ty::Match);
+                    }
+                }
+            }
             _ => {
                 debug!("- Could not match expr node type: {:?}", expr.node);
             }
