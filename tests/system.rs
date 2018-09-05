@@ -4458,6 +4458,15 @@ fn completes_methods_vec_macro() {
     assert_eq!(got.matchstr, "append_elements");
 }
 
+#[test]
+fn completes_trait_methods_in_path() {
+    let src = "
+    let a = Default::de~
+";
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "default");
+}
+
 // blocked by #946
 #[test]
 #[ignore]

@@ -63,6 +63,30 @@ fn search_struct_fields(
     out.into_iter()
 }
 
+fn collect_trait_methods(
+    trait_match: &Match,
+    search_type: SearchType,
+    query: &str,
+    includes_assoc_fn: bool,
+    session: &Session,
+) -> impl Iterator<Item = Match> {
+    let src = session.load_source_file(&trait_match.filepath);
+    src[trait_match.point.0..]
+        .find('{')
+        .map(|n| {
+            let point = trait_match.point.increment() + n.into();
+            search_scope_for_methods(
+                point,
+                src.as_src(),
+                query,
+                &trait_match.filepath,
+                includes_assoc_fn,
+                search_type,
+            )
+        }).into_iter()
+        .flatten()
+}
+
 pub fn search_for_impl_methods(
     match_request: &Match,
     fieldsearchstr: &str,
@@ -92,6 +116,7 @@ pub fn search_for_impl_methods(
             src.as_src(),
             fieldsearchstr,
             header.file_path(),
+            false,
             search_type,
         ) {
             found_methods.insert(calculate_str_hash(&m.matchstr));
@@ -118,19 +143,9 @@ pub fn search_for_impl_methods(
             continue;
         }
         let trait_match = try_continue!(header.resolve_trait(session, &ImportInfo::default()));
-        let src = session.load_source_file(&trait_match.filepath);
-        if let Some(n) = src[trait_match.point.0..].find('{') {
-            let point = trait_match.point.increment() + n.into();
-            for m in search_scope_for_methods(
-                point,
-                src.as_src(),
-                fieldsearchstr,
-                &trait_match.filepath,
-                search_type,
-            ) {
-                if !found_methods.contains(&calculate_str_hash(&m.matchstr)) {
-                    out.push(m);
-                }
+        for m in collect_trait_methods(&trait_match, search_type, fieldsearchstr, false, session) {
+            if !found_methods.contains(&calculate_str_hash(&m.matchstr)) {
+                out.push(m);
             }
         }
         for gen_impl_header in search_for_generic_impls(
@@ -160,6 +175,7 @@ fn search_scope_for_methods(
     src: Src,
     searchstr: &str,
     filepath: &Path,
+    includes_assoc_fn: bool,
     search_type: SearchType,
 ) -> vec::IntoIter<Match> {
     debug!(
@@ -177,7 +193,7 @@ fn search_scope_for_methods(
             let signature = blob[..n].trim_right();
 
             if txt_matches(search_type, &format!("fn {}", searchstr), signature)
-                && typeinf::first_param_is_self(blob)
+                && (includes_assoc_fn || typeinf::first_param_is_self(blob))
             {
                 debug!("found a method starting |{}| |{}|", searchstr, blob);
                 // TODO: parse this properly, or, txt_matches should return match pos?
@@ -279,58 +295,6 @@ fn search_scope_for_impled_assoc_types(
         }
     }
     out
-}
-
-// TODO(kngwyu): needs ImplHeader
-/// Look for static trait functions. This fn doesn't search for _method_ declarations
-/// or implementations as `search_scope_for_methods` already handles that.
-fn search_scope_for_static_trait_fns(
-    point: BytePos,
-    src: Src,
-    searchstr: &str,
-    filepath: &Path,
-    search_type: SearchType,
-) -> vec::IntoIter<Match> {
-    debug!(
-        "searching scope for trait fn declarations {:?} |{}| {:?}",
-        point,
-        searchstr,
-        filepath.display()
-    );
-
-    let scopesrc = src.shift_start(point);
-    let mut out = Vec::new();
-    for blob_range in scopesrc.iter_stmts() {
-        let blob = &scopesrc[blob_range.to_range()];
-        if let Some(n) = blob.find(|c| c == '{' || c == ';') {
-            let signature = blob[..n].trim_right();
-
-            if txt_matches(search_type, &format!("fn {}", searchstr), signature)
-                // filtering out methods here prevents duplicate results with
-                // `search_scope_for_methods`
-                && !typeinf::first_param_is_self(blob)
-            {
-                debug!("found a method starting |{}| |{}|", searchstr, blob);
-                // TODO: parse this properly, or, txt_matches should return match pos?
-                let start = BytePos::from(blob.find(&format!("fn {}", searchstr)).unwrap() + 3);
-                let end = find_ident_end(blob, start);
-                let l = &blob[start.0..end.0];
-                // TODO: make a better context string for functions
-                let m = Match {
-                    matchstr: l.to_owned(),
-                    filepath: filepath.to_path_buf(),
-                    point: point + blob_range.start + start,
-                    coords: None,
-                    local: true,
-                    mtype: MatchType::Function,
-                    contextstr: signature.to_owned(),
-                    docs: find_doc(&scopesrc, blob_range.start + start),
-                };
-                out.push(m);
-            }
-        }
-    }
-    out.into_iter()
 }
 
 // helper function for search_for_impls and etc
@@ -1821,6 +1785,11 @@ pub fn resolve_path(
                     import_info,
                 ));
             }
+            MatchType::Trait => {
+                if let Some(name) = path.name() {
+                    out.extend(collect_trait_methods(&m, search_type, name, true, session));
+                }
+            }
             MatchType::Type => {
                 if let Some(match_) = ast::get_type_of_typedef(&m, session) {
                     out.extend(get_path_items(
@@ -1886,20 +1855,12 @@ pub fn resolve_method(
                     let src = session.load_source_file(&m.filepath);
                     if let Some(n) = src[m.point.0..].find('{') {
                         let point = m.point + BytePos(n + 1);
-                        for m in search_scope_for_static_trait_fns(
-                            point,
-                            src.as_src(),
-                            searchstr,
-                            &m.filepath,
-                            search_type,
-                        ) {
-                            out.push(m);
-                        }
                         for m in search_scope_for_methods(
                             point,
                             src.as_src(),
                             searchstr,
                             &m.filepath,
+                            true,
                             search_type,
                         ) {
                             out.push(m);
@@ -2098,6 +2059,7 @@ pub fn search_for_field_or_method(
                         src.as_src(),
                         searchstr,
                         &tr.filepath,
+                        false,
                         search_type,
                     )
                 })
