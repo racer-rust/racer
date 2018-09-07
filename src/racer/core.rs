@@ -35,9 +35,9 @@ pub enum MatchType {
     Method(Rc<ImplHeader>),
     Crate,
     Let,
-    IfLet,
-    WhileLet,
-    For,
+    IfLet(BytePos),
+    WhileLet(BytePos),
+    For(BytePos),
     StructField,
     Enum(Box<GenericsArgs>),
     /// EnumVariant needs to have Enum type to complete methods
@@ -297,6 +297,13 @@ impl Match {
         self.point == other.point
             && self.matchstr == other.matchstr
             && self.filepath == other.filepath
+    }
+    pub(crate) fn into_generics(self) -> Option<GenericsArgs> {
+        match self.mtype {
+            MatchType::Struct(gen_arg) | MatchType::Enum(gen_arg) => Some(*gen_arg),
+            MatchType::Method(header) => Some(header.generics.clone()),
+            _ => None,
+        }
     }
     pub(crate) fn generics(&self) -> impl Iterator<Item = &TypeParameter> {
         let opt = match self.mtype {
@@ -1123,7 +1130,7 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
         }
         CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
-            println!("complete_from_file context is {:?}", context);
+            debug!("complete_from_file context is {:?}", context);
             if let Some(ty) = context {
                 out.extend(nameres::get_field_matches_from_ty(
                     ty,

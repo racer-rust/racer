@@ -252,19 +252,19 @@ fn match_pattern_let(
     out
 }
 
-pub fn match_if_let(msrc: &str, context: &MatchCxt) -> Vec<Match> {
-    match_pattern_let(msrc, context, "if let ", IfLet)
+pub fn match_if_let(msrc: &str, start: BytePos, context: &MatchCxt) -> Vec<Match> {
+    match_pattern_let(msrc, context, "if let ", IfLet(start))
 }
 
-pub fn match_while_let(msrc: &str, context: &MatchCxt) -> Vec<Match> {
-    match_pattern_let(msrc, context, "while let ", WhileLet)
+pub fn match_while_let(msrc: &str, start: BytePos, context: &MatchCxt) -> Vec<Match> {
+    match_pattern_let(msrc, context, "while let ", WhileLet(start))
 }
 
 pub fn match_let(msrc: &str, context: &MatchCxt) -> Vec<Match> {
     match_pattern_let(msrc, context, "let ", Let)
 }
 
-pub fn match_for(msrc: &str, context: &MatchCxt) -> Vec<Match> {
+pub fn match_for(msrc: &str, for_start: BytePos, context: &MatchCxt) -> Vec<Match> {
     let mut out = Vec::new();
     let blob = &msrc[context.range.to_range()];
     let coords = ast::parse_pat_bind_stmt(blob.to_owned());
@@ -276,10 +276,10 @@ pub fn match_for(msrc: &str, context: &MatchCxt) -> Vec<Match> {
             out.push(Match {
                 matchstr: s.to_owned(),
                 filepath: context.filepath.to_path_buf(),
-                point: start,
+                point: start, // it's 'for ~' start
                 coords: None,
                 local: context.is_local,
-                mtype: For,
+                mtype: For(for_start),
                 contextstr: blob.to_owned(),
                 docs: String::new(),
             });
@@ -721,11 +721,11 @@ pub fn find_doc(msrc: &str, match_point: BytePos) -> String {
         .skip(1) // skip the line that the match is on
         .map(|line| line.trim())
         .take_while(|line| line.starts_with("///") || line.starts_with("#[") || line.is_empty())
-        .filter(|line| !(line.trim().starts_with("#[") || line.is_empty() ))  // remove the #[flags]
-        .collect::<Vec<_>>()  // These are needed because
-        .iter()               // you cannot `rev`an `iter` that
-        .rev()                // has already been `rev`ed.
-        .map(|line| if line.len() >= 4 { &line[4..] } else { "" })  // Remove "/// "
+        .filter(|line| !(line.trim().starts_with("#[") || line.is_empty())) // remove the #[flags]
+        .collect::<Vec<_>>() // These are needed because
+        .iter() // you cannot `rev`an `iter` that
+        .rev() // has already been `rev`ed.
+        .map(|line| if line.len() >= 4 { &line[4..] } else { "" }) // Remove "/// "
         .collect::<Vec<_>>()
         .join("\n")
 }
@@ -734,7 +734,8 @@ fn find_mod_doc(msrc: &str, blobstart: BytePos) -> String {
     let blob = &msrc[blobstart.0..];
     let mut doc = String::new();
 
-    let mut iter = blob.lines()
+    let mut iter = blob
+        .lines()
         .map(|line| line.trim())
         .take_while(|line| line.starts_with("//") || line.is_empty())
         // Skip over the copyright notice and empty lines until you find

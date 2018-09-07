@@ -4467,6 +4467,20 @@ fn completes_trait_methods_in_path() {
     assert_eq!(got.matchstr, "default");
 }
 
+#[test]
+fn completes_methods_for_destructed_if_let() {
+    let src = "
+    fn main() {
+        let s: Option<String> = None;
+        if let Some(s) = s{
+           s.capa~
+        }
+    }
+";
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "capacity");
+}
+
 // blocked by #946
 #[test]
 #[ignore]

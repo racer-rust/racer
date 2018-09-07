@@ -50,6 +50,46 @@ pub enum Ty {
 }
 
 impl Ty {
+    pub(crate) fn replace_by_generics(self, gen: &GenericsArgs) -> Self {
+        let (ty, deref_cnt) = self.deref_count(0);
+        if let Ty::PathSearch(ref paths) = ty {
+            if let Some((_, param)) = gen.search_param_by_path(&paths.path) {
+                if let Some(resolved) = param.resolved() {
+                    return resolved.to_owned().wrap_by_ref(deref_cnt);
+                }
+            }
+        }
+        ty.wrap_by_ref(deref_cnt)
+    }
+    pub(crate) fn into_match(self, session: &Session) -> Option<Match> {
+        match self.dereference() {
+            Ty::Match(m) => Some(m),
+            Ty::PathSearch(paths) => paths.resolve_as_match(session),
+            // TODO(kngwyu): premitive type support
+            _ => None,
+        }
+    }
+    pub(crate) fn dereference(self) -> Self {
+        if let Ty::RefPtr(ty) = self {
+            ty.dereference()
+        } else {
+            self
+        }
+    }
+    fn wrap_by_ref(self, count: usize) -> Self {
+        let mut ty = self;
+        for _ in 0..count {
+            ty = Ty::RefPtr(Box::new(ty));
+        }
+        ty
+    }
+    fn deref_count(self, count: usize) -> (Self, usize) {
+        if let Ty::RefPtr(ty) = self {
+            ty.deref_count(count + 1)
+        } else {
+            (self, count)
+        }
+    }
     pub(crate) fn from_ast(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
         match ty.node {
             TyKind::Tup(ref items) => {
@@ -679,6 +719,9 @@ impl GenericsArgs {
         if let Some(param) = self.0.get_mut(pos) {
             param.add_bound(bound);
         }
+    }
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 
