@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 pub struct PackageMap {
     manifest_to_id: HashMap<PathBuf, PackageId>,
     id_to_edition: HashMap<PackageId, InternedString>,
-    id_to_deps: HashMap<PackageId, HashMap<InternedString, PathBuf>>,
+    id_to_deps: HashMap<PackageId, Vec<(InternedString, PathBuf)>>,
     id_to_lib: HashMap<PackageId, Target>,
 }
 
@@ -63,24 +63,24 @@ impl PackageMap {
     pub fn ids(&self) -> impl Iterator<Item = &PackageId> {
         self.id_to_edition.keys()
     }
-    pub fn get_dependencies(&self, id: PackageId) -> Option<&HashMap<InternedString, PathBuf>> {
+    pub fn get_dependencies(&self, id: PackageId) -> Option<&Vec<(InternedString, PathBuf)>> {
         self.id_to_deps.get(&id)
     }
     pub fn get_src_path_from_libname(&self, id: PackageId, s: &str) -> Option<&Path> {
         let deps = self.get_dependencies(id)?;
         let query_str = InternedString::new_if_exists(s)?;
-        deps.get(&query_str).map(AsRef::as_ref)
+        deps.iter().find(|t| t.0 == query_str).map(|t| t.1.as_ref())
     }
 }
 
 fn construct_deps(
     nodes: Vec<ResolveNode>,
     targets: &HashMap<PackageId, Target>,
-) -> HashMap<PackageId, HashMap<InternedString, PathBuf>> {
+) -> HashMap<PackageId, Vec<(InternedString, PathBuf)>> {
     nodes
         .into_iter()
         .map(|node| {
-            let deps: HashMap<_, _> = node
+            let deps: Vec<_> = node
                 .dependencies
                 .into_iter()
                 .filter_map(|id| targets.get(&id).map(|t| (t.name, t.src_path.clone())))
