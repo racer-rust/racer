@@ -4501,7 +4501,7 @@ mod completes_methods_for_if_let {
     fn enum_variant_with_tuple() {
         let src = "
     fn main() {
-        let s = Some((String::new(), 0u32);
+        let s = Some((String::new(), 0u32));
         if let Some((s, _)) = s{
            s.capa~
         }

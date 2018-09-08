@@ -3,9 +3,7 @@
 use ast;
 use ast_types::{Pat, Ty};
 use core;
-use core::{
-    BytePos, MaskedSource, Match, MatchType, Namespace, Scope, SearchType, Session, SessionExt, Src,
-};
+use core::{BytePos, Match, MatchType, Namespace, Scope, SearchType, Session, SessionExt, Src};
 use matchers;
 use nameres;
 use scopes;
@@ -258,8 +256,7 @@ fn resolve_lvalue_ty<'a>(
         Pat::Tuple(pats) => {
             if let Ty::Tuple(ty) = r_value? {
                 for (p, t) in pats.into_iter().zip(ty) {
-                    let ret =
-                        try_continue!(resolve_lvalue_ty(p, Some(t), query, fpath, pos, session,));
+                    let ret = try_continue!(resolve_lvalue_ty(p, t, query, fpath, pos, session,));
                     return Some(ret);
                 }
             }
@@ -277,7 +274,7 @@ fn resolve_lvalue_ty<'a>(
             }
         }
         Pat::TupleStruct(path, pats) => {
-            let mut ma = ast::find_type_match(&path, fpath, pos, session)?;
+            let ma = ast::find_type_match(&path, fpath, pos, session)?;
             match &ma.mtype {
                 MatchType::Struct(_generics) => {
                     for (pat, (_, _, t)) in

@@ -247,8 +247,10 @@ fn destructure_pattern_to_ty(
             Ty::Tuple(ref typeelems) => {
                 let mut res = None;
                 for (i, p) in tuple_elements.iter().enumerate() {
-                    if point_is_in_span(point, &p.span) {
-                        let ty = &typeelems[i];
+                    if !point_is_in_span(point, &p.span) {
+                        continue;
+                    }
+                    if let Some(ref ty) = typeelems[i] {
                         res = destructure_pattern_to_ty(p, point, ty, scope, session);
                         break;
                     }
@@ -694,13 +696,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 let mut v = Vec::new();
                 for expr in exprs {
                     self.visit_expr(expr);
-                    match self.result {
-                        Some(ref t) => v.push(t.clone()),
-                        None => {
-                            self.result = None;
-                            return;
-                        }
-                    };
+                    v.push(self.result.take());
                 }
                 self.result = Some(Ty::Tuple(v));
             }

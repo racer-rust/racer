@@ -42,7 +42,7 @@ impl AsRef<Path> for PathAlias {
 pub enum Ty {
     Match(Match),
     PathSearch(PathSearch), // A path + the scope to be able to resolve it
-    Tuple(Vec<Ty>),
+    Tuple(Vec<Option<Ty>>),
     FixedLengthVec(Box<Ty>, String), // ty, length expr as string
     RefPtr(Box<Ty>),
     Vec(Box<Ty>),
@@ -84,16 +84,9 @@ impl Ty {
     }
     pub(crate) fn from_ast(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
         match ty.node {
-            TyKind::Tup(ref items) => {
-                let mut res = Vec::new();
-                for t in items {
-                    res.push(match Ty::from_ast(t, scope) {
-                        Some(t) => t,
-                        None => return None,
-                    });
-                }
-                Some(Ty::Tuple(res))
-            }
+            TyKind::Tup(ref items) => Some(Ty::Tuple(
+                items.into_iter().map(|t| Ty::from_ast(t, scope)).collect(),
+            )),
             TyKind::Rptr(ref _lifetime, ref ty) => {
                 Ty::from_ast(&ty.ty, scope).map(|ref_ty| Ty::RefPtr(Box::new(ref_ty)))
             }
@@ -123,14 +116,15 @@ impl fmt::Display for Ty {
             Ty::Match(ref m) => write!(f, "{}", m.matchstr),
             Ty::PathSearch(ref p) => write!(f, "{}", p.path),
             Ty::Tuple(ref vec) => {
-                let mut first = true;
                 write!(f, "(")?;
-                for field in vec.iter() {
-                    if first {
+                for (i, field) in vec.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    if let Some(field) = field {
                         write!(f, "{}", field)?;
-                        first = false;
                     } else {
-                        write!(f, ", {}", field)?;
+                        write!(f, "UNKNOWN")?;
                     }
                 }
                 write!(f, ")")
