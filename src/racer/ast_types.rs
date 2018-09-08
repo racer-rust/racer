@@ -42,7 +42,7 @@ impl AsRef<Path> for PathAlias {
 pub enum Ty {
     Match(Match),
     PathSearch(PathSearch), // A path + the scope to be able to resolve it
-    Tuple(Vec<Ty>),
+    Tuple(Vec<Option<Ty>>),
     FixedLengthVec(Box<Ty>, String), // ty, length expr as string
     RefPtr(Box<Ty>),
     Vec(Box<Ty>),
@@ -50,18 +50,43 @@ pub enum Ty {
 }
 
 impl Ty {
+    pub(crate) fn replace_by_generics(self, gen: &GenericsArgs) -> Self {
+        let (ty, deref_cnt) = self.deref_with_count(0);
+        if let Ty::PathSearch(ref paths) = ty {
+            if let Some((_, param)) = gen.search_param_by_path(&paths.path) {
+                if let Some(resolved) = param.resolved() {
+                    return resolved.to_owned().wrap_by_ref(deref_cnt);
+                }
+            }
+        }
+        ty.wrap_by_ref(deref_cnt)
+    }
+    pub(crate) fn dereference(self) -> Self {
+        if let Ty::RefPtr(ty) = self {
+            ty.dereference()
+        } else {
+            self
+        }
+    }
+    fn wrap_by_ref(self, count: usize) -> Self {
+        let mut ty = self;
+        for _ in 0..count {
+            ty = Ty::RefPtr(Box::new(ty));
+        }
+        ty
+    }
+    fn deref_with_count(self, count: usize) -> (Self, usize) {
+        if let Ty::RefPtr(ty) = self {
+            ty.deref_with_count(count + 1)
+        } else {
+            (self, count)
+        }
+    }
     pub(crate) fn from_ast(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
         match ty.node {
-            TyKind::Tup(ref items) => {
-                let mut res = Vec::new();
-                for t in items {
-                    res.push(match Ty::from_ast(t, scope) {
-                        Some(t) => t,
-                        None => return None,
-                    });
-                }
-                Some(Ty::Tuple(res))
-            }
+            TyKind::Tup(ref items) => Some(Ty::Tuple(
+                items.into_iter().map(|t| Ty::from_ast(t, scope)).collect(),
+            )),
             TyKind::Rptr(ref _lifetime, ref ty) => {
                 Ty::from_ast(&ty.ty, scope).map(|ref_ty| Ty::RefPtr(Box::new(ref_ty)))
             }
@@ -91,14 +116,15 @@ impl fmt::Display for Ty {
             Ty::Match(ref m) => write!(f, "{}", m.matchstr),
             Ty::PathSearch(ref p) => write!(f, "{}", p.path),
             Ty::Tuple(ref vec) => {
-                let mut first = true;
                 write!(f, "(")?;
-                for field in vec.iter() {
-                    if first {
+                for (i, field) in vec.iter().enumerate() {
+                    if i != 0 {
+                        write!(f, ", ")?;
+                    }
+                    if let Some(field) = field {
                         write!(f, "{}", field)?;
-                        first = false;
                     } else {
-                        write!(f, ", {}", field)?;
+                        write!(f, "UNKNOWN")?;
                     }
                 }
                 write!(f, ")")
@@ -140,18 +166,6 @@ pub enum Pat {
 }
 
 impl Pat {
-    pub(crate) fn has_type(&self) -> bool {
-        match self {
-            Pat::Struct(..)
-            | Pat::TupleStruct(..)
-            | Pat::Path(_)
-            | Pat::Slice
-            | Pat::Lit
-            | Pat::Box => true,
-            Pat::Ref(pat, _) => pat.has_type(),
-            _ => false,
-        }
-    }
     pub fn from_ast(pat: &PatKind, scope: &Scope) -> Self {
         match pat {
             PatKind::Wild => Pat::Wild,
@@ -626,7 +640,7 @@ impl GenericsArgs {
                     TyKind::Path(ref _qself, ref path) => {
                         if let Some(seg) = path.segments.get(0) {
                             let name = seg.ident.name.as_str();
-                            if let Some(mut tp) = args.iter_mut().find(|tp| tp.name == name) {
+                            if let Some(tp) = args.iter_mut().find(|tp| tp.name == name) {
                                 tp.bounds.extend(TraitBounds::from_generic_bounds(
                                     &bound.bounds,
                                     &filepath,
@@ -679,6 +693,9 @@ impl GenericsArgs {
         if let Some(param) = self.0.get_mut(pos) {
             param.add_bound(bound);
         }
+    }
+    pub(crate) fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 

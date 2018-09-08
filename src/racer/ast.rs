@@ -247,8 +247,10 @@ fn destructure_pattern_to_ty(
             Ty::Tuple(ref typeelems) => {
                 let mut res = None;
                 for (i, p) in tuple_elements.iter().enumerate() {
-                    if point_is_in_span(point, &p.span) {
-                        let ty = &typeelems[i];
+                    if !point_is_in_span(point, &p.span) {
+                        continue;
+                    }
+                    if let Some(ref ty) = typeelems[i] {
                         res = destructure_pattern_to_ty(p, point, ty, scope, session);
                         break;
                     }
@@ -334,11 +336,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for LetTypeVisitor<'c, 's> {
         match ex.node {
             ExprKind::IfLet(ref pattern, ref expr, _, _)
             | ExprKind::WhileLet(ref pattern, ref expr, _, _) => {
-                let mut v = ExprTypeVisitor {
-                    scope: self.scope.clone(),
-                    result: None,
-                    session: self.session,
-                };
+                let mut v = ExprTypeVisitor::new(self.scope.clone(), self.session);
                 v.visit_expr(expr);
                 // TODO: too ugly
                 self.result = v
@@ -371,11 +369,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for LetTypeVisitor<'c, 's> {
             // oh, no type in the let expr. Try evalling the RHS
             ty = local.init.as_ref().and_then(|initexpr| {
                 debug!("init node is {:?}", initexpr.node);
-                let mut v = ExprTypeVisitor {
-                    scope: self.scope.clone(),
-                    result: None,
-                    session: self.session,
-                };
+                let mut v = ExprTypeVisitor::new(self.scope.clone(), self.session);
                 v.visit_expr(initexpr);
                 v.result
             });
@@ -404,11 +398,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for MatchTypeVisitor<'c, 's> {
         if let ExprKind::Match(ref subexpression, ref arms) = ex.node {
             debug!("PHIL sub expr is {:?}", subexpression);
 
-            let mut v = ExprTypeVisitor {
-                scope: self.scope.clone(),
-                result: None,
-                session: self.session,
-            };
+            let mut v = ExprTypeVisitor::new(self.scope.clone(), self.session);
             v.visit_expr(subexpression);
 
             debug!("PHIL sub type is {:?}", v.result);
@@ -444,7 +434,7 @@ fn resolve_ast_path(
 ) -> Option<Match> {
     let scope = Scope::new(filepath.to_owned(), pos);
     let path = RacerPath::from_ast(path, &scope);
-    debug!("resolve_ast_path {:?}", path);
+    debug!("resolve_ast_path {:?} {:?}", path, scope);
     nameres::resolve_path_with_str(
         &path,
         filepath,
@@ -486,7 +476,7 @@ pub(crate) fn find_type_match(
     })?;
     // TODO: 'Type' support
     // if res is Enum/Struct and has a generic type paramter, let's resolve it.
-    for (mut param, typ) in res.generics_mut().zip(path.generic_types()) {
+    for (param, typ) in res.generics_mut().zip(path.generic_types()) {
         param.resolve(typ.to_owned());
     }
     Some(res)
@@ -542,7 +532,28 @@ pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match>
 struct ExprTypeVisitor<'c: 's, 's> {
     scope: Scope,
     session: &'s Session<'c>,
+    // what we have before calling typeinf::get_type_of_match
+    path_match: Option<Match>,
     result: Option<Ty>,
+}
+
+impl<'c: 's, 's> ExprTypeVisitor<'c, 's> {
+    fn new(scope: Scope, session: &'s Session<'c>) -> Self {
+        ExprTypeVisitor {
+            scope,
+            session,
+            path_match: None,
+            result: None,
+        }
+    }
+    fn same_scope(&self) -> Self {
+        Self {
+            scope: self.scope.clone(),
+            session: self.session,
+            path_match: None,
+            result: None,
+        }
+    }
 }
 
 impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
@@ -565,20 +576,44 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     self.session,
                 ).and_then(|m| {
                     let msrc = self.session.load_source_file(&m.filepath);
+                    self.path_match = Some(m.clone());
                     typeinf::get_type_of_match(m, msrc.as_src(), self.session)
                 });
             }
-            ExprKind::Call(ref callee_expression, _ /*ref arguments*/) => {
+            ExprKind::Call(ref callee_expression, ref caller_expr) => {
                 self.visit_expr(callee_expression);
-
                 self.result = self.result.take().and_then(|m| {
-                    if let Ty::Match(m) = m {
+                    if let Ty::Match(mut m) = m {
                         match m.mtype {
                             MatchType::Function | MatchType::Method(_) => {
                                 typeinf::get_return_type_of_function(&m, &m, self.session)
                                     .and_then(|ty| path_to_match(ty, self.session))
                             }
-                            MatchType::Struct(_) | MatchType::Enum(_) => Some(Ty::Match(m)),
+                            // if we find tuple struct / enum variant, try to resolve its generics name
+                            MatchType::Struct(ref mut gen) | MatchType::Enum(ref mut gen) => {
+                                if gen.is_empty() {
+                                    return Some(Ty::Match(m));
+                                }
+                                let tuple_fields = match self.path_match {
+                                    Some(ref m) => typeinf::get_tuplestruct_fields(m, self.session),
+                                    None => return Some(Ty::Match(m)),
+                                };
+                                // search what is in callee e.g. Some(String::new()<-) for generics
+                                for ((_, _, ty), expr) in tuple_fields.into_iter().zip(caller_expr)
+                                {
+                                    let ty = try_continue!(ty).dereference();
+                                    if let Ty::PathSearch(paths) = ty {
+                                        let (id, _) =
+                                            try_continue!(gen.search_param_by_path(&paths.path));
+                                        let mut visitor = self.same_scope();
+                                        visitor.visit_expr(expr);
+                                        if let Some(ty) = visitor.result {
+                                            gen.0[id].resolve(ty.dereference());
+                                        }
+                                    }
+                                }
+                                Some(Ty::Match(m))
+                            }
                             _ => {
                                 debug!(
                                     "ExprTypeVisitor: Cannot handle ExprCall of {:?} type",
@@ -661,13 +696,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 let mut v = Vec::new();
                 for expr in exprs {
                     self.visit_expr(expr);
-                    match self.result {
-                        Some(ref t) => v.push(t.clone()),
-                        None => {
-                            self.result = None;
-                            return;
-                        }
-                    };
+                    v.push(self.result.take());
                 }
                 self.result = Some(Ty::Tuple(v));
             }
@@ -723,21 +752,26 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
             ExprKind::If(_, ref block, ref else_block)
             | ExprKind::IfLet(_, _, ref block, ref else_block) => {
                 debug!("if/iflet expr");
-
-                visit::walk_block(self, &block);
-
+                if let Some(stmt) = block.stmts.last() {
+                    visit::walk_stmt(self, stmt);
+                }
+                if self.result.is_some() {
+                    return;
+                }
                 // if the block does not resolve to a type, try the else block
-                if self.result.is_none() && else_block.is_some() {
-                    self.visit_expr(&else_block.as_ref().unwrap());
+                if let Some(expr) = else_block {
+                    self.visit_expr(expr);
                 }
             }
             ExprKind::Block(ref block, ref _label) => {
                 debug!("block expr");
-                visit::walk_block(self, &block);
+                if let Some(stmt) = block.stmts.last() {
+                    visit::walk_stmt(self, stmt);
+                }
             }
             ExprKind::Mac(ref m) => {
                 if let Some(name) = m.node.path.segments.last().map(|seg| seg.ident) {
-                    // some ad-hoc rules
+                    // use some ad-hoc rules
                     if name.as_str() == "vec" {
                         let path = RacerPath::from_iter(
                             true,
@@ -796,7 +830,7 @@ fn find_type_match_including_generics(
     assert_eq!(&structm.filepath, filepath);
     let fieldtypepath = match fieldtype {
         Ty::PathSearch(paths) => paths.path,
-        Ty::RefPtr(ty) => match destruct_ty_refptr(*ty) {
+        Ty::RefPtr(ty) => match ty.dereference() {
             Ty::PathSearch(paths) => paths.path,
             Ty::Match(m) => return Some(Ty::Match(m)),
             _ => return None,
@@ -1175,11 +1209,7 @@ pub fn get_type_of(s: String, fpath: &Path, pos: BytePos, session: &Session) -> 
         point: pos,
     };
 
-    let mut v = ExprTypeVisitor {
-        scope: startscope,
-        result: None,
-        session,
-    };
+    let mut v = ExprTypeVisitor::new(startscope, session);
 
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.result
@@ -1277,7 +1307,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for FnArgTypeVisitor<'c, 's> {
                             &self.scope,
                             self.session,
                         )
-                    }).map(destruct_ty_refptr)?;
+                    }).map(Ty::dereference)?;
                 if let Ty::PathSearch(ref paths) = ty {
                     let segments = &paths.path.segments;
                     // now we want to get 'T' from fn f<T>(){}, so segments.len() == 1
@@ -1294,14 +1324,6 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for FnArgTypeVisitor<'c, 's> {
                     Some(ty)
                 }
             });
-    }
-}
-
-fn destruct_ty_refptr(ty_arg: Ty) -> Ty {
-    if let Ty::RefPtr(ty) = ty_arg {
-        destruct_ty_refptr(*ty)
-    } else {
-        ty_arg
     }
 }
 
@@ -1342,15 +1364,9 @@ impl<'ast, 'r, 's> visit::Visitor<'ast> for ForStmtVisitor<'r, 's> {
     fn visit_expr(&mut self, ex: &'ast ast::Expr) {
         if let ExprKind::ForLoop(ref pat, ref expr, _, _) = ex.node {
             let for_pat = Pat::from_ast(&pat.node, &self.scope);
-            if !for_pat.has_type() {
-                let mut expr_visitor = ExprTypeVisitor {
-                    scope: self.scope.clone(),
-                    session: self.session,
-                    result: None,
-                };
-                expr_visitor.visit_expr(expr);
-                self.in_expr = expr_visitor.result;
-            }
+            let mut expr_visitor = ExprTypeVisitor::new(self.scope.clone(), self.session);
+            expr_visitor.visit_expr(expr);
+            self.in_expr = expr_visitor.result;
             self.for_pat = Some(for_pat);
         }
     }
@@ -1364,6 +1380,45 @@ pub(crate) fn parse_for_stmt<'r, 's: 'r>(
     let mut v = ForStmtVisitor {
         for_pat: None,
         in_expr: None,
+        scope,
+        session,
+    };
+    with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
+    v
+}
+
+/// Visitor for if let / while let statement
+pub(crate) struct IfLetVisitor<'r, 's: 'r> {
+    pub(crate) let_pat: Option<Pat>,
+    pub(crate) rh_expr: Option<Ty>,
+    scope: Scope,
+    session: &'r Session<'s>,
+}
+
+impl<'ast, 'r, 's> visit::Visitor<'ast> for IfLetVisitor<'r, 's> {
+    fn visit_expr(&mut self, ex: &'ast ast::Expr) {
+        match &ex.node {
+            ExprKind::IfLet(pats, expr, _, _) | ExprKind::WhileLet(pats, expr, _, _) => {
+                if let Some(pat) = pats.get(0) {
+                    self.let_pat = Some(Pat::from_ast(&pat.node, &self.scope));
+                    let mut expr_visitor = ExprTypeVisitor::new(self.scope.clone(), self.session);
+                    expr_visitor.visit_expr(expr);
+                    self.rh_expr = expr_visitor.result;
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+pub(crate) fn parse_if_let<'r, 's: 'r>(
+    s: String,
+    scope: Scope,
+    session: &'r Session<'s>,
+) -> IfLetVisitor<'r, 's> {
+    let mut v = IfLetVisitor {
+        let_pat: None,
+        rh_expr: None,
         scope,
         session,
     };

@@ -523,7 +523,7 @@ fn search_scope_headers(
         if txt_matches(search_type, search_str, trimed) {
             let src = trimed.to_owned() + "{}";
             let match_cxt = get_cxt(src.len());
-            let mut out = matchers::match_if_let(&src, &match_cxt);
+            let mut out = matchers::match_if_let(&src, ifletstart, &match_cxt);
             for m in &mut out {
                 m.point += ifletstart;
             }
@@ -534,7 +534,7 @@ fn search_scope_headers(
         if txt_matches(search_type, search_str, trimed) {
             let src = trimed.to_owned() + "{}";
             let match_cxt = get_cxt(src.len());
-            let mut out = matchers::match_while_let(&src, &match_cxt);
+            let mut out = matchers::match_while_let(&src, stmtstart, &match_cxt);
             for m in &mut out {
                 m.point += stmtstart;
             }
@@ -545,7 +545,7 @@ fn search_scope_headers(
         if txt_matches(search_type, search_str, trimed) {
             let src = trimed.to_owned() + "{}";
             let match_cxt = get_cxt(src.len());
-            let mut out = matchers::match_for(&src, &match_cxt);
+            let mut out = matchers::match_for(&src, stmtstart, &match_cxt);
             for m in &mut out {
                 m.point += stmtstart;
             }
