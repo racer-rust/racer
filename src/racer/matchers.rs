@@ -655,7 +655,7 @@ pub fn match_use(
                 search_path
                     .segments
                     .push(PathSegment::new(context.search_str.to_owned(), vec![]));
-                let mut path_iter = resolve_path(
+                let path_iter = resolve_path(
                     &search_path,
                     context.filepath,
                     context.range.start,

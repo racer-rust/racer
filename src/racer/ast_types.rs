@@ -166,18 +166,6 @@ pub enum Pat {
 }
 
 impl Pat {
-    pub(crate) fn has_type(&self) -> bool {
-        match self {
-            Pat::Struct(..)
-            | Pat::TupleStruct(..)
-            | Pat::Path(_)
-            | Pat::Slice
-            | Pat::Lit
-            | Pat::Box => true,
-            Pat::Ref(pat, _) => pat.has_type(),
-            _ => false,
-        }
-    }
     pub fn from_ast(pat: &PatKind, scope: &Scope) -> Self {
         match pat {
             PatKind::Wild => Pat::Wild,
