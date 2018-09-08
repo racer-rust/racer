@@ -239,31 +239,6 @@ fn get_type_of_let_expr(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
     }
 }
 
-// ASSUMPTION: this is being called on an if let or while let decl
-fn get_type_of_let_block_expr(m: &Match, msrc: Src, session: &Session, prefix: &str) -> Option<Ty> {
-    let stmtstart = scopes::find_stmt_start(msrc, m.point).expect("`let` should have a beginning");
-    let stmt = msrc.shift_start(stmtstart);
-    let point: BytePos = stmt
-        .find(prefix)
-        .expect("`prefix` should appear in statement")
-        .into();
-    let src = MaskedSource::new(&generate_skeleton_for_parsing(&stmt[point.0..]));
-
-    if let Some(range) = src.as_src().iter_stmts().next() {
-        let blob = &src[range.to_range()];
-        debug!("get_type_of_let_block_expr calling get_let_type |{}|", blob);
-
-        let pos = m.point - stmtstart - point - range.start;
-        let scope = Scope {
-            filepath: m.filepath.clone(),
-            point: stmtstart,
-        };
-        ast::get_let_type(blob.to_owned(), pos, scope, session)
-    } else {
-        None
-    }
-}
-
 /// Decide l_value's type given r_value and ident query
 fn resolve_lvalue_ty<'a>(
     l_value: Pat,
@@ -306,7 +281,7 @@ fn resolve_lvalue_ty<'a>(
             match &ma.mtype {
                 MatchType::Struct(_generics) => {
                     for (pat, (_, _, t)) in
-                        pats.into_iter().zip(get_tuplestruct_fields_(&ma, session))
+                        pats.into_iter().zip(get_tuplestruct_fields(&ma, session))
                     {
                         let ret =
                             try_continue!(resolve_lvalue_ty(pat, t, query, fpath, pos, session));
@@ -321,7 +296,7 @@ fn resolve_lvalue_ty<'a>(
                         enum_.to_owned().and_then(|ma| ma.into_generics())
                     };
                     for (pat, (_, _, mut t)) in
-                        pats.into_iter().zip(get_tuplestruct_fields_(&ma, session))
+                        pats.into_iter().zip(get_tuplestruct_fields(&ma, session))
                     {
                         debug!(
                             "Hi! I'm in enum and l: {:?}\n  r: {:?}\n gen: {:?}",
@@ -388,16 +363,9 @@ fn get_type_of_for_arg(m: &Match, session: &Session) -> Option<Ty> {
     )
 }
 
-fn get_type_of_if_let(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
-    let iflet_start = match &m.mtype {
-        core::MatchType::IfLet(pos) => *pos,
-        _ => {
-            warn!("[get_type_of_if_let] invalid match type: {:?}", m.mtype);
-            return None;
-        }
-    };
+fn get_type_of_if_let(m: &Match, session: &Session, start: BytePos) -> Option<Ty> {
     // HACK: use outer scope when getting r-value's type
-    let scope = Scope::new(m.filepath.clone(), iflet_start);
+    let scope = Scope::new(m.filepath.clone(), start);
     let ast::IfLetVisitor {
         let_pat, rh_expr, ..
     } = ast::parse_if_let(m.contextstr.clone(), scope, session);
@@ -449,7 +417,7 @@ pub fn get_struct_field_type(
     None
 }
 
-fn get_tuplestruct_fields_(
+pub(crate) fn get_tuplestruct_fields(
     structmatch: &Match,
     session: &Session,
 ) -> Vec<(String, BytePos, Option<Ty>)> {
@@ -478,7 +446,7 @@ pub fn get_tuplestruct_field_type(
     structmatch: &Match,
     session: &Session,
 ) -> Option<Ty> {
-    let fields = get_tuplestruct_fields_(structmatch, session);
+    let fields = get_tuplestruct_fields(structmatch, session);
 
     for (i, (_, _, ty)) in fields.into_iter().enumerate() {
         if i == fieldnum {
@@ -500,8 +468,9 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<Ty> {
 
     match m.mtype {
         core::MatchType::Let => get_type_of_let_expr(&m, msrc, session),
-        core::MatchType::IfLet(_) => get_type_of_if_let(&m, msrc, session),
-        core::MatchType::WhileLet(_) => get_type_of_let_block_expr(&m, msrc, session, "while let"),
+        core::MatchType::IfLet(start) | core::MatchType::WhileLet(start) => {
+            get_type_of_if_let(&m, session, start)
+        }
         core::MatchType::For(_) => get_type_of_for_arg(&m, session),
         core::MatchType::FnArg => get_type_of_fnarg(&m, msrc, session),
         core::MatchType::MatchArm => get_type_from_match_arm(&m, msrc, session),

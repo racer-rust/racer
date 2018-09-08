@@ -334,11 +334,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for LetTypeVisitor<'c, 's> {
         match ex.node {
             ExprKind::IfLet(ref pattern, ref expr, _, _)
             | ExprKind::WhileLet(ref pattern, ref expr, _, _) => {
-                let mut v = ExprTypeVisitor {
-                    scope: self.scope.clone(),
-                    result: None,
-                    session: self.session,
-                };
+                let mut v = ExprTypeVisitor::new(self.scope.clone(), self.session);
                 v.visit_expr(expr);
                 // TODO: too ugly
                 self.result = v
@@ -371,11 +367,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for LetTypeVisitor<'c, 's> {
             // oh, no type in the let expr. Try evalling the RHS
             ty = local.init.as_ref().and_then(|initexpr| {
                 debug!("init node is {:?}", initexpr.node);
-                let mut v = ExprTypeVisitor {
-                    scope: self.scope.clone(),
-                    result: None,
-                    session: self.session,
-                };
+                let mut v = ExprTypeVisitor::new(self.scope.clone(), self.session);
                 v.visit_expr(initexpr);
                 v.result
             });
@@ -404,11 +396,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for MatchTypeVisitor<'c, 's> {
         if let ExprKind::Match(ref subexpression, ref arms) = ex.node {
             debug!("PHIL sub expr is {:?}", subexpression);
 
-            let mut v = ExprTypeVisitor {
-                scope: self.scope.clone(),
-                result: None,
-                session: self.session,
-            };
+            let mut v = ExprTypeVisitor::new(self.scope.clone(), self.session);
             v.visit_expr(subexpression);
 
             debug!("PHIL sub type is {:?}", v.result);
@@ -486,7 +474,7 @@ pub(crate) fn find_type_match(
     })?;
     // TODO: 'Type' support
     // if res is Enum/Struct and has a generic type paramter, let's resolve it.
-    for (mut param, typ) in res.generics_mut().zip(path.generic_types()) {
+    for (param, typ) in res.generics_mut().zip(path.generic_types()) {
         param.resolve(typ.to_owned());
     }
     Some(res)
@@ -542,7 +530,28 @@ pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match>
 struct ExprTypeVisitor<'c: 's, 's> {
     scope: Scope,
     session: &'s Session<'c>,
+    // what we have before calling typeinf::get_type_of_match
+    path_match: Option<Match>,
     result: Option<Ty>,
+}
+
+impl<'c: 's, 's> ExprTypeVisitor<'c, 's> {
+    fn new(scope: Scope, session: &'s Session<'c>) -> Self {
+        ExprTypeVisitor {
+            scope,
+            session,
+            path_match: None,
+            result: None,
+        }
+    }
+    fn same_scope(&self) -> Self {
+        Self {
+            scope: self.scope.clone(),
+            session: self.session,
+            path_match: None,
+            result: None,
+        }
+    }
 }
 
 impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
@@ -565,10 +574,11 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     self.session,
                 ).and_then(|m| {
                     let msrc = self.session.load_source_file(&m.filepath);
-                    typeinf::get_type_of_match(m.clone(), msrc.as_src(), self.session)
+                    self.path_match = Some(m.clone());
+                    typeinf::get_type_of_match(m, msrc.as_src(), self.session)
                 });
             }
-            ExprKind::Call(ref callee_expression, _ /*ref arguments*/) => {
+            ExprKind::Call(ref callee_expression, ref caller_expr) => {
                 self.visit_expr(callee_expression);
                 self.result = self.result.take().and_then(|m| {
                     if let Ty::Match(mut m) = m {
@@ -577,10 +587,29 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                                 typeinf::get_return_type_of_function(&m, &m, self.session)
                                     .and_then(|ty| path_to_match(ty, self.session))
                             }
-                            // if we find tuple struct / enum variant,
-                            // try to resolve its generics name
+                            // if we find tuple struct / enum variant, try to resolve its generics name
                             MatchType::Struct(ref mut gen) | MatchType::Enum(ref mut gen) => {
-                                if !gen.is_empty() {}
+                                if gen.is_empty() {
+                                    return Some(Ty::Match(m));
+                                }
+                                let tuple_fields = match self.path_match {
+                                    Some(ref m) => typeinf::get_tuplestruct_fields(m, self.session),
+                                    None => return Some(Ty::Match(m)),
+                                };
+                                // search what is in callee e.g. Some(String::new()<-) for generics
+                                for ((_, _, ty), expr) in tuple_fields.into_iter().zip(caller_expr)
+                                {
+                                    let ty = try_continue!(ty).dereference();
+                                    if let Ty::PathSearch(paths) = ty {
+                                        let (id, _) =
+                                            try_continue!(gen.search_param_by_path(&paths.path));
+                                        let mut visitor = self.same_scope();
+                                        visitor.visit_expr(expr);
+                                        if let Some(ty) = visitor.result {
+                                            gen.0[id].resolve(ty.dereference());
+                                        }
+                                    }
+                                }
                                 Some(Ty::Match(m))
                             }
                             _ => {
@@ -1184,11 +1213,7 @@ pub fn get_type_of(s: String, fpath: &Path, pos: BytePos, session: &Session) -> 
         point: pos,
     };
 
-    let mut v = ExprTypeVisitor {
-        scope: startscope,
-        result: None,
-        session,
-    };
+    let mut v = ExprTypeVisitor::new(startscope, session);
 
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.result
@@ -1343,11 +1368,7 @@ impl<'ast, 'r, 's> visit::Visitor<'ast> for ForStmtVisitor<'r, 's> {
     fn visit_expr(&mut self, ex: &'ast ast::Expr) {
         if let ExprKind::ForLoop(ref pat, ref expr, _, _) = ex.node {
             let for_pat = Pat::from_ast(&pat.node, &self.scope);
-            let mut expr_visitor = ExprTypeVisitor {
-                scope: self.scope.clone(),
-                session: self.session,
-                result: None,
-            };
+            let mut expr_visitor = ExprTypeVisitor::new(self.scope.clone(), self.session);
             expr_visitor.visit_expr(expr);
             self.in_expr = expr_visitor.result;
             self.for_pat = Some(for_pat);
@@ -1384,11 +1405,7 @@ impl<'ast, 'r, 's> visit::Visitor<'ast> for IfLetVisitor<'r, 's> {
             ExprKind::IfLet(pats, expr, _, _) | ExprKind::WhileLet(pats, expr, _, _) => {
                 if let Some(pat) = pats.get(0) {
                     self.let_pat = Some(Pat::from_ast(&pat.node, &self.scope));
-                    let mut expr_visitor = ExprTypeVisitor {
-                        scope: self.scope.clone(),
-                        session: self.session,
-                        result: None,
-                    };
+                    let mut expr_visitor = ExprTypeVisitor::new(self.scope.clone(), self.session);
                     expr_visitor.visit_expr(expr);
                     self.rh_expr = expr_visitor.result;
                 }

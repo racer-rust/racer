@@ -51,7 +51,7 @@ pub enum Ty {
 
 impl Ty {
     pub(crate) fn replace_by_generics(self, gen: &GenericsArgs) -> Self {
-        let (ty, deref_cnt) = self.deref_count(0);
+        let (ty, deref_cnt) = self.deref_with_count(0);
         if let Ty::PathSearch(ref paths) = ty {
             if let Some((_, param)) = gen.search_param_by_path(&paths.path) {
                 if let Some(resolved) = param.resolved() {
@@ -60,14 +60,6 @@ impl Ty {
             }
         }
         ty.wrap_by_ref(deref_cnt)
-    }
-    pub(crate) fn into_match(self, session: &Session) -> Option<Match> {
-        match self.dereference() {
-            Ty::Match(m) => Some(m),
-            Ty::PathSearch(paths) => paths.resolve_as_match(session),
-            // TODO(kngwyu): premitive type support
-            _ => None,
-        }
     }
     pub(crate) fn dereference(self) -> Self {
         if let Ty::RefPtr(ty) = self {
@@ -83,9 +75,9 @@ impl Ty {
         }
         ty
     }
-    fn deref_count(self, count: usize) -> (Self, usize) {
+    fn deref_with_count(self, count: usize) -> (Self, usize) {
         if let Ty::RefPtr(ty) = self {
-            ty.deref_count(count + 1)
+            ty.deref_with_count(count + 1)
         } else {
             (self, count)
         }
@@ -666,7 +658,7 @@ impl GenericsArgs {
                     TyKind::Path(ref _qself, ref path) => {
                         if let Some(seg) = path.segments.get(0) {
                             let name = seg.ident.name.as_str();
-                            if let Some(mut tp) = args.iter_mut().find(|tp| tp.name == name) {
+                            if let Some(tp) = args.iter_mut().find(|tp| tp.name == name) {
                                 tp.bounds.extend(TraitBounds::from_generic_bounds(
                                     &bound.bounds,
                                     &filepath,
