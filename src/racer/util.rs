@@ -29,7 +29,7 @@ pub(crate) fn is_ident_char(c: char) -> bool {
     c.is_alphanumeric() || (c == '_') || (c == '!')
 }
 
-#[inline]
+#[inline(always)]
 pub(crate) fn is_whitespace_byte(b: u8) -> bool {
     b == b' ' || b == b'\r' || b == b'\n' || b == b'\t'
 }

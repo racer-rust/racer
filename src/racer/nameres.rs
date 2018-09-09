@@ -515,7 +515,6 @@ fn search_scope_headers(
             search_type,
             true,
         );
-
     // 'if let' can be an expression, so might not be at the start of the stmt
     } else if let Some(n) = preblock.find("if let") {
         let ifletstart = stmtstart + n.into();

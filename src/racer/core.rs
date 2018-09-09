@@ -483,7 +483,6 @@ impl RawSource {
 #[derive(Clone, Debug)]
 pub struct MaskedSource {
     pub code: String,
-    pub idx: Vec<ByteRange>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -496,7 +495,7 @@ impl MaskedSource {
     pub fn new(src: &str) -> MaskedSource {
         let idx: Vec<_> = codecleaner::code_chunks(&src).collect();
         let code = scopes::mask_comments(src, &idx);
-        MaskedSource { code, idx }
+        MaskedSource { code }
     }
 
     pub fn as_src(&self) -> Src {
@@ -577,8 +576,8 @@ impl<'c> Src<'c> {
         self.range.end
     }
 
-    pub fn iter_stmts(&self) -> Fuse<StmtIndicesIter<CodeChunkIter>> {
-        StmtIndicesIter::from_parts(self, self.chunk_indices())
+    pub fn iter_stmts(&self) -> Fuse<StmtIndicesIter> {
+        StmtIndicesIter::from_parts(self)
     }
 
     pub fn shift_start(&self, shift: BytePos) -> Src<'c> {
@@ -600,41 +599,6 @@ impl<'c> Src<'c> {
             src: self.src,
             range: new_range.shift(self.range.start),
         }
-    }
-
-    pub fn chunk_indices(&self) -> CodeChunkIter<'c> {
-        CodeChunkIter {
-            src: *self,
-            iter: self.src.idx.iter(),
-        }
-    }
-}
-
-// iterates cached code chunks.
-// N.b. src can be a substr, so iteration skips chunks that aren't part of the substr
-pub struct CodeChunkIter<'c> {
-    src: Src<'c>,
-    iter: slice::Iter<'c, ByteRange>,
-}
-
-impl<'c> Iterator for CodeChunkIter<'c> {
-    type Item = ByteRange;
-
-    fn next(&mut self) -> Option<ByteRange> {
-        while let Some(range) = self.iter.next() {
-            let (start, end) = (range.start, range.end);
-            if end < self.src.start() {
-                continue;
-            }
-            if start >= self.src.end() {
-                return None;
-            }
-            return Some(ByteRange::new(
-                max(start, self.src.start()) - self.src.start(),
-                min(end, self.src.end()) - self.src.start(),
-            ));
-        }
-        None
     }
 }
 
