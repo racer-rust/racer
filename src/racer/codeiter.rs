@@ -1,21 +1,19 @@
 use std::iter::{Fuse, Iterator};
 
 use core::{BytePos, ByteRange};
+use scopes;
+use util::is_whitespace_byte;
 
-pub struct StmtIndicesIter<'a, I>
-where
-    I: Iterator<Item = ByteRange>,
-{
+/// An iterator which iterates statements.
+/// e.g. for "let a = 5; let b = 4;" it returns "let a = 5;" and then "let b = 4;"
+/// This iterator only works for comment-masked source codes.
+pub struct StmtIndicesIter<'a> {
     src: &'a str,
-    it: I,
     pos: BytePos,
     end: BytePos,
 }
 
-impl<'a, I> Iterator for StmtIndicesIter<'a, I>
-where
-    I: Iterator<Item = ByteRange>,
-{
+impl<'a> Iterator for StmtIndicesIter<'a> {
     type Item = ByteRange;
 
     #[inline]
@@ -25,147 +23,104 @@ where
         let mut bracelevel = 0isize;
         let mut parenlevel = 0isize;
         let mut bracketlevel = 0isize;
-        let mut start = self.pos;
         let mut pos = self.pos;
-
-        // loop on all code_chunks until we find a relevant open/close pattern
-        loop {
-            // do we need the next chunk?
-            if self.end == pos {
-                // get the next chunk of code
-                match self.it.next() {
-                    Some(ch_range) => {
-                        self.end = ch_range.end;
-                        if start == pos {
-                            start = ch_range.start;
-                        }
-                        pos = ch_range.start;
-                    }
-                    None => {
-                        // no more chunks. finished
-                        self.pos = pos;
-                        if start < self.end {
-                            return Some(ByteRange::new(start, self.end));
-                        } else {
-                            return None;
-                        }
-                    }
+        for &b in &src_bytes[pos.0..self.end.0] {
+            match b {
+                b' ' | b'\r' | b'\n' | b'\t' => {
+                    pos += BytePos(1);
                 }
-            }
-
-            if start == pos {
-                // if this is a new stmt block, skip the whitespace
-                for &b in &src_bytes[pos.0..self.end.0] {
-                    match b {
-                        b' ' | b'\r' | b'\n' | b'\t' => {
-                            pos += BytePos(1);
-                        }
-                        _ => {
-                            break;
-                        }
-                    }
-                }
-                start = pos;
-                // test attribute   #[foo = bar]
-                if pos < self.end && src_bytes[pos.0] == b'#' {
-                    enddelim = b']'
-                };
-            }
-
-            // iterate through the chunk, looking for stmt end
-            for &b in &src_bytes[pos.0..self.end.0] {
-                pos += BytePos(1);
-                match b {
-                    b'(' => {
-                        parenlevel += 1;
-                    }
-                    b')' => {
-                        parenlevel -= 1;
-                    }
-                    b'[' => {
-                        bracketlevel += 1;
-                    }
-                    b']' => {
-                        bracketlevel -= 1;
-                    }
-                    b'{' => {
-                        // if we are top level and stmt is not a 'use' or 'let' then
-                        // closebrace finishes the stmt
-                        if bracelevel == 0 && parenlevel == 0 && !(is_a_use_stmt(
-                            src_bytes, start, pos,
-                        ) || is_a_let_stmt(
-                            src_bytes, start, pos,
-                        )) {
-                            enddelim = b'}';
-                        }
-                        bracelevel += 1;
-                    }
-                    b'}' => {
-                        // have we reached the end of the scope?
-                        if bracelevel == 0 {
-                            self.pos = pos;
-                            return None;
-                        }
-                        bracelevel -= 1;
-                    }
-                    b'!' => {
-                        // macro if followed by at least one space or (
-                        // FIXME: test with boolean 'not' expression
-                        if parenlevel == 0
-                            && bracelevel == 0
-                            && pos < self.end
-                            && (pos - start).0 > 1
-                        {
-                            match src_bytes[pos.0] {
-                                b' ' | b'\r' | b'\n' | b'\t' | b'(' => {
-                                    enddelim = b')';
-                                }
-                                _ => {}
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-                if parenlevel < 0
-                    || bracelevel < 0
-                    || bracketlevel < 0
-                    || (enddelim == b && bracelevel == 0 && parenlevel == 0 && bracketlevel == 0)
-                {
-                    self.pos = pos;
-                    return Some(ByteRange::new(start, pos));
+                _ => {
+                    break;
                 }
             }
         }
+        let start = pos;
+        // test attribute   #[foo = bar]
+        if pos < self.end && src_bytes[pos.0] == b'#' {
+            enddelim = b']'
+        };
+        // iterate through the chunk, looking for stmt end
+        for &b in &src_bytes[pos.0..self.end.0] {
+            pos += BytePos(1);
+            match b {
+                b'(' => {
+                    parenlevel += 1;
+                }
+                b')' => {
+                    parenlevel -= 1;
+                }
+                b'[' => {
+                    bracketlevel += 1;
+                }
+                b']' => {
+                    bracketlevel -= 1;
+                }
+                b'{' => {
+                    // if we are top level and stmt is not a 'use' or 'let' then
+                    // closebrace finishes the stmt
+                    if bracelevel == 0 && parenlevel == 0 && !(is_a_use_stmt(src_bytes, start, pos)
+                        || is_a_let_stmt(src_bytes, start, pos))
+                    {
+                        enddelim = b'}';
+                    }
+                    bracelevel += 1;
+                }
+                b'}' => {
+                    // have we reached the end of the scope?
+                    if bracelevel == 0 {
+                        self.pos = pos;
+                        return None;
+                    }
+                    bracelevel -= 1;
+                }
+                b'!' => {
+                    // macro if followed by at least one space or (
+                    // FIXME: test with boolean 'not' expression
+                    if parenlevel == 0 && bracelevel == 0 && pos < self.end && (pos - start).0 > 1 {
+                        match src_bytes[pos.0] {
+                            b' ' | b'\r' | b'\n' | b'\t' | b'(' => {
+                                enddelim = b')';
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                _ => {}
+            }
+            if parenlevel < 0
+                || bracelevel < 0
+                || bracketlevel < 0
+                || (enddelim == b && bracelevel == 0 && parenlevel == 0 && bracketlevel == 0)
+            {
+                self.pos = pos;
+                return Some(ByteRange::new(start, pos));
+            }
+        }
+        if start < self.end {
+            self.pos = pos;
+            return Some(ByteRange::new(start, self.end));
+        }
+        None
     }
 }
 
 fn is_a_use_stmt(src_bytes: &[u8], start: BytePos, pos: BytePos) -> bool {
-    let whitespace = b" {\t\r\n";
-    (pos.0 > 3
-        && &src_bytes[start.0..start.0 + 3] == b"use"
-        && whitespace.contains(&src_bytes[start.0 + 3]))
-        || (pos.0 > 7
-            && &src_bytes[start.0..(start.0 + 7)] == b"pub use"
-            && whitespace.contains(&src_bytes[start.0 + 7]))
+    let src = unsafe { ::std::str::from_utf8_unchecked(&src_bytes[start.0..pos.0]) };
+    scopes::use_stmt_start(&src).is_some()
 }
 
 fn is_a_let_stmt(src_bytes: &[u8], start: BytePos, pos: BytePos) -> bool {
-    let whitespace = b" {\t\r\n";
     pos.0 > 3
         && &src_bytes[start.0..start.0 + 3] == b"let"
-        && whitespace.contains(&src_bytes[start.0 + 3])
+        && is_whitespace_byte(src_bytes[start.0 + 3])
 }
 
-impl<'a, I> StmtIndicesIter<'a, I>
-where
-    I: Iterator<Item = ByteRange>,
-{
-    pub fn from_parts(src: &str, it: I) -> Fuse<StmtIndicesIter<I>> {
+impl<'a> StmtIndicesIter<'a> {
+    pub fn from_parts(src: &str) -> Fuse<StmtIndicesIter> {
         StmtIndicesIter {
             src,
-            it,
             pos: BytePos::ZERO,
-            end: BytePos::ZERO,
+            end: BytePos(src.len()),
         }.fuse()
     }
 }
@@ -179,14 +134,11 @@ mod test {
 
     use super::*;
 
-    fn iter_stmts(src: &str) -> Fuse<StmtIndicesIter<codecleaner::CodeIndicesIter>> {
-        let it = codecleaner::code_chunks(src);
-        StmtIndicesIter {
-            src: src,
-            it: it,
-            pos: BytePos::ZERO,
-            end: BytePos::ZERO,
-        }.fuse()
+    fn iter_stmts(src: &str) -> Fuse<StmtIndicesIter> {
+        let idx: Vec<_> = codecleaner::code_chunks(&src).collect();
+        let code = scopes::mask_comments(src, &idx);
+        let code: &'static str = Box::leak(code.into_boxed_str());
+        StmtIndicesIter::from_parts(code)
     }
 
     #[test]
@@ -383,5 +335,32 @@ mod test {
             "pub struct Matrix44f(pub [[f64; 4]; 4]);",
             slice(&src, it.next().unwrap())
         );
+    }
+
+    #[test]
+    fn iterates_for_struct() {
+        let src = "
+            let a = 5;
+            for St { a, b } in iter() {
+                let b = a;
+            }
+            while let St { a, b } = iter().next() {
+
+            }
+            if let St(a) = hoge() {
+
+            }
+        ";
+        let mut it = iter_stmts(src.as_ref());
+        for r in it {
+            println!("{}", slice(&src, r))
+        }
+        // assert_eq!("let a = 5;", slice(&src, it.next().unwrap()));
+        // assert_eq!(
+        //     r"for St { a, b } in iter() {
+        //         let b = a;
+        //     }",
+        //     slice(&src, it.next().unwrap())
+        // );
     }
 }
