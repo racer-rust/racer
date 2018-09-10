@@ -338,6 +338,7 @@ mod test {
     }
 
     #[test]
+    #[ignore]
     fn iterates_for_struct() {
         let src = "
             let a = 5;
@@ -352,15 +353,12 @@ mod test {
             }
         ";
         let mut it = iter_stmts(src.as_ref());
-        for r in it {
-            println!("{}", slice(&src, r))
-        }
-        // assert_eq!("let a = 5;", slice(&src, it.next().unwrap()));
-        // assert_eq!(
-        //     r"for St { a, b } in iter() {
-        //         let b = a;
-        //     }",
-        //     slice(&src, it.next().unwrap())
-        // );
+        assert_eq!("let a = 5;", slice(&src, it.next().unwrap()));
+        assert_eq!(
+            r"for St { a, b } in iter() {
+                let b = a;
+            }",
+            slice(&src, it.next().unwrap())
+        );
     }
 }
