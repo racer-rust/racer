@@ -558,7 +558,7 @@ impl<'c: 's, 's> ExprTypeVisitor<'c, 's> {
 
 impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
     fn visit_expr(&mut self, expr: &ast::Expr) {
-        debug!(
+        println!(
             "ExprTypeVisitor::visit_expr {:?}(kind: {:?})",
             expr, expr.node
         );
@@ -768,6 +768,16 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 if let Some(stmt) = block.stmts.last() {
                     visit::walk_stmt(self, stmt);
                 }
+            }
+            ExprKind::Index(ref body, ref _index) => {
+                self.visit_expr(body);
+                // TODO(kngwyu) now we don't have support for literal so don't parse index
+                // but in the future, we should handle index's type
+                println!("{:?}", self.result);
+                self.result = self
+                    .result
+                    .take()
+                    .and_then(|ty| typeinf::get_type_of_indexed_value(ty, self.session));
             }
             ExprKind::Mac(ref m) => {
                 if let Some(name) = m.node.path.segments.last().map(|seg| seg.ident) {

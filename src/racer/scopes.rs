@@ -296,9 +296,12 @@ pub fn get_line(src: &str, point: BytePos) -> BytePos {
 /// search in reverse for the start of the current expression
 /// allow . and :: to be surrounded by white chars to enable multi line call chains
 pub fn get_start_of_search_expr(src: &str, point: BytePos) -> BytePos {
+    #[derive(Debug)]
     enum State {
         /// In parentheses; the value inside identifies depth.
-        Levels(usize),
+        Paren(usize),
+        /// in bracket
+        Bracket(usize),
         /// In a string
         StringLiteral,
         StartsWithDot,
@@ -311,10 +314,15 @@ pub fn get_start_of_search_expr(src: &str, point: BytePos) -> BytePos {
     for (i, c) in src.as_bytes()[..point.0].iter().enumerate().rev() {
         ws_ok = match (*c, ws_ok) {
             (b'(', State::None) => State::Result(i + 1),
-            (b'(', State::Levels(1)) => State::None,
-            (b'(', State::Levels(lev)) => State::Levels(lev - 1),
-            (b')', State::Levels(lev)) => State::Levels(lev + 1),
-            (b')', State::None) | (b')', State::StartsWithDot) => State::Levels(1),
+            (b'(', State::Paren(1)) => State::None,
+            (b'(', State::Paren(lev)) => State::Paren(lev - 1),
+            (b')', State::Paren(lev)) => State::Paren(lev + 1),
+            (b')', State::None) | (b')', State::StartsWithDot) => State::Paren(1),
+            (b'[', State::None) => State::Result(i + 1),
+            (b'[', State::Bracket(1)) => State::None,
+            (b'[', State::Bracket(lev)) => State::Bracket(lev - 1),
+            (b']', State::Bracket(lev)) => State::Bracket(lev + 1),
+            (b']', State::StartsWithDot) => State::Bracket(1),
             (b'.', State::None) => State::StartsWithDot,
             (b'.', State::StartsWithDot) => State::Result(i + 2),
             (b'.', State::MustEndsWithDot(_)) => State::None,
@@ -333,7 +341,8 @@ pub fn get_start_of_search_expr(src: &str, point: BytePos) -> BytePos {
             (_, State::MustEndsWithDot(index)) => State::Result(index),
             (_, State::None) if !util::is_search_expr_char(char_at(src, i)) => State::Result(i + 1),
             (_, State::None) => State::None,
-            (_, s @ State::Levels(_)) => s,
+            (_, s @ State::Paren(_)) => s,
+            (_, s @ State::Bracket(_)) => s,
             (_, State::StartsWithDot) if util::is_search_expr_char(char_at(src, i)) => State::None,
             (_, State::StartsWithDot) => State::Result(i + 1),
             (_, State::Result(_)) => unreachable!(),

@@ -2356,3 +2356,29 @@ pub(crate) fn get_tuple_field_matches<'a>(
         }
     })
 }
+
+pub(crate) fn get_index_output(selfm: &Match, session: &Session) -> Option<Ty> {
+    // short cut
+    if selfm.matchstr == "Vec" {
+        return selfm.resolved_generics().next().map(|ty| ty.to_owned());
+    }
+    let index_header = search_trait_impls(
+        selfm.point,
+        &selfm.matchstr,
+        &["Index"],
+        true,
+        &selfm.filepath,
+        selfm.local,
+        session,
+    ).into_iter()
+    .next()?;
+    let output = search_scope_for_impled_assoc_types(
+        &index_header,
+        "Output",
+        core::SearchType::ExactMatch,
+        session,
+    );
+    output.get(0).and_then(|(_, item_path)| {
+        get_assoc_type_from_header(item_path, selfm, &index_header, session)
+    })
+}

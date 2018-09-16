@@ -1035,7 +1035,6 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
 
     let start = scopes::get_start_of_search_expr(src_text, pos);
     let expr = &src_text[start.0..pos.0];
-
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
     debug!(
@@ -1093,7 +1092,7 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
         }
         CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
-            debug!("complete_from_file context is {:?}", context);
+            println!("complete_from_file context is {:?}", context);
             if let Some(ty) = context {
                 out.extend(nameres::get_field_matches_from_ty(
                     ty,
