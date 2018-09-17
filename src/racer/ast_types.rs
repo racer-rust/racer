@@ -494,13 +494,14 @@ impl TraitBounds {
         self.0
             .iter()
             .filter_map(|ps| {
-                nameres::resolve_path_with_str(
+                nameres::resolve_path(
                     &ps.path,
                     &ps.filepath,
                     ps.point,
                     core::SearchType::ExactMatch,
-                    core::Namespace::Type,
+                    core::Namespace::Trait,
                     session,
+                    &ImportInfo::default(),
                 ).nth(0)
             }).collect()
     }
@@ -771,7 +772,7 @@ impl ImplHeader {
             self.file_path(),
             self.impl_start,
             core::SearchType::ExactMatch,
-            core::Namespace::Type,
+            core::Namespace::Trait,
             session,
             import_info,
         ).nth(0)

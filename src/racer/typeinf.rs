@@ -120,13 +120,14 @@ pub fn get_type_of_self(
             return Some(Ty::Match(m));
         }
         debug!("get_type_of_self_arg implres |{:?}|", implres);
-        nameres::resolve_path_with_str(
+        nameres::resolve_path(
             implres.self_path(),
             filepath,
             start,
             SearchType::ExactMatch,
             Namespace::Type,
             session,
+            &matchers::ImportInfo::default(),
         ).nth(0)
         .map(|mut m| {
             match &mut m.mtype {

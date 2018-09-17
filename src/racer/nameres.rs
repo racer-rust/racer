@@ -11,6 +11,7 @@ use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{BytePos, ByteRange, Coordinate, Match, MatchType, Scope, Session, SessionExt, Src};
 use fileres::{get_crate_file, get_module_file, get_std_file};
 use matchers::{find_doc, ImportInfo, MatchCxt};
+use primitive;
 use util::{
     self, calculate_str_hash, closure_valid_arg_scope, find_ident_end, get_rust_src_path,
     symbol_matches, txt_matches,
@@ -1211,25 +1212,47 @@ fn run_matchers_on_blob(
         namespace
     );
     let mut out = Vec::new();
-    if namespace.contains(Namespace::Type) {
-        for m in matchers::match_types(src, context, session, import_info) {
+    macro_rules! run_matcher {
+        ($ns: expr, $matcher: path) => {
+            if namespace.contains($ns) {
+                for m in $matcher(src, context, session).into_iter() {
+                    out.push(m);
+                    if context.search_type == ExactMatch {
+                        return out;
+                    }
+                }
+            }
+        };
+    }
+    macro_rules! run_const_matcher {
+        ($ns: expr, $matcher: path) => {
+            if namespace.contains($ns) {
+                for m in $matcher(&src, context).into_iter() {
+                    out.push(m);
+                    if context.search_type == ExactMatch {
+                        return out;
+                    }
+                }
+            }
+        };
+    }
+    run_matcher!(Namespace::Crate, matchers::match_extern_crate);
+    run_matcher!(Namespace::Mod, matchers::match_mod);
+    run_matcher!(Namespace::Enum, matchers::match_enum);
+    run_matcher!(Namespace::Struct, matchers::match_struct);
+    run_matcher!(Namespace::Trait, matchers::match_trait);
+    run_matcher!(Namespace::TypeDef, matchers::match_type);
+    run_matcher!(Namespace::Func, matchers::match_fn);
+    run_const_matcher!(Namespace::Const, matchers::match_const);
+    run_const_matcher!(Namespace::Static, matchers::match_static);
+    // TODO(kngwyu): support use_extern_macros
+    run_matcher!(Namespace::Global, matchers::match_macro);
+    if namespace.intersects(Namespace::PathParen) {
+        for m in matchers::match_use(src, context, session, import_info) {
             out.push(m);
             if context.search_type == ExactMatch {
                 return out;
             }
-        }
-    }
-    if namespace.contains(Namespace::Value) {
-        for m in matchers::match_values(src, context, session) {
-            out.push(m);
-            if context.search_type == ExactMatch {
-                return out;
-            }
-        }
-    }
-    if namespace.contains(Namespace::Macro) {
-        if let Some(m) = matchers::match_macro(src, context, session) {
-            out.push(m);
         }
     }
     out
@@ -1358,7 +1381,6 @@ pub fn resolve_path_with_str(
     debug!("resolve_path_with_str {:?}", path);
 
     let mut out = Vec::new();
-
     // HACK
     if path.segments.len() == 1 && path.segments[0].name == "str" {
         debug!("{:?} == {:?}", path.segments[0], "str");
@@ -1434,6 +1456,19 @@ pub fn resolve_name(
         }
     }
 
+    if namespace.contains(Namespace::Primitive) {
+        primitive::get_primitives(searchstr, search_type, session, &mut out);
+        if is_exact_match && !out.is_empty() {
+            return out.into_iter();
+        }
+    }
+    if namespace.contains(Namespace::StdMacro) {
+        get_std_macros(searchstr, search_type, session, &mut out);
+        if is_exact_match && !out.is_empty() {
+            return out.into_iter();
+        }
+    }
+
     if (is_exact_match && &searchstr[..] == "std")
         || (!is_exact_match && "std".starts_with(searchstr))
     {
@@ -1500,10 +1535,6 @@ pub fn resolve_name(
             out.push(m);
         }
     }
-
-    if namespace.contains(Namespace::Macro) {
-        get_std_macros(searchstr, search_type, session, &mut out);
-    }
     out.into_iter()
 }
 
@@ -1553,7 +1584,7 @@ pub fn get_super_scope(
             filepath,
             BytePos::ZERO,
             SearchType::ExactMatch,
-            Namespace::Type,
+            Namespace::PathParen,
             session,
             import_info,
         ).nth(0)
@@ -1745,7 +1776,7 @@ pub fn resolve_path(
             filepath,
             pos,
             ExactMatch,
-            Namespace::Type,
+            Namespace::PathParen,
             session,
             import_info,
         ).nth(0);
@@ -1843,7 +1874,7 @@ pub fn resolve_method(
                     filepath,
                     stmtstart + BytePos(n - 1),
                     SearchType::ExactMatch,
-                    Namespace::Both,
+                    Namespace::Trait,
                     session,
                     import_info,
                 ).filter(|m| m.mtype == MatchType::Trait)
@@ -1931,7 +1962,7 @@ pub fn do_external_search(
             filepath,
             pos,
             ExactMatch,
-            Namespace::Type,
+            Namespace::PathParen,
             session,
         ).nth(0);
         context.map(|m| {
@@ -2167,8 +2198,8 @@ pub(crate) fn get_field_matches_from_ty(
 }
 
 fn get_assoc_type_from_header(
-    target_path: &RacerPath, // target = ~
-    type_match: &Match,      // the type which implements Deref
+    target_path: &RacerPath, // type target = ~
+    type_match: &Match,      // the type which implements trait
     impl_header: &ImplHeader,
     session: &Session,
 ) -> Option<Ty> {

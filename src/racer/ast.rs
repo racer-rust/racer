@@ -440,7 +440,7 @@ fn resolve_ast_path(
         filepath,
         pos,
         core::SearchType::ExactMatch,
-        core::Namespace::Both,
+        core::Namespace::Path,
         session,
     ).nth(0)
 }
@@ -558,7 +558,7 @@ impl<'c: 's, 's> ExprTypeVisitor<'c, 's> {
 
 impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
     fn visit_expr(&mut self, expr: &ast::Expr) {
-        println!(
+        debug!(
             "ExprTypeVisitor::visit_expr {:?}(kind: {:?})",
             expr, expr.node
         );
@@ -773,7 +773,6 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 self.visit_expr(body);
                 // TODO(kngwyu) now we don't have support for literal so don't parse index
                 // but in the future, we should handle index's type
-                println!("{:?}", self.result);
                 self.result = self
                     .result
                     .take()

@@ -71,33 +71,6 @@ impl<'s, 'p> MatchCxt<'s, 'p> {
     }
 }
 
-pub fn match_types(
-    src: Src,
-    context: &MatchCxt,
-    session: &Session,
-    pending_imports: &ImportInfo,
-) -> impl Iterator<Item = Match> {
-    match_extern_crate(src, context, session)
-        .into_iter()
-        .chain(match_mod(src, context, session))
-        .chain(match_struct(src, context, session))
-        .chain(match_type(src, context, session))
-        .chain(match_trait(src, context, session))
-        .chain(match_enum(src, context, session))
-        .chain(match_use(src, context, session, pending_imports))
-}
-
-pub fn match_values(
-    src: Src,
-    context: &MatchCxt,
-    session: &Session,
-) -> impl Iterator<Item = Match> {
-    match_const(&src, context)
-        .into_iter()
-        .chain(match_static(&src, context))
-        .chain(match_fn(src, context, session))
-}
-
 fn find_keyword(src: &str, pattern: &str, ignore: &[&str], context: &MatchCxt) -> Option<BytePos> {
     find_keyword_impl(
         src,
@@ -590,13 +563,13 @@ pub fn match_use(
     };
     // common utilities
     macro_rules! with_match {
-        ($path:expr, $f:expr) => {
+        ($path:expr, $ns: expr, $f:expr) => {
             let path_iter = resolve_path(
                 $path,
                 context.filepath,
                 context.range.start,
                 ExactMatch,
-                Namespace::Both,
+                $ns,
                 session,
                 &import_info,
             );
@@ -617,7 +590,7 @@ pub fn match_use(
                 if !symbol_matches(context.search_type, context.search_str, ident) {
                     continue;
                 }
-                with_match!(path_alias.as_ref(), |m: &mut Match| {
+                with_match!(path_alias.as_ref(), Namespace::Path, |m: &mut Match| {
                     debug!("[match_use] PathAliasKind::Ident {:?} was found", ident);
                     if m.matchstr != *ident {
                         m.matchstr = ident.clone();
@@ -631,12 +604,16 @@ pub fn match_use(
                     if !symbol_matches(context.search_type, context.search_str, search_name) {
                         continue;
                     }
-                    with_match!(path_alias.as_ref(), |m: &mut Match| {
-                        debug!("[match_use] PathAliasKind::Self_ {:?} was found", ident);
-                        if is_aliased && m.matchstr != *ident {
-                            m.matchstr = ident.clone();
+                    with_match!(
+                        path_alias.as_ref(),
+                        Namespace::PathParen,
+                        |m: &mut Match| {
+                            debug!("[match_use] PathAliasKind::Self_ {:?} was found", ident);
+                            if is_aliased && m.matchstr != *ident {
+                                m.matchstr = ident.clone();
+                            }
                         }
-                    });
+                    );
                 }
             }
             PathAliasKind::Glob => {
@@ -660,7 +637,7 @@ pub fn match_use(
                     context.filepath,
                     context.range.start,
                     context.search_type,
-                    Namespace::Both,
+                    Namespace::Path,
                     session,
                     &import_info,
                 );
