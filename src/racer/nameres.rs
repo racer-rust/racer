@@ -192,11 +192,9 @@ fn search_scope_for_methods(
         if let Some(n) = blob.find(|c| c == '{' || c == ';') {
             let signature = blob[..n].trim_right();
 
-            if txt_matches(search_type, &format!("fn {}", searchstr), signature)
-                && (includes_assoc_fn || typeinf::first_param_is_self(blob))
-            {
+            if (includes_assoc_fn || typeinf::first_param_is_self(blob)) {
                 debug!("found a method starting |{}| |{}|", searchstr, blob);
-                // TODO: parse this properly, or, txt_matches should return match pos?
+                // TODO: parse this properly should return match pos?
                 let start = BytePos::from(blob.find(&format!("fn {}", searchstr)).unwrap() + 3);
                 let end = find_ident_end(blob, start);
                 let l = &blob[start.0..end.0];
@@ -237,11 +235,9 @@ fn search_generic_impl_scope_for_methods(
         if let Some(n) = blob.find(|c| c == '{' || c == ';') {
             let signature = blob[..n].trim_right();
 
-            if txt_matches(search_type, &format!("fn {}", searchstr), signature)
-                && typeinf::first_param_is_self(blob)
-            {
+            if typeinf::first_param_is_self(blob) {
                 debug!("found a method starting |{}| |{}|", searchstr, blob);
-                // TODO: parse this properly, or, txt_matches should return match pos?
+                // TODO: parse this properly should return match pos?
                 let start = BytePos::from(blob.find(&format!("fn {}", searchstr)).unwrap() + 3);
                 let end = find_ident_end(blob, start);
                 let l = &blob[start.0..end.0];
