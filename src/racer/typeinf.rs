@@ -571,3 +571,14 @@ pub fn get_return_type_of_function(
     }
     out
 }
+
+pub(crate) fn get_type_of_indexed_value(body: Ty, session: &Session) -> Option<Ty> {
+    // TODO(kngwyu): slice support
+    match body {
+        Ty::Match(m) => nameres::get_index_output(&m, session),
+        Ty::PathSearch(p) => p
+            .resolve_as_match(session)
+            .and_then(|m| nameres::get_index_output(&m, session)),
+        _ => None,
+    }
+}
