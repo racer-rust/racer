@@ -2966,31 +2966,6 @@ fn closure_test_multiple_curly_brackets_in_args() {
 }
 
 #[test]
-fn literal_string_method() {
-    let src = r#"
-        fn check() {
-            "hello".to_lowerca~se();
-        }
-    "#;
-
-    let got = get_definition(src, None);
-    assert_eq!("to_lowercase", got.matchstr);
-}
-
-#[test]
-fn literal_string_completes() {
-    let src = r#"
-    fn in_let() {
-        let foo = "hello";
-        foo.to_lowerc~
-    }
-    "#;
-
-    let got = get_only_completion(src, None);
-    assert_eq!("to_lowercase", got.matchstr);
-}
-
-#[test]
 fn crate_restricted_fn_completes() {
     let src = r#"
     pub(crate) fn do_stuff() {

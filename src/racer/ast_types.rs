@@ -43,9 +43,10 @@ pub enum Ty {
     Match(Match),
     PathSearch(PathSearch), // A path + the scope to be able to resolve it
     Tuple(Vec<Option<Ty>>),
-    FixedLengthVec(Box<Ty>, String), // ty, length expr as string
-    RefPtr(Box<Ty>),
-    Vec(Box<Ty>),
+    Array(Box<Ty>, String), // ty, length expr as string
+    RefPtr(Box<Ty>, Mutability),
+    Slice(Box<Ty>),
+    Ptr(Box<Ty>, Mutability),
     Unsupported,
 }
 
@@ -62,7 +63,7 @@ impl Ty {
         ty.wrap_by_ref(deref_cnt)
     }
     pub(crate) fn dereference(self) -> Self {
-        if let Ty::RefPtr(ty) = self {
+        if let Ty::RefPtr(ty, _) = self {
             ty.dereference()
         } else {
             self
@@ -70,13 +71,14 @@ impl Ty {
     }
     fn wrap_by_ref(self, count: usize) -> Self {
         let mut ty = self;
+        // TODO: it's incorrect
         for _ in 0..count {
-            ty = Ty::RefPtr(Box::new(ty));
+            ty = Ty::RefPtr(Box::new(ty), Mutability::Immutable);
         }
         ty
     }
     fn deref_with_count(self, count: usize) -> (Self, usize) {
-        if let Ty::RefPtr(ty) = self {
+        if let Ty::RefPtr(ty, _) = self {
             ty.deref_with_count(count + 1)
         } else {
             (self, count)
@@ -88,18 +90,20 @@ impl Ty {
                 items.into_iter().map(|t| Ty::from_ast(t, scope)).collect(),
             )),
             TyKind::Rptr(ref _lifetime, ref ty) => {
-                Ty::from_ast(&ty.ty, scope).map(|ref_ty| Ty::RefPtr(Box::new(ref_ty)))
+                Ty::from_ast(&ty.ty, scope).map(|ref_ty| Ty::RefPtr(Box::new(ref_ty), ty.mutbl))
             }
             TyKind::Path(_, ref path) => Some(Ty::PathSearch(PathSearch {
                 path: Path::from_ast(path, scope),
                 filepath: scope.filepath.clone(),
                 point: scope.point,
             })),
-            TyKind::Array(ref ty, ref expr) => Ty::from_ast(ty, scope).map(|racer_ty| {
-                Ty::FixedLengthVec(Box::new(racer_ty), pprust::expr_to_string(&expr.value))
-            }),
+            TyKind::Array(ref ty, ref expr) => Ty::from_ast(ty, scope)
+                .map(|racer_ty| Ty::Array(Box::new(racer_ty), pprust::expr_to_string(&expr.value))),
             TyKind::Slice(ref ty) => {
-                Ty::from_ast(ty, scope).map(|ref_ty| Ty::Vec(Box::new(ref_ty)))
+                Ty::from_ast(ty, scope).map(|ref_ty| Ty::Slice(Box::new(ref_ty)))
+            }
+            TyKind::Ptr(ref ty) => {
+                Ty::from_ast(&*ty.ty, scope).map(|rty| Ty::Ptr(Box::new(rty), ty.mutbl))
             }
             TyKind::Never => None,
             _ => {
@@ -129,19 +133,26 @@ impl fmt::Display for Ty {
                 }
                 write!(f, ")")
             }
-            Ty::FixedLengthVec(ref ty, ref expr) => {
+            Ty::Array(ref ty, ref expr) => {
                 write!(f, "[")?;
                 write!(f, "{}", ty)?;
                 write!(f, "; ")?;
                 write!(f, "{}", expr)?;
                 write!(f, "]")
             }
-            Ty::Vec(ref ty) => {
+            Ty::Slice(ref ty) => {
                 write!(f, "[")?;
                 write!(f, "{}", ty)?;
                 write!(f, "]")
             }
-            Ty::RefPtr(ref ty) => write!(f, "&{}", ty),
+            Ty::RefPtr(ref ty, mutab) => match mutab {
+                Mutability::Immutable => write!(f, "&{}", ty),
+                Mutability::Mutable => write!(f, "&mut {}", ty),
+            },
+            Ty::Ptr(ref ty, mutab) => match mutab {
+                Mutability::Immutable => write!(f, "*const {}", ty),
+                Mutability::Mutable => write!(f, "*mut {}", ty),
+            },
             Ty::Unsupported => write!(f, "_"),
         }
     }

@@ -1370,7 +1370,7 @@ pub fn search_prelude_file(
     out.into_iter()
 }
 
-pub fn resolve_path_with_str(
+pub fn resolve_path_with_primitive(
     path: &RacerPath,
     filepath: &Path,
     pos: BytePos,
@@ -1378,50 +1378,32 @@ pub fn resolve_path_with_str(
     namespace: Namespace,
     session: &Session,
 ) -> vec::IntoIter<Match> {
-    debug!("resolve_path_with_str {:?}", path);
+    println!("resolve_path_with_primitive {:?}", path);
 
     let mut out = Vec::new();
-    // HACK
-    if path.segments.len() == 1 && path.segments[0].name == "str" {
-        debug!("{:?} == {:?}", path.segments[0], "str");
-
-        if let Some(module) = resolve_path(
-            &RacerPath::from_vec(true, vec!["std", "str"]),
-            filepath,
-            pos,
-            search_type,
-            namespace,
-            session,
-            &ImportInfo::default(),
-        ).nth(0)
-        {
-            out.push(Match {
-                matchstr: "str".into(),
-                filepath: module.filepath,
-                point: BytePos::ZERO,
-                coords: Some(Coordinate::start()),
-                local: false,
-                mtype: MatchType::Builtin,
-                contextstr: "str".into(),
-                docs: String::new(),
-            });
-        }
-    } else {
-        for m in resolve_path(
-            path,
-            filepath,
-            pos,
-            search_type,
-            namespace,
-            session,
-            &ImportInfo::default(),
-        ) {
-            out.push(m);
-            if let ExactMatch = search_type {
-                break;
-            }
+    if path.segments.len() == 1 {
+        primitive::get_primitive_mods(&path.segments[0].name, search_type, &mut out);
+        println!("out: {:?}", out);
+        if search_type == ExactMatch && !out.is_empty() {
+            return out.into_iter();
         }
     }
+
+    for m in resolve_path(
+        path,
+        filepath,
+        pos,
+        search_type,
+        namespace,
+        session,
+        &ImportInfo::default(),
+    ) {
+        out.push(m);
+        if search_type == ExactMatch {
+            break;
+        }
+    }
+
     out.into_iter()
 }
 
@@ -1453,19 +1435,6 @@ pub fn resolve_name(
             typeinf::get_type_of_self(pos, filepath, true, msrc.as_src(), session)
         {
             out.push(m.clone());
-        }
-    }
-
-    if namespace.contains(Namespace::Primitive) {
-        primitive::get_primitives(searchstr, search_type, session, &mut out);
-        if is_exact_match && !out.is_empty() {
-            return out.into_iter();
-        }
-    }
-    if namespace.contains(Namespace::StdMacro) {
-        get_std_macros(searchstr, search_type, session, &mut out);
-        if is_exact_match && !out.is_empty() {
-            return out.into_iter();
         }
     }
 
@@ -1519,6 +1488,19 @@ pub fn resolve_name(
     ) {
         out.push(m);
         if let ExactMatch = search_type {
+            return out.into_iter();
+        }
+    }
+
+    if namespace.contains(Namespace::Primitive) {
+        primitive::get_primitive_docs(searchstr, search_type, session, &mut out);
+        if is_exact_match && !out.is_empty() {
+            return out.into_iter();
+        }
+    }
+    if namespace.contains(Namespace::StdMacro) {
+        get_std_macros(searchstr, search_type, session, &mut out);
+        if is_exact_match && !out.is_empty() {
             return out.into_iter();
         }
     }
@@ -2116,17 +2098,21 @@ pub fn search_for_field_or_method(
                 out.push(m);
             }
         }
-        MatchType::Builtin => {
-            for m in search_for_impl_methods(
-                &m,
-                searchstr,
-                m.point,
-                &m.filepath,
-                m.local,
-                search_type,
-                session,
-            ) {
-                out.push(m);
+        MatchType::Builtin(kind) => {
+            if let Some(files) = kind.get_impl_files() {
+                for file in files {
+                    for m in search_for_impl_methods(
+                        &m,
+                        searchstr,
+                        BytePos::ZERO,
+                        &file,
+                        false,
+                        search_type,
+                        session,
+                    ) {
+                        out.push(m);
+                    }
+                }
             }
         }
         MatchType::Enum(_) => {
@@ -2189,7 +2175,7 @@ pub(crate) fn get_field_matches_from_ty(
             search_for_field_or_method(m, searchstr, stype, session)
         }),
         Ty::Tuple(v) => get_tuple_field_matches(v.len(), searchstr, stype).collect(),
-        Ty::RefPtr(ty) => {
+        Ty::RefPtr(ty, _) => {
             // TODO(kngwyu): support impl &Type {..}
             get_field_matches_from_ty(*ty, searchstr, stype, session)
         }
@@ -2213,14 +2199,15 @@ fn get_assoc_type_from_header(
             .nth(pos)
             .map(|x| x.to_owned())
     } else {
-        resolve_path_with_str(
+        resolve_path_with_primitive(
             &target_path,
             impl_header.file_path(),
             BytePos::ZERO,
             SearchType::ExactMatch,
             Namespace::Type,
             session,
-        ).nth(0)
+        ).into_iter()
+        .next()
         .map(Ty::Match)
     }
 }

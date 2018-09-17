@@ -1,7 +1,7 @@
 use ast_types::Path as RacerPath;
 use ast_types::{self, GenericsArgs, ImplHeader, Pat, PathAlias, PathAliasKind, TraitBounds, Ty};
 use core::{self, BytePos, ByteRange, Match, MatchType, Scope, Session, SessionExt};
-use nameres::{self, resolve_path_with_str};
+use nameres;
 use scopes;
 use typeinf;
 
@@ -435,7 +435,7 @@ fn resolve_ast_path(
     let scope = Scope::new(filepath.to_owned(), pos);
     let path = RacerPath::from_ast(path, &scope);
     debug!("resolve_ast_path {:?} {:?}", path, scope);
-    nameres::resolve_path_with_str(
+    nameres::resolve_path_with_primitive(
         &path,
         filepath,
         pos,
@@ -450,7 +450,7 @@ fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
         Ty::PathSearch(paths) => {
             find_type_match(&paths.path, &paths.filepath, paths.point, session).map(Ty::Match)
         }
-        Ty::RefPtr(ty) => path_to_match(*ty, session),
+        Ty::RefPtr(ty, _) => path_to_match(*ty, session),
         _ => Some(ty),
     }
 }
@@ -462,7 +462,7 @@ pub(crate) fn find_type_match(
     session: &Session,
 ) -> Option<Match> {
     debug!("find_type_match {:?}, {:?}", path, fpath);
-    let mut res = resolve_path_with_str(
+    let mut res = nameres::resolve_path_with_primitive(
         path,
         fpath,
         pos,
@@ -518,7 +518,7 @@ pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match>
                     }
                 });
 
-            nameres::resolve_path_with_str(
+            nameres::resolve_path_with_primitive(
                 &type_,
                 &m.filepath,
                 outer_scope_start.unwrap_or(scope_start),
@@ -839,7 +839,7 @@ fn find_type_match_including_generics(
     assert_eq!(&structm.filepath, filepath);
     let fieldtypepath = match fieldtype {
         Ty::PathSearch(paths) => paths.path,
-        Ty::RefPtr(ty) => match ty.dereference() {
+        Ty::RefPtr(ty, _) => match ty.dereference() {
             Ty::PathSearch(paths) => paths.path,
             Ty::Match(m) => return Some(Ty::Match(m)),
             _ => return None,

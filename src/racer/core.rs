@@ -19,6 +19,7 @@ use syntax::source_map;
 
 use ast;
 use nameres;
+use primitive::PrimKind;
 use scopes;
 use util;
 
@@ -47,7 +48,7 @@ pub enum MatchType {
     Const,
     Static,
     Macro,
-    Builtin,
+    Builtin(PrimKind),
     /// fn f<T: Clone> or fn f(a: impl Clone) with its trait bounds
     TypeParameter(Box<TraitBounds>),
 }
@@ -76,6 +77,12 @@ impl MatchType {
 impl fmt::Display for MatchType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            MatchType::Struct(_) => write!(f, "Struct"),
+            MatchType::Method(_) => write!(f, "Method"),
+            MatchType::IfLet(_) => write!(f, "IfLet"),
+            MatchType::WhileLet(_) => write!(f, "WhileLet"),
+            MatchType::For(_) => write!(f, "For"),
+            MatchType::Enum(_) => write!(f, "Enum"),
             MatchType::EnumVariant(_) => write!(f, "EnumVariant"),
             MatchType::TypeParameter(_) => write!(f, "TypeParameter"),
             _ => fmt::Debug::fmt(self, f),
@@ -1042,7 +1049,7 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
     let expr = &src_text[start.0..pos.0];
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
-    debug!(
+    println!(
         "{:?}: contextstr is |{}|, searchstr is |{}|",
         completetype, contextstr, searchstr
     );
@@ -1194,7 +1201,6 @@ pub fn find_definition_(
     let range = scopes::expand_search_expr(src_txt, pos);
     let expr = &src[range.to_range()];
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
-
     debug!(
         "find_definition_ for |{:?}| |{:?}| {:?}",
         contextstr, searchstr, completetype
