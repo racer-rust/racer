@@ -2,6 +2,7 @@ use ast_types::Path as RacerPath;
 use ast_types::{self, GenericsArgs, ImplHeader, Pat, PathAlias, PathAliasKind, TraitBounds, Ty};
 use core::{self, BytePos, ByteRange, Match, MatchType, Scope, Session, SessionExt};
 use nameres;
+use primitive::PrimKind;
 use scopes;
 use typeinf;
 
@@ -700,25 +701,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 }
                 self.result = Some(Ty::Tuple(v));
             }
-            ExprKind::Lit(ref lit) => {
-                let ty_path = match lit.node {
-                    LitKind::Str(_, _) => Some(RacerPath::from_vec(false, vec!["str"])),
-                    // See https://github.com/phildawes/racer/issues/727 for
-                    // information on why other literals aren't supported.
-                    _ => None,
-                };
-
-                self.result = if let Some(lit_path) = ty_path {
-                    find_type_match(
-                        &lit_path,
-                        &self.scope.filepath,
-                        self.scope.point,
-                        self.session,
-                    ).map(Ty::Match)
-                } else {
-                    Some(Ty::Unsupported)
-                };
-            }
+            ExprKind::Lit(ref lit) => self.result = Ty::from_lit(lit, &self.scope),
             ExprKind::Try(ref expr) => {
                 self.visit_expr(&expr);
                 debug!("ExprKind::Try result: {:?} expr: {:?}", self.result, expr);

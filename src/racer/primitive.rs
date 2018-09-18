@@ -3,6 +3,7 @@ use core::{BytePos, Match, MatchType, Namespace, SearchType, Session};
 use matchers::ImportInfo;
 use nameres::{self, RUST_SRC_PATH};
 use std::path::PathBuf;
+use syntax::ast::{IntTy, LitIntType, UintTy};
 
 const PRIM_DOC: &str = "libstd/primitive_docs.rs";
 
@@ -56,6 +57,27 @@ const PRIM_MATCHES: [PrimKind; 17] = [
 ];
 
 impl PrimKind {
+    pub(crate) fn from_litint(lit: LitIntType) -> Self {
+        match lit {
+            LitIntType::Signed(i) => match i {
+                IntTy::I8 => PrimKind::I8,
+                IntTy::I16 => PrimKind::I16,
+                IntTy::I32 => PrimKind::I32,
+                IntTy::I64 => PrimKind::I64,
+                IntTy::I128 => PrimKind::I128,
+                IntTy::Isize => PrimKind::Isize,
+            },
+            LitIntType::Unsigned(u) => match u {
+                UintTy::U8 => PrimKind::U8,
+                UintTy::U16 => PrimKind::U16,
+                UintTy::U32 => PrimKind::U32,
+                UintTy::U64 => PrimKind::U64,
+                UintTy::U128 => PrimKind::U128,
+                UintTy::Usize => PrimKind::Usize,
+            },
+            LitIntType::Unsuffixed => PrimKind::U32,
+        }
+    }
     fn is_int(self) -> bool {
         match self {
             PrimKind::I8
@@ -146,7 +168,7 @@ impl PrimKind {
                 .collect(),
         )
     }
-    pub fn to_module_matches(self) -> Option<Match> {
+    pub fn to_module_match(self) -> Option<Match> {
         let _impl_files = self.impl_files()?;
         Some(Match {
             matchstr: self.match_name().to_owned(),
@@ -205,7 +227,7 @@ pub fn get_primitive_mods(searchstr: &str, stype: SearchType, out: &mut Vec<Matc
         if (stype == SearchType::StartsWith && prim_str.starts_with(searchstr))
             || (stype == SearchType::ExactMatch && prim_str == searchstr)
         {
-            if let Some(matches) = prim.to_module_matches() {
+            if let Some(matches) = prim.to_module_match() {
                 out.push(matches);
                 if stype == SearchType::ExactMatch {
                     return;

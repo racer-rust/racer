@@ -65,3 +65,15 @@ fn completes_tuple_field() {
             .all(|ma| ma.matchstr == "0" || ma.matchstr == "1")
     )
 }
+
+#[test]
+fn completes_methods_for_char() {
+    let src = r#"
+    fn main() {
+        'c'.is_upperc~
+    }
+    "#;
+
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "is_uppercase");
+}

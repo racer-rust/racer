@@ -3,10 +3,12 @@ use super::ast::find_type_match;
 use core::{self, BytePos, Match, MatchType, Scope, Session};
 use matchers::ImportInfo;
 use nameres;
+use primitive::PrimKind;
 use std::fmt;
 use std::path::{Path as FilePath, PathBuf};
 use syntax::ast::{
-    self, GenericBound, GenericBounds, GenericParamKind, PatKind, TraitRef, TyKind, WherePredicate,
+    self, GenericBound, GenericBounds, GenericParamKind, LitKind, PatKind, TraitRef, TyKind,
+    WherePredicate,
 };
 // we can only re-export types without thread-local interned string
 pub use syntax::ast::{BindingMode, Mutability};
@@ -110,6 +112,29 @@ impl Ty {
                 trace!("unhandled Ty node: {:?}", ty.node);
                 None
             }
+        }
+    }
+    pub(crate) fn from_lit(lit: &ast::Lit, scope: &Scope) -> Option<Ty> {
+        let make_match = |kind: PrimKind| kind.to_module_match().map(Ty::Match);
+        let make_paths = |s: &str| {
+            Ty::PathSearch(PathSearch::new(
+                Path::single(s.to_owned().into()),
+                scope.to_owned(),
+            ))
+        };
+        match lit.node {
+            LitKind::Str(_, _) => make_match(PrimKind::Str),
+            LitKind::ByteStr(ref bytes) => make_match(PrimKind::U8)
+                .map(|ty| Ty::Array(Box::new(ty), format!("{}", bytes.len()))),
+            LitKind::Byte(_) => make_match(PrimKind::U8),
+            LitKind::Char(_) => make_match(PrimKind::Char),
+            LitKind::Int(_, int_ty) => make_match(PrimKind::from_litint(int_ty)),
+            LitKind::Float(_, float_ty) => match float_ty {
+                ast::FloatTy::F32 => make_match(PrimKind::F32),
+                ast::FloatTy::F64 => make_match(PrimKind::F64),
+            },
+            LitKind::FloatUnsuffixed(_) => make_match(PrimKind::F32),
+            LitKind::Bool(_) => make_match(PrimKind::Bool),
         }
     }
 }
