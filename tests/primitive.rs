@@ -49,3 +49,19 @@ fn completes_libcore_method_for_str() {
     let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "len");
 }
+
+// Experimental featrue
+#[test]
+fn completes_tuple_field() {
+    let src = "
+    fn foo() -> (usize, usize) { (1, 2) }
+    fn main() {
+        foo().~
+    }
+    ";
+    let got = get_all_completions(src, None);
+    assert!(
+        got.into_iter()
+            .all(|ma| ma.matchstr == "0" || ma.matchstr == "1")
+    )
+}

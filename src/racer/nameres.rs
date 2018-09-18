@@ -1378,12 +1378,11 @@ pub fn resolve_path_with_primitive(
     namespace: Namespace,
     session: &Session,
 ) -> vec::IntoIter<Match> {
-    println!("resolve_path_with_primitive {:?}", path);
+    debug!("resolve_path_with_primitive {:?}", path);
 
     let mut out = Vec::new();
     if path.segments.len() == 1 {
         primitive::get_primitive_mods(&path.segments[0].name, search_type, &mut out);
-        println!("out: {:?}", out);
         if search_type == ExactMatch && !out.is_empty() {
             return out.into_iter();
         }
@@ -2174,7 +2173,7 @@ pub(crate) fn get_field_matches_from_ty(
         Ty::PathSearch(paths) => paths.resolve_as_match(session).map_or_else(Vec::new, |m| {
             search_for_field_or_method(m, searchstr, stype, session)
         }),
-        Ty::Tuple(v) => get_tuple_field_matches(v.len(), searchstr, stype).collect(),
+        Ty::Tuple(v) => get_tuple_field_matches(v.len(), searchstr, stype, session).collect(),
         Ty::RefPtr(ty, _) => {
             // TODO(kngwyu): support impl &Type {..}
             get_field_matches_from_ty(*ty, searchstr, stype, session)
@@ -2352,23 +2351,21 @@ pub(crate) fn get_iter_item(selfm: &Match, session: &Session) -> Option<Ty> {
     })
 }
 
-pub(crate) fn get_tuple_field_matches<'a>(
+pub(crate) fn get_tuple_field_matches<'a, 'b: 'a>(
     fields: usize,
     search_str: &'a str,
     search_type: SearchType,
+    session: &'b Session,
 ) -> impl 'a + Iterator<Item = Match> {
     util::gen_tuple_fields(fields).filter_map(move |field| {
         if txt_matches(search_type, search_str, field) {
-            Some(Match {
-                matchstr: field.to_owned(),
-                filepath: PathBuf::from("foo"),
-                point: BytePos::ZERO,
-                coords: None,
-                local: false,
-                mtype: MatchType::StructField,
-                contextstr: String::new(),
-                docs: String::new(),
-            })
+            primitive::PrimKind::Tuple
+                .to_doc_match(session)
+                .map(|mut m| {
+                    m.matchstr = field.to_owned();
+                    m.mtype = MatchType::StructField;
+                    m
+                })
         } else {
             None
         }
