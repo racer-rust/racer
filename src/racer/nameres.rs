@@ -1827,7 +1827,12 @@ pub fn resolve_method(
         searchstr, point, scopestart,
     );
 
-    if let Some(stmtstart) = scopes::find_stmt_start(msrc, scopestart.decrement()) {
+    let parent_scope = match scopestart.try_decrement() {
+        Some(x) => x,
+        None => return vec![],
+    };
+
+    if let Some(stmtstart) = scopes::find_stmt_start(msrc, parent_scope) {
         let preblock = &msrc[stmtstart.0..scopestart.0];
         debug!("search_scope_headers preblock is |{}|", preblock);
 

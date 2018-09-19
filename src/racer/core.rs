@@ -154,6 +154,9 @@ impl BytePos {
     pub fn decrement(&self) -> Self {
         BytePos(self.0 - 1)
     }
+    pub fn try_decrement(&self) -> Option<Self> {
+        self.0.checked_sub(1).map(BytePos)
+    }
     /// returns self + 1
     pub fn increment(&self) -> Self {
         BytePos(self.0 + 1)
