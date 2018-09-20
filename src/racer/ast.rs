@@ -2,16 +2,13 @@ use ast_types::Path as RacerPath;
 use ast_types::{self, GenericsArgs, ImplHeader, Pat, PathAlias, PathAliasKind, TraitBounds, Ty};
 use core::{self, BytePos, ByteRange, Match, MatchType, Scope, Session, SessionExt};
 use nameres;
-use primitive::PrimKind;
 use scopes;
 use typeinf;
 
 use std::path::Path;
 use std::rc::Rc;
 
-use syntax::ast::{
-    self, ExprKind, FunctionRetTy, ItemKind, LitKind, PatKind, TyKind, UseTree, UseTreeKind,
-};
+use syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, PatKind, TyKind, UseTree, UseTreeKind};
 use syntax::errors::{emitter::ColorConfig, Handler};
 use syntax::parse::parser::Parser;
 use syntax::parse::{self, ParseSess};
@@ -760,6 +757,21 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     .result
                     .take()
                     .and_then(|ty| typeinf::get_type_of_indexed_value(ty, self.session));
+            }
+            ExprKind::Array(ref exprs) => {
+                for expr in exprs {
+                    self.visit_expr(expr);
+                    if self.result.is_some() {
+                        self.result = self
+                            .result
+                            .take()
+                            .map(|ty| Ty::Array(Box::new(ty), format!("{}", exprs.len())));
+                        break;
+                    }
+                }
+                if self.result.is_none() {
+                    self.result = Some(Ty::Array(Box::new(Ty::Unsupported), String::new()));
+                }
             }
             ExprKind::Mac(ref m) => {
                 if let Some(name) = m.node.path.segments.last().map(|seg| seg.ident) {

@@ -762,7 +762,16 @@ impl ImplHeader {
     ) -> Option<Self> {
         let generics = GenericsArgs::from_generics(generics, path, offset.0 as i32);
         let scope = Scope::new(path.to_owned(), impl_start);
-        let self_path = destruct_ref_ptr(&self_type.node).map(|p| Path::from_ast(p, &scope))?;
+        fn get_self_path(ty: &TyKind, scope: &Scope) -> Option<Path> {
+            match ty {
+                TyKind::Rptr(_, ref ty) => get_self_path(&ty.ty.node, scope),
+                TyKind::Path(_, ref path) => Some(Path::from_ast(path, &scope)),
+                // HACK: treat slice as path
+                TyKind::Slice(_) => Some(Path::single("[T]".to_owned().into())),
+                _ => None,
+            }
+        }
+        let self_path = get_self_path(&self_type.node, &scope)?;
         let trait_path = otrait
             .as_ref()
             .map(|tref| Path::from_ast(&tref.path, &scope));
@@ -815,13 +824,5 @@ impl ImplHeader {
     }
     pub(crate) fn scope_start(&self) -> BytePos {
         self.block_start.increment()
-    }
-}
-
-fn destruct_ref_ptr(ty: &TyKind) -> Option<&ast::Path> {
-    match ty {
-        TyKind::Rptr(_, ref ty) => destruct_ref_ptr(&ty.ty.node),
-        TyKind::Path(_, ref path) => Some(path),
-        _ => None,
     }
 }

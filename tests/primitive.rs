@@ -77,3 +77,15 @@ fn completes_methods_for_char() {
     let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "is_uppercase");
 }
+
+#[test]
+fn completes_methods_for_array() {
+    let src = r#"
+    fn main() {
+        [1, 2, 3].split_mu~
+    }
+    "#;
+
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "split_mut");
+}

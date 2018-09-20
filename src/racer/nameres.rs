@@ -2178,6 +2178,11 @@ pub(crate) fn get_field_matches_from_ty(
             // TODO(kngwyu): support impl &Type {..}
             get_field_matches_from_ty(*ty, searchstr, stype, session)
         }
+        Ty::Array(_, _) | Ty::Slice(_) => {
+            let mut m = primitive::PrimKind::Slice.to_module_match().unwrap();
+            m.matchstr = "[T]".to_owned();
+            search_for_field_or_method(m, searchstr, stype, session)
+        }
         _ => vec![],
     }
 }
