@@ -79,7 +79,7 @@ fn completes_methods_for_char() {
 }
 
 #[test]
-fn completes_methods_for_array() {
+fn completes_slice_methods_for_array() {
     let src = r#"
     fn main() {
         [1, 2, 3].split_mu~
@@ -88,4 +88,33 @@ fn completes_methods_for_array() {
 
     let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "split_mut");
+}
+
+#[test]
+fn completes_methods_for_slice() {
+    let src = r#"
+    fn slice() -> &'static [usize] {
+        &[1, 2, 3]
+    }
+    fn main() {
+        let s = slice();
+        s.split_first_m~
+    }
+    "#;
+
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "split_first_mut");
+}
+
+#[test]
+fn completes_slice_methods_for_vec() {
+    let src = r#"
+    fn main() {
+        let v = vec![];
+        v.split_first_m~
+    }
+    "#;
+
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "split_first_mut");
 }

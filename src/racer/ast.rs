@@ -2,13 +2,14 @@ use ast_types::Path as RacerPath;
 use ast_types::{self, GenericsArgs, ImplHeader, Pat, PathAlias, PathAliasKind, TraitBounds, Ty};
 use core::{self, BytePos, ByteRange, Match, MatchType, Scope, Session, SessionExt};
 use nameres;
+use primitive::PrimKind;
 use scopes;
 use typeinf;
 
 use std::path::Path;
 use std::rc::Rc;
 
-use syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, PatKind, TyKind, UseTree, UseTreeKind};
+use syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, PatKind, UseTree, UseTreeKind};
 use syntax::errors::{emitter::ColorConfig, Handler};
 use syntax::parse::parser::Parser;
 use syntax::parse::{self, ParseSess};
@@ -480,6 +481,7 @@ pub(crate) fn find_type_match(
     Some(res)
 }
 
+// TODO(kngwyu): Should return Option<Ty>
 pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match> {
     debug!("get_type_of_typedef match is {:?}", m);
     let msrc = session.load_source_file(&m.filepath);
@@ -516,14 +518,21 @@ pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match>
                     }
                 });
 
-            nameres::resolve_path_with_primitive(
-                &type_,
-                &m.filepath,
-                outer_scope_start.unwrap_or(scope_start),
-                core::SearchType::ExactMatch,
-                core::Namespace::Type,
-                session,
-            ).nth(0)
+            match type_.dereference() {
+                Ty::Match(m) => Some(m),
+                Ty::PathSearch(paths) => nameres::resolve_path_with_primitive(
+                    &paths.path,
+                    &paths.filepath,
+                    outer_scope_start.unwrap_or(scope_start),
+                    core::SearchType::ExactMatch,
+                    core::Namespace::Type,
+                    session,
+                ).nth(0),
+                Ty::Ptr(_, _) => PrimKind::Pointer.to_module_match(),
+                Ty::Array(_, _) => PrimKind::Array.to_module_match(),
+                Ty::Slice(_) => PrimKind::Slice.to_module_match(),
+                _ => None,
+            }
         })
 }
 
@@ -896,7 +905,7 @@ impl<'ast> visit::Visitor<'ast> for StructVisitor {
 #[derive(Debug)]
 pub struct TypeVisitor<'s> {
     pub name: Option<String>,
-    pub type_: Option<RacerPath>,
+    pub type_: Option<Ty>,
     scope: &'s Scope,
 }
 
@@ -904,24 +913,7 @@ impl<'ast, 's> visit::Visitor<'ast> for TypeVisitor<'s> {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::Ty(ref ty, _) = item.node {
             self.name = Some(item.ident.name.to_string());
-
-            let typepath = match ty.node {
-                TyKind::Rptr(_, ref ty) => match ty.ty.node {
-                    TyKind::Path(_, ref path) => {
-                        let type_ = RacerPath::from_ast(path, self.scope);
-                        debug!("type type is {:?}", type_);
-                        Some(type_)
-                    }
-                    _ => None,
-                },
-                TyKind::Path(_, ref path) => {
-                    let type_ = RacerPath::from_ast(path, self.scope);
-                    debug!("type type is {:?}", type_);
-                    Some(type_)
-                }
-                _ => None,
-            };
-            self.type_ = typepath;
+            self.type_ = Ty::from_ast(&ty, self.scope);
             debug!("typevisitor type is {:?}", self.type_);
         }
     }

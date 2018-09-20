@@ -132,9 +132,9 @@ pub fn search_for_impl_methods(
                 SearchType::ExactMatch,
                 session,
             );
-            if let Some((_, target_path)) = target.get(0) {
+            if let Some((_, target_ty)) = target.into_iter().next() {
                 out.extend(search_for_deref_matches(
-                    target_path,
+                    target_ty,
                     match_request,
                     &header,
                     fieldsearchstr,
@@ -269,7 +269,7 @@ fn search_scope_for_impled_assoc_types(
     searchstr: &str,
     search_type: SearchType,
     session: &Session,
-) -> Vec<(String, RacerPath)> {
+) -> Vec<(String, Ty)> {
     let src = session.load_source_file(header.file_path());
     let scope_src = src.as_src().shift_start(header.scope_start());
     let mut out = vec![];
@@ -2150,16 +2150,23 @@ pub fn search_for_field_or_method(
 }
 
 fn search_for_deref_matches(
-    target_path: &RacerPath, // target = ~
-    type_match: &Match,      // the type which implements Deref
+    target_ty: Ty,      // target = ~
+    type_match: &Match, // the type which implements Deref
     impl_header: &ImplHeader,
     fieldsearchstr: &str,
     session: &Session,
 ) -> Vec<Match> {
-    get_assoc_type_from_header(target_path, type_match, impl_header, session)
-        .map_or_else(Vec::new, |ty| {
+    match target_ty {
+        Ty::PathSearch(ref paths) => {
+            let ty = match get_assoc_type_from_header(&paths.path, type_match, impl_header, session)
+            {
+                Some(t) => t,
+                None => return vec![],
+            };
             get_field_matches_from_ty(ty, fieldsearchstr, SearchType::StartsWith, session)
-        })
+        }
+        _ => get_field_matches_from_ty(target_ty, fieldsearchstr, SearchType::StartsWith, session),
+    }
 }
 
 pub(crate) fn get_field_matches_from_ty(
@@ -2351,9 +2358,14 @@ pub(crate) fn get_iter_item(selfm: &Match, session: &Session) -> Option<Ty> {
         core::SearchType::ExactMatch,
         session,
     );
-    item.get(0).and_then(|(_, item_path)| {
-        get_assoc_type_from_header(item_path, selfm, &iter_header, session)
-    })
+    item.into_iter()
+        .next()
+        .and_then(|(_, item_ty)| match item_ty {
+            Ty::PathSearch(paths) => {
+                get_assoc_type_from_header(&paths.path, selfm, &iter_header, session)
+            }
+            _ => Some(item_ty),
+        })
 }
 
 pub(crate) fn get_tuple_field_matches<'a, 'b: 'a>(
@@ -2398,7 +2410,13 @@ pub(crate) fn get_index_output(selfm: &Match, session: &Session) -> Option<Ty> {
         core::SearchType::ExactMatch,
         session,
     );
-    output.get(0).and_then(|(_, item_path)| {
-        get_assoc_type_from_header(item_path, selfm, &index_header, session)
-    })
+    output
+        .into_iter()
+        .next()
+        .and_then(|(_, item_ty)| match item_ty {
+            Ty::PathSearch(paths) => {
+                get_assoc_type_from_header(&paths.path, selfm, &index_header, session)
+            }
+            _ => Some(item_ty),
+        })
 }
