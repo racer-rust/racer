@@ -304,6 +304,8 @@ pub fn get_start_of_search_expr(src: &str, point: BytePos) -> BytePos {
         Bracket(usize),
         /// In a string
         StringLiteral,
+        /// In char
+        CharLiteral,
         StartsWithDot,
         MustEndsWithDot(usize),
         StartsWithCol(usize),
@@ -331,6 +333,10 @@ pub fn get_start_of_search_expr(src: &str, point: BytePos) -> BytePos {
             (b'"', State::None) | (b'"', State::StartsWithDot) => State::StringLiteral,
             (b'"', State::StringLiteral) => State::None,
             (b'?', State::StartsWithDot) => State::None,
+            (b'\'', State::None) | (b'\'', State::StartsWithDot) => State::CharLiteral,
+            (b'\'', State::StringLiteral) => State::StringLiteral,
+            (b'\'', State::CharLiteral) => State::None,
+            (_, State::CharLiteral) => State::CharLiteral,
             (_, State::StringLiteral) => State::StringLiteral,
             (_, State::StartsWithCol(index)) => State::Result(index),
             (_, State::None) if char_at(src, i).is_whitespace() => State::MustEndsWithDot(i + 1),

@@ -2966,31 +2966,6 @@ fn closure_test_multiple_curly_brackets_in_args() {
 }
 
 #[test]
-fn literal_string_method() {
-    let src = r#"
-        fn check() {
-            "hello".to_lowerca~se();
-        }
-    "#;
-
-    let got = get_definition(src, None);
-    assert_eq!("to_lowercase", got.matchstr);
-}
-
-#[test]
-fn literal_string_completes() {
-    let src = r#"
-    fn in_let() {
-        let foo = "hello";
-        foo.to_lowerc~
-    }
-    "#;
-
-    let got = get_only_completion(src, None);
-    assert_eq!("to_lowercase", got.matchstr);
-}
-
-#[test]
 fn crate_restricted_fn_completes() {
     let src = r#"
     pub(crate) fn do_stuff() {
@@ -4055,22 +4030,4 @@ fn completes_trait_methods_in_path() {
 ";
     let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "default");
-}
-
-// Experimental featrue
-// It's already implemented but has a filepath problem
-#[test]
-#[ignore]
-fn completes_tuple_field() {
-    let src = "
-    fn foo() -> (usize, usize) { (1, 2) }
-    fn main() {
-        foo().~
-    }
-    ";
-    let got = get_all_completions(src, None);
-    assert!(
-        got.into_iter()
-            .all(|ma| ma.matchstr == "0" || ma.matchstr == "1")
-    )
 }

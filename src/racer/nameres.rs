@@ -11,6 +11,7 @@ use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{BytePos, ByteRange, Coordinate, Match, MatchType, Scope, Session, SessionExt, Src};
 use fileres::{get_crate_file, get_module_file, get_std_file};
 use matchers::{find_doc, ImportInfo, MatchCxt};
+use primitive;
 use util::{
     self, calculate_str_hash, closure_valid_arg_scope, find_ident_end, get_rust_src_path,
     symbol_matches, txt_matches,
@@ -131,9 +132,9 @@ pub fn search_for_impl_methods(
                 SearchType::ExactMatch,
                 session,
             );
-            if let Some((_, target_path)) = target.get(0) {
+            if let Some((_, target_ty)) = target.into_iter().next() {
                 out.extend(search_for_deref_matches(
-                    target_path,
+                    target_ty,
                     match_request,
                     &header,
                     fieldsearchstr,
@@ -268,7 +269,7 @@ fn search_scope_for_impled_assoc_types(
     searchstr: &str,
     search_type: SearchType,
     session: &Session,
-) -> Vec<(String, RacerPath)> {
+) -> Vec<(String, Ty)> {
     let src = session.load_source_file(header.file_path());
     let scope_src = src.as_src().shift_start(header.scope_start());
     let mut out = vec![];
@@ -1211,25 +1212,47 @@ fn run_matchers_on_blob(
         namespace
     );
     let mut out = Vec::new();
-    if namespace.contains(Namespace::Type) {
-        for m in matchers::match_types(src, context, session, import_info) {
+    macro_rules! run_matcher {
+        ($ns: expr, $matcher: path) => {
+            if namespace.contains($ns) {
+                for m in $matcher(src, context, session).into_iter() {
+                    out.push(m);
+                    if context.search_type == ExactMatch {
+                        return out;
+                    }
+                }
+            }
+        };
+    }
+    macro_rules! run_const_matcher {
+        ($ns: expr, $matcher: path) => {
+            if namespace.contains($ns) {
+                for m in $matcher(&src, context).into_iter() {
+                    out.push(m);
+                    if context.search_type == ExactMatch {
+                        return out;
+                    }
+                }
+            }
+        };
+    }
+    run_matcher!(Namespace::Crate, matchers::match_extern_crate);
+    run_matcher!(Namespace::Mod, matchers::match_mod);
+    run_matcher!(Namespace::Enum, matchers::match_enum);
+    run_matcher!(Namespace::Struct, matchers::match_struct);
+    run_matcher!(Namespace::Trait, matchers::match_trait);
+    run_matcher!(Namespace::TypeDef, matchers::match_type);
+    run_matcher!(Namespace::Func, matchers::match_fn);
+    run_const_matcher!(Namespace::Const, matchers::match_const);
+    run_const_matcher!(Namespace::Static, matchers::match_static);
+    // TODO(kngwyu): support use_extern_macros
+    run_matcher!(Namespace::Global, matchers::match_macro);
+    if namespace.intersects(Namespace::PathParen) {
+        for m in matchers::match_use(src, context, session, import_info) {
             out.push(m);
             if context.search_type == ExactMatch {
                 return out;
             }
-        }
-    }
-    if namespace.contains(Namespace::Value) {
-        for m in matchers::match_values(src, context, session) {
-            out.push(m);
-            if context.search_type == ExactMatch {
-                return out;
-            }
-        }
-    }
-    if namespace.contains(Namespace::Macro) {
-        if let Some(m) = matchers::match_macro(src, context, session) {
-            out.push(m);
         }
     }
     out
@@ -1347,7 +1370,7 @@ pub fn search_prelude_file(
     out.into_iter()
 }
 
-pub fn resolve_path_with_str(
+pub fn resolve_path_with_primitive(
     path: &RacerPath,
     filepath: &Path,
     pos: BytePos,
@@ -1355,51 +1378,31 @@ pub fn resolve_path_with_str(
     namespace: Namespace,
     session: &Session,
 ) -> vec::IntoIter<Match> {
-    debug!("resolve_path_with_str {:?}", path);
+    debug!("resolve_path_with_primitive {:?}", path);
 
     let mut out = Vec::new();
-
-    // HACK
-    if path.segments.len() == 1 && path.segments[0].name == "str" {
-        debug!("{:?} == {:?}", path.segments[0], "str");
-
-        if let Some(module) = resolve_path(
-            &RacerPath::from_vec(true, vec!["std", "str"]),
-            filepath,
-            pos,
-            search_type,
-            namespace,
-            session,
-            &ImportInfo::default(),
-        ).nth(0)
-        {
-            out.push(Match {
-                matchstr: "str".into(),
-                filepath: module.filepath,
-                point: BytePos::ZERO,
-                coords: Some(Coordinate::start()),
-                local: false,
-                mtype: MatchType::Builtin,
-                contextstr: "str".into(),
-                docs: String::new(),
-            });
-        }
-    } else {
-        for m in resolve_path(
-            path,
-            filepath,
-            pos,
-            search_type,
-            namespace,
-            session,
-            &ImportInfo::default(),
-        ) {
-            out.push(m);
-            if let ExactMatch = search_type {
-                break;
-            }
+    if path.segments.len() == 1 {
+        primitive::get_primitive_mods(&path.segments[0].name, search_type, &mut out);
+        if search_type == ExactMatch && !out.is_empty() {
+            return out.into_iter();
         }
     }
+
+    for m in resolve_path(
+        path,
+        filepath,
+        pos,
+        search_type,
+        namespace,
+        session,
+        &ImportInfo::default(),
+    ) {
+        out.push(m);
+        if search_type == ExactMatch {
+            break;
+        }
+    }
+
     out.into_iter()
 }
 
@@ -1488,6 +1491,19 @@ pub fn resolve_name(
         }
     }
 
+    if namespace.contains(Namespace::Primitive) {
+        primitive::get_primitive_docs(searchstr, search_type, session, &mut out);
+        if is_exact_match && !out.is_empty() {
+            return out.into_iter();
+        }
+    }
+    if namespace.contains(Namespace::StdMacro) {
+        get_std_macros(searchstr, search_type, session, &mut out);
+        if is_exact_match && !out.is_empty() {
+            return out.into_iter();
+        }
+    }
+
     for m in search_prelude_file(pathseg, search_type, namespace, session, import_info) {
         out.push(m);
         if let ExactMatch = search_type {
@@ -1499,10 +1515,6 @@ pub fn resolve_name(
         for m in do_file_search(searchstr, filepath.parent().unwrap(), session) {
             out.push(m);
         }
-    }
-
-    if namespace.contains(Namespace::Macro) {
-        get_std_macros(searchstr, search_type, session, &mut out);
     }
     out.into_iter()
 }
@@ -1553,7 +1565,7 @@ pub fn get_super_scope(
             filepath,
             BytePos::ZERO,
             SearchType::ExactMatch,
-            Namespace::Type,
+            Namespace::PathParen,
             session,
             import_info,
         ).nth(0)
@@ -1745,7 +1757,7 @@ pub fn resolve_path(
             filepath,
             pos,
             ExactMatch,
-            Namespace::Type,
+            Namespace::PathParen,
             session,
             import_info,
         ).nth(0);
@@ -1848,7 +1860,7 @@ pub fn resolve_method(
                     filepath,
                     stmtstart + BytePos(n - 1),
                     SearchType::ExactMatch,
-                    Namespace::Both,
+                    Namespace::Trait,
                     session,
                     import_info,
                 ).filter(|m| m.mtype == MatchType::Trait)
@@ -1936,7 +1948,7 @@ pub fn do_external_search(
             filepath,
             pos,
             ExactMatch,
-            Namespace::Type,
+            Namespace::PathParen,
             session,
         ).nth(0);
         context.map(|m| {
@@ -2090,17 +2102,21 @@ pub fn search_for_field_or_method(
                 out.push(m);
             }
         }
-        MatchType::Builtin => {
-            for m in search_for_impl_methods(
-                &m,
-                searchstr,
-                m.point,
-                &m.filepath,
-                m.local,
-                search_type,
-                session,
-            ) {
-                out.push(m);
+        MatchType::Builtin(kind) => {
+            if let Some(files) = kind.get_impl_files() {
+                for file in files {
+                    for m in search_for_impl_methods(
+                        &m,
+                        searchstr,
+                        BytePos::ZERO,
+                        &file,
+                        false,
+                        search_type,
+                        session,
+                    ) {
+                        out.push(m);
+                    }
+                }
             }
         }
         MatchType::Enum(_) => {
@@ -2139,16 +2155,23 @@ pub fn search_for_field_or_method(
 }
 
 fn search_for_deref_matches(
-    target_path: &RacerPath, // target = ~
-    type_match: &Match,      // the type which implements Deref
+    target_ty: Ty,      // target = ~
+    type_match: &Match, // the type which implements Deref
     impl_header: &ImplHeader,
     fieldsearchstr: &str,
     session: &Session,
 ) -> Vec<Match> {
-    get_assoc_type_from_header(target_path, type_match, impl_header, session)
-        .map_or_else(Vec::new, |ty| {
+    match target_ty {
+        Ty::PathSearch(ref paths) => {
+            let ty = match get_assoc_type_from_header(&paths.path, type_match, impl_header, session)
+            {
+                Some(t) => t,
+                None => return vec![],
+            };
             get_field_matches_from_ty(ty, fieldsearchstr, SearchType::StartsWith, session)
-        })
+        }
+        _ => get_field_matches_from_ty(target_ty, fieldsearchstr, SearchType::StartsWith, session),
+    }
 }
 
 pub(crate) fn get_field_matches_from_ty(
@@ -2162,18 +2185,23 @@ pub(crate) fn get_field_matches_from_ty(
         Ty::PathSearch(paths) => paths.resolve_as_match(session).map_or_else(Vec::new, |m| {
             search_for_field_or_method(m, searchstr, stype, session)
         }),
-        Ty::Tuple(v) => get_tuple_field_matches(v.len(), searchstr, stype).collect(),
-        Ty::RefPtr(ty) => {
+        Ty::Tuple(v) => get_tuple_field_matches(v.len(), searchstr, stype, session).collect(),
+        Ty::RefPtr(ty, _) => {
             // TODO(kngwyu): support impl &Type {..}
             get_field_matches_from_ty(*ty, searchstr, stype, session)
+        }
+        Ty::Array(_, _) | Ty::Slice(_) => {
+            let mut m = primitive::PrimKind::Slice.to_module_match().unwrap();
+            m.matchstr = "[T]".to_owned();
+            search_for_field_or_method(m, searchstr, stype, session)
         }
         _ => vec![],
     }
 }
 
 fn get_assoc_type_from_header(
-    target_path: &RacerPath, // target = ~
-    type_match: &Match,      // the type which implements Deref
+    target_path: &RacerPath, // type target = ~
+    type_match: &Match,      // the type which implements trait
     impl_header: &ImplHeader,
     session: &Session,
 ) -> Option<Ty> {
@@ -2187,14 +2215,15 @@ fn get_assoc_type_from_header(
             .nth(pos)
             .map(|x| x.to_owned())
     } else {
-        resolve_path_with_str(
+        resolve_path_with_primitive(
             &target_path,
             impl_header.file_path(),
             BytePos::ZERO,
             SearchType::ExactMatch,
             Namespace::Type,
             session,
-        ).nth(0)
+        ).into_iter()
+        .next()
         .map(Ty::Match)
     }
 }
@@ -2334,28 +2363,31 @@ pub(crate) fn get_iter_item(selfm: &Match, session: &Session) -> Option<Ty> {
         core::SearchType::ExactMatch,
         session,
     );
-    item.get(0).and_then(|(_, item_path)| {
-        get_assoc_type_from_header(item_path, selfm, &iter_header, session)
-    })
+    item.into_iter()
+        .next()
+        .and_then(|(_, item_ty)| match item_ty {
+            Ty::PathSearch(paths) => {
+                get_assoc_type_from_header(&paths.path, selfm, &iter_header, session)
+            }
+            _ => Some(item_ty),
+        })
 }
 
-pub(crate) fn get_tuple_field_matches<'a>(
+pub(crate) fn get_tuple_field_matches<'a, 'b: 'a>(
     fields: usize,
     search_str: &'a str,
     search_type: SearchType,
+    session: &'b Session,
 ) -> impl 'a + Iterator<Item = Match> {
     util::gen_tuple_fields(fields).filter_map(move |field| {
         if txt_matches(search_type, search_str, field) {
-            Some(Match {
-                matchstr: field.to_owned(),
-                filepath: PathBuf::from("foo"),
-                point: BytePos::ZERO,
-                coords: None,
-                local: false,
-                mtype: MatchType::StructField,
-                contextstr: String::new(),
-                docs: String::new(),
-            })
+            primitive::PrimKind::Tuple
+                .to_doc_match(session)
+                .map(|mut m| {
+                    m.matchstr = field.to_owned();
+                    m.mtype = MatchType::StructField;
+                    m
+                })
         } else {
             None
         }
@@ -2383,7 +2415,13 @@ pub(crate) fn get_index_output(selfm: &Match, session: &Session) -> Option<Ty> {
         core::SearchType::ExactMatch,
         session,
     );
-    output.get(0).and_then(|(_, item_path)| {
-        get_assoc_type_from_header(item_path, selfm, &index_header, session)
-    })
+    output
+        .into_iter()
+        .next()
+        .and_then(|(_, item_ty)| match item_ty {
+            Ty::PathSearch(paths) => {
+                get_assoc_type_from_header(&paths.path, selfm, &index_header, session)
+            }
+            _ => Some(item_ty),
+        })
 }

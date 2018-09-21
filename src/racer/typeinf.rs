@@ -120,13 +120,14 @@ pub fn get_type_of_self(
             return Some(Ty::Match(m));
         }
         debug!("get_type_of_self_arg implres |{:?}|", implres);
-        nameres::resolve_path_with_str(
+        nameres::resolve_path(
             implres.self_path(),
             filepath,
             start,
             SearchType::ExactMatch,
             Namespace::Type,
             session,
+            &matchers::ImportInfo::default(),
         ).nth(0)
         .map(|mut m| {
             match &mut m.mtype {
@@ -264,7 +265,7 @@ fn resolve_lvalue_ty<'a>(
         }
         Pat::Ref(pat, _) => {
             if let Some(ty) = r_value {
-                if let Ty::RefPtr(ty) = ty {
+                if let Ty::RefPtr(ty, _) = ty {
                     resolve_lvalue_ty(*pat, Some(*ty), query, fpath, pos, session)
                 } else {
                     resolve_lvalue_ty(*pat, Some(ty), query, fpath, pos, session)
@@ -346,7 +347,7 @@ fn get_type_of_for_arg(m: &Match, session: &Session) -> Option<Ty> {
             Ty::PathSearch(paths) => {
                 nameres::get_iter_item(&paths.resolve_as_match(session)?, session)
             }
-            Ty::RefPtr(ty) => get_item(*ty, session),
+            Ty::RefPtr(ty, _) => get_item(*ty, session),
             _ => None,
         }
     }

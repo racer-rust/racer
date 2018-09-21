@@ -1,0 +1,238 @@
+use ast_types::PathSegment;
+use core::{BytePos, Match, MatchType, Namespace, SearchType, Session};
+use matchers::ImportInfo;
+use nameres::{self, RUST_SRC_PATH};
+use std::path::PathBuf;
+use syntax::ast::{IntTy, LitIntType, UintTy};
+
+const PRIM_DOC: &str = "libstd/primitive_docs.rs";
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PrimKind {
+    Bool,
+    Never,
+    Char,
+    Unit,
+    Pointer,
+    Array,
+    Slice,
+    Str,
+    Tuple,
+    F32,
+    F64,
+    I8,
+    I16,
+    I32,
+    I64,
+    I128,
+    U8,
+    U16,
+    U32,
+    U64,
+    U128,
+    Isize,
+    Usize,
+    Ref,
+    Fn,
+}
+
+const PRIM_MATCHES: [PrimKind; 17] = [
+    PrimKind::Bool,
+    PrimKind::Char,
+    PrimKind::Str,
+    PrimKind::F32,
+    PrimKind::F64,
+    PrimKind::I8,
+    PrimKind::I16,
+    PrimKind::I32,
+    PrimKind::I64,
+    PrimKind::I128,
+    PrimKind::U8,
+    PrimKind::U16,
+    PrimKind::U32,
+    PrimKind::U64,
+    PrimKind::U128,
+    PrimKind::Isize,
+    PrimKind::Usize,
+];
+
+impl PrimKind {
+    pub(crate) fn from_litint(lit: LitIntType) -> Self {
+        match lit {
+            LitIntType::Signed(i) => match i {
+                IntTy::I8 => PrimKind::I8,
+                IntTy::I16 => PrimKind::I16,
+                IntTy::I32 => PrimKind::I32,
+                IntTy::I64 => PrimKind::I64,
+                IntTy::I128 => PrimKind::I128,
+                IntTy::Isize => PrimKind::Isize,
+            },
+            LitIntType::Unsigned(u) => match u {
+                UintTy::U8 => PrimKind::U8,
+                UintTy::U16 => PrimKind::U16,
+                UintTy::U32 => PrimKind::U32,
+                UintTy::U64 => PrimKind::U64,
+                UintTy::U128 => PrimKind::U128,
+                UintTy::Usize => PrimKind::Usize,
+            },
+            LitIntType::Unsuffixed => PrimKind::U32,
+        }
+    }
+    fn is_int(self) -> bool {
+        match self {
+            PrimKind::I8
+            | PrimKind::I16
+            | PrimKind::I32
+            | PrimKind::I64
+            | PrimKind::I128
+            | PrimKind::Isize => true,
+            _ => false,
+        }
+    }
+    fn is_uint(self) -> bool {
+        match self {
+            PrimKind::U8
+            | PrimKind::U16
+            | PrimKind::U32
+            | PrimKind::U64
+            | PrimKind::U128
+            | PrimKind::Usize => true,
+            _ => false,
+        }
+    }
+    fn impl_files(self) -> Option<&'static [&'static str]> {
+        match self {
+            PrimKind::Bool => None,
+            PrimKind::Never => None,
+            PrimKind::Char => Some(&["libcore/char/methods.rs"]),
+            PrimKind::Unit => None,
+            PrimKind::Pointer => Some(&["libcore/ptr.rs"]),
+            PrimKind::Array => None,
+            PrimKind::Slice => Some(&["libcore/slice/mod.rs", "liballoc/slice.rs"]),
+            PrimKind::Str => Some(&["libcore/str/mod.rs", "liballoc/str.rs"]),
+            PrimKind::Tuple => None,
+            PrimKind::F32 => Some(&["libstd/f32.rs", "libcore/num/f32.rs"]),
+            PrimKind::F64 => Some(&["libstd/f64.rs", "libcore/num/f64.rs"]),
+            PrimKind::I8 => Some(&["libcore/num/mod.rs"]),
+            PrimKind::I16 => Some(&["libcore/num/mod.rs"]),
+            PrimKind::I32 => Some(&["libcore/num/mod.rs"]),
+            PrimKind::I64 => Some(&["libcore/num/mod.rs"]),
+            PrimKind::I128 => Some(&["libcore/num/mod.rs"]),
+            PrimKind::U8 => Some(&["libcore/num/mod.rs"]),
+            PrimKind::U16 => Some(&["libcore/num/mod.rs"]),
+            PrimKind::U32 => Some(&["libcore/num/mod.rs"]),
+            PrimKind::U64 => Some(&["libcore/num/mod.rs"]),
+            PrimKind::U128 => Some(&["libcore/num/mod.rs"]),
+            PrimKind::Isize => Some(&["libcore/num/mod.rs"]),
+            PrimKind::Usize => Some(&["libcore/num/mod.rs"]),
+            PrimKind::Ref => None,
+            PrimKind::Fn => None,
+        }
+    }
+    fn match_name(self) -> &'static str {
+        match self {
+            PrimKind::Bool => "bool",
+            PrimKind::Never => "never",
+            PrimKind::Char => "char",
+            PrimKind::Unit => "unit",
+            PrimKind::Pointer => "pointer",
+            PrimKind::Array => "array",
+            PrimKind::Slice => "slice",
+            PrimKind::Str => "str",
+            PrimKind::Tuple => "tuple",
+            PrimKind::F32 => "f32",
+            PrimKind::F64 => "f64",
+            PrimKind::I8 => "i8",
+            PrimKind::I16 => "i16",
+            PrimKind::I32 => "i32",
+            PrimKind::I64 => "i64",
+            PrimKind::I128 => "i128",
+            PrimKind::U8 => "u8",
+            PrimKind::U16 => "u16",
+            PrimKind::U32 => "u32",
+            PrimKind::U64 => "u64",
+            PrimKind::U128 => "u128",
+            PrimKind::Isize => "isize",
+            PrimKind::Usize => "usize",
+            PrimKind::Ref => "ref",
+            PrimKind::Fn => "fn",
+        }
+    }
+    pub(crate) fn get_impl_files(&self) -> Option<Vec<PathBuf>> {
+        let src_path = RUST_SRC_PATH.as_ref()?;
+        let impls = self.impl_files()?;
+        Some(
+            impls
+                .iter()
+                .map(|file| src_path.join(file).to_owned())
+                .collect(),
+        )
+    }
+    pub fn to_module_match(self) -> Option<Match> {
+        let _impl_files = self.impl_files()?;
+        Some(Match {
+            matchstr: self.match_name().to_owned(),
+            filepath: PathBuf::new(),
+            point: BytePos::ZERO,
+            coords: None,
+            local: false,
+            mtype: MatchType::Builtin(self),
+            contextstr: String::new(),
+            docs: String::new(),
+        })
+    }
+    pub fn to_doc_match(self, session: &Session) -> Option<Match> {
+        let seg: PathSegment = format!("prim_{}", self.match_name()).into();
+        let src_path = RUST_SRC_PATH.as_ref()?;
+        let prim_path = src_path.join(PRIM_DOC);
+        let mut m = nameres::resolve_name(
+            &seg,
+            &prim_path,
+            BytePos::ZERO,
+            SearchType::ExactMatch,
+            Namespace::Mod,
+            session,
+            &ImportInfo::default(),
+        ).next()?;
+        m.mtype = MatchType::Builtin(self);
+        m.matchstr = self.match_name().to_owned();
+        Some(m)
+    }
+}
+
+pub fn get_primitive_docs(
+    searchstr: &str,
+    stype: SearchType,
+    session: &Session,
+    out: &mut Vec<Match>,
+) {
+    for prim in PRIM_MATCHES.iter() {
+        let prim_str = prim.match_name();
+        if (stype == SearchType::StartsWith && prim_str.starts_with(searchstr))
+            || (stype == SearchType::ExactMatch && prim_str == searchstr)
+        {
+            if let Some(m) = prim.to_doc_match(session) {
+                out.push(m);
+                if stype == SearchType::ExactMatch {
+                    return;
+                }
+            }
+        }
+    }
+}
+
+pub fn get_primitive_mods(searchstr: &str, stype: SearchType, out: &mut Vec<Match>) {
+    for prim in PRIM_MATCHES.iter() {
+        let prim_str = prim.match_name();
+        if (stype == SearchType::StartsWith && prim_str.starts_with(searchstr))
+            || (stype == SearchType::ExactMatch && prim_str == searchstr)
+        {
+            if let Some(matches) = prim.to_module_match() {
+                out.push(matches);
+                if stype == SearchType::ExactMatch {
+                    return;
+                }
+            }
+        }
+    }
+}

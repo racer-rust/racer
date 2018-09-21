@@ -3,10 +3,12 @@ use super::ast::find_type_match;
 use core::{self, BytePos, Match, MatchType, Scope, Session};
 use matchers::ImportInfo;
 use nameres;
+use primitive::PrimKind;
 use std::fmt;
 use std::path::{Path as FilePath, PathBuf};
 use syntax::ast::{
-    self, GenericBound, GenericBounds, GenericParamKind, PatKind, TraitRef, TyKind, WherePredicate,
+    self, GenericBound, GenericBounds, GenericParamKind, LitKind, PatKind, TraitRef, TyKind,
+    WherePredicate,
 };
 // we can only re-export types without thread-local interned string
 pub use syntax::ast::{BindingMode, Mutability};
@@ -43,9 +45,10 @@ pub enum Ty {
     Match(Match),
     PathSearch(PathSearch), // A path + the scope to be able to resolve it
     Tuple(Vec<Option<Ty>>),
-    FixedLengthVec(Box<Ty>, String), // ty, length expr as string
-    RefPtr(Box<Ty>),
-    Vec(Box<Ty>),
+    Array(Box<Ty>, String), // ty, length expr as string
+    RefPtr(Box<Ty>, Mutability),
+    Slice(Box<Ty>),
+    Ptr(Box<Ty>, Mutability),
     Unsupported,
 }
 
@@ -62,7 +65,7 @@ impl Ty {
         ty.wrap_by_ref(deref_cnt)
     }
     pub(crate) fn dereference(self) -> Self {
-        if let Ty::RefPtr(ty) = self {
+        if let Ty::RefPtr(ty, _) = self {
             ty.dereference()
         } else {
             self
@@ -70,13 +73,14 @@ impl Ty {
     }
     fn wrap_by_ref(self, count: usize) -> Self {
         let mut ty = self;
+        // TODO: it's incorrect
         for _ in 0..count {
-            ty = Ty::RefPtr(Box::new(ty));
+            ty = Ty::RefPtr(Box::new(ty), Mutability::Immutable);
         }
         ty
     }
     fn deref_with_count(self, count: usize) -> (Self, usize) {
-        if let Ty::RefPtr(ty) = self {
+        if let Ty::RefPtr(ty, _) = self {
             ty.deref_with_count(count + 1)
         } else {
             (self, count)
@@ -88,24 +92,49 @@ impl Ty {
                 items.into_iter().map(|t| Ty::from_ast(t, scope)).collect(),
             )),
             TyKind::Rptr(ref _lifetime, ref ty) => {
-                Ty::from_ast(&ty.ty, scope).map(|ref_ty| Ty::RefPtr(Box::new(ref_ty)))
+                Ty::from_ast(&ty.ty, scope).map(|ref_ty| Ty::RefPtr(Box::new(ref_ty), ty.mutbl))
             }
             TyKind::Path(_, ref path) => Some(Ty::PathSearch(PathSearch {
                 path: Path::from_ast(path, scope),
                 filepath: scope.filepath.clone(),
                 point: scope.point,
             })),
-            TyKind::Array(ref ty, ref expr) => Ty::from_ast(ty, scope).map(|racer_ty| {
-                Ty::FixedLengthVec(Box::new(racer_ty), pprust::expr_to_string(&expr.value))
-            }),
+            TyKind::Array(ref ty, ref expr) => Ty::from_ast(ty, scope)
+                .map(|racer_ty| Ty::Array(Box::new(racer_ty), pprust::expr_to_string(&expr.value))),
             TyKind::Slice(ref ty) => {
-                Ty::from_ast(ty, scope).map(|ref_ty| Ty::Vec(Box::new(ref_ty)))
+                Ty::from_ast(ty, scope).map(|ref_ty| Ty::Slice(Box::new(ref_ty)))
+            }
+            TyKind::Ptr(ref ty) => {
+                Ty::from_ast(&*ty.ty, scope).map(|rty| Ty::Ptr(Box::new(rty), ty.mutbl))
             }
             TyKind::Never => None,
             _ => {
                 trace!("unhandled Ty node: {:?}", ty.node);
                 None
             }
+        }
+    }
+    pub(crate) fn from_lit(lit: &ast::Lit, scope: &Scope) -> Option<Ty> {
+        let make_match = |kind: PrimKind| kind.to_module_match().map(Ty::Match);
+        let make_paths = |s: &str| {
+            Ty::PathSearch(PathSearch::new(
+                Path::single(s.to_owned().into()),
+                scope.to_owned(),
+            ))
+        };
+        match lit.node {
+            LitKind::Str(_, _) => make_match(PrimKind::Str),
+            LitKind::ByteStr(ref bytes) => make_match(PrimKind::U8)
+                .map(|ty| Ty::Array(Box::new(ty), format!("{}", bytes.len()))),
+            LitKind::Byte(_) => make_match(PrimKind::U8),
+            LitKind::Char(_) => make_match(PrimKind::Char),
+            LitKind::Int(_, int_ty) => make_match(PrimKind::from_litint(int_ty)),
+            LitKind::Float(_, float_ty) => match float_ty {
+                ast::FloatTy::F32 => make_match(PrimKind::F32),
+                ast::FloatTy::F64 => make_match(PrimKind::F64),
+            },
+            LitKind::FloatUnsuffixed(_) => make_match(PrimKind::F32),
+            LitKind::Bool(_) => make_match(PrimKind::Bool),
         }
     }
 }
@@ -129,19 +158,26 @@ impl fmt::Display for Ty {
                 }
                 write!(f, ")")
             }
-            Ty::FixedLengthVec(ref ty, ref expr) => {
+            Ty::Array(ref ty, ref expr) => {
                 write!(f, "[")?;
                 write!(f, "{}", ty)?;
                 write!(f, "; ")?;
                 write!(f, "{}", expr)?;
                 write!(f, "]")
             }
-            Ty::Vec(ref ty) => {
+            Ty::Slice(ref ty) => {
                 write!(f, "[")?;
                 write!(f, "{}", ty)?;
                 write!(f, "]")
             }
-            Ty::RefPtr(ref ty) => write!(f, "&{}", ty),
+            Ty::RefPtr(ref ty, mutab) => match mutab {
+                Mutability::Immutable => write!(f, "&{}", ty),
+                Mutability::Mutable => write!(f, "&mut {}", ty),
+            },
+            Ty::Ptr(ref ty, mutab) => match mutab {
+                Mutability::Immutable => write!(f, "*const {}", ty),
+                Mutability::Mutable => write!(f, "*mut {}", ty),
+            },
             Ty::Unsupported => write!(f, "_"),
         }
     }
@@ -494,13 +530,14 @@ impl TraitBounds {
         self.0
             .iter()
             .filter_map(|ps| {
-                nameres::resolve_path_with_str(
+                nameres::resolve_path(
                     &ps.path,
                     &ps.filepath,
                     ps.point,
                     core::SearchType::ExactMatch,
-                    core::Namespace::Type,
+                    core::Namespace::Trait,
                     session,
+                    &ImportInfo::default(),
                 ).nth(0)
             }).collect()
     }
@@ -725,7 +762,7 @@ impl ImplHeader {
     ) -> Option<Self> {
         let generics = GenericsArgs::from_generics(generics, path, offset.0 as i32);
         let scope = Scope::new(path.to_owned(), impl_start);
-        let self_path = destruct_ref_ptr(&self_type.node).map(|p| Path::from_ast(p, &scope))?;
+        let self_path = get_self_path(&self_type.node, &scope)?;
         let trait_path = otrait
             .as_ref()
             .map(|tref| Path::from_ast(&tref.path, &scope));
@@ -771,7 +808,7 @@ impl ImplHeader {
             self.file_path(),
             self.impl_start,
             core::SearchType::ExactMatch,
-            core::Namespace::Type,
+            core::Namespace::Trait,
             session,
             import_info,
         ).nth(0)
@@ -781,10 +818,12 @@ impl ImplHeader {
     }
 }
 
-fn destruct_ref_ptr(ty: &TyKind) -> Option<&ast::Path> {
+pub(crate) fn get_self_path(ty: &TyKind, scope: &Scope) -> Option<Path> {
     match ty {
-        TyKind::Rptr(_, ref ty) => destruct_ref_ptr(&ty.ty.node),
-        TyKind::Path(_, ref path) => Some(path),
+        TyKind::Rptr(_, ref ty) => get_self_path(&ty.ty.node, scope),
+        TyKind::Path(_, ref path) => Some(Path::from_ast(path, &scope)),
+        // HACK: treat slice as path
+        TyKind::Slice(_) => Some(Path::single("[T]".to_owned().into())),
         _ => None,
     }
 }

@@ -27,6 +27,7 @@ mod matchers;
 #[cfg(feature = "metadata")]
 mod metadata;
 mod nameres;
+mod primitive;
 mod project_model;
 mod scopes;
 mod snippets;

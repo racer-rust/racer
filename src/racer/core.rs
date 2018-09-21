@@ -19,6 +19,7 @@ use syntax::source_map;
 
 use ast;
 use nameres;
+use primitive::PrimKind;
 use scopes;
 use util;
 
@@ -47,7 +48,7 @@ pub enum MatchType {
     Const,
     Static,
     Macro,
-    Builtin,
+    Builtin(PrimKind),
     /// fn f<T: Clone> or fn f(a: impl Clone) with its trait bounds
     TypeParameter(Box<TraitBounds>),
 }
@@ -76,6 +77,12 @@ impl MatchType {
 impl fmt::Display for MatchType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            MatchType::Struct(_) => write!(f, "Struct"),
+            MatchType::Method(_) => write!(f, "Method"),
+            MatchType::IfLet(_) => write!(f, "IfLet"),
+            MatchType::WhileLet(_) => write!(f, "WhileLet"),
+            MatchType::For(_) => write!(f, "For"),
+            MatchType::Enum(_) => write!(f, "Enum"),
             MatchType::EnumVariant(_) => write!(f, "EnumVariant"),
             MatchType::TypeParameter(_) => write!(f, "TypeParameter"),
             _ => fmt::Debug::fmt(self, f),
@@ -96,21 +103,26 @@ mod declare_namespace {
     bitflags!{
         /// Type context
         pub struct Namespace: u32 {
-            const Crate  = 0b0000000000001;
-            const Mod    = 0b0000000000010;
-            const Struct = 0b0000000000100;
-            const Enum   = 0b0000000001000;
-            const Union  = 0b0000000010000;
-            const Trait  = 0b0000000100000;
-            const Type   = 0b0000001111111;
-            const Const  = 0b0000010000000;
-            const Static = 0b0000100000000;
-            const Func   = 0b0001000000000;
-            const Value  = 0b0001110000000;
-            const Both   = 0b0001111111111;
-            // we don't include macro in `Value` currently
-            // see #902 for detail(kngwyu)
-            const Macro  = 0b0010000000000;
+            const Crate     = 0b0000000000001;
+            const Mod       = 0b0000000000010;
+            const Space     = 0b0000000000011;
+            const Enum      = 0b0000000000100;
+            const Struct    = 0b0000000001000;
+            const Union     = 0b0000000010000;
+            const Trait     = 0b0000000100000;
+            const TypeDef   = 0b0000001000000;
+            const Type      = 0b0000001111100;
+            const PathParen = 0b0000001111111;
+            const Const     = 0b0000010000000;
+            const Static    = 0b0000100000000;
+            const Func      = 0b0001000000000;
+            // for use_extern_macros
+            const Macro     = 0b0010000000000;
+            const PathChild = 0b0011110000000;
+            const Path      = 0b0011111111111;
+            const Primitive = 0b0100000000000;
+            const StdMacro  = 0b1000000000000;
+            const Global    = 0b1100000000000;
         }
     }
 }
@@ -961,7 +973,7 @@ fn complete_fully_qualified_name_(query: &str, path: &path::Path, session: &Sess
                 &m.filepath,
                 m.point,
                 SearchType::StartsWith,
-                Namespace::Both,
+                Namespace::Path,
                 &session,
             );
 
@@ -1068,7 +1080,7 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
             }
             let (path, namespace) = if let Some(use_start) = scopes::use_stmt_start(line) {
                 let path = scopes::construct_path_from_use_tree(&line[use_start.0..]);
-                (path, Namespace::Both)
+                (path, Namespace::Path)
             } else {
                 let is_global = expr.starts_with("::");
                 let v: Vec<_> = (if is_global { &expr[2..] } else { expr })
@@ -1076,9 +1088,9 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
                     .collect();
                 let path = Path::from_vec(is_global, v);
                 let namespace = if path.len() == 1 {
-                    Namespace::Macro | Namespace::Both
+                    Namespace::Global | Namespace::Path
                 } else {
-                    Namespace::Both
+                    Namespace::Path
                 };
                 (path, namespace)
             };
@@ -1095,7 +1107,7 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
         }
         CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
-            println!("complete_from_file context is {:?}", context);
+            debug!("complete_from_file context is {:?}", context);
             if let Some(ty) = context {
                 out.extend(nameres::get_field_matches_from_ty(
                     ty,
@@ -1192,7 +1204,6 @@ pub fn find_definition_(
     let range = scopes::expand_search_expr(src_txt, pos);
     let expr = &src[range.to_range()];
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
-
     debug!(
         "find_definition_ for |{:?}| |{:?}| {:?}",
         contextstr, searchstr, completetype
@@ -1203,7 +1214,7 @@ pub fn find_definition_(
             let line = &scopes::get_current_line(src.as_src(), range.end);
             let (path, namespace) = if let Some(use_start) = scopes::use_stmt_start(line) {
                 let path = scopes::construct_path_from_use_tree(&line[use_start.0..]);
-                (path, Namespace::Both)
+                (path, Namespace::Path)
             } else {
                 let is_global = expr.starts_with("::");
                 let v: Vec<_> = (if is_global { &expr[2..] } else { expr })
@@ -1211,9 +1222,9 @@ pub fn find_definition_(
                     .collect();
                 let path = Path::from_vec(is_global, v);
                 let namespace = if path.len() == 1 {
-                    Namespace::Macro | Namespace::Both
+                    Namespace::Global | Namespace::Path
                 } else {
-                    Namespace::Both
+                    Namespace::Path
                 };
                 (path, namespace)
             };
