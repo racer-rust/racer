@@ -14,7 +14,7 @@ use matchers::{find_doc, ImportInfo, MatchCxt};
 use primitive;
 use util::{
     self, calculate_str_hash, closure_valid_arg_scope, find_ident_end, get_rust_src_path,
-    symbol_matches, txt_matches,
+    strip_words, symbol_matches, trim_visibility, txt_matches,
 };
 use {ast, core, matchers, scopes, typeinf};
 
@@ -488,7 +488,7 @@ fn search_scope_headers(
     filepath: &Path,
     search_type: SearchType,
 ) -> vec::IntoIter<Match> {
-    debug!(
+    println!(
         "search_scope_headers for |{}| pt: {:?}",
         search_str, scopestart
     );
@@ -649,25 +649,15 @@ fn search_scope_headers(
 }
 
 /// Checks if a scope preblock is a function declaration.
-///
-/// TODO: Handle `extern` functions
+// TODO: handle extern ".." fn
 fn preblock_is_fn(preblock: &str) -> bool {
-    // Perform simple checks
-    if preblock.starts_with("fn")
-        || preblock.starts_with("pub fn")
-        || preblock.starts_with("const fn")
-    {
-        return true;
-    }
-
-    // Remove visibility declarations, such as restricted visibility
-    let trimmed = if preblock.starts_with("pub") {
-        util::trim_visibility(preblock)
+    let s = trim_visibility(preblock);
+    let p = strip_words(s, &["const", "unsafe"]);
+    if p.0 < s.len() {
+        s[p.0..].starts_with("fn")
     } else {
-        preblock
-    };
-
-    trimmed.starts_with("fn") || trimmed.starts_with("const fn")
+        false
+    }
 }
 
 #[test]
@@ -677,6 +667,8 @@ fn is_fn() {
     assert!(preblock_is_fn("const fn baz()"));
     assert!(preblock_is_fn("pub(crate) fn bar()"));
     assert!(preblock_is_fn("pub(in foo::bar) fn bar()"));
+    assert!(preblock_is_fn("crate fn bar()"));
+    assert!(preblock_is_fn("crate const unsafe fn bar()"));
 }
 
 fn mask_matchstmt(matchstmt_src: &str, innerscope_start: BytePos) -> String {

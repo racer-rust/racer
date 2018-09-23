@@ -92,7 +92,7 @@ fn find_keyword_impl(
 ) -> Option<BytePos> {
     let mut start = BytePos::ZERO;
 
-    if let Some(offset) = strip_visivility(&src[..]) {
+    if let Some(offset) = strip_visibility(&src[..]) {
         start += offset;
     } else if !is_local {
         // TODO: too about
@@ -282,7 +282,7 @@ pub fn match_extern_crate(msrc: Src, context: &MatchCxt, session: &Session) -> O
 
     // Temporary fix to parse reexported crates by skipping pub
     // keyword until racer understands crate visibility.
-    if let Some(offset) = strip_visivility(blob) {
+    if let Some(offset) = strip_visibility(blob) {
         blob = &blob[offset.0..];
     }
 
@@ -650,6 +650,7 @@ pub fn match_use(
     out
 }
 
+/// TODO: Handle `extern` functions
 pub fn match_fn(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Match> {
     let blob = &msrc[context.range.to_range()];
     if typeinf::first_param_is_self(blob) {

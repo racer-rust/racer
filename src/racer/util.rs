@@ -629,7 +629,7 @@ fn strip_word_impl(src: &str, allow_paren: bool) -> Option<BytePos> {
 }
 
 /// remove pub(crate), crate
-pub(crate) fn strip_visivility(src: &str) -> Option<BytePos> {
+pub(crate) fn strip_visibility(src: &str) -> Option<BytePos> {
     if src.starts_with("pub") {
         Some(strip_word_impl(&src[3..], true)? + BytePos(3))
     } else if src.starts_with("crate") {
@@ -673,7 +673,7 @@ fn test_strip_words() {
 /// can assess the struct/trait/fn without worrying about restricted
 /// visibility.
 pub(crate) fn trim_visibility(blob: &str) -> &str {
-    if let Some(start) = strip_visivility(blob) {
+    if let Some(start) = strip_visibility(blob) {
         &blob[start.0..]
     } else {
         blob
