@@ -488,7 +488,7 @@ fn search_scope_headers(
     filepath: &Path,
     search_type: SearchType,
 ) -> vec::IntoIter<Match> {
-    println!(
+    debug!(
         "search_scope_headers for |{}| pt: {:?}",
         search_str, scopestart
     );
