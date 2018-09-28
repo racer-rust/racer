@@ -23,7 +23,7 @@ struct PendingImport<'fp> {
 /// A stack of imports (`use` items) currently being resolved.
 type PendingImports<'stack, 'fp> = StackLinkedListNode<'stack, PendingImport<'fp>>;
 
-const GLOB_LIMIT: usize = 3;
+const GLOB_LIMIT: usize = 2;
 /// Import information(pending imports, glob, and etc.)
 pub struct ImportInfo<'stack, 'fp: 'stack> {
     /// A stack of imports currently being resolved
