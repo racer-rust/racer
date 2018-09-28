@@ -37,8 +37,10 @@ pub use ast_types::PathSearch;
 pub use core::{
     complete_from_file, complete_fully_qualified_name, find_definition, to_coords, to_point,
 };
-pub use core::{BytePos, ByteRange, Coordinate, FileCache, FileLoader, Location, Session};
-pub use core::{Match, MatchType};
+pub use core::{
+    BytePos, ByteRange, Coordinate, FileCache, FileLoader, Location, Match, MatchType, Session,
+};
+pub use primitive::PrimKind;
 pub use project_model::ProjectModelProvider;
 pub use snippets::snippet_for_match;
 pub use util::expand_ident;
