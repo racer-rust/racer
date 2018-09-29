@@ -84,7 +84,8 @@ fn collect_trait_methods(
                 includes_assoc_fn,
                 search_type,
             )
-        }).into_iter()
+        })
+        .into_iter()
         .flatten()
 }
 
@@ -439,8 +440,10 @@ fn cached_generic_impls(
                     let decl = blob[..n + 1].to_owned() + "}";
                     let start = blob_range.start + scope_start;
                     ast::parse_impl(decl, filepath, start, true, start + n.into()).map(Rc::new)
-                }).collect()
-        }).clone()
+                })
+                .collect()
+        })
+        .clone()
 }
 
 // Find trait impls
@@ -754,11 +757,7 @@ fn test_do_file_search_local() {
     assert!(matches.any(|m| m.filepath.ends_with("fixtures/arst/src/submodule/mod.rs")));
 }
 
-pub fn do_file_search(
-    searchstr: &str,
-    currentdir: &Path,
-    session: &Session,
-) -> Vec<Match> {
+pub fn do_file_search(searchstr: &str, currentdir: &Path, session: &Session) -> Vec<Match> {
     debug!("do_file_search with search string \"{}\"", searchstr);
     let mut out = Vec::new();
 
@@ -1560,7 +1559,9 @@ pub fn get_super_scope(
             Namespace::PathParen,
             session,
             import_info,
-        ).into_iter().nth(0)
+        )
+        .into_iter()
+        .nth(0)
         .and_then(|m| {
             msrc[m.point.0..].find('{').map(|p| core::Scope {
                 filepath: filepath.to_path_buf(),
@@ -1752,7 +1753,9 @@ pub fn resolve_path(
             Namespace::PathParen,
             session,
             import_info,
-        ).into_iter().nth(0);
+        )
+        .into_iter()
+        .nth(0);
         context.map(|m| match m.mtype {
             MatchType::Module => {
                 let mut searchstr: &str = &path.segments[len - 1].name;
@@ -1855,7 +1858,9 @@ pub fn resolve_method(
                     Namespace::Trait,
                     session,
                     import_info,
-                ).into_iter().filter(|m| m.mtype == MatchType::Trait)
+                )
+                .into_iter()
+                .filter(|m| m.mtype == MatchType::Trait)
                 .nth(0);
                 if let Some(m) = m {
                     debug!("found trait : match is |{:?}|", m);
@@ -1942,7 +1947,9 @@ pub fn do_external_search(
             ExactMatch,
             Namespace::PathParen,
             session,
-        ).into_iter().nth(0);
+        )
+        .into_iter()
+        .nth(0);
         context.map(|m| {
             let import_info = &ImportInfo::default();
             match m.mtype {
@@ -2071,7 +2078,8 @@ pub fn search_for_field_or_method(
                         search_type,
                     )
                 })
-            }).flatten()
+            })
+            .flatten()
     };
     match m.mtype {
         MatchType::Struct(_) => {
@@ -2214,7 +2222,8 @@ fn get_assoc_type_from_header(
             SearchType::ExactMatch,
             Namespace::Type,
             session,
-        ).into_iter()
+        )
+        .into_iter()
         .next()
         .map(Ty::Match)
     }
@@ -2347,7 +2356,8 @@ pub(crate) fn get_iter_item(selfm: &Match, session: &Session) -> Option<Ty> {
         &selfm.filepath,
         selfm.local,
         session,
-    ).into_iter()
+    )
+    .into_iter()
     .next()?;
     let item = search_scope_for_impled_assoc_types(
         &iter_header,
@@ -2399,7 +2409,8 @@ pub(crate) fn get_index_output(selfm: &Match, session: &Session) -> Option<Ty> {
         &selfm.filepath,
         selfm.local,
         session,
-    ).into_iter()
+    )
+    .into_iter()
     .next()?;
     let output = search_scope_for_impled_assoc_types(
         &index_header,

@@ -466,7 +466,8 @@ impl RawSource {
                 let res = ByteRange::new(before, before + len);
                 before += len;
                 res
-            }).collect();
+            })
+            .collect();
     }
 
     pub fn coords_to_point(&self, coords: &Coordinate) -> Option<BytePos> {
@@ -1237,7 +1238,9 @@ pub fn find_definition_(
                 namespace,
                 session,
                 &ImportInfo::default(),
-            ).into_iter().nth(0)
+            )
+            .into_iter()
+            .nth(0)
         }
         CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);

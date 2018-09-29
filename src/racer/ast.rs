@@ -448,7 +448,8 @@ fn resolve_ast_path(
         core::SearchType::ExactMatch,
         core::Namespace::Path,
         session,
-    ).into_iter()
+    )
+    .into_iter()
     .nth(0)
 }
 
@@ -476,7 +477,8 @@ pub(crate) fn find_type_match(
         core::SearchType::ExactMatch,
         core::Namespace::Type,
         session,
-    ).into_iter()
+    )
+    .into_iter()
     .nth(0)
     .and_then(|m| match m.mtype {
         MatchType::Type => get_type_of_typedef(&m, session),
@@ -537,7 +539,8 @@ pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match>
                     core::SearchType::ExactMatch,
                     core::Namespace::Type,
                     session,
-                ).into_iter()
+                )
+                .into_iter()
                 .nth(0),
                 Ty::Ptr(_, _) => PrimKind::Pointer.to_module_match(),
                 Ty::Array(_, _) => PrimKind::Array.to_module_match(),
@@ -675,7 +678,8 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                             core::SearchType::ExactMatch,
                             self.session,
                         );
-                        omethod.into_iter()
+                        omethod
+                            .into_iter()
                             .map(|method| {
                                 typeinf::get_return_type_of_function(
                                     &method,

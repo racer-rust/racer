@@ -193,7 +193,9 @@ impl PrimKind {
             Namespace::Mod,
             session,
             &ImportInfo::default(),
-        ).into_iter().next()?;
+        )
+        .into_iter()
+        .next()?;
         m.mtype = MatchType::Builtin(self);
         m.matchstr = self.match_name().to_owned();
         Some(m)
