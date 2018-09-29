@@ -707,7 +707,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 }
                 self.result = Some(Ty::Tuple(v));
             }
-            ExprKind::Lit(ref lit) => self.result = Ty::from_lit(lit, &self.scope),
+            ExprKind::Lit(ref lit) => self.result = Ty::from_lit(lit),
             ExprKind::Try(ref expr) => {
                 self.visit_expr(&expr);
                 debug!("ExprKind::Try result: {:?} expr: {:?}", self.result, expr);

@@ -114,14 +114,8 @@ impl Ty {
             }
         }
     }
-    pub(crate) fn from_lit(lit: &ast::Lit, scope: &Scope) -> Option<Ty> {
+    pub(crate) fn from_lit(lit: &ast::Lit) -> Option<Ty> {
         let make_match = |kind: PrimKind| kind.to_module_match().map(Ty::Match);
-        let make_paths = |s: &str| {
-            Ty::PathSearch(PathSearch::new(
-                Path::single(s.to_owned().into()),
-                scope.to_owned(),
-            ))
-        };
         match lit.node {
             LitKind::Str(_, _) => make_match(PrimKind::Str),
             LitKind::ByteStr(ref bytes) => make_match(PrimKind::U8)
