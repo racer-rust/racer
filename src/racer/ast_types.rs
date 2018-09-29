@@ -534,6 +534,7 @@ impl TraitBounds {
                     session,
                     &ImportInfo::default(),
                 )
+                .into_iter()
                 .nth(0)
             })
             .collect()
@@ -811,6 +812,7 @@ impl ImplHeader {
             session,
             import_info,
         )
+        .into_iter()
         .nth(0)
     }
     pub(crate) fn scope_start(&self) -> BytePos {

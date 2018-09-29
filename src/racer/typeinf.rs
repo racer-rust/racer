@@ -128,7 +128,9 @@ pub fn get_type_of_self(
             Namespace::Type,
             session,
             &matchers::ImportInfo::default(),
-        ).nth(0)
+        )
+        .into_iter()
+        .nth(0)
         .map(|mut m| {
             match &mut m.mtype {
                 MatchType::Enum(gen) | MatchType::Struct(gen) => {
@@ -426,7 +428,8 @@ pub(crate) fn get_tuplestruct_fields(
             .find('(')
             .map(|n| {
                 scopes::find_closing_paren(&src, structmatch.point + BytePos::from(n).increment())
-            }).expect("Tuple enum variant should have `(` in definition");
+            })
+            .expect("Tuple enum variant should have `(` in definition");
         "struct ".to_owned() + &src[structmatch.point.0..to.increment().0] + ";"
     } else {
         assert!(structmatch.mtype.is_struct());
