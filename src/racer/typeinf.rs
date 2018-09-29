@@ -128,7 +128,7 @@ pub fn get_type_of_self(
             Namespace::Type,
             session,
             &matchers::ImportInfo::default(),
-        ).nth(0)
+        ).into_iter().nth(0)
         .map(|mut m| {
             match &mut m.mtype {
                 MatchType::Enum(gen) | MatchType::Struct(gen) => {

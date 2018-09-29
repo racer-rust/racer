@@ -1237,7 +1237,7 @@ pub fn find_definition_(
                 namespace,
                 session,
                 &ImportInfo::default(),
-            ).nth(0)
+            ).into_iter().nth(0)
         }
         CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
