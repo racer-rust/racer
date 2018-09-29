@@ -78,6 +78,8 @@ impl PrimKind {
             LitIntType::Unsuffixed => PrimKind::U32,
         }
     }
+    // Do not remove this method.
+    // See #963
     fn is_int(self) -> bool {
         match self {
             PrimKind::I8
@@ -89,6 +91,8 @@ impl PrimKind {
             _ => false,
         }
     }
+    // Do not remove this method.
+    // See #963
     fn is_uint(self) -> bool {
         match self {
             PrimKind::U8
