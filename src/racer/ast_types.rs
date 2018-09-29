@@ -114,14 +114,8 @@ impl Ty {
             }
         }
     }
-    pub(crate) fn from_lit(lit: &ast::Lit, scope: &Scope) -> Option<Ty> {
+    pub(crate) fn from_lit(lit: &ast::Lit) -> Option<Ty> {
         let make_match = |kind: PrimKind| kind.to_module_match().map(Ty::Match);
-        let make_paths = |s: &str| {
-            Ty::PathSearch(PathSearch::new(
-                Path::single(s.to_owned().into()),
-                scope.to_owned(),
-            ))
-        };
         match lit.node {
             LitKind::Str(_, _) => make_match(PrimKind::Str),
             LitKind::ByteStr(ref bytes) => make_match(PrimKind::U8)
@@ -377,7 +371,8 @@ impl Path {
                     }
                 }
                 Some(PathSegment::from(s))
-            }).collect();
+            })
+            .collect();
         Path { prefix, segments }
     }
 
@@ -538,8 +533,10 @@ impl TraitBounds {
                     core::Namespace::Trait,
                     session,
                     &ImportInfo::default(),
-                ).nth(0)
-            }).collect()
+                )
+                .nth(0)
+            })
+            .collect()
     }
     #[inline]
     pub fn len(&self) -> usize {
@@ -566,7 +563,8 @@ impl TraitBounds {
                 } else {
                     None
                 }
-            }).collect();
+            })
+            .collect();
         TraitBounds(vec)
     }
     fn extend(&mut self, other: Self) {
@@ -628,7 +626,8 @@ impl TypeParameter {
                 } else {
                     true
                 }
-            }).collect();
+            })
+            .collect();
         self.bounds.0.extend(add_bounds);
     }
 }
@@ -811,7 +810,8 @@ impl ImplHeader {
             core::Namespace::Trait,
             session,
             import_info,
-        ).nth(0)
+        )
+        .nth(0)
     }
     pub(crate) fn scope_start(&self) -> BytePos {
         self.block_start.increment()

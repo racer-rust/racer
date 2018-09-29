@@ -55,7 +55,8 @@ where
         };
         f(&stmt);
         Some(())
-    }).is_some()
+    })
+    .is_some()
 }
 
 pub(crate) fn destruct_span(span: Span) -> (u32, u32) {
@@ -296,13 +297,15 @@ fn destructure_pattern_to_ty(
                             &child.node.ident.name.as_str(),
                             &m,
                             session,
-                        ).and_then(|ty| {
+                        )
+                        .and_then(|ty| {
                             if let Some(Ty::Match(ref contextmatch)) = contextty {
                                 path_to_match_including_generics(ty, contextmatch, session)
                             } else {
                                 path_to_match(ty, session)
                             }
-                        }).and_then(|ty| {
+                        })
+                        .and_then(|ty| {
                             destructure_pattern_to_ty(&child.node.pat, point, &ty, scope, session)
                         });
 
@@ -351,8 +354,10 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for LetTypeVisitor<'c, 's> {
                                     &self.scope,
                                     self.session,
                                 )
-                            }).nth(0)
-                    }).and_then(|ty| path_to_match(ty, self.session));
+                            })
+                            .nth(0)
+                    })
+                    .and_then(|ty| path_to_match(ty, self.session));
             }
             _ => visit::walk_expr(self, ex),
         }
@@ -381,7 +386,8 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for LetTypeVisitor<'c, 's> {
         self.result = ty
             .and_then(|ty| {
                 destructure_pattern_to_ty(&local.pat, self.pos, &ty, &self.scope, self.session)
-            }).and_then(|ty| path_to_match(ty, self.session));
+            })
+            .and_then(|ty| path_to_match(ty, self.session));
     }
 }
 
@@ -417,7 +423,8 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for MatchTypeVisitor<'c, 's> {
                                     &self.scope,
                                     self.session,
                                 )
-                            }).and_then(|ty| path_to_match(ty, self.session));
+                            })
+                            .and_then(|ty| path_to_match(ty, self.session));
                     }
                 }
             }
@@ -441,7 +448,8 @@ fn resolve_ast_path(
         core::SearchType::ExactMatch,
         core::Namespace::Path,
         session,
-    ).nth(0)
+    )
+    .nth(0)
 }
 
 fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
@@ -468,7 +476,8 @@ pub(crate) fn find_type_match(
         core::SearchType::ExactMatch,
         core::Namespace::Type,
         session,
-    ).nth(0)
+    )
+    .nth(0)
     .and_then(|m| match m.mtype {
         MatchType::Type => get_type_of_typedef(&m, session),
         _ => Some(m),
@@ -496,7 +505,8 @@ pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match>
             let res = parse_type(blob, &scope);
             debug!("get_type_of_typedef parsed type {:?}", res.type_);
             res.type_
-        }).and_then(|type_| {
+        })
+        .and_then(|type_| {
             let src = session.load_source_file(&m.filepath);
             let scope_start = scopes::scope_start(src.as_src(), m.point);
 
@@ -527,7 +537,8 @@ pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match>
                     core::SearchType::ExactMatch,
                     core::Namespace::Type,
                     session,
-                ).nth(0),
+                )
+                .nth(0),
                 Ty::Ptr(_, _) => PrimKind::Pointer.to_module_match(),
                 Ty::Array(_, _) => PrimKind::Array.to_module_match(),
                 Ty::Slice(_) => PrimKind::Slice.to_module_match(),
@@ -581,7 +592,8 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     &self.scope.filepath,
                     self.scope.point + lo.into(),
                     self.session,
-                ).and_then(|m| {
+                )
+                .and_then(|m| {
                     let msrc = self.session.load_source_file(&m.filepath);
                     self.path_match = Some(m.clone());
                     typeinf::get_type_of_match(m, msrc.as_src(), self.session)
@@ -641,7 +653,8 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     &self.scope.filepath,
                     self.scope.point,
                     self.session,
-                ).map(Ty::Match);
+                )
+                .map(Ty::Match);
             }
             ExprKind::MethodCall(ref method_def, ref arguments) => {
                 let methodname = method_def.ident.name.as_str();
@@ -669,11 +682,13 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                                     contextm,
                                     self.session,
                                 )
-                            }).filter_map(|ty| {
+                            })
+                            .filter_map(|ty| {
                                 ty.and_then(|ty| {
                                     path_to_match_including_generics(ty, contextm, self.session)
                                 })
-                            }).nth(0)
+                            })
+                            .nth(0)
                     }
                     _ => None,
                 });
@@ -707,7 +722,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 }
                 self.result = Some(Ty::Tuple(v));
             }
-            ExprKind::Lit(ref lit) => self.result = Ty::from_lit(lit, &self.scope),
+            ExprKind::Lit(ref lit) => self.result = Ty::from_lit(lit),
             ExprKind::Try(ref expr) => {
                 self.visit_expr(&expr);
                 debug!("ExprKind::Try result: {:?} expr: {:?}", self.result, expr);
@@ -795,7 +810,8 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                             &self.scope.filepath,
                             self.scope.point,
                             self.session,
-                        ).map(Ty::Match);
+                        )
+                        .map(Ty::Match);
                     }
                 }
             }
@@ -1303,7 +1319,8 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for FnArgTypeVisitor<'c, 's> {
                             &self.scope,
                             self.session,
                         )
-                    }).map(Ty::dereference)?;
+                    })
+                    .map(Ty::dereference)?;
                 if let Ty::PathSearch(ref paths) = ty {
                     let segments = &paths.path.segments;
                     // now we want to get 'T' from fn f<T>(){}, so segments.len() == 1
