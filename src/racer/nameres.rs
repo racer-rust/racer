@@ -746,7 +746,7 @@ fn test_do_file_search_std() {
     let cache = core::FileCache::default();
     let session = Session::new(&cache);
     let mut matches = do_file_search("std", &Path::new("."), &session);
-    assert!(matches.any(|m| m.filepath.ends_with("src/libstd/lib.rs")));
+    assert!(matches.into_iter().any(|m| m.filepath.ends_with("src/libstd/lib.rs")));
 }
 
 #[test]
@@ -754,7 +754,7 @@ fn test_do_file_search_local() {
     let cache = core::FileCache::default();
     let session = Session::new(&cache);
     let mut matches = do_file_search("submodule", &Path::new("fixtures/arst/src"), &session);
-    assert!(matches.any(|m| m.filepath.ends_with("fixtures/arst/src/submodule/mod.rs")));
+    assert!(matches.into_iter().any(|m| m.filepath.ends_with("fixtures/arst/src/submodule/mod.rs")));
 }
 
 pub fn do_file_search(searchstr: &str, currentdir: &Path, session: &Session) -> Vec<Match> {
