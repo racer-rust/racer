@@ -465,7 +465,7 @@ pub fn match_trait(msrc: Src, context: &MatchCxt, session: &Session) -> Option<M
     })
 }
 
-pub fn match_enum_variants(msrc: &str, context: &MatchCxt) -> vec::Vec<Match> {
+pub fn match_enum_variants(msrc: &str, context: &MatchCxt) -> Vec<Match> {
     let blob = &msrc[context.range.to_range()];
     let mut out = Vec::new();
     if (blob.starts_with("pub enum") || (context.is_local && blob.starts_with("enum")))
