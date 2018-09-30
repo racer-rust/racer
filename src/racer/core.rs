@@ -583,14 +583,6 @@ fn myfn(b:usize) {
 }
 
 impl<'c> Src<'c> {
-    pub fn start(&self) -> BytePos {
-        self.range.start
-    }
-
-    pub fn end(&self) -> BytePos {
-        self.range.end
-    }
-
     pub fn iter_stmts(&self) -> Fuse<StmtIndicesIter> {
         StmtIndicesIter::from_parts(self)
     }
