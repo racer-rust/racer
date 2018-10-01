@@ -746,7 +746,11 @@ fn test_do_file_search_std() {
     let cache = core::FileCache::default();
     let session = Session::new(&cache);
     let mut matches = do_file_search("std", &Path::new("."), &session);
-    assert!(matches.into_iter().any(|m| m.filepath.ends_with("src/libstd/lib.rs")));
+    assert!(
+        matches
+            .into_iter()
+            .any(|m| m.filepath.ends_with("src/libstd/lib.rs"))
+    );
 }
 
 #[test]
@@ -754,7 +758,11 @@ fn test_do_file_search_local() {
     let cache = core::FileCache::default();
     let session = Session::new(&cache);
     let mut matches = do_file_search("submodule", &Path::new("fixtures/arst/src"), &session);
-    assert!(matches.into_iter().any(|m| m.filepath.ends_with("fixtures/arst/src/submodule/mod.rs")));
+    assert!(
+        matches
+            .into_iter()
+            .any(|m| m.filepath.ends_with("fixtures/arst/src/submodule/mod.rs"))
+    );
 }
 
 pub fn do_file_search(searchstr: &str, currentdir: &Path, session: &Session) -> Vec<Match> {
@@ -1060,12 +1068,10 @@ pub fn search_scope(
             if let Some(block_start) = blob[7..].find('{') {
                 debug!("[search_scope] found extern block!");
                 // move to the point next to {
-                let src = src
-                    .shift_range(blob_range)
-                    .shift_start(BytePos(block_start + 8));
+                let start = blob_range.start + BytePos(block_start + 8);
                 out.extend(search_scope(
-                    BytePos::ZERO,
-                    BytePos::ZERO,
+                    start,
+                    start,
                     src,
                     pathseg,
                     filepath,
