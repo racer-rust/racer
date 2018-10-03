@@ -6,11 +6,45 @@ use std::path::{Path, PathBuf};
 /// Cached dependencies for racer
 #[derive(Clone, Debug)]
 pub struct PackageMap {
-    manifest_to_id: HashMap<PathBuf, PackageId>,
-    id_to_edition: HashMap<PackageId, InternedString>,
-    id_to_deps: HashMap<PackageId, Vec<(InternedString, PathBuf)>>,
-    id_to_lib: HashMap<PackageId, Target>,
+    manifest_to_idx: HashMap<PathBuf, PackageIdx>,
+    packages: Vec<PackageInner>,
 }
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Edition {
+    Ed2015,
+    Ed2018,
+}
+
+impl Edition {
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "2015" => Edition::Ed2015,
+            "2018" => Edition::Ed2018,
+            _ => unreachable!("got unexpected edition {}", s),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct PackageInner {
+    edition: Edition,
+    deps: Vec<(InternedString, PathBuf)>,
+    lib: Option<Target>,
+}
+
+impl PackageInner {
+    fn new(ed: InternedString, lib: Option<Target>) -> Self {
+        PackageInner {
+            edition: Edition::from_str(ed.as_str()),
+            deps: Vec::new(),
+            lib,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PackageIdx(usize);
 
 impl PackageMap {
     pub fn from_metadata(meta: Metadata) -> Self {
@@ -20,10 +54,10 @@ impl PackageMap {
         PackageMap::new(packages, resolve)
     }
     pub fn new(packages: Vec<Package>, resolve: Option<Resolve>) -> Self {
-        let mut manifest_to_id = HashMap::new();
-        let mut id_to_lib = HashMap::new();
-        let mut id_to_edition = HashMap::new();
-        for package in packages {
+        let mut manifest_to_idx = HashMap::new();
+        let mut id_to_idx = HashMap::new();
+        let mut inner = Vec::new();
+        for (i, package) in packages.into_iter().enumerate() {
             let Package {
                 id,
                 targets,
@@ -31,43 +65,36 @@ impl PackageMap {
                 edition,
                 ..
             } = package;
-            manifest_to_id.insert(manifest_path, id);
-            id_to_edition.insert(id, edition);
-            if let Some(t) = targets.into_iter().find(|t| t.is_lib()) {
-                id_to_lib.insert(package.id, t.to_owned());
-            }
+            id_to_idx.insert(id, PackageIdx(i));
+            manifest_to_idx.insert(manifest_path, PackageIdx(i));
+            let lib = targets.into_iter().find(|t| t.is_lib()).to_owned();
+            inner.push(PackageInner::new(edition, lib));
         }
-        let id_to_deps = resolve.map_or_else(
-            || HashMap::new(),
-            |res| construct_deps(res.nodes, &id_to_lib),
-        );
+        if let Some(res) = resolve {
+            construct_deps(res.nodes, &id_to_idx, &mut inner);
+        }
         PackageMap {
-            manifest_to_id,
-            id_to_edition,
-            id_to_deps,
-            id_to_lib,
+            manifest_to_idx,
+            packages: inner,
         }
     }
-    pub fn get_id(&self, path: &Path) -> Option<PackageId> {
-        self.manifest_to_id.get(path).map(|&id| id)
+    pub fn get_idx(&self, path: &Path) -> Option<PackageIdx> {
+        self.manifest_to_idx.get(path).map(|&id| id)
     }
-    pub fn get_edition(&self, id: PackageId) -> Option<&str> {
-        self.id_to_edition.get(&id).map(|s| s.as_str())
+    pub fn get_edition(&self, idx: PackageIdx) -> Edition {
+        self.packages[idx.0].edition
     }
-    pub fn get_lib(&self, id: PackageId) -> Option<&Target> {
-        self.id_to_lib.get(&id)
+    pub fn get_lib(&self, idx: PackageIdx) -> Option<&Target> {
+        self.packages[idx.0].lib.as_ref()
     }
-    pub fn get_lib_src_path(&self, id: PackageId) -> Option<&Path> {
-        self.get_lib(id).map(|t| t.src_path.as_ref())
+    pub fn get_lib_src_path(&self, idx: PackageIdx) -> Option<&Path> {
+        self.get_lib(idx).map(|t| t.src_path.as_ref())
     }
-    pub fn ids(&self) -> impl Iterator<Item = &PackageId> {
-        self.id_to_edition.keys()
+    pub fn get_dependencies(&self, idx: PackageIdx) -> &[(InternedString, PathBuf)] {
+        self.packages[idx.0].deps.as_ref()
     }
-    pub fn get_dependencies(&self, id: PackageId) -> Option<&Vec<(InternedString, PathBuf)>> {
-        self.id_to_deps.get(&id)
-    }
-    pub fn get_src_path_from_libname(&self, id: PackageId, s: &str) -> Option<&Path> {
-        let deps = self.get_dependencies(id)?;
+    pub fn get_src_path_from_libname(&self, id: PackageIdx, s: &str) -> Option<&Path> {
+        let deps = self.get_dependencies(id);
         let query_str = InternedString::new_if_exists(s)?;
         deps.iter().find(|t| t.0 == query_str).map(|t| t.1.as_ref())
     }
@@ -75,16 +102,23 @@ impl PackageMap {
 
 fn construct_deps(
     nodes: Vec<ResolveNode>,
-    targets: &HashMap<PackageId, Target>,
-) -> HashMap<PackageId, Vec<(InternedString, PathBuf)>> {
-    nodes
-        .into_iter()
-        .map(|node| {
-            let deps: Vec<_> = node
-                .dependencies
-                .into_iter()
-                .filter_map(|id| targets.get(&id).map(|t| (t.name, t.src_path.clone())))
-                .collect();
-            (node.id, deps)
-        }).collect()
+    id_to_idx: &HashMap<PackageId, PackageIdx>,
+    res: &mut [PackageInner],
+) -> Option<()> {
+    for node in nodes {
+        let idx = id_to_idx.get(&node.id)?;
+        let deps: Vec<_> = node
+            .dependencies
+            .into_iter()
+            .filter_map(|id| {
+                let idx = id_to_idx.get(&id)?;
+                res[idx.0]
+                    .lib
+                    .as_ref()
+                    .map(|l| (l.name, l.src_path.clone()))
+            })
+            .collect();
+        res[idx.0].deps.extend(deps);
+    }
+    Some(())
 }
