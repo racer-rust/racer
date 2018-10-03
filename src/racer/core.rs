@@ -1115,6 +1115,58 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
     out
 }
 
+/// Finds if the statement where cursor lies is a `use` statement.
+///
+/// # Examples
+///
+/// ```
+/// extern crate racer;
+/// extern crate env_logger;
+///
+///
+/// # fn main() {
+/// let _ = env_logger::init();
+/// let cache = racer::FileCache::default();
+/// let session = racer::Session::new(&cache);
+///
+/// // This is the file where we request completion from
+/// let src = stringify! {
+///    use sub::foo;
+///    use sub::{
+///         bar
+///    };
+///    pub(crate) use sub::baz;
+/// };
+///
+/// // Load files into cache to prevent trying to read from disk
+/// session.cache_file_contents("lib.rs", src);
+///
+/// assert_eq!(racer::is_use_stmt("lib.rs", racer::Location::from(9), &session), true);
+/// assert_eq!(racer::is_use_stmt("lib.rs", racer::Location::from(28), &session), true);
+/// assert_eq!(racer::is_use_stmt("lib.rs", racer::Location::from(5000), &session), false);
+/// # }
+/// ```
+pub fn is_use_stmt<P, C>(file_path: P, cursor: C, session: &Session) -> bool
+where
+    P: AsRef<path::Path>,
+    C: Into<Location>,
+{
+    let file_path = file_path.as_ref();
+    let src = session.load_source_file(file_path);
+    let raw_src = session.load_raw_file(file_path);
+    let pos = match cursor.into().to_point(&raw_src) {
+        Some(pos) => pos,
+        None => return false
+    };
+
+    if src.bytes().len() <= pos.0 {
+        return false;
+    }
+
+    let line = &scopes::get_current_line(src.as_src(), pos);
+    scopes::use_stmt_start(line).is_some()
+}
+
 /// Find the definition for item at given a file, source, and cursor index
 ///
 /// # Examples
