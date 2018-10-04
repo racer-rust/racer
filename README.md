@@ -118,7 +118,7 @@ Vim integration has been moved to a separate project: [vim-racer](https://github
 
 ### Visual Studio Code extension
 
-Racer recommends the [`vscode-rust` extension](https://github.com/editor-rs/vscode-rust). This is an actively-maintained fork of the now-deprecated [`RustyCode` extension](https://github.com/saviorisdead/RustyCode).
+Racer recommends the offical [`Rust (rls)` extension](https://github.com/rust-lang-nursery/rls-vscode) based on RLS, which uses Racer for completion.
 
 ### Atom integration
 
