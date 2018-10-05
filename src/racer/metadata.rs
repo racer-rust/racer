@@ -26,7 +26,8 @@ impl MetadataCache {
                     }
                 }
                 Err(e)
-            }).map_err(|e| {
+            })
+            .map_err(|e| {
                 warn!("Error in cargo metadata: {}", e);
             })?;
         let pkg_map = PackageMap::from_metadata(meta);
@@ -49,20 +50,22 @@ impl ProjectModelProvider for MetadataCache {
             self.fill(manifest).ok()?;
         }
         let pkg_map: &PackageMap = self.pkg_map.borrow().unwrap();
-        let id = pkg_map.get_id(manifest)?;
+        let idx = pkg_map.get_idx(manifest)?;
         pkg_map
-            .get_src_path_from_libname(id, libname)
+            .get_src_path_from_libname(idx, libname)
             .or_else(|| {
                 let hyphnated = libname.replace('_', "-");
-                pkg_map.get_src_path_from_libname(id, &hyphnated)
-            }).or_else(|| {
-                let target = pkg_map.get_lib(id)?;
+                pkg_map.get_src_path_from_libname(idx, &hyphnated)
+            })
+            .or_else(|| {
+                let target = pkg_map.get_lib(idx)?;
                 if target.name.replace('-', "_") == libname {
                     Some(&target.src_path)
                 } else {
                     None
                 }
-            }).map(|p| p.to_owned())
+            })
+            .map(|p| p.to_owned())
     }
 }
 

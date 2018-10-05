@@ -15,8 +15,8 @@ fn get_self_metadata() {
         .parent()
         .unwrap()
         .join("Cargo.toml");
-    let racer = pkg_map.get_id(&racer_manifest).unwrap();
-    assert!(racer.name() == "racer");
+    let racer = pkg_map.get_idx(&racer_manifest).unwrap();
+    assert!(pkg_map.get_id(racer).name() == "racer");
     assert!(
         pkg_map
             .get_src_path_from_libname(racer, "lazy_static")

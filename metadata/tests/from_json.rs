@@ -16,7 +16,7 @@ fn full() {
     let regex = pkg_map.ids().find(|id| id.name() == "regex").unwrap();
     assert!(
         pkg_map
-            .get_src_path_from_libname(*regex, "memchr")
+            .get_src_path_from_libname(pkg_map.id_to_idx(regex).unwrap(), "memchr")
             .is_some()
     );
 }
