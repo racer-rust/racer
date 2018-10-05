@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 #[derive(Clone, Debug)]
 pub struct PackageMap {
     manifest_to_idx: HashMap<PathBuf, PackageIdx>,
+    id_to_idx: HashMap<PackageId, PackageIdx>,
     packages: Vec<PackageInner>,
 }
 
@@ -31,13 +32,15 @@ struct PackageInner {
     edition: Edition,
     deps: Vec<(InternedString, PathBuf)>,
     lib: Option<Target>,
+    id: PackageId,
 }
 
 impl PackageInner {
-    fn new(ed: InternedString, lib: Option<Target>) -> Self {
+    fn new(ed: InternedString, id: PackageId, lib: Option<Target>) -> Self {
         PackageInner {
             edition: Edition::from_str(ed.as_str()),
             deps: Vec::new(),
+            id,
             lib,
         }
     }
@@ -68,18 +71,28 @@ impl PackageMap {
             id_to_idx.insert(id, PackageIdx(i));
             manifest_to_idx.insert(manifest_path, PackageIdx(i));
             let lib = targets.into_iter().find(|t| t.is_lib()).to_owned();
-            inner.push(PackageInner::new(edition, lib));
+            inner.push(PackageInner::new(edition, id, lib));
         }
         if let Some(res) = resolve {
             construct_deps(res.nodes, &id_to_idx, &mut inner);
         }
         PackageMap {
             manifest_to_idx,
+            id_to_idx,
             packages: inner,
         }
     }
+    pub fn ids<'a>(&'a self) -> impl 'a + Iterator<Item = PackageId> {
+        self.packages.iter().map(|p| p.id)
+    }
+    pub fn id_to_idx(&self, id: PackageId) -> Option<PackageIdx> {
+        self.id_to_idx.get(&id).map(|&x| x)
+    }
     pub fn get_idx(&self, path: &Path) -> Option<PackageIdx> {
         self.manifest_to_idx.get(path).map(|&id| id)
+    }
+    pub fn get_id(&self, idx: PackageIdx) -> PackageId {
+        self.packages[idx.0].id
     }
     pub fn get_edition(&self, idx: PackageIdx) -> Edition {
         self.packages[idx.0].edition
