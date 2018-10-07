@@ -3,7 +3,7 @@ name = "racer"
 version = "2.1.7"
 license = "MIT"
 description = "Code completion for Rust"
-authors = ["Phil Dawes <phil@phildawes.net>", "The Racer developpers"]
+authors = ["Phil Dawes <phil@phildawes.net>", "The Racer developers"]
 homepage = "https://github.com/racer-rust/racer"
 repository = "https://github.com/racer-rust/racer"
 
