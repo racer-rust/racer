@@ -636,6 +636,19 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                                 }
                                 Some(Ty::Match(m))
                             }
+                            MatchType::TypeParameter(ref traitbounds) if traitbounds.has_closure() => {
+                                let mut output = None;
+                                if let Some(path_search) = traitbounds.get_closure()
+                                {
+                                    for seg in path_search.path.segments.iter() {
+                                        if seg.output.is_some() {
+                                            output = seg.output.clone();
+                                            break;
+                                        }
+                                    }
+                                }
+                                output
+                            }
                             _ => {
                                 debug!(
                                     "ExprTypeVisitor: Cannot handle ExprCall of {:?} type",
