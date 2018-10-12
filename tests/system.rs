@@ -3977,3 +3977,42 @@ fn completes_trait_methods_in_path() {
     let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "default");
 }
+
+#[test]
+fn completes_closure_return_type() {
+    let src = r"
+    fn second<F: Fn() -> Option<i32>>(f: F) {
+        f().un~
+    }
+";
+    let got = get_one_completion(src, None);
+    assert_eq!("unwrap", got.matchstr);
+}
+
+#[test]
+fn completes_generic_closure_return_type() {
+    let src = r"
+    fn second<T: Clone, F: Fn() -> T>(f: F) {
+        f().cl~
+    }
+";
+    let got = get_one_completion(src, None);
+    assert_eq!("clone", got.matchstr);
+}
+
+#[test]
+fn completes_impl_generic_arg_in_closure() {
+    let src = r"
+    struct Something<T> {
+        t: T
+    }
+
+    impl<M: Clone> Something<M> {
+        fn second<T, F: Fn(T) -> M>(f: F) {
+            f().cl~
+        }
+    }
+";
+    let got = get_one_completion(src, None);
+    assert_eq!("clone", got.matchstr);
+}
