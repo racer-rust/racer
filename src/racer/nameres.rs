@@ -1771,7 +1771,7 @@ pub fn resolve_path(
                 if searchstr.starts_with('{') {
                     searchstr = &searchstr[1..];
                 }
-                let pathseg = PathSegment::new(searchstr.to_owned(), vec![]);
+                let pathseg = PathSegment::new(searchstr.to_owned(), vec![], None);
                 debug!(
                     "searching a module '{}' for {} (whole path: {:?})",
                     m.matchstr, pathseg.name, path
@@ -1919,7 +1919,7 @@ pub fn do_external_search(
     if path.len() == 1 {
         let searchstr = path[0];
         // hack for now
-        let pathseg = PathSegment::new(path[0].to_owned(), vec![]);
+        let pathseg = PathSegment::new(path[0].to_owned(), vec![], None);
         out.extend(search_next_scope(
             pos,
             &pathseg,
@@ -1966,7 +1966,7 @@ pub fn do_external_search(
                         Some('{') => &path[path.len() - 1][1..],
                         _ => path[path.len() - 1],
                     };
-                    let pathseg = PathSegment::new(searchstr.to_owned(), vec![]);
+                    let pathseg = PathSegment::new(searchstr.to_owned(), vec![], None);
                     for m in search_next_scope(
                         m.point,
                         &pathseg,
@@ -1991,7 +1991,7 @@ pub fn do_external_search(
                             Some('{') => &path[path.len() - 1][1..],
                             _ => path[path.len() - 1],
                         };
-                        let pathseg = PathSegment::new(searchstr.to_owned(), vec![]);
+                        let pathseg = PathSegment::new(searchstr.to_owned(), vec![], None);
                         debug!("about to search impl scope...");
                         for m in search_next_scope(
                             impl_header.impl_start(),

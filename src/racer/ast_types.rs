@@ -64,6 +64,7 @@ impl Ty {
         }
         ty.wrap_by_ref(deref_cnt)
     }
+
     pub(crate) fn dereference(self) -> Self {
         if let Ty::RefPtr(ty, _) = self {
             ty.dereference()
@@ -290,7 +291,8 @@ impl Path {
         let mut segments = Vec::new();
         for seg in path.segments.iter() {
             let name = seg.ident.name.to_string();
-            segments.push(PathSegment::new(name, vec![]));
+            // used right now in use tree
+            segments.push(PathSegment::new(name, vec![], None));
         }
         Path {
             prefix: None,
@@ -303,7 +305,8 @@ impl Path {
         for seg in path.segments.iter() {
             let name = seg.ident.name.to_string();
             let mut types = Vec::new();
-            // TODO: support GenericArgs::Parenthesized (A path like `Foo(A,B) -> C`)
+            let mut output = None;
+
             if let Some(ref params) = seg.args {
                 if let ast::GenericArgs::AngleBracketed(ref angle_args) = **params {
                     angle_args.args.iter().for_each(|arg| {
@@ -314,8 +317,15 @@ impl Path {
                         }
                     })
                 }
+                // TODO: support inputs in GenericArgs::Parenthesized (A path like `Foo(A,B) -> C`)
+                if let ast::GenericArgs::Parenthesized(ref paren_args) = **params {
+                    if let Some(ref ty) = paren_args.output {
+                        output = Ty::from_ast(&*ty, scope);
+                    }
+                }
             }
-            segments.push(PathSegment::new(name, types));
+
+            segments.push(PathSegment::new(name, types, output));
         }
         Path {
             prefix: None,
@@ -402,8 +412,14 @@ impl fmt::Debug for Path {
                 write!(f, "::{}", seg.name)?;
             }
 
+            if !seg.output.is_none() {
+                write!(f, "(");
+            }
+
             if !seg.generics.is_empty() {
-                write!(f, "<")?;
+                if seg.output.is_none() {
+                    write!(f, "<")?;
+                }
                 for (i, ty) in seg.generics.iter().enumerate() {
                     if i == 0 {
                         write!(f, "{:?}", ty)?;
@@ -411,7 +427,12 @@ impl fmt::Debug for Path {
                         write!(f, ",{:?}", ty)?
                     }
                 }
-                write!(f, ">")?;
+                if seg.output.is_none() {
+                    write!(f, ">")?;
+                }
+        }
+            if !seg.output.is_none() {
+                write!(f, ")->{:?}", seg.output.as_ref().unwrap())?;
             }
         }
         write!(f, "]")
@@ -449,11 +470,13 @@ impl fmt::Display for Path {
 pub struct PathSegment {
     pub name: String,
     pub generics: Vec<Ty>,
+    /// If this path segment is a closure, it's return type
+    pub output: Option<Ty>,
 }
 
 impl PathSegment {
-    pub fn new(name: String, generics: Vec<Ty>) -> Self {
-        PathSegment { name, generics }
+    pub fn new(name: String, generics: Vec<Ty>, output: Option<Ty>) -> Self {
+        PathSegment { name, generics, output }
     }
 }
 
@@ -462,6 +485,7 @@ impl From<String> for PathSegment {
         PathSegment {
             name,
             generics: Vec::new(),
+            output: None,
         }
     }
 }
@@ -520,6 +544,16 @@ impl TraitBounds {
             &seg[0].name == name
         })
     }
+    
+    pub fn find_by_name_mut(&mut self, name: &str) -> Option<&mut PathSearch> {
+        self.0.iter_mut().find(|path_search| {
+            let seg = &path_search.path.segments;
+            if seg.len() != 1 {
+                return false;
+            }
+            &seg[0].name == name
+        })
+    }
     /// Search traits included in bounds and return Matches
     pub fn get_traits(&self, session: &Session) -> Vec<Match> {
         self.0
@@ -543,6 +577,29 @@ impl TraitBounds {
     pub fn len(&self) -> usize {
         self.0.len()
     }
+
+    pub fn has_closure(&self) -> bool {
+        self.find_by_name("Fn").is_some() ||
+        self.find_by_name("FnMut").is_some() ||
+        self.find_by_name("FnOnce").is_some()
+    }
+
+    pub fn get_closure(&self) -> Option<&PathSearch> {
+        self.find_by_name("Fn")
+            .or_else(|| self.find_by_name("FnMut"))
+            .or_else(|| self.find_by_name("FnOnce"))
+    }
+
+    pub fn get_closure_mut(&mut self) -> Option<&mut PathSearch> {
+        self.0.iter_mut().find(|path_search| {
+            let seg = &path_search.path.segments;
+            if seg.len() != 1 {
+                return false;
+            }
+            &seg[0].name == "Fn" || &seg[0].name == "FnMut" || &seg[0].name == "FnOnce"
+        })   
+    }
+
     pub(crate) fn from_generic_bounds<P: AsRef<FilePath>>(
         bounds: &GenericBounds,
         filepath: P,
@@ -652,6 +709,7 @@ impl GenericsArgs {
         offset: i32,
     ) -> Self {
         let mut args = Vec::new();
+        let mut closure_args = Vec::new();
         for param in generics.params.iter() {
             match param.kind {
                 // TODO: lifetime support
@@ -661,13 +719,18 @@ impl GenericsArgs {
                     let param_name = param.ident.name.to_string();
                     let source_map::BytePos(point) = param.ident.span.lo();
                     let bounds = TraitBounds::from_generic_bounds(&param.bounds, &filepath, offset);
-                    args.push(TypeParameter {
+                    let type_param = TypeParameter {
                         name: param_name,
                         point: BytePos::from((point as i32 + offset) as u32),
                         filepath: filepath.as_ref().to_path_buf(),
                         bounds,
                         resolved: None,
-                    })
+                    };
+                    if type_param.bounds.has_closure() {
+                        closure_args.push(type_param);
+                    } else {
+                        args.push(type_param);
+                    }
                 }
             }
         }
@@ -677,12 +740,17 @@ impl GenericsArgs {
                     TyKind::Path(ref _qself, ref path) => {
                         if let Some(seg) = path.segments.get(0) {
                             let name = seg.ident.name.as_str();
-                            if let Some(tp) = args.iter_mut().find(|tp| tp.name == name) {
-                                tp.bounds.extend(TraitBounds::from_generic_bounds(
+                            let bound = TraitBounds::from_generic_bounds(
                                     &bound.bounds,
                                     &filepath,
                                     offset,
-                                ));
+                            );
+                            if let Some(tp) = args.iter_mut().find(|tp| tp.name == name) {
+                                tp.bounds.extend(bound);
+                                continue;
+                            }
+                            if let Some(tp) = closure_args.iter_mut().find(|tp| tp.name == name) {
+                                tp.bounds.extend(bound);
                             }
                         }
                     }
@@ -695,7 +763,45 @@ impl GenericsArgs {
                 _ => {}
             }
         }
-        GenericsArgs(args)
+
+        // resolve the closure's return type into the containing function's type parameter
+        fn replace_closure_output_with_matching_type_params_from_fn(tp: &mut TypeParameter, args: &GenericsArgs) {
+            if let Some(ps) = tp.bounds.get_closure_mut() {
+                for segment in ps.path.segments.iter_mut() {
+                    segment.output = segment.output.take().and_then(|ty| match ty {
+                        Ty::PathSearch(ps) => {
+                            // TODO: support GenericArgs in return types like Fn() -> Option<K>
+                            args.search_param_by_name(&ps.path.segments[0].name)
+                                .and_then(|(_, tp)| {
+                                    let m = Match {
+                                        matchstr: tp.name.clone(),
+                                        mtype: MatchType::TypeParameter(Box::new(tp.bounds.clone())),
+                                        contextstr: String::new(),
+                                        filepath: tp.filepath.clone(),
+                                        coords: None,
+                                        local: false,
+                                        point: tp.point,
+                                        docs: String::new()
+                                    };
+                                    Some(Ty::Match(m))
+                                })
+                                .or_else(|| Some(Ty::PathSearch(ps)))
+                        }
+                        ty => Some(ty)
+                    });
+                }
+            }
+        }
+
+        let mut args = GenericsArgs(args);
+        // closure's return types may be the generic args from the function's definition
+        // like <K: Clone, F: Fn() -> K>, so handle closure types after processing
+        // other type parameters
+        for type_param in closure_args.iter_mut() {
+            replace_closure_output_with_matching_type_params_from_fn(type_param, &args);
+        }
+        args.extend(GenericsArgs(closure_args));
+        args
     }
     pub fn get_idents(&self) -> Vec<String> {
         self.0.iter().map(|g| g.name.clone()).collect()
