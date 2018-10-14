@@ -2201,6 +2201,12 @@ pub(crate) fn get_field_matches_from_ty(
             m.matchstr = "[T]".to_owned();
             search_for_field_or_method(m, searchstr, stype, session)
         }
+        Ty::TraitObject(traitbounds) => {
+            traitbounds.into_iter().fold(Vec::new(), |mut out, ps| {
+                out.extend(get_field_matches_from_ty(Ty::PathSearch(ps), searchstr, stype, session));
+                out
+            })
+        }
         _ => vec![],
     }
 }

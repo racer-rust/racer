@@ -49,6 +49,7 @@ pub enum Ty {
     RefPtr(Box<Ty>, Mutability),
     Slice(Box<Ty>),
     Ptr(Box<Ty>, Mutability),
+    TraitObject(TraitBounds),
     Unsupported,
 }
 
@@ -109,6 +110,9 @@ impl Ty {
                 Ty::from_ast(&*ty.ty, scope).map(|rty| Ty::Ptr(Box::new(rty), ty.mutbl))
             }
             TyKind::Never => None,
+            TyKind::TraitObject(ref traits, _) => {
+                Some(Ty::TraitObject(TraitBounds::from_generic_bounds(&traits, scope.filepath.clone(), ty.span.lo().0 as i32)))
+            }
             _ => {
                 trace!("unhandled Ty node: {:?}", ty.node);
                 None
@@ -173,6 +177,18 @@ impl fmt::Display for Ty {
                 Mutability::Immutable => write!(f, "*const {}", ty),
                 Mutability::Mutable => write!(f, "*mut {}", ty),
             },
+            Ty::TraitObject(ref bounds) => {
+                write!(f, "<")?;
+                let last = bounds.len() - 1;
+                for (i, ps) in bounds.iter().enumerate() {
+                    if i == last {
+                        write!(f, "{}", ps.path)?;
+                    } else {
+                        write!(f, "{},", ps.path)?;
+                    }
+                }
+                write!(f, ">")
+            }
             Ty::Unsupported => write!(f, "_"),
         }
     }
@@ -545,6 +561,14 @@ impl TraitBounds {
         })
     }
     
+    pub fn iter(&self) -> impl Iterator<Item=&PathSearch> {
+        self.0.iter()
+    }
+
+    pub fn into_iter(self) -> impl Iterator<Item=PathSearch> {
+        self.0.into_iter()
+    }
+
     pub fn find_by_name_mut(&mut self, name: &str) -> Option<&mut PathSearch> {
         self.0.iter_mut().find(|path_search| {
             let seg = &path_search.path.segments;

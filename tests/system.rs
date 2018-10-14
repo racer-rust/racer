@@ -4016,3 +4016,23 @@ fn completes_impl_generic_arg_in_closure() {
     let got = get_one_completion(src, None);
     assert_eq!("clone", got.matchstr);
 }
+
+#[test]
+fn completes_functions_from_trait_objects() {
+    let src = r"
+    pub trait Foo {
+        fn foo(&self);
+    }
+
+    fn get_foo() -> Box<Foo + Send> {
+        unimplemented!();
+    }
+
+    fn main() {
+        let mut t = get_foo();
+        t.f~
+    }
+";
+    let got = get_all_completions(src, None);
+    assert!(got.into_iter().any(|ma| ma.matchstr == "foo"));
+}
