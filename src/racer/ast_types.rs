@@ -790,26 +790,53 @@ impl GenericsArgs {
 
         // resolve the closure's return type into the containing function's type parameter
         fn replace_closure_output_with_matching_type_params_from_fn(tp: &mut TypeParameter, args: &GenericsArgs) {
+            fn get_match_from_args(name: &str, args: &GenericsArgs) -> Option<Ty> {
+                args.search_param_by_name(name)
+                    .and_then(|(_, tp)| {
+                        let m = Match {
+                            matchstr: tp.name.clone(),
+                            mtype: MatchType::TypeParameter(Box::new(tp.bounds.clone())),
+                            contextstr: String::new(),
+                            filepath: tp.filepath.clone(),
+                            coords: None,
+                            local: false,
+                            point: tp.point,
+                            docs: String::new()
+                        };
+                        Some(Ty::Match(m))
+                    })
+            };
+
+            fn replace_with_bounds(ps: &mut PathSearch, args: &GenericsArgs) {
+                ps.path.segments.iter_mut()
+                  .for_each(|segment| {
+                      segment.generics.iter_mut()
+                          .for_each(|generic| match generic {
+                              &mut Ty::PathSearch(ref mut ps) => {
+                                    if let Some(ty) = get_match_from_args(&ps.path.segments[0].name, args) {
+                                        *generic = ty;
+                                    } else {
+                                        replace_with_bounds(ps, args);
+                                    }
+                              }
+                              _ => {}
+                          })
+                  })
+            }
+                        
             if let Some(ps) = tp.bounds.get_closure_mut() {
                 for segment in ps.path.segments.iter_mut() {
                     segment.output = segment.output.take().and_then(|ty| match ty {
                         Ty::PathSearch(ps) => {
-                            // TODO: support GenericArgs in return types like Fn() -> Option<K>
-                            args.search_param_by_name(&ps.path.segments[0].name)
-                                .and_then(|(_, tp)| {
-                                    let m = Match {
-                                        matchstr: tp.name.clone(),
-                                        mtype: MatchType::TypeParameter(Box::new(tp.bounds.clone())),
-                                        contextstr: String::new(),
-                                        filepath: tp.filepath.clone(),
-                                        coords: None,
-                                        local: false,
-                                        point: tp.point,
-                                        docs: String::new()
-                                    };
-                                    Some(Ty::Match(m))
-                                })
-                                .or_else(|| Some(Ty::PathSearch(ps)))
+                            let mut output = get_match_from_args(&ps.path.segments[0].name, args)
+                                            .or_else(|| Some(Ty::PathSearch(ps)));
+                            // if output is a PathSearch, it may have generics
+                            // eg. Option<T> or Box<Vec<T>>, so recursively replace
+                            // them with that of the enclosing function's type params
+                            if let Some(Ty::PathSearch(ref mut ps)) = output {
+                                replace_with_bounds(ps, args);
+                            }
+                            output
                         }
                         ty => Some(ty)
                     });
