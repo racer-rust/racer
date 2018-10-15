@@ -4018,6 +4018,21 @@ fn completes_impl_generic_arg_in_closure() {
 }
 
 #[test]
+fn completes_closure_output_type_params() {
+    let src = r"
+    trait Foo {
+        fn foo(&self) -> String;
+    }
+
+    fn second<K: Foo, F: Fn() -> Option<K>>(f: F) {
+        f().unwrap().f~
+    }
+";
+    let got = get_one_completion(src, None);
+    assert_eq!("foo", got.matchstr);
+}
+
+#[test]
 fn completes_functions_from_trait_objects() {
     let src = r"
     pub trait Foo {
