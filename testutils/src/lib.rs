@@ -1,7 +1,7 @@
 //! system test utilities for racer
 extern crate racer;
 extern crate tempfile;
-use racer::{complete_from_file, find_definition, BytePos, Match};
+use racer::{complete_from_file, find_definition as racer_find_definition, BytePos, Match};
 use std::fmt;
 use std::fs;
 use std::io::{self, Write};
@@ -211,11 +211,19 @@ pub fn get_only_completion(src: &str, dir: Option<TmpDir>) -> Match {
 /// Return the definition for the given source.
 ///
 /// The point to find the definition at must be marked with '~'.
+///
+/// # Panics
+/// Panics if there are no matches
 pub fn get_definition(src: &str, dir: Option<TmpDir>) -> Match {
+    find_definition(src, dir).unwrap()
+}
+
+/// Optionally returns a defintion for the given source
+pub fn find_definition(src: &str, dir: Option<TmpDir>) -> Option<Match> {
     let dir = dir.unwrap_or_else(|| TmpDir::new());
     let (completion_point, clean_src) = get_pos_and_source(src);
     let path = dir.write_file("src.rs", &clean_src);
     let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
-    find_definition(&path, completion_point, &session).unwrap()
+    racer_find_definition(&path, completion_point, &session)
 }

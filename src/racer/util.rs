@@ -140,6 +140,7 @@ fn test_find_closure() {
     let src6 = "| x: i32 | Struct { x };";
     let src7 = "y.map(| x: i32 | y.map(|z| z) )";
     let src8 = "|z| z)";
+    let src9 = "let p = |z| something() + 5;";
     let get_range = |a, b| ByteRange::new(BytePos(a as usize), BytePos(b as usize));
     let find = |src: &str, a, off1: i32, b, off2: i32| {
         get_range(src.find(a).unwrap() as i32 + off1, src.rfind(b).unwrap() as i32 + 1 + off2)
@@ -152,8 +153,9 @@ fn test_find_closure() {
     assert_eq!(Some((get_pipe(src4), find(src4, 's', 0, ')', 0))), find_closure(src4));
     assert_eq!(Some((find(src5, '|', 0, 'y', -2), find(src5, 'y', 0, ')', 0))), find_closure(src5));
     assert_eq!(Some((get_pipe(src6), find(src6, 'S', 0, ';', -1))), find_closure(src6));
-    assert_eq!(Some((find(src7, '|', 0, 'y', -2), find(src7, '2', 4, 'z', 1))), find_closure(src7));
-    assert_eq!(Some((get_pipe(src8), find(src8, ' ', 1, 'z', 0))), find_closure(src8));
+    assert_eq!(Some((find(src7, '|', 0, 'y', -2), find(src7, '2', 4, ')', 0))), find_closure(src7));
+    assert_eq!(Some((get_pipe(src8), find(src8, ' ', 1, ')', 0))), find_closure(src8));
+    assert_eq!(Some((get_pipe(src9), find(src9, 's', 0, '5', 0))), find_closure(src9));
 }
 
 /// Try to valid if the given scope contains a valid closure arg scope.

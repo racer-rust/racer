@@ -4051,3 +4051,15 @@ fn completes_functions_from_trait_objects() {
     let got = get_all_completions(src, None);
     assert!(got.into_iter().any(|ma| ma.matchstr == "foo"));
 }
+
+#[test]
+fn import_stmt_doesnt_jump_to_closure_arg() {
+    let src = r#"
+    use req~west;
+    fn main() {
+        let y = Some(32i32).map(|reqwest| "something");
+    }
+    "#;
+
+    assert!(find_definition(src, None).is_none());
+}
