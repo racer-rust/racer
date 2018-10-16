@@ -680,34 +680,43 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 let objexpr = &arguments[0];
                 self.visit_expr(objexpr);
 
+                let get_method_call_output_type = |contextm: &Match| {
+                    let matching_methods = nameres::search_for_impl_methods(
+                        contextm,
+                        &methodname,
+                        contextm.point,
+                        &contextm.filepath,
+                        contextm.local,
+                        core::SearchType::ExactMatch,
+                        self.session,
+                    );
+                    matching_methods
+                        .into_iter()
+                        .map(|method| {
+                            typeinf::get_return_type_of_function(
+                                &method,
+                                contextm,
+                                self.session,
+                            )
+                        })
+                        .filter_map(|ty| {
+                            ty.and_then(|ty| {
+                                path_to_match_including_generics(ty, contextm, self.session)
+                            })
+                        })
+                        .nth(0)
+                };
+
                 self.result = self.result.as_ref().and_then(|contextm| match contextm {
                     Ty::Match(contextm) => {
-                        let omethod = nameres::search_for_impl_methods(
-                            contextm,
-                            &methodname,
-                            contextm.point,
-                            &contextm.filepath,
-                            contextm.local,
-                            core::SearchType::ExactMatch,
-                            self.session,
-                        );
-                        omethod
-                            .into_iter()
-                            .map(|method| {
-                                typeinf::get_return_type_of_function(
-                                    &method,
-                                    contextm,
-                                    self.session,
-                                )
-                            })
-                            .filter_map(|ty| {
-                                ty.and_then(|ty| {
-                                    path_to_match_including_generics(ty, contextm, self.session)
-                                })
-                            })
-                            .nth(0)
+                        get_method_call_output_type(contextm)
                     }
-                    _ => None,
+                    Ty::PathSearch(paths) => {
+                        find_type_match(&paths.path, &paths.filepath, paths.point, self.session)
+                            .as_ref()
+                            .and_then(get_method_call_output_type)
+                    }
+                    _ => None
                 });
             }
             ExprKind::Field(ref subexpression, spannedident) => {
