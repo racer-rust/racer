@@ -111,7 +111,11 @@ impl Ty {
             }
             TyKind::Never => None,
             TyKind::TraitObject(ref traits, _) => {
-                Some(Ty::TraitObject(TraitBounds::from_generic_bounds(&traits, scope.filepath.clone(), ty.span.lo().0 as i32)))
+                Some(Ty::TraitObject(TraitBounds::from_generic_bounds(
+                    &traits,
+                    scope.filepath.clone(),
+                    ty.span.lo().0 as i32,
+                )))
             }
             _ => {
                 trace!("unhandled Ty node: {:?}", ty.node);
@@ -446,7 +450,7 @@ impl fmt::Debug for Path {
                 if seg.output.is_none() {
                     write!(f, ">")?;
                 }
-        }
+            }
             if !seg.output.is_none() {
                 write!(f, ")->{:?}", seg.output.as_ref().unwrap())?;
             }
@@ -492,7 +496,11 @@ pub struct PathSegment {
 
 impl PathSegment {
     pub fn new(name: String, generics: Vec<Ty>, output: Option<Ty>) -> Self {
-        PathSegment { name, generics, output }
+        PathSegment {
+            name,
+            generics,
+            output,
+        }
     }
 }
 
@@ -552,31 +560,31 @@ pub struct TraitBounds(Vec<PathSearch>);
 impl TraitBounds {
     /// checks if it contains a trait, whick its name is 'name'
     pub fn find_by_name(&self, name: &str) -> Option<&PathSearch> {
+        self.find_by_names(&[name])
+    }
+    pub fn find_by_name_mut(&mut self, name: &str) -> Option<&mut PathSearch> {
+        self.find_by_names_mut(&[name])
+    }
+    /// checks if it contains a trait, whick its name is 'name'
+    pub fn find_by_names(&self, names: &[&str]) -> Option<&PathSearch> {
         self.0.iter().find(|path_search| {
             let seg = &path_search.path.segments;
-            if seg.len() != 1 {
-                return false;
-            }
-            &seg[0].name == name
+            seg.len() == 1 && names.contains(&&*seg[0].name)
         })
     }
-    
-    pub fn iter(&self) -> impl Iterator<Item=&PathSearch> {
+    pub fn find_by_names_mut(&mut self, names: &[&str]) -> Option<&mut PathSearch> {
+        self.0.iter_mut().find(|path_search| {
+            let seg = &path_search.path.segments;
+            seg.len() == 1 && names.contains(&&*seg[0].name)
+        })
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &PathSearch> {
         self.0.iter()
     }
 
-    pub fn into_iter(self) -> impl Iterator<Item=PathSearch> {
+    pub fn into_iter(self) -> impl Iterator<Item = PathSearch> {
         self.0.into_iter()
-    }
-
-    pub fn find_by_name_mut(&mut self, name: &str) -> Option<&mut PathSearch> {
-        self.0.iter_mut().find(|path_search| {
-            let seg = &path_search.path.segments;
-            if seg.len() != 1 {
-                return false;
-            }
-            &seg[0].name == name
-        })
     }
     /// Search traits included in bounds and return Matches
     pub fn get_traits(&self, session: &Session) -> Vec<Match> {
@@ -603,25 +611,15 @@ impl TraitBounds {
     }
 
     pub fn has_closure(&self) -> bool {
-        self.find_by_name("Fn").is_some() ||
-        self.find_by_name("FnMut").is_some() ||
-        self.find_by_name("FnOnce").is_some()
+        self.find_by_names(&["Fn", "FnMut", "FnOnce"]).is_some()
     }
 
     pub fn get_closure(&self) -> Option<&PathSearch> {
-        self.find_by_name("Fn")
-            .or_else(|| self.find_by_name("FnMut"))
-            .or_else(|| self.find_by_name("FnOnce"))
+        self.find_by_names(&["Fn", "FnMut", "FnOnce"])
     }
 
     pub fn get_closure_mut(&mut self) -> Option<&mut PathSearch> {
-        self.0.iter_mut().find(|path_search| {
-            let seg = &path_search.path.segments;
-            if seg.len() != 1 {
-                return false;
-            }
-            &seg[0].name == "Fn" || &seg[0].name == "FnMut" || &seg[0].name == "FnOnce"
-        })   
+        self.find_by_names_mut(&["Fn", "FnMut", "FnOnce"])
     }
 
     pub(crate) fn from_generic_bounds<P: AsRef<FilePath>>(
@@ -764,11 +762,8 @@ impl GenericsArgs {
                     TyKind::Path(ref _qself, ref path) => {
                         if let Some(seg) = path.segments.get(0) {
                             let name = seg.ident.name.as_str();
-                            let bound = TraitBounds::from_generic_bounds(
-                                    &bound.bounds,
-                                    &filepath,
-                                    offset,
-                            );
+                            let bound =
+                                TraitBounds::from_generic_bounds(&bound.bounds, &filepath, offset);
                             if let Some(tp) = args.iter_mut().find(|tp| tp.name == name) {
                                 tp.bounds.extend(bound);
                                 continue;
@@ -789,47 +784,52 @@ impl GenericsArgs {
         }
 
         // resolve the closure's return type into the containing function's type parameter
-        fn replace_closure_output_with_matching_type_params_from_fn(tp: &mut TypeParameter, args: &GenericsArgs) {
+        fn replace_closure_output_with_matching_type_params_from_fn(
+            tp: &mut TypeParameter,
+            args: &GenericsArgs,
+        ) {
             fn get_match_from_args(name: &str, args: &GenericsArgs) -> Option<Ty> {
-                args.search_param_by_name(name)
-                    .and_then(|(_, tp)| {
-                        let m = Match {
-                            matchstr: tp.name.clone(),
-                            mtype: MatchType::TypeParameter(Box::new(tp.bounds.clone())),
-                            contextstr: String::new(),
-                            filepath: tp.filepath.clone(),
-                            coords: None,
-                            local: false,
-                            point: tp.point,
-                            docs: String::new()
-                        };
-                        Some(Ty::Match(m))
-                    })
+                args.search_param_by_name(name).and_then(|(_, tp)| {
+                    let m = Match {
+                        matchstr: tp.name.clone(),
+                        mtype: MatchType::TypeParameter(Box::new(tp.bounds.clone())),
+                        contextstr: String::new(),
+                        filepath: tp.filepath.clone(),
+                        coords: None,
+                        local: false,
+                        point: tp.point,
+                        docs: String::new(),
+                    };
+                    Some(Ty::Match(m))
+                })
             };
 
             fn replace_with_bounds(ps: &mut PathSearch, args: &GenericsArgs) {
-                ps.path.segments.iter_mut()
-                  .for_each(|segment| {
-                      segment.generics.iter_mut()
-                          .for_each(|generic| match generic {
-                              &mut Ty::PathSearch(ref mut ps) => {
-                                    if let Some(ty) = get_match_from_args(&ps.path.segments[0].name, args) {
-                                        *generic = ty;
-                                    } else {
-                                        replace_with_bounds(ps, args);
-                                    }
-                              }
-                              _ => {}
-                          })
-                  })
+                ps.path.segments.iter_mut().for_each(|segment| {
+                    segment
+                        .generics
+                        .iter_mut()
+                        .for_each(|generic| match generic {
+                            &mut Ty::PathSearch(ref mut ps) => {
+                                if let Some(ty) =
+                                    get_match_from_args(&ps.path.segments[0].name, args)
+                                {
+                                    *generic = ty;
+                                } else {
+                                    replace_with_bounds(ps, args);
+                                }
+                            }
+                            _ => {}
+                        })
+                })
             }
-                        
+
             if let Some(ps) = tp.bounds.get_closure_mut() {
                 for segment in ps.path.segments.iter_mut() {
                     segment.output = segment.output.take().and_then(|ty| match ty {
                         Ty::PathSearch(ps) => {
                             let mut output = get_match_from_args(&ps.path.segments[0].name, args)
-                                            .or_else(|| Some(Ty::PathSearch(ps)));
+                                .or_else(|| Some(Ty::PathSearch(ps)));
                             // if output is a PathSearch, it may have generics
                             // eg. Option<T> or Box<Vec<T>>, so recursively replace
                             // them with that of the enclosing function's type params
@@ -838,7 +838,7 @@ impl GenericsArgs {
                             }
                             output
                         }
-                        ty => Some(ty)
+                        ty => Some(ty),
                     });
                 }
             }
