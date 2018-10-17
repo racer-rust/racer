@@ -636,10 +636,11 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                                 }
                                 Some(Ty::Match(m))
                             }
-                            MatchType::TypeParameter(ref traitbounds) if traitbounds.has_closure() => {
+                            MatchType::TypeParameter(ref traitbounds)
+                                if traitbounds.has_closure() =>
+                            {
                                 let mut output = None;
-                                if let Some(path_search) = traitbounds.get_closure()
-                                {
+                                if let Some(path_search) = traitbounds.get_closure() {
                                     for seg in path_search.path.segments.iter() {
                                         if seg.output.is_some() {
                                             output = seg.output.clone();
@@ -693,11 +694,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     matching_methods
                         .into_iter()
                         .map(|method| {
-                            typeinf::get_return_type_of_function(
-                                &method,
-                                contextm,
-                                self.session,
-                            )
+                            typeinf::get_return_type_of_function(&method, contextm, self.session)
                         })
                         .filter_map(|ty| {
                             ty.and_then(|ty| {
@@ -708,15 +705,13 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 };
 
                 self.result = self.result.as_ref().and_then(|contextm| match contextm {
-                    Ty::Match(contextm) => {
-                        get_method_call_output_type(contextm)
-                    }
+                    Ty::Match(contextm) => get_method_call_output_type(contextm),
                     Ty::PathSearch(paths) => {
                         find_type_match(&paths.path, &paths.filepath, paths.point, self.session)
                             .as_ref()
                             .and_then(get_method_call_output_type)
                     }
-                    _ => None
+                    _ => None,
                 });
             }
             ExprKind::Field(ref subexpression, spannedident) => {

@@ -35,8 +35,8 @@ mod typeinf;
 
 pub use ast_types::PathSearch;
 pub use core::{
-    complete_from_file, complete_fully_qualified_name, find_definition, to_coords, to_point,
-    is_use_stmt
+    complete_from_file, complete_fully_qualified_name, find_definition, is_use_stmt, to_coords,
+    to_point,
 };
 pub use core::{
     BytePos, ByteRange, Coordinate, FileCache, FileLoader, Location, Match, MatchType, Session,

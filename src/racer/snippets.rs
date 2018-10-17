@@ -78,7 +78,8 @@ impl MethodInfo {
                                     }
                                     _ => var_name,
                                 }
-                            }).collect(),
+                            })
+                            .collect(),
                     });
                 }
             }

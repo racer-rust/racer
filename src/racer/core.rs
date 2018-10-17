@@ -1156,7 +1156,7 @@ where
     let raw_src = session.load_raw_file(file_path);
     let pos = match cursor.into().to_point(&raw_src) {
         Some(pos) => pos,
-        None => return false
+        None => return false,
     };
 
     if src.bytes().len() <= pos.0 {

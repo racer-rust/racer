@@ -121,7 +121,8 @@ impl<'a> StmtIndicesIter<'a> {
             src,
             pos: BytePos::ZERO,
             end: BytePos(src.len()),
-        }.fuse()
+        }
+        .fuse()
     }
 }
 

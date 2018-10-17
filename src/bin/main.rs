@@ -86,7 +86,8 @@ fn complete_by_line_coords(cfg: Config, print_type: CompletePrinter) {
     let res = tb
         .spawn(move || {
             run_the_complete_fn(&cfg, print_type);
-        }).unwrap();
+        })
+        .unwrap();
     if let Err(e) = res.join() {
         error!("Search thread paniced: {:?}", e);
     }
@@ -449,7 +450,8 @@ fn build_cli<'a, 'b>() -> App<'a, 'b> {
         .settings(&[
             AppSettings::GlobalVersion,
             AppSettings::SubcommandRequiredElseHelp,
-        ]).arg(
+        ])
+        .arg(
             Arg::with_name("interface")
                 .long("interface")
                 .short("i")
@@ -458,110 +460,139 @@ fn build_cli<'a, 'b>() -> App<'a, 'b> {
                 .possible_value("tab-text")
                 .value_name("mode")
                 .help("Interface mode"),
-        ).subcommand(
+        )
+        .subcommand(
             SubCommand::with_name("complete")
-            .about("performs completion and returns matches")
-            // We set an explicit usage string here, instead of letting `clap` write one due to
-            // using a single arg for multiple purposes
-            .usage("racer complete <fqn>\n    \
-                    racer complete <linenum> <charnum> <path> [substitute_file]")
-            // Next we make it an error to run without any args
-            .setting(AppSettings::ArgRequiredElseHelp)
-            // Because we want a single arg to play two roles and be compatible with previous
-            // racer releases, we have to be a little hacky here...
-            //
-            // We start by making 'fqn' the first positional arg, which will hold this dual value
-            // of either an FQN as it says, or secretly a line-number
-            .arg(Arg::with_name("fqn")
-                .help("complete with a fully-qualified-name (e.g. std::io::)"))
-            .arg(Arg::with_name("charnum")
-                .help("The char number to search for matches")
-                .requires("path"))
-            .arg(Arg::with_name("path")
-                .help("The path to search for name to match"))
-            .arg(Arg::with_name("substitute_file")
-                .help("An optional substitute file"))
-            // 'linenum' **MUST** be last (or have the highest index so that it's never actually
-            // used by the user, but still appears in the help text)
-            .arg(Arg::with_name("linenum")
-                .help("The line number at which to find the match")),
-        ).subcommand(
+                .about("performs completion and returns matches")
+                // We set an explicit usage string here, instead of letting `clap` write one due to
+                // using a single arg for multiple purposes
+                .usage(
+                    "racer complete <fqn>\n    \
+                     racer complete <linenum> <charnum> <path> [substitute_file]",
+                )
+                // Next we make it an error to run without any args
+                .setting(AppSettings::ArgRequiredElseHelp)
+                // Because we want a single arg to play two roles and be compatible with previous
+                // racer releases, we have to be a little hacky here...
+                //
+                // We start by making 'fqn' the first positional arg, which will hold this dual value
+                // of either an FQN as it says, or secretly a line-number
+                .arg(
+                    Arg::with_name("fqn")
+                        .help("complete with a fully-qualified-name (e.g. std::io::)"),
+                )
+                .arg(
+                    Arg::with_name("charnum")
+                        .help("The char number to search for matches")
+                        .requires("path"),
+                )
+                .arg(Arg::with_name("path").help("The path to search for name to match"))
+                .arg(Arg::with_name("substitute_file").help("An optional substitute file"))
+                // 'linenum' **MUST** be last (or have the highest index so that it's never actually
+                // used by the user, but still appears in the help text)
+                .arg(Arg::with_name("linenum").help("The line number at which to find the match")),
+        )
+        .subcommand(
             SubCommand::with_name("daemon")
                 .about("start a process that receives the above commands via stdin"),
-        ).subcommand(
+        )
+        .subcommand(
             SubCommand::with_name("find-definition")
                 .about("finds the definition of a function")
                 .arg(
                     Arg::with_name("linenum")
                         .help("The line number at which to find the match")
                         .required(true),
-                ).arg(
+                )
+                .arg(
                     Arg::with_name("charnum")
                         .help("The char number at which to find the match")
                         .required(true),
-                ).arg(
+                )
+                .arg(
                     Arg::with_name("path")
                         .help("The path to search for name to match")
                         .required(true),
-                ).arg(Arg::with_name("substitute_file").help("An optional substitute file")),
-        ).subcommand(
+                )
+                .arg(Arg::with_name("substitute_file").help("An optional substitute file")),
+        )
+        .subcommand(
             SubCommand::with_name("prefix")
                 .arg(
                     Arg::with_name("linenum")
                         .help("The line number at which to find the match")
                         .required(true),
-                ).arg(
+                )
+                .arg(
                     Arg::with_name("charnum")
                         .help("The char number at which to find the match")
                         .required(true),
-                ).arg(
+                )
+                .arg(
                     Arg::with_name("path")
                         .help("The path to search for the match to prefix")
                         .required(true),
                 ),
-        ).subcommand(
+        )
+        .subcommand(
             SubCommand::with_name("complete-with-snippet")
                 .about("performs completion and returns more detailed matches")
                 .usage(
                     "racer complete-with-snippet <fqn>\n    \
                      racer complete-with-snippet <linenum> <charnum> <path> [substitute_file]",
-                ).setting(AppSettings::ArgRequiredElseHelp)
+                )
+                .setting(AppSettings::ArgRequiredElseHelp)
                 .arg(
                     Arg::with_name("fqn")
                         .help("complete with a fully-qualified-name (e.g. std::io::)"),
-                ).arg(
+                )
+                .arg(
                     Arg::with_name("charnum")
                         .help("The char number to search for matches")
                         .requires("path"),
-                ).arg(Arg::with_name("path").help("The path to search for name to match"))
+                )
+                .arg(Arg::with_name("path").help("The path to search for name to match"))
                 .arg(Arg::with_name("substitute_file").help("An optional substitute file"))
                 .arg(Arg::with_name("linenum").help("The line number at which to find the match")),
-        ).subcommand(
+        )
+        .subcommand(
             SubCommand::with_name("point")
-            .about("converts linenum and charnum in a file to a point")
-            // Next we make it an error to run without any args
-            .setting(AppSettings::ArgRequiredElseHelp)
-            .arg(Arg::with_name("linenum")
-                .help("The line number at which to convert to point")
-                .required(true))
-            .arg(Arg::with_name("charnum")
-                .help("The char number at which to convert to point")
-                .required(true))
-            .arg(Arg::with_name("path")
-                .help("The path where the line and char occur")
-                .required(true)),
-        ).subcommand(
+                .about("converts linenum and charnum in a file to a point")
+                // Next we make it an error to run without any args
+                .setting(AppSettings::ArgRequiredElseHelp)
+                .arg(
+                    Arg::with_name("linenum")
+                        .help("The line number at which to convert to point")
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("charnum")
+                        .help("The char number at which to convert to point")
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("path")
+                        .help("The path where the line and char occur")
+                        .required(true),
+                ),
+        )
+        .subcommand(
             SubCommand::with_name("coord")
-            .about("converts a racer point to line and character numbers")
-            // Next we make it an error to run without any args
-            .setting(AppSettings::ArgRequiredElseHelp)
-            .arg(Arg::with_name("point")
-                .help("The point to convert to line and character coordinates")
-                .required(true))
-            .arg(Arg::with_name("path")
-                .help("The path where the line and char occur")
-                .required(true)),
-        ).after_help("For more information about a specific command try 'racer <command> --help'")
+                .about("converts a racer point to line and character numbers")
+                // Next we make it an error to run without any args
+                .setting(AppSettings::ArgRequiredElseHelp)
+                .arg(
+                    Arg::with_name("point")
+                        .help("The point to convert to line and character coordinates")
+                        .required(true),
+                )
+                .arg(
+                    Arg::with_name("path")
+                        .help("The path where the line and char occur")
+                        .required(true),
+                ),
+        )
+        .after_help("For more information about a specific command try 'racer <command> --help'")
 }
 
 fn main() {
@@ -577,7 +608,8 @@ fn main() {
                 record.module_path().unwrap_or("-"),
                 record.args()
             )
-        }).init();
+        })
+        .init();
 
     let matches = build_cli().get_matches();
     let interface = match matches.value_of("interface") {
