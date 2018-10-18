@@ -809,6 +809,41 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     }
                 }
             }
+            ExprKind::Binary(bin, ref left, ref right) => {
+                self.visit_expr(left);
+                let type_match = match self.result.take() {
+                    Some(Ty::Match(m)) => m,
+                    Some(Ty::PathSearch(ps)) => match ps.resolve_as_match(self.session) {
+                        Some(m) => m,
+                        _ => {
+                            return;
+                        }
+                    },
+                    _ => {
+                        return;
+                    }
+                };
+
+                self.visit_expr(right);
+                let right_expr_type = match self.result.take() {
+                    Some(Ty::Match(m)) => m.matchstr,
+                    Some(Ty::PathSearch(ps)) => match ps.resolve_as_match(self.session) {
+                        Some(m) => m.matchstr,
+                        _ => {
+                            return;
+                        }
+                    },
+                    _ => {
+                        return;
+                    }
+                };
+                self.result = nameres::resolve_binary_expr_type(
+                    &type_match,
+                    bin.node,
+                    &right_expr_type,
+                    self.session,
+                );
+            }
             _ => {
                 debug!("- Could not match expr node type: {:?}", expr.node);
             }
