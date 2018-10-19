@@ -709,31 +709,30 @@ fn search_fn_args_and_generics(
         "search_fn_args: found start of fn!! {:?} |{}| {}",
         fnstart, fndecl, searchstr
     );
-    if txt_matches(search_type, searchstr, &fndecl) {
-        let (coords, generics) = ast::parse_fn_args_and_generics(fndecl.clone(), filepath, offset);
-        for typ in generics.0 {
-            if symbol_matches(search_type, searchstr, typ.name()) {
-                let mut m = typ.into_match();
-                m.local = local;
-                m.contextstr = fndecl.clone();
-                out.push(m);
-            }
-        }
-        for arg_range in coords {
-            let s = &fndecl[arg_range.to_range()];
-            debug!("search_fn_args: arg str is |{}|", s);
-            if symbol_matches(search_type, searchstr, s) {
+    if !txt_matches(search_type, searchstr, &fndecl) {
+        return Vec::new();
+    }
+    let (args, generics) = ast::parse_fn_args_and_generics(
+        fndecl.clone(),
+        Scope::new(filepath.to_owned(), fnstart),
+        offset,
+    );
+    for (pat, ty, range) in args {
+        debug!("search_fn_args: arg pat is {:?}", pat);
+        if let Some(matchstr) = pat.search_by_name(searchstr, search_type) {
+            let context_str = &fndecl[range.to_range()];
+            if let Some(p) = context_str.find(searchstr) {
+                let ty = ty.map(|t| t.replace_by_generics(&generics));
                 let m = Match {
-                    matchstr: s.to_owned(),
+                    matchstr: matchstr,
                     filepath: filepath.to_path_buf(),
-                    point: fnstart + arg_range.start - impl_header_len.into(),
+                    point: fnstart + range.start + p.into() - impl_header_len.into(),
                     coords: None,
                     local: local,
-                    mtype: MatchType::FnArg,
-                    contextstr: fndecl.clone(),
+                    mtype: MatchType::FnArg(Box::new((pat, ty))),
+                    contextstr: context_str.to_owned(),
                     docs: String::new(),
                 };
-                debug!("search_fn_args matched: {:?}", m);
                 out.push(m);
             }
         }
@@ -745,7 +744,7 @@ fn search_fn_args_and_generics(
 fn test_do_file_search_std() {
     let cache = core::FileCache::default();
     let session = Session::new(&cache);
-    let mut matches = do_file_search("std", &Path::new("."), &session);
+    let matches = do_file_search("std", &Path::new("."), &session);
     assert!(
         matches
             .into_iter()
@@ -1163,23 +1162,26 @@ fn search_closure_args(
             "search_closure_args found valid closure arg scope: {}",
             pipe_str
         );
-
-        if txt_matches(search_type, search_str, pipe_str) {
-            // Add a fake body for parsing
-            let closure_def = String::from(pipe_str) + "{}";
-            let coords = ast::parse_fn_args(closure_def.clone());
-            let mut out: Vec<Match> = Vec::new();
-            for arg_range in coords {
-                let s = &closure_def[arg_range.to_range()];
-
-                if symbol_matches(search_type, search_str, s) {
+        if !txt_matches(search_type, search_str, pipe_str) {
+            return None;
+        }
+        // Add a fake body for parsing
+        let closure_def = String::from(pipe_str) + "{}";
+        let scope = Scope::new(filepath.to_owned(), scope_src_pos);
+        let args = ast::parse_closure_args(closure_def.clone(), scope);
+        let mut out: Vec<Match> = Vec::new();
+        for (pat, ty, arg_range) in args {
+            if let Some(matchstr) = pat.search_by_name(search_str, search_type) {
+                let context_str = &closure_def[arg_range.to_range()];
+                if let Some(p) = context_str.find(search_str) {
                     let m = Match {
-                        matchstr: s.to_owned(),
+                        matchstr: matchstr,
                         filepath: filepath.to_path_buf(),
-                        point: scope_src_pos + pipe_range.start + arg_range.start,
+                        point: scope_src_pos + pipe_range.start + arg_range.start + p.into(),
                         coords: None,
                         local: true,
-                        mtype: MatchType::FnArg,
+                        mtype: MatchType::FnArg(Box::new((pat, ty))),
+                        // TODO: context_str(without pipe) is better?
                         contextstr: pipe_str.to_owned(),
                         docs: String::new(),
                     };
@@ -1187,11 +1189,9 @@ fn search_closure_args(
                     out.push(m);
                 }
             }
-
-            return Some(out);
         }
+        return Some(out);
     }
-
     None
 }
 
@@ -2191,6 +2191,20 @@ pub(crate) fn get_field_matches_from_ty(
         Ty::PathSearch(paths) => paths.resolve_as_match(session).map_or_else(Vec::new, |m| {
             search_for_field_or_method(m, searchstr, stype, session)
         }),
+        Ty::Self_(scope) => {
+            let msrc = session.load_source_file(&scope.filepath);
+            let ty = typeinf::get_type_of_self(
+                scope.point,
+                &scope.filepath,
+                true,
+                msrc.as_src(),
+                session,
+            );
+            match ty {
+                Some(Ty::Match(m)) => search_for_field_or_method(m, searchstr, stype, session),
+                _ => Vec::new(),
+            }
+        }
         Ty::Tuple(v) => get_tuple_field_matches(v.len(), searchstr, stype, session).collect(),
         Ty::RefPtr(ty, _) => {
             // TODO(kngwyu): support impl &Type {..}
@@ -2201,15 +2215,10 @@ pub(crate) fn get_field_matches_from_ty(
             m.matchstr = "[T]".to_owned();
             search_for_field_or_method(m, searchstr, stype, session)
         }
-        Ty::TraitObject(traitbounds) => traitbounds.into_iter().fold(Vec::new(), |mut out, ps| {
-            out.extend(get_field_matches_from_ty(
-                Ty::PathSearch(ps),
-                searchstr,
-                stype,
-                session,
-            ));
-            out
-        }),
+        Ty::TraitObject(traitbounds) => traitbounds
+            .into_iter()
+            .flat_map(|ps| get_field_matches_from_ty(Ty::PathSearch(ps), searchstr, stype, session))
+            .collect(),
         _ => vec![],
     }
 }

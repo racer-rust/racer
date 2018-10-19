@@ -1495,10 +1495,10 @@ fn follows_chained_method_call() {
     let src = "
     struct Foo;
     struct Bar;
-    impl<T> Foo<T> {
+    impl Foo {
         fn mymethod(&self) -> Bar {}
     }
-    impl<T> Bar<T> {
+    impl Bar {
         fn mybarmethod(&self) -> Bar {}
     }
 
