@@ -189,26 +189,37 @@ impl<'ast> visit::Visitor<'ast> for PatVisitor {
     }
 }
 
-pub struct PatAndGenVisitor<'f> {
-    ident_points: Vec<ByteRange>,
+pub struct FnArgVisitor {
+    idents: Vec<(Pat, Option<Ty>, ByteRange)>,
     generics: GenericsArgs,
-    fpath: &'f Path,
+    scope: Scope,
     offset: i32,
 }
 
-impl<'ast, 'f> visit::Visitor<'ast> for PatAndGenVisitor<'f> {
-    fn visit_pat(&mut self, p: &ast::Pat) {
-        match p.node {
-            PatKind::Ident(_, ref spannedident, _) => {
-                self.ident_points.push(spannedident.span.into());
-            }
-            _ => {
-                visit::walk_pat(self, p);
-            }
-        }
+impl<'ast> visit::Visitor<'ast> for FnArgVisitor {
+    fn visit_fn(
+        &mut self,
+        _fk: visit::FnKind,
+        fd: &ast::FnDecl,
+        _: source_map::Span,
+        _: ast::NodeId,
+    ) {
+        debug!("[FnArgVisitor::visit_fn] inputs: {:?}", fd.inputs);
+        self.idents = fd
+            .inputs
+            .iter()
+            .map(|arg| {
+                debug!("[FnArgTypeVisitor::visit_fn] type {:?} was found", arg.ty);
+                let pat = Pat::from_ast(&arg.pat.node, &self.scope);
+                let ty = Ty::from_ast(&arg.ty, &self.scope);
+                let source_map::BytePos(lo) = arg.pat.span.lo();
+                let source_map::BytePos(hi) = arg.ty.span.hi();
+                (pat, ty, ByteRange::new(lo, hi))
+            })
+            .collect();
     }
     fn visit_generics(&mut self, g: &'ast ast::Generics) {
-        let generics = GenericsArgs::from_generics(g, self.fpath, self.offset);
+        let generics = GenericsArgs::from_generics(g, &self.scope.filepath, self.offset);
         self.generics.extend(generics);
     }
 }
@@ -680,10 +691,10 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 // arguments[0] is receiver(e.g. self)
                 let objexpr = &arguments[0];
                 self.visit_expr(objexpr);
-
-                let get_method_call_output_type = |contextm: &Match| {
+                let result = self.result.take();
+                let get_method_output_ty = |contextm: Match| {
                     let matching_methods = nameres::search_for_impl_methods(
-                        contextm,
+                        &contextm,
                         &methodname,
                         contextm.point,
                         &contextm.filepath,
@@ -694,45 +705,41 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     matching_methods
                         .into_iter()
                         .map(|method| {
-                            typeinf::get_return_type_of_function(&method, contextm, self.session)
+                            typeinf::get_return_type_of_function(&method, &contextm, self.session)
                         })
                         .filter_map(|ty| {
                             ty.and_then(|ty| {
-                                path_to_match_including_generics(ty, contextm, self.session)
+                                path_to_match_including_generics(ty, &contextm, self.session)
                             })
                         })
                         .nth(0)
                 };
-
-                self.result = self.result.as_ref().and_then(|contextm| match contextm {
-                    Ty::Match(contextm) => get_method_call_output_type(contextm),
-                    Ty::PathSearch(paths) => {
-                        find_type_match(&paths.path, &paths.filepath, paths.point, self.session)
-                            .as_ref()
-                            .and_then(get_method_call_output_type)
-                    }
-                    _ => None,
+                self.result = result.and_then(|ty| {
+                    ty.resolve_as_match(false, self.session)
+                        .and_then(get_method_output_ty)
                 });
             }
             ExprKind::Field(ref subexpression, spannedident) => {
                 let fieldname = spannedident.name.to_string();
                 debug!("exprfield {}", fieldname);
                 self.visit_expr(subexpression);
-                self.result = self.result.take().and_then(|structm| match structm {
-                    Ty::Match(structm) => {
-                        typeinf::get_struct_field_type(&fieldname, &structm, self.session).and_then(
-                            |fieldtypepath| {
-                                find_type_match_including_generics(
-                                    fieldtypepath,
-                                    &structm.filepath,
-                                    structm.point,
-                                    &structm,
-                                    self.session,
-                                )
-                            },
-                        )
-                    }
-                    _ => None,
+                let result = self.result.take();
+                let match_to_field_ty = |structm: Match| {
+                    typeinf::get_struct_field_type(&fieldname, &structm, self.session).and_then(
+                        |fieldtypepath| {
+                            find_type_match_including_generics(
+                                fieldtypepath,
+                                &structm.filepath,
+                                structm.point,
+                                &structm,
+                                self.session,
+                            )
+                        },
+                    )
+                };
+                self.result = result.and_then(|ty| {
+                    ty.resolve_as_match(true, self.session)
+                        .and_then(match_to_field_ty)
                 });
             }
             ExprKind::Tup(ref exprs) => {
@@ -1157,21 +1164,28 @@ pub fn parse_type<'s>(s: String, scope: &'s Scope) -> TypeVisitor<'s> {
 
 pub fn parse_fn_args_and_generics(
     s: String,
-    fpath: &Path,
+    scope: Scope,
     offset: i32,
-) -> (Vec<ByteRange>, GenericsArgs) {
-    let mut v = PatAndGenVisitor {
-        ident_points: vec![],
+) -> (Vec<(Pat, Option<Ty>, ByteRange)>, GenericsArgs) {
+    let mut v = FnArgVisitor {
+        idents: Vec::new(),
         generics: GenericsArgs::default(),
-        fpath,
+        scope,
         offset,
     };
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
-    (v.ident_points, v.generics)
+    (v.idents, v.generics)
 }
 
-pub fn parse_fn_args(s: String) -> Vec<ByteRange> {
-    parse_pat_idents(s)
+pub fn parse_closure_args(s: String, scope: Scope) -> Vec<(Pat, Option<Ty>, ByteRange)> {
+    let mut v = FnArgVisitor {
+        idents: Vec::new(),
+        generics: GenericsArgs::default(),
+        scope,
+        offset: 0,
+    };
+    with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
+    v.idents
 }
 
 pub fn parse_pat_idents(s: String) -> Vec<ByteRange> {
@@ -1187,26 +1201,6 @@ pub fn parse_fn_output(s: String, scope: Scope) -> Option<Ty> {
     let mut v = FnOutputVisitor {
         result: None,
         scope,
-    };
-    with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
-    v.result
-}
-
-pub fn parse_fn_arg_type(
-    s: String,
-    argpos: BytePos,
-    scope: Scope,
-    session: &Session,
-    offset: i32,
-) -> Option<Ty> {
-    debug!("parse_fn_arg {:?} |{}|", argpos, s);
-    let mut v = FnArgTypeVisitor {
-        argpos,
-        scope,
-        session,
-        generics: GenericsArgs::default(),
-        offset,
-        result: None,
     };
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.result
@@ -1289,75 +1283,6 @@ impl<'ast> visit::Visitor<'ast> for FnOutputVisitor {
             FunctionRetTy::Ty(ref ty) => Ty::from_ast(ty, &self.scope),
             FunctionRetTy::Default(_) => None,
         };
-    }
-}
-
-/// Visitor to detect type of fnarg
-pub struct FnArgTypeVisitor<'c: 's, 's> {
-    /// the code point arg appears in search string
-    argpos: BytePos,
-    scope: Scope,
-    session: &'s Session<'c>,
-    generics: GenericsArgs,
-    /// the code point search string starts
-    /// use i32 for the case `impl blah {` is inserted
-    offset: i32,
-    pub result: Option<Ty>,
-}
-
-impl<'c, 's, 'ast> visit::Visitor<'ast> for FnArgTypeVisitor<'c, 's> {
-    fn visit_generics(&mut self, g: &'ast ast::Generics) {
-        let filepath = &self.scope.filepath;
-        let generics = GenericsArgs::from_generics(g, filepath, self.offset);
-        debug!(
-            "[FnArgTypeVisitor::visit_generics] {:?}",
-            self.generics.get_idents()
-        );
-        self.generics.extend(generics);
-    }
-
-    fn visit_fn(
-        &mut self,
-        _fk: visit::FnKind,
-        fd: &ast::FnDecl,
-        _: source_map::Span,
-        _: ast::NodeId,
-    ) {
-        debug!("[FnArgTypeVisitor::visit_fn] inputs: {:?}", fd.inputs);
-        // Get generics arguments here (just for speed up)
-        self.result = fd
-            .inputs
-            .iter()
-            .find(|arg| point_is_in_span(self.argpos, &arg.pat.span))
-            .and_then(|arg| {
-                debug!("[FnArgTypeVisitor::visit_fn] type {:?} was found", arg.ty);
-                let ty = Ty::from_ast(&arg.ty, &self.scope)
-                    .and_then(|ty| {
-                        destructure_pattern_to_ty(
-                            &arg.pat,
-                            self.argpos,
-                            &ty,
-                            &self.scope,
-                            self.session,
-                        )
-                    })
-                    .map(Ty::dereference)?;
-                if let Ty::PathSearch(ref paths) = ty {
-                    let segments = &paths.path.segments;
-                    // now we want to get 'T' from fn f<T>(){}, so segments.len() == 1
-                    if segments.len() == 1 {
-                        let name = &segments[0].name;
-                        if let Some(bounds) = self.generics.find_type_param(name) {
-                            let res = bounds.to_owned().into_match();
-                            return Some(Ty::Match(res));
-                        }
-                    }
-                    find_type_match(&paths.path, &paths.filepath, paths.point, self.session)
-                        .map(Ty::Match)
-                } else {
-                    Some(ty)
-                }
-            });
     }
 }
 

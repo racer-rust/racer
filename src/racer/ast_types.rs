@@ -1,8 +1,9 @@
 //! type conversion between racer types and libsyntax types
 use super::ast::find_type_match;
-use core::{self, BytePos, Match, MatchType, Scope, Session};
+use core::{self, BytePos, Match, MatchType, Scope, SearchType, Session, SessionExt};
 use matchers::ImportInfo;
 use nameres;
+use primitive;
 use primitive::PrimKind;
 use std::fmt;
 use std::path::{Path as FilePath, PathBuf};
@@ -10,6 +11,8 @@ use syntax::ast::{
     self, GenericBound, GenericBounds, GenericParamKind, LitKind, PatKind, TraitRef, TyKind,
     WherePredicate,
 };
+use typeinf;
+use util;
 // we can only re-export types without thread-local interned string
 pub use syntax::ast::{BindingMode, Mutability};
 use syntax::print::pprust;
@@ -50,11 +53,12 @@ pub enum Ty {
     Slice(Box<Ty>),
     Ptr(Box<Ty>, Mutability),
     TraitObject(TraitBounds),
+    Self_(Scope),
     Unsupported,
 }
 
 impl Ty {
-    pub(crate) fn replace_by_generics(self, gen: &GenericsArgs) -> Self {
+    pub(crate) fn replace_by_resolved_generics(self, gen: &GenericsArgs) -> Self {
         let (ty, deref_cnt) = self.deref_with_count(0);
         if let Ty::PathSearch(ref paths) = ty {
             if let Some((_, param)) = gen.search_param_by_path(&paths.path) {
@@ -65,7 +69,21 @@ impl Ty {
         }
         ty.wrap_by_ref(deref_cnt)
     }
-
+    pub(crate) fn replace_by_generics(self, gen: &GenericsArgs) -> Self {
+        let (mut ty, deref_cnt) = self.deref_with_count(0);
+        if let Ty::PathSearch(ref mut paths) = ty {
+            if let Some((_, param)) = gen.search_param_by_path(&paths.path) {
+                if let Some(resolved) = param.resolved() {
+                    return resolved.to_owned().wrap_by_ref(deref_cnt);
+                } else {
+                    return Ty::Match(param.clone().into_match());
+                }
+            } else {
+                paths.path.replace_by_bounds(gen);
+            }
+        }
+        ty.wrap_by_ref(deref_cnt)
+    }
     pub(crate) fn dereference(self) -> Self {
         if let Ty::RefPtr(ty, _) = self {
             ty.dereference()
@@ -117,6 +135,7 @@ impl Ty {
                     ty.span.lo().0 as i32,
                 )))
             }
+            TyKind::ImplicitSelf => Some(Ty::Self_(scope.clone())),
             _ => {
                 trace!("unhandled Ty node: {:?}", ty.node);
                 None
@@ -138,6 +157,33 @@ impl Ty {
             },
             LitKind::FloatUnsuffixed(_) => make_match(PrimKind::F32),
             LitKind::Bool(_) => make_match(PrimKind::Bool),
+        }
+    }
+    pub(crate) fn resolve_as_match(self, field_only: bool, session: &Session) -> Option<Match> {
+        match self {
+            Ty::Match(m) => Some(m),
+            Ty::PathSearch(paths) => {
+                find_type_match(&paths.path, &paths.filepath, paths.point, session)
+            }
+            Ty::Self_(scope) => {
+                let msrc = session.load_source_file(&scope.filepath);
+                let ty = typeinf::get_type_of_self(
+                    scope.point,
+                    &scope.filepath,
+                    true,
+                    msrc.as_src(),
+                    session,
+                );
+                match ty {
+                    Some(Ty::Match(m)) => Some(m),
+                    _ => None,
+                }
+            }
+            Ty::RefPtr(ty, _) => ty.resolve_as_match(field_only, session),
+            Ty::Array(_, _) | Ty::Slice(_) if !field_only => {
+                primitive::PrimKind::Slice.to_module_match()
+            }
+            _ => None,
         }
     }
 }
@@ -193,6 +239,7 @@ impl fmt::Display for Ty {
                 }
                 write!(f, ">")
             }
+            Ty::Self_(_) => write!(f, "Self"),
             Ty::Unsupported => write!(f, "_"),
         }
     }
@@ -217,7 +264,29 @@ pub enum Pat {
 }
 
 impl Pat {
-    pub fn from_ast(pat: &PatKind, scope: &Scope) -> Self {
+    pub(crate) fn search_by_name(&self, sname: &str, stype: SearchType) -> Option<String> {
+        match self {
+            Pat::Wild => None,
+            Pat::Ident(_, name) => {
+                if util::symbol_matches(stype, sname, name) {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            }
+            Pat::Struct(_, pats) => pats
+                .iter()
+                .filter_map(|pat| pat.pat.search_by_name(sname, stype))
+                .next(),
+            Pat::TupleStruct(_, pats) | Pat::Tuple(pats) => pats
+                .iter()
+                .filter_map(|pat| pat.search_by_name(sname, stype))
+                .next(),
+            Pat::Ref(pat, _) => pat.search_by_name(sname, stype),
+            _ => None,
+        }
+    }
+    pub(crate) fn from_ast(pat: &PatKind, scope: &Scope) -> Self {
         match pat {
             PatKind::Wild => Pat::Wild,
             PatKind::Ident(bi, ident, _) => Pat::Ident(*bi, ident.to_string()),
@@ -303,6 +372,25 @@ pub struct Path {
 }
 
 impl Path {
+    pub(crate) fn replace_by_bounds(&mut self, gen: &GenericsArgs) {
+        self.segments.iter_mut().for_each(|segment| {
+            segment
+                .generics
+                .iter_mut()
+                .for_each(|generic| match generic {
+                    Ty::PathSearch(ref mut ps) => {
+                        // TODO(kngwyu): 'resolved' case
+                        if let Some(ty) = gen.get_tbound_match(&ps.path.segments[0].name) {
+                            *generic = Ty::Match(ty);
+                        } else {
+                            ps.path.replace_by_bounds(gen);
+                        }
+                    }
+                    _ => {}
+                })
+        })
+    }
+
     pub fn is_single(&self) -> bool {
         self.segments.len() == 1
     }
@@ -719,9 +807,6 @@ impl TypeParameter {
 pub struct GenericsArgs(pub Vec<TypeParameter>);
 
 impl GenericsArgs {
-    pub(crate) fn find_type_param(&self, name: &str) -> Option<&TypeParameter> {
-        self.0.iter().find(|v| &v.name == name)
-    }
     pub(crate) fn extend(&mut self, other: GenericsArgs) {
         self.0.extend(other.0);
     }
@@ -788,57 +873,22 @@ impl GenericsArgs {
             tp: &mut TypeParameter,
             args: &GenericsArgs,
         ) {
-            fn get_match_from_args(name: &str, args: &GenericsArgs) -> Option<Ty> {
-                args.search_param_by_name(name).and_then(|(_, tp)| {
-                    let m = Match {
-                        matchstr: tp.name.clone(),
-                        mtype: MatchType::TypeParameter(Box::new(tp.bounds.clone())),
-                        contextstr: String::new(),
-                        filepath: tp.filepath.clone(),
-                        coords: None,
-                        local: false,
-                        point: tp.point,
-                        docs: String::new(),
-                    };
-                    Some(Ty::Match(m))
-                })
-            };
-
-            fn replace_with_bounds(ps: &mut PathSearch, args: &GenericsArgs) {
-                ps.path.segments.iter_mut().for_each(|segment| {
-                    segment
-                        .generics
-                        .iter_mut()
-                        .for_each(|generic| match generic {
-                            &mut Ty::PathSearch(ref mut ps) => {
-                                if let Some(ty) =
-                                    get_match_from_args(&ps.path.segments[0].name, args)
-                                {
-                                    *generic = ty;
-                                } else {
-                                    replace_with_bounds(ps, args);
-                                }
-                            }
-                            _ => {}
-                        })
-                })
-            }
-
             if let Some(ps) = tp.bounds.get_closure_mut() {
                 for segment in ps.path.segments.iter_mut() {
-                    segment.output = segment.output.take().and_then(|ty| match ty {
-                        Ty::PathSearch(ps) => {
-                            let mut output = get_match_from_args(&ps.path.segments[0].name, args)
-                                .or_else(|| Some(Ty::PathSearch(ps)));
-                            // if output is a PathSearch, it may have generics
-                            // eg. Option<T> or Box<Vec<T>>, so recursively replace
-                            // them with that of the enclosing function's type params
-                            if let Some(Ty::PathSearch(ref mut ps)) = output {
-                                replace_with_bounds(ps, args);
+                    segment.output = segment.output.take().map(|ty| match ty {
+                        Ty::PathSearch(mut ps) => {
+                            match args.get_tbound_match(&ps.path.segments[0].name) {
+                                Some(m) => Ty::Match(m),
+                                None => {
+                                    // if output is a PathSearch, it may have generics
+                                    // eg. Option<T> or Box<Vec<T>>, so recursively replace
+                                    // them with that of the enclosing function's type params
+                                    ps.path.replace_by_bounds(args);
+                                    Ty::PathSearch(ps)
+                                }
                             }
-                            output
                         }
-                        ty => Some(ty),
+                        ty => ty,
                     });
                 }
             }
@@ -882,6 +932,9 @@ impl GenericsArgs {
             }
         }
         None
+    }
+    pub fn get_tbound_match(&self, name: &str) -> Option<Match> {
+        Some(self.search_param_by_name(name)?.1.clone().into_match())
     }
     pub(crate) fn add_bound(&mut self, pos: usize, bound: TraitBounds) {
         if let Some(param) = self.0.get_mut(pos) {

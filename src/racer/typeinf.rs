@@ -159,65 +159,19 @@ pub fn get_type_of_self(
     }
 }
 
-fn is_closure(src: &str) -> Option<bool> {
-    let s = src.matches(|c| c == '{' || c == '|').nth(0)?;
-    Some(s == "|")
-}
-
-fn find_start_of_closure_body(src: &str) -> Option<BytePos> {
-    let mut cnt = 0;
-    for (i, c) in src.chars().enumerate() {
-        if c == '|' {
-            cnt += 1;
-        }
-        if cnt == 2 {
-            return Some(BytePos::from(i).increment());
-        }
-    }
-    warn!(
-        "[find_start_of_closure_body] start of closure body not found!: {}",
-        src
-    );
-    None
-}
-
-fn get_type_of_fnarg(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
-    if m.matchstr == "self" {
-        return get_type_of_self_arg(m, msrc, session);
-    }
-
-    let stmtstart = match scopes::find_stmt_start(msrc, m.point) {
-        Some(s) => s,
-        None => {
-            warn!(
-                "[get_type_of_fnarg] start of statement was not found for {:?}",
-                m
-            );
-            return None;
-        }
+fn get_type_of_fnarg(m: Match, session: &Session) -> Option<Ty> {
+    let Match {
+        matchstr,
+        filepath,
+        point,
+        mtype,
+        ..
+    } = m;
+    let (pat, ty) = *match mtype {
+        MatchType::FnArg(a) => a,
+        _ => return None,
     };
-    let block = msrc.shift_start(stmtstart);
-    let range = block.iter_stmts().nth(0)?;
-    let blob = &msrc[range.shift(stmtstart).to_range()];
-    let is_closure = is_closure(blob)?;
-    if is_closure {
-        let start_of_body = find_start_of_closure_body(blob)?;
-        let s = format!("{}{{}}", &blob[..start_of_body.0]);
-        let argpos = m.point - (stmtstart + range.start);
-        let offset = (stmtstart + range.start).0 as i32;
-        ast::parse_fn_arg_type(s, argpos, Scope::from_match(m), session, offset)
-    } else {
-        // wrap in "impl blah { }" so that methods get parsed correctly too
-        let start_blah = "impl blah {";
-        let s = format!(
-            "{}{}}}}}",
-            start_blah,
-            &blob[..find_start_of_function_body(blob).increment().0]
-        );
-        let argpos = m.point - (stmtstart + range.start) + start_blah.len().into();
-        let offset = (stmtstart + range.start).0 as i32 - start_blah.len() as i32;
-        ast::parse_fn_arg_type(s, argpos, Scope::from_match(m), session, offset)
-    }
+    resolve_lvalue_ty(pat, ty, &matchstr, &filepath, point, session)
 }
 
 fn get_type_of_let_expr(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
@@ -241,7 +195,7 @@ fn get_type_of_let_expr(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
 }
 
 /// Decide l_value's type given r_value and ident query
-fn resolve_lvalue_ty<'a>(
+pub(crate) fn resolve_lvalue_ty<'a>(
     l_value: Pat,
     r_value: Option<Ty>,
     query: &str,
@@ -303,7 +257,7 @@ fn resolve_lvalue_ty<'a>(
                             pat, t, generics
                         );
                         if let Some(ref gen) = generics {
-                            t = t.map(|ty| ty.replace_by_generics(&gen));
+                            t = t.map(|ty| ty.replace_by_resolved_generics(&gen));
                         }
                         let ret =
                             try_continue!(resolve_lvalue_ty(pat, t, query, fpath, pos, session));
@@ -473,7 +427,7 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<Ty> {
             get_type_of_if_let(&m, session, start)
         }
         core::MatchType::For(_) => get_type_of_for_arg(&m, session),
-        core::MatchType::FnArg => get_type_of_fnarg(&m, msrc, session),
+        core::MatchType::FnArg(_) => get_type_of_fnarg(m, session),
         core::MatchType::MatchArm => get_type_from_match_arm(&m, msrc, session),
         core::MatchType::Struct(_)
         | core::MatchType::Enum(_)

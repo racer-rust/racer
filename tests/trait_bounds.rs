@@ -179,3 +179,19 @@ fn completes_impled_bounds_for_ref_self_field() {
         ";
     assert_eq!(get_only_completion(src, None).matchstr, "method");
 }
+
+#[test]
+fn completes_fn_bounds_for_struct_member() {
+    let src = "
+        fn main() {
+            struct St<T> {
+                mem1: String,
+                mem2: T,
+            }
+            fn f<T: Clone>(st: St<T>) {
+                st.mem2.clone_fro~
+            }
+        }
+        ";
+    assert_eq!(get_only_completion(src, None).matchstr, "clone_from");
+}

@@ -1,4 +1,4 @@
-use ast_types::{GenericsArgs, ImplHeader, Path, TraitBounds, Ty, TypeParameter};
+use ast_types::{GenericsArgs, ImplHeader, Pat, Path, TraitBounds, Ty, TypeParameter};
 use codecleaner;
 use codeiter::StmtIndicesIter;
 use matchers::ImportInfo;
@@ -43,7 +43,7 @@ pub enum MatchType {
     /// EnumVariant needs to have Enum type to complete methods
     EnumVariant(Option<Box<Match>>),
     Type,
-    FnArg,
+    FnArg(Box<(Pat, Option<Ty>)>),
     Trait,
     Const,
     Static,
@@ -85,6 +85,7 @@ impl fmt::Display for MatchType {
             MatchType::Enum(_) => write!(f, "Enum"),
             MatchType::EnumVariant(_) => write!(f, "EnumVariant"),
             MatchType::TypeParameter(_) => write!(f, "TypeParameter"),
+            MatchType::FnArg(_) => write!(f, "FnArg"),
             _ => fmt::Debug::fmt(self, f),
         }
     }
@@ -411,7 +412,7 @@ impl fmt::Debug for Match {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct Scope {
     pub filepath: path::PathBuf,
     pub point: BytePos,
@@ -1320,7 +1321,7 @@ mod tests {
         // Cache contents for a file and assert that load_file and load_file_and_mask_comments return
         // the newly cached contents.
         macro_rules! cache_and_assert {
-            ($src:ident) => {{
+            ($src: ident) => {{
                 let session = Session::new(&cache);
                 session.cache_file_contents(path, $src);
                 assert_eq!($src, &session.load_raw_file(path)[..]);
