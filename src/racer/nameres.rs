@@ -573,6 +573,9 @@ fn search_scope_headers(
         // TODO: this code is crufty. refactor me!
         let matchstart = stmtstart + n.into();
         let matchstmt = typeinf::get_first_stmt(msrc.shift_start(matchstart));
+        if !matchstmt.range.contains(point) {
+            return Vec::new();
+        }
         // The definition could be in the match LHS arms. Try to find this
         let masked_matchstmt = mask_matchstmt(&matchstmt, scopestart.increment() - matchstart);
         debug!(
