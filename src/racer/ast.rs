@@ -714,8 +714,10 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                         })
                         .nth(0)
                 };
-                self.result =
-                    result.and_then(|ty| ty.resolve(self.session).and_then(get_method_output_ty));
+                self.result = result.and_then(|ty| {
+                    ty.resolve_as_match(false, self.session)
+                        .and_then(get_method_output_ty)
+                });
             }
             ExprKind::Field(ref subexpression, spannedident) => {
                 let fieldname = spannedident.name.to_string();
@@ -735,8 +737,10 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                         },
                     )
                 };
-                self.result =
-                    result.and_then(|ty| ty.resolve(self.session).and_then(match_to_field_ty));
+                self.result = result.and_then(|ty| {
+                    ty.resolve_as_match(true, self.session)
+                        .and_then(match_to_field_ty)
+                });
             }
             ExprKind::Tup(ref exprs) => {
                 let mut v = Vec::new();
