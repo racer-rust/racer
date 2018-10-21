@@ -4,7 +4,7 @@ use racer::Coordinate;
 use racer_testutils::*;
 
 #[test]
-fn complets_static_methods_for_alias() {
+fn complets_static_methods_for_aliased_struct() {
     let src = r#"
         mod mymod {
             pub struct St {
@@ -20,6 +20,28 @@ fn complets_static_methods_for_alias() {
         fn main() {
             use mymod::St as S;
             let s = S::ne~
+        }
+    "#;
+    assert_eq!(get_only_completion(src, None).matchstr, "new");
+}
+
+#[test]
+fn completes_names_for_aliased_module() {
+    let src = r#"
+        mod mymod {
+            pub struct St {
+                mem1: String,
+                mem2: usize,
+            }
+            impl St {
+                pub fn new() -> Self {
+                    St { mem1: "a".to_owned(), mem2: 5 }
+                }
+            }
+        }
+        fn main() {
+            use mymod as m;
+            let s = m::St::ne~
         }
     "#;
     assert_eq!(get_only_completion(src, None).matchstr, "new");
@@ -42,6 +64,25 @@ fn finds_definition_of_use_as() {
     let got = get_definition(src, None);
     assert_eq!(got.matchstr, "S");
     assert_eq!(got.coords.unwrap(), Coordinate::new(9, 29));
+}
+
+#[test]
+fn finds_definition_of_use_self_as() {
+    let src = r#"
+        mod mymod {
+            pub struct St {
+                mem1: String,
+                mem2: usize,
+            }
+        }
+        fn main() {
+            use mymod::{self as m, St};
+            let s = m~
+        }
+    "#;
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "m");
+    assert_eq!(got.coords.unwrap(), Coordinate::new(9, 32));
 }
 
 // moved from system.rs
@@ -90,4 +131,43 @@ fn follows_use_as_in_braces() {
     let got = get_definition(src, None);
     assert_eq!(got.matchstr, "Wpr");
     assert_eq!(got.contextstr, "Wrapper as Wpr");
+}
+
+// moved from system.rs
+#[test]
+fn completes_for_type_alias() {
+    let src = "
+    mod inner {
+        pub type Alias = MyType;
+        pub struct MyType;
+        impl MyType {
+            pub fn method(&self) {}
+        }
+    }
+
+    fn foo() -> inner::Alias {
+        inner::MyType
+    }
+
+    fn main() {
+        foo().~
+    }
+    ";
+
+    assert_eq!(get_only_completion(src, None).matchstr, "method");
+}
+
+// for use_nested_groups
+// moved from system.rs
+#[test]
+fn follows_use_aliased_self() {
+    let src = r"
+    use std::collections::{self as col, hash_map::*, HashMap};
+    fn main() {
+        let heap = col::BinaryHeap::ne~w();
+    }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!(got.matchstr, "new");
 }

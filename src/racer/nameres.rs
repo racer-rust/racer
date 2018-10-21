@@ -1751,7 +1751,6 @@ pub fn resolve_path(
             import_info,
         )
     } else if len != 0 {
-        let mut out = Vec::new();
         let mut parent_path = path.clone();
         parent_path.segments.pop();
         let context = resolve_path(
@@ -1765,70 +1764,98 @@ pub fn resolve_path(
         )
         .into_iter()
         .nth(0);
-        println!("{:?}", context);
-        context.map(|mut m| match m.mtype {
-            MatchType::Module => {
-                let mut searchstr: &str = &path.segments[len - 1].name;
-                if let Some(i) = searchstr.rfind(',') {
-                    searchstr = searchstr[i + 1..].trim();
-                }
-                if searchstr.starts_with('{') {
-                    searchstr = &searchstr[1..];
-                }
-                let pathseg = PathSegment::new(searchstr.to_owned(), vec![], None);
-                debug!(
-                    "searching a module '{}' for {} (whole path: {:?})",
-                    m.matchstr, pathseg.name, path
-                );
-                out.extend(search_next_scope(
-                    m.point,
-                    &pathseg,
-                    &m.filepath,
-                    search_type,
-                    false,
-                    namespace,
-                    session,
-                    import_info,
-                ));
-            }
-            MatchType::Enum(_) | MatchType::Struct(_) => {
-                out.extend(get_path_items(
-                    &path.segments[len - 1],
-                    namespace,
-                    search_type,
-                    &m,
-                    session,
-                    import_info,
-                ));
-            }
-            MatchType::Trait => {
-                if let Some(name) = path.name() {
-                    out.extend(collect_trait_methods(&m, search_type, name, true, session));
-                }
-            }
-            MatchType::Type(ref mut resolved) => {
-                let resolved = resolved.take().map(|x| *x);
-                println!("{:?}", resolved);
-                if let Some(match_) = resolved.or_else(|| ast::get_type_of_typedef(&m, session)) {
-                    println!("path: {:?}", &path.segments[len - 1]);
-                    out.extend(get_path_items(
-                        &path.segments[len - 1],
-                        namespace,
-                        search_type,
-                        &match_,
-                        session,
-                        import_info,
-                    ));
-                }
-            }
-            _ => (),
-        });
-        debug!("resolve_path returning {:?}", out);
-        out
+        if let Some(followed_match) = context {
+            resolve_following_path(
+                followed_match,
+                &path.segments[len - 1],
+                namespace,
+                search_type,
+                import_info,
+                session,
+            )
+        } else {
+            Vec::new()
+        }
     } else {
         // TODO: Should this better be an assertion ? Why do we have a core::Path
         // with empty segments in the first place ?
         Vec::new()
+    }
+}
+
+fn resolve_following_path(
+    followed_match: Match,
+    following_seg: &PathSegment,
+    namespace: Namespace,
+    search_type: SearchType,
+    import_info: &ImportInfo,
+    session: &Session,
+) -> Vec<Match> {
+    match followed_match.mtype {
+        MatchType::Module => {
+            let mut searchstr: &str = &following_seg.name;
+            if let Some(i) = searchstr.rfind(',') {
+                searchstr = searchstr[i + 1..].trim();
+            }
+            if searchstr.starts_with('{') {
+                searchstr = &searchstr[1..];
+            }
+            let pathseg = PathSegment::new(searchstr.to_owned(), vec![], None);
+            debug!(
+                "searching a module '{}' for {}",
+                followed_match.matchstr, pathseg.name,
+            );
+            search_next_scope(
+                followed_match.point,
+                &pathseg,
+                &followed_match.filepath,
+                search_type,
+                false,
+                namespace,
+                session,
+                import_info,
+            )
+        }
+        MatchType::Enum(_) | MatchType::Struct(_) => get_path_items(
+            following_seg,
+            namespace,
+            search_type,
+            &followed_match,
+            session,
+            import_info,
+        ),
+        MatchType::Trait => collect_trait_methods(
+            &followed_match,
+            search_type,
+            &following_seg.name,
+            true,
+            session,
+        )
+        .collect(),
+        MatchType::Type(_) => {
+            if let Some(match_) = ast::get_type_of_typedef(&followed_match, session) {
+                get_path_items(
+                    following_seg,
+                    namespace,
+                    search_type,
+                    &match_,
+                    session,
+                    import_info,
+                )
+            } else {
+                // TODO: Should use STUB here
+                Vec::new()
+            }
+        }
+        MatchType::UseAlias(inner) => resolve_following_path(
+            *inner,
+            following_seg,
+            namespace,
+            search_type,
+            import_info,
+            session,
+        ),
+        _ => Vec::new(),
     }
 }
 
