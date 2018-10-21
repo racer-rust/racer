@@ -104,14 +104,14 @@ impl<'ast> visit::Visitor<'ast> for UseVisitor {
                         //` self` is treated normaly in libsyntax,
                         //  but we distinguish it here to make completion easy
                         if last_seg.name == "self" {
-                            PathAliasKind::Self_(ident)
+                            PathAliasKind::Self_(ident, rename_pos)
                         } else {
                             PathAliasKind::Ident(ident, rename_pos)
                         }
                     } else {
                         PathAliasKind::Ident(ident, rename_pos)
                     };
-                    if let PathAliasKind::Self_(_) = kind {
+                    if let PathAliasKind::Self_(..) = kind {
                         path.segments.pop();
                     }
                     res.push(PathAlias {

@@ -524,29 +524,6 @@ fn completes_trait_methods_when_at_scope_end() {
 }
 
 #[test]
-fn completes_for_type_alias() {
-    let src = "
-    mod inner {
-        pub type Alias = MyType;
-        pub struct MyType;
-        impl MyType {
-            pub fn method(&self) {}
-        }
-    }
-
-    fn foo() -> inner::Alias {
-        inner::MyType
-    }
-
-    fn main() {
-        foo().~
-    }
-    ";
-
-    assert_eq!(get_all_completions(src, None)[0].matchstr, "method");
-}
-
-#[test]
 fn follows_use() {
     let src1 = "
     pub fn myfn() {}
@@ -3413,20 +3390,6 @@ fn follows_use_nested_from_std() {
     fn main() {
          let h = HashMap::new();
          let a = DefaultHasher::ne~w();
-    }
-    ";
-
-    let got = get_definition(src, None);
-    assert_eq!(got.matchstr, "new");
-}
-
-// for use_nested_groups
-#[test]
-fn follows_use_aliased_self() {
-    let src = r"
-    use std::collections::{self as col, hash_map::*, HashMap};
-    fn main() {
-        let heap = col::BinaryHeap::ne~w();
     }
     ";
 

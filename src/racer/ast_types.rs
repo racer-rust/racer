@@ -34,7 +34,7 @@ pub struct PathAlias {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PathAliasKind {
     Ident(String, Option<BytePos>),
-    Self_(String),
+    Self_(String, Option<BytePos>),
     Glob,
 }
 
