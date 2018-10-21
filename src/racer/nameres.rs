@@ -1765,7 +1765,8 @@ pub fn resolve_path(
         )
         .into_iter()
         .nth(0);
-        context.map(|m| match m.mtype {
+        println!("{:?}", context);
+        context.map(|mut m| match m.mtype {
             MatchType::Module => {
                 let mut searchstr: &str = &path.segments[len - 1].name;
                 if let Some(i) = searchstr.rfind(',') {
@@ -1805,8 +1806,11 @@ pub fn resolve_path(
                     out.extend(collect_trait_methods(&m, search_type, name, true, session));
                 }
             }
-            MatchType::Type => {
-                if let Some(match_) = ast::get_type_of_typedef(&m, session) {
+            MatchType::Type(ref mut resolved) => {
+                let resolved = resolved.take().map(|x| *x);
+                println!("{:?}", resolved);
+                if let Some(match_) = resolved.or_else(|| ast::get_type_of_typedef(&m, session)) {
+                    println!("path: {:?}", &path.segments[len - 1]);
                     out.extend(get_path_items(
                         &path.segments[len - 1],
                         namespace,

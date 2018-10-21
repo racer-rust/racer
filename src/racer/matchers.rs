@@ -1,4 +1,4 @@
-use ast_types::{ImplHeader, PathAliasKind, PathSegment};
+use ast_types::{ImplHeader, PathAlias, PathAliasKind, PathSegment};
 use core::MatchType::{
     self, Const, Enum, EnumVariant, For, Function, IfLet, Let, Macro, Module, Static, Struct,
     Trait, Type, WhileLet,
@@ -441,7 +441,7 @@ pub fn match_type(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Ma
         point: start,
         coords: None,
         local: context.is_local,
-        mtype: Type,
+        mtype: Type(None),
         contextstr: first_line(blob),
         docs: find_doc(&doc_src, start),
     })
@@ -573,9 +573,8 @@ pub fn match_use(
                 session,
                 &import_info,
             );
-            for mut m in path_iter {
-                $f(&mut m);
-                out.push(m);
+            for m in path_iter {
+                out.push($f(m));
                 if context.search_type == ExactMatch {
                     return out;
                 }
@@ -583,37 +582,54 @@ pub fn match_use(
         };
     }
     // let's find searchstr using path_aliases
-    for mut path_alias in use_item.path_list {
-        path_alias.path.set_prefix();
-        match path_alias.kind {
-            PathAliasKind::Ident(ref ident) => {
-                if !symbol_matches(context.search_type, context.search_str, ident) {
+    for path_alias in use_item.path_list {
+        let PathAlias {
+            path: mut alias_path,
+            kind: alias_kind,
+            range: alias_range,
+        } = path_alias;
+        alias_path.set_prefix();
+        match alias_kind {
+            PathAliasKind::Ident(ref ident, rename_start) => {
+                if !symbol_matches(context.search_type, context.search_str, &ident) {
                     continue;
                 }
-                with_match!(path_alias.as_ref(), Namespace::Path, |m: &mut Match| {
+                with_match!(&alias_path, Namespace::Path, |m: Match| {
                     debug!("[match_use] PathAliasKind::Ident {:?} was found", ident);
-                    if m.matchstr != *ident {
-                        m.matchstr = ident.clone();
-                    }
+                    let rename_start = match rename_start {
+                        Some(r) => r,
+                        None => return m,
+                    };
+                    // if use A as B found, we treat this type as type alias
+                    let range = alias_range.shift(context.range.start);
+                    let context_str = &msrc[range.to_range()];
+                    let alias_match = Match {
+                        matchstr: ident.clone(),
+                        filepath: context.filepath.to_owned(),
+                        point: context.range.start + rename_start,
+                        coords: None,
+                        local: context.is_local,
+                        mtype: MatchType::Type(Some(Box::new(m))),
+                        contextstr: context_str.to_owned(),
+                        docs: String::new(),
+                    };
+                    alias_match
                 });
             }
             PathAliasKind::Self_(ref ident) => {
-                if let Some(last_seg) = path_alias.path.segments.last() {
+                if let Some(last_seg) = alias_path.segments.last() {
                     let is_aliased = ident != "self";
                     let search_name = if is_aliased { ident } else { &last_seg.name };
                     if !symbol_matches(context.search_type, context.search_str, search_name) {
                         continue;
                     }
-                    with_match!(
-                        path_alias.as_ref(),
-                        Namespace::PathParen,
-                        |m: &mut Match| {
-                            debug!("[match_use] PathAliasKind::Self_ {:?} was found", ident);
-                            if is_aliased && m.matchstr != *ident {
-                                m.matchstr = ident.clone();
-                            }
+                    with_match!(&alias_path, Namespace::PathParen, |mut m: Match| {
+                        debug!("[match_use] PathAliasKind::Self_ {:?} was found", ident);
+                        if is_aliased && m.matchstr != *ident {
+                            m.matchstr = ident.clone();
                         }
-                    );
+                        m
+                    });
                 }
             }
             PathAliasKind::Glob => {
@@ -628,7 +644,7 @@ pub fn match_use(
                     import_info.glob_limit = Some(GLOB_LIMIT - 1);
                     None
                 };
-                let mut search_path = path_alias.path;
+                let mut search_path = alias_path;
                 search_path.segments.push(PathSegment::new(
                     context.search_str.to_owned(),
                     vec![],
