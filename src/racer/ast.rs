@@ -722,7 +722,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                         .nth(0)
                 };
                 self.result = result.and_then(|ty| {
-                    ty.resolve_as_match(false, self.session)
+                    ty.resolve_as_field_match(self.session)
                         .and_then(get_method_output_ty)
                 });
             }
@@ -745,7 +745,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     )
                 };
                 self.result = result.and_then(|ty| {
-                    ty.resolve_as_match(true, self.session)
+                    ty.resolve_as_field_match(self.session)
                         .and_then(match_to_field_ty)
                 });
             }

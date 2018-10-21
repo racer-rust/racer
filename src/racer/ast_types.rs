@@ -161,7 +161,7 @@ impl Ty {
             LitKind::Bool(_) => make_match(PrimKind::Bool),
         }
     }
-    pub(crate) fn resolve_as_match(self, field_only: bool, session: &Session) -> Option<Match> {
+    fn resolve_common(self, session: &Session) -> Option<Match> {
         match self {
             Ty::Match(m) => Some(m),
             Ty::PathSearch(paths) => {
@@ -181,11 +181,14 @@ impl Ty {
                     _ => None,
                 }
             }
-            Ty::RefPtr(ty, _) => ty.resolve_as_match(field_only, session),
-            Ty::Array(_, _) | Ty::Slice(_) if !field_only => {
-                primitive::PrimKind::Slice.to_module_match()
-            }
             _ => None,
+        }
+    }
+    pub(crate) fn resolve_as_field_match(self, session: &Session) -> Option<Match> {
+        match self {
+            Ty::RefPtr(ty, _) => ty.resolve_as_field_match(session),
+            Ty::Array(_, _) | Ty::Slice(_) => primitive::PrimKind::Slice.to_module_match(),
+            _ => self.resolve_common(session),
         }
     }
 }
