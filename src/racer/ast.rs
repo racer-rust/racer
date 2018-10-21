@@ -96,23 +96,29 @@ impl<'ast> visit::Visitor<'ast> for UseVisitor {
             };
             let mut contains_glob = false;
             match use_tree.kind {
-                UseTreeKind::Simple(_, _, _) => {
+                UseTreeKind::Simple(rename, _, _) => {
                     let ident = use_tree.ident().name.to_string();
+                    let rename_pos: Option<BytePos> =
+                        rename.map(|id| destruct_span(id.span).0.into());
                     let kind = if let Some(last_seg) = path.segments.last() {
                         //` self` is treated normaly in libsyntax,
                         //  but we distinguish it here to make completion easy
                         if last_seg.name == "self" {
                             PathAliasKind::Self_(ident)
                         } else {
-                            PathAliasKind::Ident(ident)
+                            PathAliasKind::Ident(ident, rename_pos)
                         }
                     } else {
-                        PathAliasKind::Ident(ident)
+                        PathAliasKind::Ident(ident, rename_pos)
                     };
                     if let PathAliasKind::Self_(_) = kind {
                         path.segments.pop();
                     }
-                    res.push(PathAlias { kind, path });
+                    res.push(PathAlias {
+                        kind,
+                        path,
+                        range: ByteRange::from(use_tree.span),
+                    });
                 }
                 UseTreeKind::Nested(ref nested) => {
                     nested.iter().for_each(|(ref tree, _)| {
@@ -125,6 +131,7 @@ impl<'ast> visit::Visitor<'ast> for UseVisitor {
                     res.push(PathAlias {
                         kind: PathAliasKind::Glob,
                         path,
+                        range: ByteRange::from(use_tree.span),
                     });
                     contains_glob = true;
                 }
@@ -492,7 +499,7 @@ pub(crate) fn find_type_match(
     .into_iter()
     .nth(0)
     .and_then(|m| match m.mtype {
-        MatchType::Type => get_type_of_typedef(&m, session),
+        MatchType::Type(ref resolved) => get_type_of_typedef(&m, session),
         _ => Some(m),
     })?;
     // TODO: 'Type' support

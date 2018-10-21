@@ -1,6 +1,6 @@
 //! type conversion between racer types and libsyntax types
 use super::ast::find_type_match;
-use core::{self, BytePos, Match, MatchType, Scope, SearchType, Session, SessionExt};
+use core::{self, BytePos, ByteRange, Match, MatchType, Scope, SearchType, Session, SessionExt};
 use matchers::ImportInfo;
 use nameres;
 use primitive;
@@ -27,11 +27,13 @@ pub struct PathAlias {
     pub kind: PathAliasKind,
     /// The path.
     pub path: Path,
+    /// range of item
+    pub range: ByteRange,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PathAliasKind {
-    Ident(String),
+    Ident(String, Option<BytePos>),
     Self_(String),
     Glob,
 }

@@ -42,7 +42,7 @@ pub enum MatchType {
     Enum(Box<GenericsArgs>),
     /// EnumVariant needs to have Enum type to complete methods
     EnumVariant(Option<Box<Match>>),
-    Type,
+    Type(Option<Box<Match>>),
     FnArg(Box<(Pat, Option<Ty>)>),
     Trait,
     Const,
@@ -86,6 +86,7 @@ impl fmt::Display for MatchType {
             MatchType::EnumVariant(_) => write!(f, "EnumVariant"),
             MatchType::TypeParameter(_) => write!(f, "TypeParameter"),
             MatchType::FnArg(_) => write!(f, "FnArg"),
+            MatchType::Type(_) => write!(f, "Type"),
             _ => fmt::Debug::fmt(self, f),
         }
     }
