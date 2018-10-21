@@ -5,11 +5,9 @@ extern crate serde;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
 use std::cell::RefCell;
-use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::error::Error;
 use std::fmt;
-use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::ptr;
 use std::str;
@@ -22,7 +20,7 @@ thread_local! {
     static STRING_CACHE: RefCell<HashSet<&'static str>> = Default::default();
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialOrd, Ord, Eq, Hash)]
 pub struct InternedString {
     inner: &'static str,
 }
@@ -32,8 +30,6 @@ impl PartialEq for InternedString {
         ptr::eq(self.as_str(), other.as_str())
     }
 }
-
-impl Eq for InternedString {}
 
 impl InternedString {
     pub fn new(st: &str) -> InternedString {
@@ -65,12 +61,6 @@ impl Deref for InternedString {
     }
 }
 
-impl Hash for InternedString {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        Hash::hash(&(self.inner as *const str), state)
-    }
-}
-
 impl fmt::Debug for InternedString {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Debug::fmt(self.as_str(), f)
@@ -80,18 +70,6 @@ impl fmt::Debug for InternedString {
 impl fmt::Display for InternedString {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(self.as_str(), f)
-    }
-}
-
-impl Ord for InternedString {
-    fn cmp(&self, other: &InternedString) -> Ordering {
-        self.as_str().cmp(other.as_str())
-    }
-}
-
-impl PartialOrd for InternedString {
-    fn partial_cmp(&self, other: &InternedString) -> Option<Ordering> {
-        Some(self.cmp(other))
     }
 }
 
