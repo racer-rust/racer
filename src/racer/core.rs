@@ -122,12 +122,12 @@ mod declare_namespace {
             const Func      = 0b0001000000000;
             // for use_extern_macros
             const Macro     = 0b0010000000000;
+            const Impl       = 0b001110000000;
             const PathChild = 0b0011110000000;
             const Path      = 0b0011111111111;
             const Primitive = 0b0100000000000;
             const StdMacro  = 0b1000000000000;
             const Global    = 0b1100000000000;
-            const Impl      = 0b0001111000000;
         }
     }
 }
@@ -316,6 +316,13 @@ impl Match {
         self.point == other.point
             && self.matchstr == other.matchstr
             && self.filepath == other.filepath
+    }
+    pub(crate) fn to_generics(&self) -> Option<&GenericsArgs> {
+        match &self.mtype {
+            MatchType::Struct(gen_arg) | MatchType::Enum(gen_arg) => Some(gen_arg.as_ref()),
+            MatchType::Method(gen_arg) => gen_arg.as_ref().map(AsRef::as_ref),
+            _ => None,
+        }
     }
     pub(crate) fn into_generics(self) -> Option<GenericsArgs> {
         match self.mtype {

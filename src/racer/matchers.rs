@@ -9,6 +9,7 @@ use core::{BytePos, ByteRange, Coordinate, Match, Session, SessionExt, Src};
 use fileres::{get_crate_file, get_module_file};
 use nameres::resolve_path;
 use std::path::Path;
+use std::rc::Rc;
 use std::{str, vec};
 use util::*;
 use {ast, scopes, typeinf};

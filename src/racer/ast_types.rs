@@ -382,11 +382,14 @@ impl Path {
             segment
                 .generics
                 .iter_mut()
-                .for_each(|generic| match generic {
+                .for_each(|generics| match generics {
                     Ty::PathSearch(ref mut ps) => {
-                        // TODO(kngwyu): 'resolved' case
-                        if let Some(ty) = gen.get_tbound_match(&ps.path.segments[0].name) {
-                            *generic = Ty::Match(ty);
+                        if let Some((_, param)) = gen.search_param_by_path(&ps.path) {
+                            if let Some(resolved) = param.resolved() {
+                                *generics = resolved.to_owned();
+                            } else {
+                                *generics = Ty::Match(param.clone().into_match());
+                            }
                         } else {
                             ps.path.replace_by_bounds(gen);
                         }
