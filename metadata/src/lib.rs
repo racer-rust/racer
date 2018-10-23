@@ -68,13 +68,13 @@ pub fn find_manifest(mut current: &Path) -> Option<PathBuf> {
     if current.is_dir() {
         let manifest = current.join(file);
         if manifest.exists() {
-            return Some(manifest.to_owned());
+            return Some(manifest);
         }
     }
     while let Some(parent) = current.parent() {
         let manifest = current.join(file);
         if manifest.exists() {
-            return Some(manifest.to_owned());
+            return Some(manifest);
         }
         current = parent;
     }
