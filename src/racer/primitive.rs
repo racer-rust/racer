@@ -168,7 +168,7 @@ impl PrimKind {
         Some(
             impls
                 .iter()
-                .map(|file| src_path.join(file).to_owned())
+                .map(|file| src_path.join(file))
                 .collect(),
         )
     }
