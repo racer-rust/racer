@@ -6,7 +6,7 @@ project adheres to [Semantic Versioning](http://semver.org/).
 
 # HEAD
 - Completion based on impl<T: Bound> #948
-- Fix for arugument completion #943
+- Fix for argument completion #943
 - Trait bound in where clause #937
 
 # 2.1.5
