@@ -6,6 +6,7 @@ use core;
 use core::{BytePos, Match, MatchType, Namespace, Scope, SearchType, Session, SessionExt, Src};
 use matchers;
 use nameres;
+use primitive::PrimKind;
 use scopes;
 use std::path::Path;
 use util::{self, txt_matches};
@@ -532,11 +533,62 @@ pub fn get_return_type_of_function(
 
 pub(crate) fn get_type_of_indexed_value(body: Ty, session: &Session) -> Option<Ty> {
     // TODO(kngwyu): slice support
-    match body {
+    match body.dereference() {
         Ty::Match(m) => nameres::get_index_output(&m, session),
         Ty::PathSearch(p) => p
             .resolve_as_match(session)
             .and_then(|m| nameres::get_index_output(&m, session)),
+        _ => None,
+    }
+}
+
+pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match> {
+    debug!("get_type_of_typedef match is {:?}", m);
+    let msrc = session.load_source_file(&m.filepath);
+    let blobstart = m.point - BytePos(5); // 5 == "type ".len()
+    let blob = msrc.get_src_from_start(blobstart);
+    let type_ = blob.iter_stmts().nth(0).and_then(|range| {
+        let range = range.shift(blobstart);
+        let blob = msrc[range.to_range()].to_owned();
+        debug!("get_type_of_typedef blob string {}", blob);
+        let scope = Scope::new(m.filepath.clone(), range.start);
+        ast::parse_type(blob, &scope).type_
+    })?;
+    match type_.dereference() {
+        Ty::Match(m) => Some(m),
+        Ty::Ptr(_, _) => PrimKind::Pointer.to_module_match(),
+        Ty::Array(_, _) => PrimKind::Array.to_module_match(),
+        Ty::Slice(_) => PrimKind::Slice.to_module_match(),
+        Ty::PathSearch(paths) => {
+            let src = session.load_source_file(&m.filepath);
+            let scope_start = scopes::scope_start(src.as_src(), m.point);
+            // Type of TypeDef cannot be inside the impl block so look outside
+            let outer_scope_start = scope_start
+                .0
+                .checked_sub(1)
+                .map(|sub| scopes::scope_start(src.as_src(), sub.into()))
+                .and_then(|s| {
+                    let blob = src.get_src_from_start(s);
+                    let blob = blob.trim_left();
+                    if blob.starts_with("impl") || util::trim_visibility(blob).starts_with("trait")
+                    {
+                        Some(s)
+                    } else {
+                        None
+                    }
+                });
+            nameres::resolve_path_with_primitive(
+                &paths.path,
+                &paths.filepath,
+                outer_scope_start.unwrap_or(scope_start),
+                core::SearchType::StartsWith,
+                core::Namespace::Type,
+                session,
+            )
+            .into_iter()
+            .filter(|m_| Some(m_.matchstr.as_ref()) == paths.path.name() && m_.point != m.point)
+            .next()
+        }
         _ => None,
     }
 }

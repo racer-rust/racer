@@ -254,7 +254,7 @@ fn search_generic_impl_scope_for_methods(
                     point: point + blob_range.start + start,
                     coords: None,
                     local: true,
-                    mtype: MatchType::Method(Rc::clone(impl_header)),
+                    mtype: MatchType::Method(Some(Box::new(impl_header.generics.clone()))),
                     contextstr: signature.to_owned(),
                     docs: find_doc(&scopesrc, blob_range.start + start),
                 };
@@ -1393,8 +1393,11 @@ pub fn resolve_path_with_primitive(
             return out;
         }
     }
-
-    for m in resolve_path(
+    let generics = match path.segments.last() {
+        Some(seg) => &seg.generics,
+        None => return out,
+    };
+    for mut m in resolve_path(
         path,
         filepath,
         pos,
@@ -1403,6 +1406,7 @@ pub fn resolve_path_with_primitive(
         session,
         &ImportInfo::default(),
     ) {
+        m.resolve_generics(generics);
         out.push(m);
         if search_type == ExactMatch {
             break;
@@ -1624,16 +1628,44 @@ fn get_enum_variants(
     out
 }
 
+fn search_impl_scope(
+    path: &PathSegment,
+    search_type: SearchType,
+    header: &ImplHeader,
+    session: &Session,
+    import_info: &ImportInfo,
+) -> Vec<Match> {
+    let src = session.load_source_file(header.file_path());
+    let search_str = &path.name;
+    let scope_src = src.as_src().shift_start(header.scope_start());
+    let mut out = Vec::new();
+    for blob_range in scope_src.iter_stmts() {
+        let match_cxt = MatchCxt {
+            filepath: header.file_path(),
+            search_str,
+            search_type,
+            is_local: header.is_local(),
+            range: blob_range.shift(header.scope_start()),
+        };
+        out.extend(run_matchers_on_blob(
+            src.as_src(),
+            &match_cxt,
+            Namespace::Impl,
+            session,
+            import_info,
+        ));
+    }
+    out
+}
+
 fn get_impled_items(
     search_path: &PathSegment,
-    namespace: Namespace,
     search_type: SearchType,
     context: &Match,
     session: &Session,
     import_info: &ImportInfo,
 ) -> Vec<Match> {
-    let mut out = Vec::new();
-
+    let mut out = get_enum_variants(search_path, search_type, context, session);
     for header in search_for_impls(
         context.point,
         &context.matchstr,
@@ -1641,17 +1673,10 @@ fn get_impled_items(
         context.local,
         session,
     ) {
-        let src = session.load_source_file(header.file_path());
-        let point = header.scope_start();
-        out.extend(search_scope(
-            point,
-            point,
-            src.as_src(),
+        out.extend(search_impl_scope(
             &search_path,
-            header.file_path(),
             search_type,
-            header.is_local(),
-            namespace,
+            &header,
             session,
             import_info,
         ));
@@ -1663,43 +1688,27 @@ fn get_impled_items(
             session,
         ) {
             debug!("found generic impl!! {:?}", timpl_header);
-            let src = session.load_source_file(timpl_header.file_path());
-            let point = timpl_header.scope_start();
-            out.extend(search_scope(
-                point,
-                point,
-                src.as_src(),
-                search_path,
-                timpl_header.file_path(),
+            out.extend(search_impl_scope(
+                &search_path,
                 search_type,
-                timpl_header.is_local(),
-                namespace,
+                &timpl_header,
                 session,
                 import_info,
             ));
         }
     }
+    if search_type != ExactMatch {
+        return out;
+    }
+    // for return type inference
+    if let Some(gen) = context.to_generics() {
+        for mut m in &mut out {
+            if m.mtype == MatchType::Function {
+                m.mtype = MatchType::Method(Some(Box::new(gen.to_owned())));
+            }
+        }
+    }
     out
-}
-
-fn get_path_items(
-    search_path: &PathSegment,
-    namespace: Namespace,
-    search_type: SearchType,
-    context: &Match,
-    session: &Session,
-    import_info: &ImportInfo,
-) -> Vec<Match> {
-    let mut vec = get_enum_variants(search_path, search_type, context, session);
-    vec.extend(get_impled_items(
-        search_path,
-        namespace,
-        search_type,
-        context,
-        session,
-        import_info,
-    ));
-    vec
 }
 
 pub fn resolve_path(
@@ -1822,9 +1831,8 @@ fn resolve_following_path(
                 import_info,
             )
         }
-        MatchType::Enum(_) | MatchType::Struct(_) => get_path_items(
+        MatchType::Enum(_) | MatchType::Struct(_) => get_impled_items(
             following_seg,
-            namespace,
             search_type,
             &followed_match,
             session,
@@ -1838,16 +1846,9 @@ fn resolve_following_path(
             session,
         )
         .collect(),
-        MatchType::Type(_) => {
-            if let Some(match_) = ast::get_type_of_typedef(&followed_match, session) {
-                get_path_items(
-                    following_seg,
-                    namespace,
-                    search_type,
-                    &match_,
-                    session,
-                    import_info,
-                )
+        MatchType::Type => {
+            if let Some(match_) = typeinf::get_type_of_typedef(&followed_match, session) {
+                get_impled_items(following_seg, search_type, &match_, session, import_info)
             } else {
                 // TODO: Should use STUB here
                 Vec::new()

@@ -382,11 +382,14 @@ impl Path {
             segment
                 .generics
                 .iter_mut()
-                .for_each(|generic| match generic {
+                .for_each(|generics| match generics {
                     Ty::PathSearch(ref mut ps) => {
-                        // TODO(kngwyu): 'resolved' case
-                        if let Some(ty) = gen.get_tbound_match(&ps.path.segments[0].name) {
-                            *generic = Ty::Match(ty);
+                        if let Some((_, param)) = gen.search_param_by_path(&ps.path) {
+                            if let Some(resolved) = param.resolved() {
+                                *generics = resolved.to_owned();
+                            } else {
+                                *generics = Ty::Match(param.clone().into_match());
+                            }
                         } else {
                             ps.path.replace_by_bounds(gen);
                         }
@@ -909,6 +912,7 @@ impl GenericsArgs {
         args.extend(GenericsArgs(closure_args));
         args
     }
+
     pub fn get_idents(&self) -> Vec<String> {
         self.0.iter().map(|g| g.name.clone()).collect()
     }
@@ -948,6 +952,11 @@ impl GenericsArgs {
     }
     pub(crate) fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+    pub(crate) fn apply_types(&mut self, other: &[Ty]) {
+        for (l, r) in self.0.iter_mut().zip(other.iter()) {
+            l.resolve(r.clone());
+        }
     }
 }
 
