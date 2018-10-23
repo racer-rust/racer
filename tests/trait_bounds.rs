@@ -195,3 +195,46 @@ fn completes_fn_bounds_for_struct_member() {
         ";
     assert_eq!(get_only_completion(src, None).matchstr, "clone_from");
 }
+
+#[test]
+fn completes_impl_trait_in_arg_position() {
+    let src = "
+    struct MyType;
+    trait Foo {
+        fn foo(&self);
+    }
+    impl Foo for MyType {
+        fn foo(&self) {
+            unimplemented!();
+        }
+    }
+
+    fn bar(b: impl Foo) {
+        b.~
+    }
+    ";
+    assert_eq!(get_only_completion(src, None).matchstr, "foo");
+}
+
+#[test]
+fn completes_impl_trait_in_fn_return_position() {
+    let src = "
+    struct MyType;
+    trait Foo {
+        fn foo(&self);
+    }
+    impl Foo for MyType {
+        fn foo(&self) {
+            unimplemented!();
+        }
+    }
+    fn bar() -> impl Foo {
+        MyType
+    }
+    fn main() {
+        let mytype = bar();
+        mytype.~
+    }
+    ";
+    assert_eq!(get_only_completion(src, None).matchstr, "foo");
+}
