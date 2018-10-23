@@ -130,7 +130,7 @@ impl Ty {
                 Ty::from_ast(&*ty.ty, scope).map(|rty| Ty::Ptr(Box::new(rty), ty.mutbl))
             }
             TyKind::Never => None,
-            TyKind::TraitObject(ref traits, _) => {
+            TyKind::TraitObject(ref traits, _) | TyKind::ImplTrait(_, ref traits) => {
                 Some(Ty::TraitObject(TraitBounds::from_generic_bounds(
                     &traits,
                     scope.filepath.clone(),
