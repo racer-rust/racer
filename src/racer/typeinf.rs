@@ -581,11 +581,12 @@ pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match>
                 &paths.path,
                 &paths.filepath,
                 outer_scope_start.unwrap_or(scope_start),
-                core::SearchType::ExactMatch,
+                core::SearchType::StartsWith,
                 core::Namespace::Type,
                 session,
             )
             .into_iter()
+            .filter(|m_| Some(m_.matchstr.as_ref()) == paths.path.name() && m_.point != m.point)
             .next()
         }
         _ => None,
