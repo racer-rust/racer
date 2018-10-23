@@ -79,6 +79,85 @@ pub fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bo
     }
 }
 
+pub fn find_closure(src: &str) -> Option<(ByteRange, ByteRange)> {
+    let (pipe_range, _) = closure_valid_arg_scope(src)?;
+    let mut chars = src.chars()
+                       .enumerate()
+                       .skip(pipe_range.end.0)
+                       .skip_while(|(_, c)| {
+                           c.is_whitespace()
+                       });
+    let (start, start_char) = chars.next().map(|(i, c)| (if c == '{' { i + 1 } else { i }, c))?;
+
+    let mut clevel = if start_char == '{' { 1 } else { 0 };
+    let mut plevel = 0;
+
+    let mut last = None;
+    for (i, current) in chars {
+        match current {
+            '{' => clevel += 1,
+            '(' => plevel += 1,
+            '}' => {
+                clevel -= 1;
+                if (clevel == 0 && start_char == '{') || (clevel == -1) {
+                    last = Some(i);
+                    break;
+                }
+            },
+            ';' => {
+                if start_char != '{' {
+                    last = Some(i);
+                    break;
+                }
+            },
+            ')' => {
+                plevel -= 1;
+                if plevel == 0 {
+                    last = Some(i + 1);
+                }
+                if plevel == -1 {
+                    last = Some(i + 1);
+                    break;
+                }
+            },
+            _ => {}
+        }
+    }
+    if let Some(last) = last {
+        Some((pipe_range, ByteRange::new(BytePos(start), BytePos(last))))
+    } else {
+        None
+    }
+}
+
+#[test]
+fn test_find_closure() {
+    let src = "|a, b, c| something()";
+    let src2 = "|a, b, c| { something() }";
+    let src3 = "let a = |a, b, c|something();";
+    let src4 = "let a = |a, b, c| something().second().third();";
+    let src5 = "| x: i32 | y.map(|z| z~)";
+    let src6 = "| x: i32 | Struct { x };";
+    let src7 = "y.map(| x: i32 | y.map(|z| z) )";
+    let src8 = "|z| z)";
+    let src9 = "let p = |z| something() + 5;";
+    let get_range = |a, b| ByteRange::new(BytePos(a as usize), BytePos(b as usize));
+    let find = |src: &str, a, off1: i32, b, off2: i32| {
+        get_range(src.find(a).unwrap() as i32 + off1, src.rfind(b).unwrap() as i32 + 1 + off2)
+    };
+    let get_pipe = |src| find(src, '|', 0, '|', 0);
+
+    assert_eq!(Some((get_pipe(src), find(src, 's', 0, ')', 0))), find_closure(src));
+    assert_eq!(Some((get_pipe(src2), find(src2, '{', 1, '}', -1))), find_closure(src2));
+    assert_eq!(Some((get_pipe(src3), find(src3, 's', 0, ')', 0))), find_closure(src3));
+    assert_eq!(Some((get_pipe(src4), find(src4, 's', 0, ')', 0))), find_closure(src4));
+    assert_eq!(Some((find(src5, '|', 0, 'y', -2), find(src5, 'y', 0, ')', 0))), find_closure(src5));
+    assert_eq!(Some((get_pipe(src6), find(src6, 'S', 0, ';', -1))), find_closure(src6));
+    assert_eq!(Some((find(src7, '|', 0, 'y', -2), find(src7, '2', 4, ')', 0))), find_closure(src7));
+    assert_eq!(Some((get_pipe(src8), find(src8, ' ', 1, ')', 0))), find_closure(src8));
+    assert_eq!(Some((get_pipe(src9), find(src9, 's', 0, '5', 0))), find_closure(src9));
+}
+
 /// Try to valid if the given scope contains a valid closure arg scope.
 pub fn closure_valid_arg_scope(scope_src: &str) -> Option<(ByteRange, &str)> {
     // Try to find the left and right pipe, if one or both are not present, this is not a valid

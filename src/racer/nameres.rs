@@ -13,7 +13,7 @@ use fileres::{get_crate_file, get_module_file, get_std_file};
 use matchers::{find_doc, ImportInfo, MatchCxt};
 use primitive;
 use util::{
-    self, calculate_str_hash, closure_valid_arg_scope, find_ident_end, get_rust_src_path,
+    self, calculate_str_hash, find_ident_end, get_rust_src_path,
     strip_words, symbol_matches, trim_visibility, txt_matches,
 };
 use {ast, core, matchers, scopes, typeinf};
@@ -647,7 +647,7 @@ fn search_scope_headers(
         }
         return out;
     } else if let Some(vec) =
-        search_closure_args(search_str, preblock, stmtstart, filepath, search_type)
+        search_closure_args(search_str, preblock, stmtstart, point - stmtstart, filepath, search_type)
     {
         return vec;
     }
@@ -1128,7 +1128,7 @@ pub fn search_scope(
         }
     }
 
-    if let Some(vec) = search_closure_args(search_str, &scopesrc[0..], start, filepath, search_type)
+    if let Some(vec) = search_closure_args(search_str, &scopesrc[0..], start, point - start, filepath, search_type)
     {
         for mat in vec {
             out.push(mat)
@@ -1147,6 +1147,7 @@ fn search_closure_args(
     search_str: &str,
     scope_src: &str,
     scope_src_pos: BytePos,
+    point: BytePos,
     filepath: &Path,
     search_type: SearchType,
 ) -> Option<Vec<Match>> {
@@ -1160,7 +1161,12 @@ fn search_closure_args(
         scope_src.len()
     );
 
-    if let Some((pipe_range, pipe_str)) = closure_valid_arg_scope(scope_src) {
+    if let Some((pipe_range, body_range)) = util::find_closure(scope_src) {
+        let pipe_str =  &scope_src[pipe_range.to_range()];
+        if point < pipe_range.start || point > body_range.end {
+            return None;
+        }
+
         debug!(
             "search_closure_args found valid closure arg scope: {}",
             pipe_str
