@@ -433,6 +433,7 @@ pub fn match_type(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Ma
     let blob = &msrc[context.range.to_range()];
     let (start, s) = context.get_key_ident(blob, "type", &[])?;
     debug!("found!! a type {}", s);
+    // parse type here
     let start = context.range.start + start;
     let doc_src = session.load_raw_src_ranged(&msrc, context.filepath);
     Some(Match {
@@ -441,7 +442,7 @@ pub fn match_type(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Ma
         point: start,
         coords: None,
         local: context.is_local,
-        mtype: Type(None),
+        mtype: Type,
         contextstr: first_line(blob),
         docs: find_doc(&doc_src, start),
     })

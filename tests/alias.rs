@@ -171,3 +171,35 @@ fn follows_use_aliased_self() {
     let got = get_definition(src, None);
     assert_eq!(got.matchstr, "new");
 }
+
+#[test]
+fn completes_for_alias_with_resolved_generics() {
+    let src = "
+    type Svec = Vec<String>;
+    fn main() {
+        let v = Svec::new();
+        v[0].capa~
+    }
+    ";
+    assert_eq!(get_only_completion(src, None).matchstr, "capacity");
+}
+
+#[test]
+fn completes_for_alias_with_type_param() {
+    let src = "
+    struct MyError;
+    impl MyError {
+        fn method(&self) {}
+    }
+    type Result<V> = Result<V, MyError>;
+    fn fail() -> Result<V> {
+       Err(MyError)
+    }
+    fn main() {
+        if let Err(e) = fail() {
+            e.meth~
+        }
+    }
+    ";
+    assert_eq!(get_only_completion(src, None).matchstr, "method");
+}

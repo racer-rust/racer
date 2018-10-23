@@ -32,7 +32,7 @@ pub enum MatchType {
     Module,
     MatchArm,
     Function,
-    Method(Rc<ImplHeader>),
+    Method(Option<Box<GenericsArgs>>),
     Crate,
     Let,
     IfLet(BytePos),
@@ -43,7 +43,7 @@ pub enum MatchType {
     /// EnumVariant needs to have Enum type to complete methods
     EnumVariant(Option<Box<Match>>),
     UseAlias(Box<Match>),
-    Type(Option<Box<Match>>),
+    Type,
     FnArg(Box<(Pat, Option<Ty>)>),
     Trait,
     Const,
@@ -87,7 +87,7 @@ impl fmt::Display for MatchType {
             MatchType::EnumVariant(_) => write!(f, "EnumVariant"),
             MatchType::TypeParameter(_) => write!(f, "TypeParameter"),
             MatchType::FnArg(_) => write!(f, "FnArg"),
-            MatchType::Type(_) => write!(f, "Type"),
+            MatchType::Type => write!(f, "Type"),
             MatchType::UseAlias(_) => write!(f, "UseAlias"),
             _ => fmt::Debug::fmt(self, f),
         }
@@ -127,6 +127,7 @@ mod declare_namespace {
             const Primitive = 0b0100000000000;
             const StdMacro  = 0b1000000000000;
             const Global    = 0b1100000000000;
+            const Impl      = 0b0001111000000;
         }
     }
 }
@@ -319,27 +320,35 @@ impl Match {
     pub(crate) fn into_generics(self) -> Option<GenericsArgs> {
         match self.mtype {
             MatchType::Struct(gen_arg) | MatchType::Enum(gen_arg) => Some(*gen_arg),
-            MatchType::Method(header) => Some(header.generics.clone()),
+            MatchType::Method(gen_arg) => gen_arg.map(|x| *x),
             _ => None,
         }
     }
     pub(crate) fn generics(&self) -> impl Iterator<Item = &TypeParameter> {
         let opt = match self.mtype {
-            MatchType::Struct(ref gen_arg) | MatchType::Enum(ref gen_arg) => Some(&**gen_arg),
-            MatchType::Method(ref header) => Some(header.generics()),
+            MatchType::Struct(ref gen_arg) | MatchType::Enum(ref gen_arg) => Some(gen_arg),
+            MatchType::Method(ref gen_arg) => gen_arg.as_ref(),
             _ => None,
         };
         opt.into_iter().flat_map(|gen_arg| gen_arg.args())
     }
     pub(crate) fn resolved_generics(&self) -> impl Iterator<Item = &Ty> {
         let opt = match self.mtype {
-            MatchType::Struct(ref gen_arg) | MatchType::Enum(ref gen_arg) => Some(&**gen_arg),
-            MatchType::Method(ref header) => Some(header.generics()),
+            MatchType::Struct(ref gen_arg) | MatchType::Enum(ref gen_arg) => Some(gen_arg),
+            MatchType::Method(ref gen_arg) => gen_arg.as_ref(),
             _ => None,
         };
         opt.into_iter()
             .flat_map(|gen_arg| gen_arg.args())
             .filter_map(|ty_param| ty_param.resolved.as_ref())
+    }
+    pub(crate) fn resolve_generics(&mut self, types: &[Ty]) {
+        match self.mtype {
+            MatchType::Struct(ref mut gen_arg) | MatchType::Enum(ref mut gen_arg) => {
+                gen_arg.apply_types(types);
+            }
+            _ => {}
+        };
     }
     // currently we can't resolve method's type parameter
     pub(crate) fn generics_mut(&mut self) -> impl Iterator<Item = &mut TypeParameter> {

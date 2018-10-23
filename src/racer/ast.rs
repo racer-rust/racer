@@ -2,8 +2,6 @@ use ast_types::Path as RacerPath;
 use ast_types::{self, GenericsArgs, ImplHeader, Pat, PathAlias, PathAliasKind, TraitBounds, Ty};
 use core::{self, BytePos, ByteRange, Match, MatchType, Scope, Session, SessionExt};
 use nameres;
-use primitive::PrimKind;
-use scopes;
 use typeinf;
 
 use std::path::Path;
@@ -499,7 +497,7 @@ pub(crate) fn find_type_match(
     .into_iter()
     .nth(0)
     .and_then(|m| match m.mtype {
-        MatchType::Type(ref resolved) => get_type_of_typedef(&m, session),
+        MatchType::Type => typeinf::get_type_of_typedef(&m, session),
         _ => Some(m),
     })?;
     // TODO: 'Type' support
@@ -508,64 +506,6 @@ pub(crate) fn find_type_match(
         param.resolve(typ.to_owned());
     }
     Some(res)
-}
-
-// TODO(kngwyu): Should return Option<Ty>
-pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match> {
-    debug!("get_type_of_typedef match is {:?}", m);
-    let msrc = session.load_source_file(&m.filepath);
-    let blobstart = m.point - BytePos(5); // 5 == "type ".len()
-    let blob = msrc.get_src_from_start(blobstart);
-    blob.iter_stmts()
-        .nth(0)
-        .and_then(|range| {
-            let blob = msrc[range.shift(blobstart).to_range()].to_owned();
-            debug!("get_type_of_typedef blob string {}", blob);
-            let scope = Scope::new(m.filepath.clone(), range.start);
-            let res = parse_type(blob, &scope);
-            debug!("get_type_of_typedef parsed type {:?}", res.type_);
-            res.type_
-        })
-        .and_then(|type_| {
-            let src = session.load_source_file(&m.filepath);
-            let scope_start = scopes::scope_start(src.as_src(), m.point);
-
-            // Type of TypeDef cannot be inside the impl block so look outside
-            let outer_scope_start = scope_start
-                .0
-                .checked_sub(1)
-                .map(|sub| scopes::scope_start(src.as_src(), sub.into()))
-                .and_then(|s| {
-                    let blob = src.get_src_from_start(s);
-                    let blob = blob.trim_left();
-                    if blob.starts_with("impl")
-                        || blob.starts_with("trait")
-                        || blob.starts_with("pub trait")
-                    {
-                        Some(s)
-                    } else {
-                        None
-                    }
-                });
-
-            match type_.dereference() {
-                Ty::Match(m) => Some(m),
-                Ty::PathSearch(paths) => nameres::resolve_path_with_primitive(
-                    &paths.path,
-                    &paths.filepath,
-                    outer_scope_start.unwrap_or(scope_start),
-                    core::SearchType::ExactMatch,
-                    core::Namespace::Type,
-                    session,
-                )
-                .into_iter()
-                .nth(0),
-                Ty::Ptr(_, _) => PrimKind::Pointer.to_module_match(),
-                Ty::Array(_, _) => PrimKind::Array.to_module_match(),
-                Ty::Slice(_) => PrimKind::Slice.to_module_match(),
-                _ => None,
-            }
-        })
 }
 
 struct ExprTypeVisitor<'c: 's, 's> {
@@ -962,7 +902,7 @@ pub struct TypeVisitor<'s> {
 
 impl<'ast, 's> visit::Visitor<'ast> for TypeVisitor<'s> {
     fn visit_item(&mut self, item: &ast::Item) {
-        if let ItemKind::Ty(ref ty, _) = item.node {
+        if let ItemKind::Ty(ref ty, ref gen) = item.node {
             self.name = Some(item.ident.name.to_string());
             self.type_ = Ty::from_ast(&ty, self.scope);
             debug!("typevisitor type is {:?}", self.type_);

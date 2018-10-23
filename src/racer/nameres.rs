@@ -254,7 +254,7 @@ fn search_generic_impl_scope_for_methods(
                     point: point + blob_range.start + start,
                     coords: None,
                     local: true,
-                    mtype: MatchType::Method(Rc::clone(impl_header)),
+                    mtype: MatchType::Method(Some(Box::new(impl_header.generics.clone()))),
                     contextstr: signature.to_owned(),
                     docs: find_doc(&scopesrc, blob_range.start + start),
                 };
@@ -1387,8 +1387,11 @@ pub fn resolve_path_with_primitive(
             return out;
         }
     }
-
-    for m in resolve_path(
+    let generics = match path.segments.last() {
+        Some(seg) => &seg.generics,
+        None => return out,
+    };
+    for mut m in resolve_path(
         path,
         filepath,
         pos,
@@ -1397,6 +1400,7 @@ pub fn resolve_path_with_primitive(
         session,
         &ImportInfo::default(),
     ) {
+        m.resolve_generics(generics);
         out.push(m);
         if search_type == ExactMatch {
             break;
@@ -1832,8 +1836,9 @@ fn resolve_following_path(
             session,
         )
         .collect(),
-        MatchType::Type(_) => {
-            if let Some(match_) = ast::get_type_of_typedef(&followed_match, session) {
+        MatchType::Type => {
+            if let Some(match_) = typeinf::get_type_of_typedef(&followed_match, session) {
+                println!("match_: {:?}", match_);
                 get_path_items(
                     following_seg,
                     namespace,

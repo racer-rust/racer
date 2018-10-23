@@ -909,6 +909,7 @@ impl GenericsArgs {
         args.extend(GenericsArgs(closure_args));
         args
     }
+
     pub fn get_idents(&self) -> Vec<String> {
         self.0.iter().map(|g| g.name.clone()).collect()
     }
@@ -948,6 +949,11 @@ impl GenericsArgs {
     }
     pub(crate) fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+    pub(crate) fn apply_types(&mut self, other: &[Ty]) {
+        for (l, r) in self.0.iter_mut().zip(other.iter()) {
+            l.resolve(r.clone());
+        }
     }
 }
 
