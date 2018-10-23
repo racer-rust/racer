@@ -2507,17 +2507,24 @@ pub(crate) fn get_associated_type_match(
 }
 
 /// Checks if trait_impl is the impl TraitName<OtherType>
-fn has_impl_for_other_type(trait_impl: &ImplHeader, trait_name: &str, other_type: &str) -> bool {
+fn has_impl_for_other_type(
+    trait_impl: &ImplHeader,
+    trait_name: &str,
+    other_type: Option<&str>,
+) -> bool {
     if let Some(ref path) = trait_impl.trait_path() {
         if path.name() == Some(trait_name) {
+            if other_type.is_none() && path.segments[0].generics.len() == 0 {
+                return true;
+            }
             if path.segments[0].generics.len() > 0 {
                 return match path.segments[0].generics[0] {
-                    Ty::PathSearch(ref generic) => Some(other_type) == generic.path.name(),
+                    Ty::PathSearch(ref generic) => other_type == generic.path.name(),
                     _ => false,
                 };
             }
             // default is self
-            return trait_impl.self_path().name() == Some(other_type);
+            return trait_impl.self_path().name() == other_type;
         }
     }
     false
@@ -2532,7 +2539,7 @@ fn has_impl_for_other_type(trait_impl: &ImplHeader, trait_name: &str, other_type
 pub(crate) fn resolve_binary_expr_type(
     base_type: &Match,
     node: BinOpKind,
-    other_type: &str,
+    other_type: Option<&str>,
     session: &Session,
 ) -> Option<Ty> {
     let trait_name = typeinf::get_operator_trait(node);
@@ -2551,6 +2558,12 @@ pub(crate) fn resolve_binary_expr_type(
     )
     .into_iter()
     .filter(|trait_impl| has_impl_for_other_type(trait_impl, trait_name, other_type))
-    .next()?;
-    get_associated_type_match(&matching_impl, "Output", &base_type, session)
+    .next();
+    if let Some(matching_impl) = matching_impl {
+        get_associated_type_match(&matching_impl, "Output", &base_type, session)
+            .or_else(|| Some(Ty::Match(base_type.clone())))
+    } else {
+        // default to base type if an impl can't be found
+        Some(Ty::Match(base_type.clone()))
+    }
 }

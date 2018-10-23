@@ -826,21 +826,14 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
 
                 self.visit_expr(right);
                 let right_expr_type = match self.result.take() {
-                    Some(Ty::Match(m)) => m.matchstr,
-                    Some(Ty::PathSearch(ps)) => match ps.resolve_as_match(self.session) {
-                        Some(m) => m.matchstr,
-                        _ => {
-                            return;
-                        }
-                    },
-                    _ => {
-                        return;
-                    }
+                    Some(Ty::Match(m)) => Some(m.matchstr),
+                    Some(Ty::PathSearch(ps)) => ps.resolve_as_match(self.session).map(|m| m.matchstr),
+                    _ => None,
                 };
                 self.result = nameres::resolve_binary_expr_type(
                     &type_match,
                     bin.node,
-                    &right_expr_type,
+                    right_expr_type.as_ref().map(|s| s.as_str()),
                     self.session,
                 );
             }
