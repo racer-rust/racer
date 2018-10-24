@@ -1,8 +1,8 @@
 extern crate lazycell;
 extern crate racer_cargo_metadata as metadata;
 use self::lazycell::LazyCell;
-use self::metadata::mapping::PackageMap;
-use project_model::ProjectModelProvider;
+use self::metadata::mapping::{Edition as Ed, PackageIdx, PackageMap};
+use project_model::{Edition, ProjectModelProvider};
 use std::path::{Path, PathBuf};
 
 struct MetadataCache {
@@ -35,17 +35,7 @@ impl MetadataCache {
             warn!("Error in initialize lazy cell");
         })
     }
-}
-
-impl ProjectModelProvider for MetadataCache {
-    fn discover_project_manifest(&self, path: &Path) -> Option<PathBuf> {
-        metadata::find_manifest(path)
-    }
-    fn resolve_dependency(&self, manifest: &Path, libname: &str) -> Option<PathBuf> {
-        debug!(
-            "MetadataCache::resolve_dependency manifest: {:?} libname: {}",
-            manifest, libname
-        );
+    fn setup(&self, manifest: &Path) -> Option<(&PackageMap, PackageIdx)> {
         if !self.pkg_map.filled() {
             self.fill(manifest).ok()?;
         }
@@ -56,6 +46,28 @@ impl ProjectModelProvider for MetadataCache {
         } else {
             pkg_map.get_idx(manifest)?
         };
+        Some((pkg_map, idx))
+    }
+}
+
+impl ProjectModelProvider for MetadataCache {
+    fn edition(&self, manifest: &Path) -> Option<Edition> {
+        let (pkg_map, idx) = self.setup(manifest)?;
+        let edition = pkg_map.get_edition(idx);
+        Some(match edition {
+            Ed::Ed2015 => Edition::Ed2015,
+            Ed::Ed2018 => Edition::Ed2018,
+        })
+    }
+    fn discover_project_manifest(&self, path: &Path) -> Option<PathBuf> {
+        metadata::find_manifest(path)
+    }
+    fn resolve_dependency(&self, manifest: &Path, libname: &str) -> Option<PathBuf> {
+        debug!(
+            "MetadataCache::resolve_dependency manifest: {:?} libname: {}",
+            manifest, libname
+        );
+        let (pkg_map, idx) = self.setup(manifest)?;
         pkg_map
             .get_src_path_from_libname(idx, libname)
             .or_else(|| {
