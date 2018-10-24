@@ -238,3 +238,37 @@ fn completes_impl_trait_in_fn_return_position() {
     ";
     assert_eq!(get_only_completion(src, None).matchstr, "foo");
 }
+
+#[test]
+fn completes_returned_impl_trait_in_othermod() {
+    let src = "
+     fn main() {
+         m::it().meth~
+     }
+mod empty {                                     }
+mod m {
+     pub trait Trait {
+         fn method(&self) {}
+     }
+     pub fn it() -> impl Trait {
+     }
+}
+    ";
+    assert_eq!(get_only_completion(src, None).matchstr, "method");
+}
+
+#[test]
+fn completes_arg_impl_trait_in_othermod() {
+    let src = "
+     fn f(t: impl m::Trait) {
+          t.me~
+     }
+mod empty {                                     }
+mod m {
+     pub trait Trait {
+         fn method(&self) {}
+     }
+}
+    ";
+    assert_eq!(get_only_completion(src, None).matchstr, "method");
+}

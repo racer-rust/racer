@@ -507,10 +507,13 @@ pub fn get_return_type_of_function(
     let src = session.load_source_file(&fnmatch.filepath);
     let point = scopes::expect_stmt_start(src.as_src(), fnmatch.point);
     let out = src[point.0..].find('{').and_then(|n| {
-        // wrap in "impl blah { }" so that methods get parsed correctly too
-        let decl = "impl blah {".to_string() + &src[point.0..point.0 + n + 1] + "}}";
+        // wrap in "impl b { }" so that methods get parsed correctly too
+        let decl = "impl b{".to_string() + &src[point.0..point.0 + n + 1] + "}}";
         debug!("get_return_type_of_function: passing in |{}|", decl);
-        ast::parse_fn_output(decl, Scope::from_match(fnmatch))
+        let mut scope = Scope::from_match(fnmatch);
+        // TODO(kngwyu): if point <= 5 scope is incorrect
+        scope.point = point.checked_sub("impl b{".len()).unwrap_or(BytePos::ZERO);
+        ast::parse_fn_output(decl, scope)
     });
     // Convert output arg of type Self to the correct type
     if let Some(Ty::PathSearch(ref paths)) = out {
