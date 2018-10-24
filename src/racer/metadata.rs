@@ -20,7 +20,7 @@ impl MetadataCache {
             .or_else(|e| {
                 if let metadata::ErrorKind::Subprocess(ref s) = e {
                     // HACK: if --frozen failed, try again without --frozen
-                    if s.contains("error: unable to get packages from source") {
+                    if s.contains("--frozen") {
                         info!("MetadataCache: try again without --frozen");
                         return metadata::run(manifest, false);
                     }
