@@ -134,7 +134,7 @@ impl Ty {
                 Some(Ty::TraitObject(TraitBounds::from_generic_bounds(
                     &traits,
                     scope.filepath.clone(),
-                    ty.span.lo().0 as i32,
+                    scope.point.0 as i32,
                 )))
             }
             TyKind::ImplicitSelf => Some(Ty::Self_(scope.clone())),

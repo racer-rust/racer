@@ -171,6 +171,9 @@ impl BytePos {
     pub fn decrement(&self) -> Self {
         BytePos(self.0 - 1)
     }
+    pub fn checked_sub(&self, sub: impl Into<Self>) -> Option<Self> {
+        self.0.checked_sub(sub.into().0).map(BytePos)
+    }
     pub fn try_decrement(&self) -> Option<Self> {
         self.0.checked_sub(1).map(BytePos)
     }
@@ -1060,7 +1063,6 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
             return Vec::new();
         }
     };
-
     let start = scopes::get_start_of_search_expr(src_text, pos);
     let expr = &src_text[start.0..pos.0];
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
