@@ -78,32 +78,6 @@ impl PrimKind {
             LitIntType::Unsuffixed => PrimKind::U32,
         }
     }
-    // Do not remove this method.
-    // See #963
-    fn is_int(self) -> bool {
-        match self {
-            PrimKind::I8
-            | PrimKind::I16
-            | PrimKind::I32
-            | PrimKind::I64
-            | PrimKind::I128
-            | PrimKind::Isize => true,
-            _ => false,
-        }
-    }
-    // Do not remove this method.
-    // See #963
-    fn is_uint(self) -> bool {
-        match self {
-            PrimKind::U8
-            | PrimKind::U16
-            | PrimKind::U32
-            | PrimKind::U64
-            | PrimKind::U128
-            | PrimKind::Usize => true,
-            _ => false,
-        }
-    }
     fn impl_files(self) -> Option<&'static [&'static str]> {
         match self {
             PrimKind::Bool => None,
@@ -165,12 +139,7 @@ impl PrimKind {
     pub(crate) fn get_impl_files(&self) -> Option<Vec<PathBuf>> {
         let src_path = RUST_SRC_PATH.as_ref()?;
         let impls = self.impl_files()?;
-        Some(
-            impls
-                .iter()
-                .map(|file| src_path.join(file))
-                .collect(),
-        )
+        Some(impls.iter().map(|file| src_path.join(file)).collect())
     }
     pub fn to_module_match(self) -> Option<Match> {
         let _impl_files = self.impl_files()?;

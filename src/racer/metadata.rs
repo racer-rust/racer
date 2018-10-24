@@ -50,7 +50,12 @@ impl ProjectModelProvider for MetadataCache {
             self.fill(manifest).ok()?;
         }
         let pkg_map: &PackageMap = self.pkg_map.borrow().unwrap();
-        let idx = pkg_map.get_idx(manifest)?;
+        let idx = if manifest.is_relative() {
+            let path = manifest.canonicalize().ok()?;
+            pkg_map.get_idx(&path)?
+        } else {
+            pkg_map.get_idx(manifest)?
+        };
         pkg_map
             .get_src_path_from_libname(idx, libname)
             .or_else(|| {

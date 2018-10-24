@@ -72,7 +72,7 @@ pub fn find_manifest(mut current: &Path) -> Option<PathBuf> {
         }
     }
     while let Some(parent) = current.parent() {
-        let manifest = current.join(file);
+        let manifest = parent.join(file);
         if manifest.exists() {
             return Some(manifest);
         }
