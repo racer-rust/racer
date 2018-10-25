@@ -177,3 +177,17 @@ fn completes_cratename_without_extern() {
         assert_eq!(got.matchstr, "scope");
     });
 }
+
+#[test]
+fn doesnt_complete_cratename_without_extern_in_2015() {
+    let src = "
+    fn main() {
+        rayon::sco~
+    }
+    ";
+    with_test_project(|dir| {
+        let src_dir = dir.nested_dir("test-crate3").nested_dir("src");
+        let got = get_all_completions(src, Some(src_dir));
+        assert!(got.is_empty());
+    });
+}
