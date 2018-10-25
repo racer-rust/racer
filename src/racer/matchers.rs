@@ -732,7 +732,7 @@ pub fn find_doc(msrc: &str, match_point: BytePos) -> String {
         .join("\n")
 }
 
-fn find_mod_doc(msrc: &str, blobstart: BytePos) -> String {
+pub(crate) fn find_mod_doc(msrc: &str, blobstart: BytePos) -> String {
     let blob = &msrc[blobstart.0..];
     let mut doc = String::new();
 

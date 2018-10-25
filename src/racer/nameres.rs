@@ -9,12 +9,12 @@ use ast_types::{ImplHeader, Path as RacerPath, PathPrefix, PathSegment, Ty};
 use core::Namespace;
 use core::SearchType::{self, ExactMatch, StartsWith};
 use core::{BytePos, ByteRange, Coordinate, Match, MatchType, Scope, Session, SessionExt, Src};
-use fileres::{get_crate_file, get_module_file, get_std_file};
+use fileres::{get_crate_file, get_module_file, get_std_file, search_crate_names};
 use matchers::{find_doc, ImportInfo, MatchCxt};
 use primitive;
 use util::{
-    self, calculate_str_hash, find_ident_end, get_rust_src_path,
-    strip_words, symbol_matches, trim_visibility, txt_matches,
+    self, calculate_str_hash, find_ident_end, get_rust_src_path, strip_words, symbol_matches,
+    trim_visibility, txt_matches,
 };
 use {ast, core, matchers, scopes, typeinf};
 
@@ -646,9 +646,14 @@ fn search_scope_headers(
             }
         }
         return out;
-    } else if let Some(vec) =
-        search_closure_args(search_str, preblock, stmtstart, point - stmtstart, filepath, search_type)
-    {
+    } else if let Some(vec) = search_closure_args(
+        search_str,
+        preblock,
+        stmtstart,
+        point - stmtstart,
+        filepath,
+        search_type,
+    ) {
         return vec;
     }
     Vec::new()
@@ -1128,8 +1133,14 @@ pub fn search_scope(
         }
     }
 
-    if let Some(vec) = search_closure_args(search_str, &scopesrc[0..], start, point - start, filepath, search_type)
-    {
+    if let Some(vec) = search_closure_args(
+        search_str,
+        &scopesrc[0..],
+        start,
+        point - start,
+        filepath,
+        search_type,
+    ) {
         for mat in vec {
             out.push(mat)
         }
@@ -1162,7 +1173,7 @@ fn search_closure_args(
     );
 
     if let Some((pipe_range, body_range)) = util::find_closure(scope_src) {
-        let pipe_str =  &scope_src[pipe_range.to_range()];
+        let pipe_str = &scope_src[pipe_range.to_range()];
         if point < pipe_range.start || point > body_range.end {
             return None;
         }
@@ -1464,10 +1475,8 @@ pub fn resolve_name(
             });
         }
 
-        if let ExactMatch = search_type {
-            if !out.is_empty() {
-                return out;
-            }
+        if is_exact_match && !out.is_empty() {
+            return out;
         }
     }
 
@@ -1482,7 +1491,7 @@ pub fn resolve_name(
         import_info,
     ) {
         out.push(m);
-        if let ExactMatch = search_type {
+        if is_exact_match {
             return out;
         }
     }
@@ -1496,7 +1505,20 @@ pub fn resolve_name(
         import_info,
     ) {
         out.push(m);
-        if let ExactMatch = search_type {
+        if is_exact_match {
+            return out;
+        }
+    }
+
+    if namespace.contains(Namespace::Crate) {
+        out.extend(search_crate_names(
+            searchstr,
+            search_type,
+            filepath,
+            true,
+            session,
+        ));
+        if is_exact_match && !out.is_empty() {
             return out;
         }
     }
@@ -1516,11 +1538,11 @@ pub fn resolve_name(
 
     for m in search_prelude_file(pathseg, search_type, namespace, session, import_info) {
         out.push(m);
-        if let ExactMatch = search_type {
+        if is_exact_match {
             return out;
         }
     }
-    // filesearch. Used to complete e.g. extern crate blah or mod foo
+    // filesearch. Used to complete e.g. mod foo
     if let StartsWith = search_type {
         for m in do_file_search(searchstr, filepath.parent().unwrap(), session) {
             out.push(m);
@@ -1807,7 +1829,7 @@ fn resolve_following_path(
     session: &Session,
 ) -> Vec<Match> {
     match followed_match.mtype {
-        MatchType::Module => {
+        MatchType::Module | MatchType::Crate => {
             let mut searchstr: &str = &following_seg.name;
             if let Some(i) = searchstr.rfind(',') {
                 searchstr = searchstr[i + 1..].trim();

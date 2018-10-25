@@ -81,13 +81,14 @@ pub fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bo
 
 pub fn find_closure(src: &str) -> Option<(ByteRange, ByteRange)> {
     let (pipe_range, _) = closure_valid_arg_scope(src)?;
-    let mut chars = src.chars()
-                       .enumerate()
-                       .skip(pipe_range.end.0)
-                       .skip_while(|(_, c)| {
-                           c.is_whitespace()
-                       });
-    let (start, start_char) = chars.next().map(|(i, c)| (if c == '{' { i + 1 } else { i }, c))?;
+    let mut chars = src
+        .chars()
+        .enumerate()
+        .skip(pipe_range.end.0)
+        .skip_while(|(_, c)| c.is_whitespace());
+    let (start, start_char) = chars
+        .next()
+        .map(|(i, c)| (if c == '{' { i + 1 } else { i }, c))?;
 
     let mut clevel = if start_char == '{' { 1 } else { 0 };
     let mut plevel = 0;
@@ -103,13 +104,13 @@ pub fn find_closure(src: &str) -> Option<(ByteRange, ByteRange)> {
                     last = Some(i);
                     break;
                 }
-            },
+            }
             ';' => {
                 if start_char != '{' {
                     last = Some(i);
                     break;
                 }
-            },
+            }
             ')' => {
                 plevel -= 1;
                 if plevel == 0 {
@@ -119,7 +120,7 @@ pub fn find_closure(src: &str) -> Option<(ByteRange, ByteRange)> {
                     last = Some(i + 1);
                     break;
                 }
-            },
+            }
             _ => {}
         }
     }
@@ -143,19 +144,49 @@ fn test_find_closure() {
     let src9 = "let p = |z| something() + 5;";
     let get_range = |a, b| ByteRange::new(BytePos(a as usize), BytePos(b as usize));
     let find = |src: &str, a, off1: i32, b, off2: i32| {
-        get_range(src.find(a).unwrap() as i32 + off1, src.rfind(b).unwrap() as i32 + 1 + off2)
+        get_range(
+            src.find(a).unwrap() as i32 + off1,
+            src.rfind(b).unwrap() as i32 + 1 + off2,
+        )
     };
     let get_pipe = |src| find(src, '|', 0, '|', 0);
 
-    assert_eq!(Some((get_pipe(src), find(src, 's', 0, ')', 0))), find_closure(src));
-    assert_eq!(Some((get_pipe(src2), find(src2, '{', 1, '}', -1))), find_closure(src2));
-    assert_eq!(Some((get_pipe(src3), find(src3, 's', 0, ')', 0))), find_closure(src3));
-    assert_eq!(Some((get_pipe(src4), find(src4, 's', 0, ')', 0))), find_closure(src4));
-    assert_eq!(Some((find(src5, '|', 0, 'y', -2), find(src5, 'y', 0, ')', 0))), find_closure(src5));
-    assert_eq!(Some((get_pipe(src6), find(src6, 'S', 0, ';', -1))), find_closure(src6));
-    assert_eq!(Some((find(src7, '|', 0, 'y', -2), find(src7, '2', 4, ')', 0))), find_closure(src7));
-    assert_eq!(Some((get_pipe(src8), find(src8, ' ', 1, ')', 0))), find_closure(src8));
-    assert_eq!(Some((get_pipe(src9), find(src9, 's', 0, '5', 0))), find_closure(src9));
+    assert_eq!(
+        Some((get_pipe(src), find(src, 's', 0, ')', 0))),
+        find_closure(src)
+    );
+    assert_eq!(
+        Some((get_pipe(src2), find(src2, '{', 1, '}', -1))),
+        find_closure(src2)
+    );
+    assert_eq!(
+        Some((get_pipe(src3), find(src3, 's', 0, ')', 0))),
+        find_closure(src3)
+    );
+    assert_eq!(
+        Some((get_pipe(src4), find(src4, 's', 0, ')', 0))),
+        find_closure(src4)
+    );
+    assert_eq!(
+        Some((find(src5, '|', 0, 'y', -2), find(src5, 'y', 0, ')', 0))),
+        find_closure(src5)
+    );
+    assert_eq!(
+        Some((get_pipe(src6), find(src6, 'S', 0, ';', -1))),
+        find_closure(src6)
+    );
+    assert_eq!(
+        Some((find(src7, '|', 0, 'y', -2), find(src7, '2', 4, ')', 0))),
+        find_closure(src7)
+    );
+    assert_eq!(
+        Some((get_pipe(src8), find(src8, ' ', 1, ')', 0))),
+        find_closure(src8)
+    );
+    assert_eq!(
+        Some((get_pipe(src9), find(src9, 's', 0, '5', 0))),
+        find_closure(src9)
+    );
 }
 
 /// Try to valid if the given scope contains a valid closure arg scope.
@@ -809,6 +840,16 @@ macro_rules! try_continue {
         match ::std::ops::Try::into_result($res) {
             Ok(o) => o,
             Err(_) => continue,
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! try_vec {
+    ($res: expr) => {
+        match ::std::ops::Try::into_result($res) {
+            Ok(o) => o,
+            Err(_) => return Vec::new(),
         }
     };
 }

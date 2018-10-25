@@ -1,0 +1,11 @@
+[package]
+name = "test-crate4"
+version = "0.1.0"
+authors = ["kngwyu <yuji.kngw.80s.revive@gmail.com>"]
+edition = "2018"
+description = "Test crate for 2018 edition path"
+workspace = ".."
+
+[dependencies]
+rayon = "1.0"
+test-crate2 = { path = "../test-crate2" }

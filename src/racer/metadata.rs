@@ -62,6 +62,22 @@ impl ProjectModelProvider for MetadataCache {
     fn discover_project_manifest(&self, path: &Path) -> Option<PathBuf> {
         metadata::find_manifest(path)
     }
+    fn search_dependencies(
+        &self,
+        manifest: &Path,
+        search_fn: Box<Fn(&str) -> bool>,
+    ) -> Vec<(String, PathBuf)> {
+        let (pkg_map, idx) = match self.setup(manifest) {
+            Some(x) => x,
+            None => return vec![],
+        };
+        pkg_map
+            .get_dependencies(idx)
+            .iter()
+            .filter(|(s, _)| search_fn(s))
+            .map(|(s, p)| (s.to_string(), p.to_path_buf()))
+            .collect()
+    }
     fn resolve_dependency(&self, manifest: &Path, libname: &str) -> Option<PathBuf> {
         debug!(
             "MetadataCache::resolve_dependency manifest: {:?} libname: {}",

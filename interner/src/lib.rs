@@ -1,6 +1,5 @@
 //! string interner
 //! same as cargo::core::interning.rs, but thread local and Deserializable
-
 extern crate serde;
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
@@ -55,7 +54,6 @@ impl InternedString {
 
 impl Deref for InternedString {
     type Target = str;
-
     fn deref(&self) -> &'static str {
         self.as_str()
     }
