@@ -2529,7 +2529,7 @@ pub(crate) fn get_struct_fields(
     stype: SearchType,
     session: &Session,
 ) -> Vec<Match> {
-    return resolve_path(
+    resolve_path(
         &path,
         filepath,
         complete_pos,
@@ -2550,7 +2550,8 @@ pub(crate) fn get_struct_fields(
                 let m = try_vec!(typeinf::get_type_of_typedef(&m, session));
                 search_struct_fields(search_str, &m, stype, session)
             }
+            MatchType::UseAlias(m) => search_struct_fields(search_str, &*m, stype, session),
             _ => Vec::new(),
         },
-    );
+    )
 }

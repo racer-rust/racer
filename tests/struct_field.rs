@@ -18,6 +18,40 @@ fn follows_struct_field_in_constructor() {
 }
 
 #[test]
+fn follows_struct_field_for_typedef() {
+    let src = "
+    pub struct UserData {
+        name: String,
+        id: usize,
+    }
+    type U = UserData;
+    fn main() {
+        U {
+            na~
+        }
+    }";
+    assert_eq!(get_only_completion(src, None).matchstr, "name");
+}
+
+#[test]
+fn follows_struct_field_for_use_as() {
+    let src = "
+    mod m {
+        pub struct UserData {
+            name: String,
+            id: usize,
+        }
+    }
+    fn main() {
+        use m::UserData as U;
+        U {
+            na~
+        }
+    }";
+    assert_eq!(get_only_completion(src, None).matchstr, "name");
+}
+
+#[test]
 fn follows_enum_variant_field_in_constructor() {
     let src = "
     enum UserData {
