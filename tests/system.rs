@@ -152,44 +152,6 @@ fn completes_pub_fn_locally_precached() {
 }
 
 #[test]
-fn completes_pub_fn_from_local_package() {
-    let src = "
-    extern crate fixtures;
-
-    use fixtures::foo;
-
-    fn main() {
-        let x = foo::~
-    }
-    ";
-
-    with_test_project(|dir| {
-        let srcdir = dir.nested_dir("src");
-        let got = get_one_completion(src, Some(srcdir));
-        assert_eq!("test", got.matchstr);
-    })
-}
-
-#[test]
-fn completes_pub_fn_from_local_submodule_package() {
-    let src = "
-    extern crate fixtures;
-
-    use fixtures::bar;
-
-    fn main() {
-        let x = bar::~
-    }
-    ";
-
-    with_test_project(|dir| {
-        let srcdir = dir.nested_dir("src");
-        let got = get_one_completion(src, Some(srcdir));
-        assert_eq!("bartest", got.matchstr);
-    })
-}
-
-#[test]
 fn completes_pub_const_fn_locally() {
     let src = "
     pub const fn apple() {
@@ -931,21 +893,6 @@ pub fn bar() {
 }
 
 #[test]
-fn follows_use_local_package() {
-    let src = "
-    extern crate fixtures;
-
-    use fixtures::~
-    ";
-
-    with_test_project(|dir| {
-        let srcdir = dir.nested_dir("src");
-        let got = get_all_completions(src, Some(srcdir));
-        assert!(got.into_iter().any(|ma| ma.matchstr == "foo"));
-    })
-}
-
-#[test]
 fn completes_struct_field_via_assignment() {
     let src = "
     struct Point {
@@ -1091,20 +1038,6 @@ fn finds_macro() {
 
     let got = get_definition(src, None);
     assert_eq!(got.matchstr, "my_macro!");
-}
-
-#[test]
-fn finds_extern_crate() {
-    let src = "
-    extern crate fixtures;
-    f~ixtures
-    ";
-
-    with_test_project(|dir| {
-        let srcdir = dir.nested_dir("src");
-        let got = get_definition(src, Some(srcdir));
-        assert_eq!(got.matchstr, "fixtures");
-    })
 }
 
 #[test]
@@ -3326,36 +3259,6 @@ fn completes_methods_after_raw_string() {
     );
 }
 
-// For issue 826
-#[test]
-fn find_crate_doc() {
-    let src = "
-    extern crate fixtures;
-    use fixtur~
-    ";
-    let doc_str = r#"This is a test project for racer.
-
-# Example:
-Basic Usage.
-
-```
-extern crate fixtures;
-use fixtures::foo;
-fn main {
-    println!("Racer")
-}
-```
-
-## Notes:
-- We should check racer can parse rust doc style comments
-- and some comments..."#;
-    with_test_project(|dir| {
-        let srcdir = dir.nested_dir("src");
-        let got = get_one_completion(src, Some(srcdir));
-        assert_eq!(doc_str, got.docs);
-    })
-}
-
 #[test]
 fn completes_methods_for_tuple_struct() {
     let src = r"
@@ -3414,21 +3317,6 @@ fn use_tree_complete_all() {
     let got = get_all_completions(src, None);
     assert!(got.iter().any(|ma| ma.matchstr == "ErrorKind1"));
     assert!(got.iter().any(|ma| ma.matchstr == "ErrorInfo"));
-}
-
-// test for re-export
-#[test]
-fn follows_use_for_reexport() {
-    let src = "
-    extern crate fixtures;
-
-    use fixtures::use~;
-    ";
-    with_test_project(|dir| {
-        let srcdir = dir.nested_dir("src");
-        let got = get_only_completion(src, Some(srcdir));
-        assert_eq!(got.matchstr, "useless_func");
-    })
 }
 
 // for issue 847
@@ -3623,23 +3511,6 @@ fn follows_use_crate() {
     assert_eq!(got.contextstr, "pub fn myfn()");
 }
 
-// regression test for #800
-#[test]
-fn completes_typedef_in_external_crate() {
-    let src = "
-    extern crate fixtures;
-
-    use fixtures::Usize~
-    ";
-
-    with_test_project(|dir| {
-        let srcdir = dir.nested_dir("src");
-        let got = get_only_completion(src, Some(srcdir));
-        assert_eq!(got.matchstr, "UsizeVec");
-        assert_eq!(got.contextstr, "pub type UsizeVec = Vec<usize>;");
-    })
-}
-
 #[test]
 fn completes_static_method_for_typedef() {
     let src = "
@@ -3820,38 +3691,6 @@ fn follows_multiline_use() {
     "#;
     let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "HashMap");
-}
-
-#[test]
-fn follows_external_re_export() {
-    let src = "
-    extern crate rayon;
-    fn main() {
-        rayon::sco~
-    }
-    ";
-    with_test_project(|dir| {
-        let src_dir = dir.nested_dir("test-crate3").nested_dir("src");
-        let got = get_only_completion(src, Some(src_dir));
-        assert_eq!(got.matchstr, "scope");
-    });
-}
-
-#[test]
-fn follows_rand_crate() {
-    let src = "
-    extern crate rand;
-    use rand::{Rng, thread_rng};
-    fn main() {
-        let mut rng: Box<Rng> = Box::new(thread_rng());
-        rng.gen_rang~
-    }
-    ";
-    with_test_project(|dir| {
-        let src_dir = dir.nested_dir("test-crate3").nested_dir("src");
-        let got = get_only_completion(src, Some(src_dir));
-        assert_eq!(got.matchstr, "gen_range");
-    });
 }
 
 #[test]

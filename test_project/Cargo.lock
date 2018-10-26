@@ -130,6 +130,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "test-crate4"
+version = "0.1.0"
+dependencies = [
+ "rayon 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "test-crate2 0.1.0",
+]
+
+[[package]]
 name = "test_fixtures"
 version = "0.1.0"
 dependencies = [

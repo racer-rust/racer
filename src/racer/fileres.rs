@@ -1,5 +1,7 @@
-use core::Session;
+use core::{BytePos, Coordinate, Match, MatchType, SearchType, Session, SessionExt};
+use matchers;
 use nameres::RUST_SRC_PATH;
+use project_model::Edition;
 use std::path::{Path, PathBuf};
 
 /// get crate file from current path & crate name
@@ -18,6 +20,55 @@ pub fn get_std_file(name: &str, session: &Session) -> Option<PathBuf> {
         }
     }
     return None;
+}
+
+/// 2018 style crate name resolution
+pub fn search_crate_names(
+    searchstr: &str,
+    search_type: SearchType,
+    file_path: &Path,
+    only_2018: bool,
+    session: &Session,
+) -> Vec<Match> {
+    let manifest_path = try_vec!(session.project_model.discover_project_manifest(file_path));
+    if only_2018 {
+        let edition = session
+            .project_model
+            .edition(&manifest_path)
+            .unwrap_or(Edition::Ed2015);
+        if edition == Edition::Ed2015 {
+            return Vec::new();
+        }
+    }
+    let hyphenated = searchstr.replace('_', "-");
+    let searchstr = searchstr.to_owned();
+    session
+        .project_model
+        .search_dependencies(
+            &manifest_path,
+            Box::new(move |libname| match search_type {
+                SearchType::ExactMatch => libname == hyphenated || libname == searchstr,
+                SearchType::StartsWith => {
+                    libname.starts_with(&hyphenated) || libname.starts_with(&searchstr)
+                }
+            }),
+        )
+        .into_iter()
+        .map(|(name, path)| {
+            let name = name.replace('-', "_");
+            let raw_src = session.load_raw_file(&path);
+            Match {
+                matchstr: name,
+                filepath: path,
+                point: BytePos::ZERO,
+                coords: Some(Coordinate::start()),
+                local: false,
+                mtype: MatchType::Crate,
+                contextstr: String::new(),
+                docs: matchers::find_mod_doc(&raw_src, BytePos::ZERO),
+            }
+        })
+        .collect()
 }
 
 /// get module file from current path & crate name

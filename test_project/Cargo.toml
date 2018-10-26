@@ -10,4 +10,4 @@ test_fixtures = { path = "./test_fixtures" }
 test-crate2 = { path = "./test-crate2"}
 
 [workspace]
-members = ["test-crate2", "test-crate3", "test_fixtures"]
+members = ["test-crate2", "test-crate3", "test_fixtures", "test-crate4"]
