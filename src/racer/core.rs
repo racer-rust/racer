@@ -1067,7 +1067,7 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
     let expr = &src_text[start.0..pos.0];
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
-    println!(
+    debug!(
         "{:?}: contextstr is |{}|, searchstr is |{}|",
         completetype, contextstr, searchstr
     );
