@@ -5,7 +5,7 @@ use racer_testutils::*;
 #[test]
 fn follows_struct_field_in_constructor() {
     let src = "
-    struct UserData {
+    pub struct UserData {
         name: String,
         id: usize,
     }
@@ -13,6 +13,19 @@ fn follows_struct_field_in_constructor() {
         UserData {
             na~  
         }
+    }";
+    assert_eq!(get_only_completion(src, None).matchstr, "name");
+}
+
+#[test]
+fn follows_enum_variant_field_in_constructor() {
+    let src = "
+    enum UserData {
+        Type1 { name: String, id: usize },
+        Type2,
+    }
+    fn main() {
+        UserData::Type1 { nam~ }
     }";
     assert_eq!(get_only_completion(src, None).matchstr, "name");
 }

@@ -115,6 +115,7 @@ mod declare_namespace {
             const Union     = 0b0000000010000;
             const Trait     = 0b0000000100000;
             const TypeDef   = 0b0000001000000;
+            const HasField  = 0b0000001011100;
             const Type      = 0b0000001111100;
             const PathParen = 0b0000001111111;
             const Const     = 0b0000010000000;
@@ -1098,27 +1099,13 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
             } else if let Some(str_path) = scopes::is_in_struct_ctor(src.as_src(), *stmtstart, pos)
             {
                 let path = scopes::expr_to_path(&src[str_path.to_range()]).0;
-                return nameres::resolve_path(
+                return nameres::get_struct_fields(
                     &path,
+                    searchstr,
                     filepath,
                     pos,
-                    SearchType::ExactMatch,
-                    Namespace::Struct,
+                    SearchType::StartsWith,
                     session,
-                    &ImportInfo::default(),
-                )
-                .into_iter()
-                .next()
-                .map_or_else(
-                    || Vec::new(),
-                    |m| {
-                        nameres::search_struct_fields(
-                            searchstr,
-                            &m,
-                            SearchType::StartsWith,
-                            session,
-                        )
-                    },
                 );
             } else {
                 scopes::expr_to_path(expr)
@@ -1299,22 +1286,16 @@ pub fn find_definition_(
             } else if let Some(str_path) = scopes::is_in_struct_ctor(src.as_src(), *stmtstart, pos)
             {
                 let path = scopes::expr_to_path(&src[str_path.to_range()]).0;
-                return nameres::resolve_path(
+                return nameres::get_struct_fields(
                     &path,
+                    searchstr,
                     filepath,
                     pos,
-                    SearchType::ExactMatch,
-                    Namespace::Struct,
+                    SearchType::StartsWith,
                     session,
-                    &ImportInfo::default(),
                 )
                 .into_iter()
-                .next()
-                .and_then(|m| {
-                    nameres::search_struct_fields(searchstr, &m, SearchType::ExactMatch, session)
-                        .into_iter()
-                        .next()
-                });
+                .next();
             } else {
                 scopes::expr_to_path(expr)
             };
