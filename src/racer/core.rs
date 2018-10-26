@@ -1,4 +1,4 @@
-use ast_types::{GenericsArgs, ImplHeader, Pat, Path, TraitBounds, Ty, TypeParameter};
+use ast_types::{GenericsArgs, ImplHeader, Pat, TraitBounds, Ty, TypeParameter};
 use codecleaner;
 use codeiter::StmtIndicesIter;
 use matchers::ImportInfo;
@@ -1067,7 +1067,7 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
     let expr = &src_text[start.0..pos.0];
     let (contextstr, searchstr, completetype) = scopes::split_into_context_and_completion(expr);
 
-    debug!(
+    println!(
         "{:?}: contextstr is |{}|, searchstr is |{}|",
         completetype, contextstr, searchstr
     );
@@ -1076,13 +1076,12 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
 
     match completetype {
         CompletionType::Path => {
-            let line = &scopes::get_current_line(src.as_src(), pos);
-            debug!("Complete path with line: {:?}", line);
+            let (stmtstart, stmt) = &scopes::get_current_stmt(src.as_src(), pos);
+            debug!("Complete path with stmt: {:?}", stmt);
             // when in the function ident position, only look for methods
             // from a trait to complete.
-            if util::in_fn_name(line) {
+            if util::in_fn_name(stmt) {
                 trace!("Path is in fn declaration: `{}`", expr);
-
                 return nameres::resolve_method(
                     pos,
                     src.as_src(),
@@ -1093,21 +1092,36 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
                     &ImportInfo::default(),
                 );
             }
-            let (path, namespace) = if let Some(use_start) = scopes::use_stmt_start(line) {
-                let path = scopes::construct_path_from_use_tree(&line[use_start.0..]);
+            let (path, namespace) = if let Some(use_start) = scopes::use_stmt_start(stmt) {
+                let path = scopes::construct_path_from_use_tree(&stmt[use_start.0..]);
                 (path, Namespace::Path)
+            } else if let Some(str_path) = scopes::is_in_struct_ctor(src.as_src(), *stmtstart, pos)
+            {
+                let path = scopes::expr_to_path(&src[str_path.to_range()]).0;
+                return nameres::resolve_path(
+                    &path,
+                    filepath,
+                    pos,
+                    SearchType::ExactMatch,
+                    Namespace::Struct,
+                    session,
+                    &ImportInfo::default(),
+                )
+                .into_iter()
+                .next()
+                .map_or_else(
+                    || Vec::new(),
+                    |m| {
+                        nameres::search_struct_fields(
+                            searchstr,
+                            &m,
+                            SearchType::StartsWith,
+                            session,
+                        )
+                    },
+                );
             } else {
-                let is_global = expr.starts_with("::");
-                let v: Vec<_> = (if is_global { &expr[2..] } else { expr })
-                    .split("::")
-                    .collect();
-                let path = Path::from_vec(is_global, v);
-                let namespace = if path.len() == 1 {
-                    Namespace::Global | Namespace::Path
-                } else {
-                    Namespace::Path
-                };
-                (path, namespace)
+                scopes::expr_to_path(expr)
             };
             debug!("path: {:?}, prefix: {:?}", path, path.prefix);
             out.extend(nameres::resolve_path(
@@ -1185,7 +1199,7 @@ where
         return false;
     }
 
-    let line = &scopes::get_current_line(src.as_src(), pos);
+    let line = &scopes::get_current_stmt(src.as_src(), pos).1;
     scopes::use_stmt_start(line).is_some()
 }
 
@@ -1278,22 +1292,31 @@ pub fn find_definition_(
 
     match completetype {
         CompletionType::Path => {
-            let line = &scopes::get_current_line(src.as_src(), range.end);
-            let (path, namespace) = if let Some(use_start) = scopes::use_stmt_start(line) {
-                let path = scopes::construct_path_from_use_tree(&line[use_start.0..]);
+            let (stmtstart, stmt) = &scopes::get_current_stmt(src.as_src(), range.end);
+            let (path, namespace) = if let Some(use_start) = scopes::use_stmt_start(stmt) {
+                let path = scopes::construct_path_from_use_tree(&stmt[use_start.0..]);
                 (path, Namespace::Path)
+            } else if let Some(str_path) = scopes::is_in_struct_ctor(src.as_src(), *stmtstart, pos)
+            {
+                let path = scopes::expr_to_path(&src[str_path.to_range()]).0;
+                return nameres::resolve_path(
+                    &path,
+                    filepath,
+                    pos,
+                    SearchType::ExactMatch,
+                    Namespace::Struct,
+                    session,
+                    &ImportInfo::default(),
+                )
+                .into_iter()
+                .next()
+                .and_then(|m| {
+                    nameres::search_struct_fields(searchstr, &m, SearchType::ExactMatch, session)
+                        .into_iter()
+                        .next()
+                });
             } else {
-                let is_global = expr.starts_with("::");
-                let v: Vec<_> = (if is_global { &expr[2..] } else { expr })
-                    .split("::")
-                    .collect();
-                let path = Path::from_vec(is_global, v);
-                let namespace = if path.len() == 1 {
-                    Namespace::Global | Namespace::Path
-                } else {
-                    Namespace::Path
-                };
-                (path, namespace)
+                scopes::expr_to_path(expr)
             };
             debug!("[find_definition_] Path: {:?}", path);
             nameres::resolve_path(

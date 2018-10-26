@@ -22,7 +22,7 @@ lazy_static! {
     pub static ref RUST_SRC_PATH: Option<PathBuf> = get_rust_src_path().ok();
 }
 
-fn search_struct_fields(
+pub(crate) fn search_struct_fields(
     searchstr: &str,
     structmatch: &Match,
     search_type: SearchType,
