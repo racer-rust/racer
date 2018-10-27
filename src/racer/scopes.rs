@@ -757,7 +757,7 @@ pub(crate) fn expr_to_path(expr: &str) -> (RacerPath, Namespace) {
 }
 
 pub(crate) fn is_in_struct_ctor(src: Src, stmt_start: BytePos, pos: BytePos) -> Option<ByteRange> {
-    const ALLOW_SYMBOL: [u8; 4] = [b'{', b'(', b'|', b';'];
+    const ALLOW_SYMBOL: [u8; 5] = [b'{', b'(', b'|', b';', b','];
     const ALLOW_KEYWORDS: [&'static str; 3] = ["let", "mut", "ref"];
     if stmt_start.0 <= 3 || src.as_bytes()[stmt_start.0 - 1] != b'{' || pos <= stmt_start {
         return None;
@@ -847,6 +847,19 @@ mod ctor_test {
             name: "ahkj".to_owned(), 
             i~d:
         }
+    }"#;
+        assert!(check(src).is_some())
+    }
+    #[test]
+    fn tuple() {
+        let src = r#"
+    fn main() {
+        let (a,
+            UserData {
+                name: "ahkj".to_owned(),
+                i~d:
+            }
+        ) = f();
     }"#;
         assert!(check(src).is_some())
     }
