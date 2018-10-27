@@ -22,12 +22,16 @@ lazy_static! {
     pub static ref RUST_SRC_PATH: Option<PathBuf> = get_rust_src_path().ok();
 }
 
-fn search_struct_fields(
+pub(crate) fn search_struct_fields(
     searchstr: &str,
     structmatch: &Match,
     search_type: SearchType,
     session: &Session,
 ) -> Vec<Match> {
+    match structmatch.mtype {
+        MatchType::Struct(_) | MatchType::EnumVariant(_) => {}
+        _ => return Vec::new(),
+    }
     let src = session.load_source_file(&structmatch.filepath);
     let mut out = Vec::new();
 
@@ -37,10 +41,11 @@ fn search_struct_fields(
     } else {
         return out;
     };
-    let structsrc = &src[struct_range.clone()];
-    let fields =
-        ast::parse_struct_fields(structsrc.to_owned(), core::Scope::from_match(structmatch));
-
+    let structsrc = match structmatch.mtype {
+        MatchType::EnumVariant(_) => "struct ".to_string() + &src[struct_range.clone()],
+        _ => src[struct_range.clone()].to_string(),
+    };
+    let fields = ast::parse_struct_fields(structsrc, core::Scope::from_match(structmatch));
     for (field, field_point, ty) in fields {
         if symbol_matches(search_type, searchstr, &field) {
             let contextstr = if let Some(t) = ty {
@@ -2514,4 +2519,39 @@ pub(crate) fn get_index_output(selfm: &Match, session: &Session) -> Option<Ty> {
             }
             _ => Some(item_ty),
         })
+}
+
+pub(crate) fn get_struct_fields(
+    path: &RacerPath,
+    search_str: &str,
+    filepath: &Path,
+    complete_pos: BytePos,
+    stype: SearchType,
+    session: &Session,
+) -> Vec<Match> {
+    resolve_path(
+        &path,
+        filepath,
+        complete_pos,
+        SearchType::ExactMatch,
+        Namespace::HasField,
+        session,
+        &ImportInfo::default(),
+    )
+    .into_iter()
+    .next()
+    .map_or_else(
+        || Vec::new(),
+        |m| match m.mtype {
+            MatchType::Struct(_) | MatchType::EnumVariant(_) => {
+                search_struct_fields(search_str, &m, stype, session)
+            }
+            MatchType::Type => {
+                let m = try_vec!(typeinf::get_type_of_typedef(&m, session));
+                search_struct_fields(search_str, &m, stype, session)
+            }
+            MatchType::UseAlias(m) => search_struct_fields(search_str, &*m, stype, session),
+            _ => Vec::new(),
+        },
+    )
 }

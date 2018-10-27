@@ -1,7 +1,7 @@
 use ast_types::Path as RacerPath;
 #[cfg(test)]
 use core::{self, Coordinate};
-use core::{BytePos, ByteRange, CompletionType, RangedRawSrc, Src};
+use core::{BytePos, ByteRange, CompletionType, Namespace, RangedRawSrc, Src};
 use {ast, typeinf, util};
 
 use std::iter::Iterator;
@@ -72,14 +72,6 @@ pub fn find_closure_scope_start(
 
 pub fn scope_start(src: Src, point: BytePos) -> BytePos {
     let src = src.change_length(point);
-    let ret_curly = |pos: BytePos| -> BytePos {
-        if pos > BytePos::ZERO && src[..pos.0].ends_with("::{") {
-            if let Some(pos) = src[..pos.0].rfind("use") {
-                return scope_start(src, pos.into());
-            }
-        }
-        pos
-    };
     let (mut clev, mut plev) = (0u32, 0u32);
     let mut iter = src[..].as_bytes().into_iter().enumerate().rev();
     for (pos, b) in &mut iter {
@@ -87,7 +79,7 @@ pub fn scope_start(src: Src, point: BytePos) -> BytePos {
             b'{' => {
                 // !!! found { earlier than (
                 if clev == 0 {
-                    return ret_curly(BytePos(pos).increment());
+                    return BytePos(pos).increment();
                 }
                 clev -= 1;
             }
@@ -110,12 +102,15 @@ pub fn scope_start(src: Src, point: BytePos) -> BytePos {
         }
     }
     // fallback: return curly_parent_open_pos
-    let pos = find_close_with_pos(iter, b'}', b'{', 0).unwrap_or(BytePos::ZERO);
-    ret_curly(pos)
+    find_close_with_pos(iter, b'}', b'{', 0).unwrap_or(BytePos::ZERO)
 }
 
 pub fn find_stmt_start(msrc: Src, point: BytePos) -> Option<BytePos> {
     let scope_start = scope_start(msrc, point);
+    find_stmt_start_given_scope(msrc, point, scope_start)
+}
+
+fn find_stmt_start_given_scope(msrc: Src, point: BytePos, scope_start: BytePos) -> Option<BytePos> {
     // Iterate the scope to find the start of the statement that surrounds the point.
     debug!(
         "[find_stmt_start] now we are in scope {:?} ~ {:?}",
@@ -281,16 +276,6 @@ pub fn split_into_context_and_completion(s: &str) -> (&str, &str, CompletionType
         },
         None => ("", s, CompletionType::Path),
     }
-}
-
-pub fn get_line(src: &str, point: BytePos) -> BytePos {
-    src.as_bytes()[..point.0]
-        .iter()
-        .enumerate()
-        .rev()
-        .find(|(_, byte)| **byte == b'\n')
-        .map(|t| t.0.into())
-        .unwrap_or(BytePos::ZERO)
 }
 
 /// search in reverse for the start of the current expression
@@ -736,21 +721,161 @@ fn test_construct_path_from_use_tree() {
     assert_eq!(get_path_idents("{Str1, module::Str2, Str3"), vec!["Str3"],);
 }
 
-/// get current line string parsed by ;
-pub(crate) fn get_current_line<'c>(src: Src<'c>, pos: BytePos) -> String {
-    // reparse the string, searchstr is not corrected parsed with split_into_context_and_completion
-    // it will stop by character like '{', and ' ', which occurs in the following case
-    // 1. The line is use contextstr::{A, B, C, searchstr
-    // 2. The line started with contextstr or ::
-    // 3. FIXME(may not correct): Neither above case, then expr parsed above is corrected
-    let linestart = find_stmt_start(src, pos).unwrap_or_else(|| get_line(&src[..], pos));
+/// get current statement for completion context
+pub(crate) fn get_current_stmt<'c>(src: Src<'c>, pos: BytePos) -> (BytePos, String) {
+    let mut scopestart = scope_start(src, pos);
+    // for use statement
+    while scopestart > BytePos::ZERO && src[..scopestart.0].ends_with("::{") {
+        if let Some(pos) = src[..pos.0].rfind("use") {
+            scopestart = scope_start(src, pos.into());
+        }
+    }
+    let linestart = find_stmt_start_given_scope(src, pos, scopestart).unwrap_or(scopestart);
+    (
+        linestart,
+        (&src[linestart.0..pos.0])
+            .trim()
+            .rsplit(';')
+            .next()
+            .unwrap()
+            .to_owned(),
+    )
+}
 
-    // step 1, get full line, take the rightmost part split by semicolon
-    //   prevent the case that someone write multiple line in one line
-    (&src[linestart.0..pos.0])
-        .trim()
-        .rsplit(';')
-        .nth(0)
-        .unwrap()
-        .to_owned()
+pub(crate) fn expr_to_path(expr: &str) -> (RacerPath, Namespace) {
+    let is_global = expr.starts_with("::");
+    let v: Vec<_> = (if is_global { &expr[2..] } else { expr })
+        .split("::")
+        .collect();
+    let path = RacerPath::from_vec(is_global, v);
+    let namespace = if path.len() == 1 {
+        Namespace::Global | Namespace::Path
+    } else {
+        Namespace::Path
+    };
+    (path, namespace)
+}
+
+pub(crate) fn is_in_struct_ctor(src: Src, stmt_start: BytePos, pos: BytePos) -> Option<ByteRange> {
+    const ALLOW_SYMBOL: [u8; 4] = [b'{', b'(', b'|', b';'];
+    const ALLOW_KEYWORDS: [&'static str; 3] = ["let", "mut", "ref"];
+    if stmt_start.0 <= 3 || src.as_bytes()[stmt_start.0 - 1] != b'{' || pos <= stmt_start {
+        return None;
+    }
+    {
+        for &b in src[stmt_start.0..pos.0].as_bytes().iter().rev() {
+            match b {
+                b',' => break,
+                b':' => return None,
+                _ => continue,
+            }
+        }
+    }
+    let src = &src[..stmt_start.0 - 1];
+    #[derive(Clone, Copy, Debug)]
+    enum State {
+        Initial,
+        Name(usize),
+        End,
+    }
+    let mut state = State::Initial;
+    let mut result = None;
+    let bytes = src.as_bytes();
+    for (i, b) in bytes.iter().enumerate().rev() {
+        match (state, *b) {
+            (State::Initial, b) if util::is_whitespace_byte(b) => continue,
+            (State::Initial, b) if util::is_ident_char(b.into()) => state = State::Name(i),
+            (State::Initial, _) => return None,
+            (State::Name(_), b) if b == b':' || util::is_ident_char(b.into()) => continue,
+            (State::Name(end), b) if util::is_whitespace_byte(b) => {
+                result = Some(ByteRange::new(i + 1, end + 1));
+                state = State::End;
+            }
+            (State::Name(end), b) if ALLOW_SYMBOL.contains(&b) => {
+                result = Some(ByteRange::new(i + 1, end + 1));
+                break;
+            }
+            (State::End, b) if util::is_ident_char(b.into()) => {
+                let bytes = &bytes[..=i];
+                if !ALLOW_KEYWORDS.iter().any(|s| bytes.ends_with(s.as_bytes())) {
+                    return None;
+                } else {
+                    break;
+                }
+            }
+            (State::End, b) if util::is_whitespace_byte(b) => continue,
+            (State::End, b) if ALLOW_SYMBOL.contains(&b) => break,
+            (_, _) => return None,
+        }
+    }
+    match state {
+        State::Initial => None,
+        State::Name(end) => Some(ByteRange::new(0, end + 1)),
+        State::End => result,
+    }
+}
+
+#[cfg(test)]
+mod ctor_test {
+    use super::{is_in_struct_ctor, scope_start};
+    use crate::core::{ByteRange, MaskedSource};
+    fn check(src: &str) -> Option<ByteRange> {
+        let source = MaskedSource::new(src);
+        let point = src.find("~").unwrap();
+        let scope_start = scope_start(source.as_src(), point.into());
+        is_in_struct_ctor(source.as_src(), scope_start, point.into())
+    }
+    #[test]
+    fn first_line() {
+        let src = "
+    struct UserData {
+        name: String,
+        id: usize,
+    }
+    fn main() {
+        UserData {
+            na~
+        }
+    }";
+        assert!(check(src).is_some())
+    }
+    #[test]
+    fn second_line() {
+        let src = r#"
+    fn main() {
+        UserData {
+            name: "ahkj".to_owned(), 
+            i~d:
+        }
+    }"#;
+        assert!(check(src).is_some())
+    }
+    #[test]
+    fn expr_pos() {
+        let src = r#"
+    fn main() {
+        UserData {
+            name: ~
+        }
+    }"#;
+        assert!(check(src).is_none())
+    }
+    #[test]
+    fn fnarg() {
+        let src = r#"
+        func(UserData {
+            name~
+        })
+    "#;
+        assert!(check(src).is_some())
+    }
+    #[test]
+    fn closure() {
+        let src = r#"
+        let f = || UserData {
+            name~
+        };
+    "#;
+        assert!(check(src).is_some())
+    }
 }
