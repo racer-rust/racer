@@ -295,11 +295,12 @@ pub fn match_extern_crate(msrc: Src, context: &MatchCxt, session: &Session) -> O
         context.search_type,
         &format!("extern crate {} as", context.search_str),
         blob,
-    )) || (blob.starts_with("extern crate") && txt_matches(
-        context.search_type,
-        &format!("as {}", context.search_str),
-        blob,
-    )) {
+    )) || (blob.starts_with("extern crate")
+        && txt_matches(
+            context.search_type,
+            &format!("as {}", context.search_str),
+            blob,
+        )) {
         debug!("found an extern crate: |{}|", blob);
 
         let extern_crate = ast::parse_extern_crate(blob.to_owned());

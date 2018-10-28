@@ -14,11 +14,9 @@ fn full() {
     assert!(meta.resolve.is_some());
     let pkg_map = PackageMap::from_metadata(meta);
     let regex = pkg_map.ids().find(|id| id.name() == "regex").unwrap();
-    assert!(
-        pkg_map
-            .get_src_path_from_libname(pkg_map.id_to_idx(regex).unwrap(), "memchr")
-            .is_some()
-    );
+    assert!(pkg_map
+        .get_src_path_from_libname(pkg_map.id_to_idx(regex).unwrap(), "memchr")
+        .is_some());
 }
 
 #[test]

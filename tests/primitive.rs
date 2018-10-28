@@ -60,10 +60,9 @@ fn completes_tuple_field() {
     }
     ";
     let got = get_all_completions(src, None);
-    assert!(
-        got.into_iter()
-            .all(|ma| ma.matchstr == "0" || ma.matchstr == "1")
-    )
+    assert!(got
+        .into_iter()
+        .all(|ma| ma.matchstr == "0" || ma.matchstr == "1"))
 }
 
 #[test]

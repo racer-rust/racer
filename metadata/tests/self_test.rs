@@ -17,14 +17,10 @@ fn get_self_metadata() {
         .join("Cargo.toml");
     let racer = pkg_map.get_idx(&racer_manifest).unwrap();
     assert!(pkg_map.get_id(racer).name() == "racer");
-    assert!(
-        pkg_map
-            .get_src_path_from_libname(racer, "lazy_static")
-            .is_some()
-    );
-    assert!(
-        pkg_map
-            .get_src_path_from_libname(racer, "im-not-a-crate")
-            .is_none()
-    );
+    assert!(pkg_map
+        .get_src_path_from_libname(racer, "lazy_static")
+        .is_some());
+    assert!(pkg_map
+        .get_src_path_from_libname(racer, "im-not-a-crate")
+        .is_none());
 }

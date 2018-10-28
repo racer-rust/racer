@@ -622,11 +622,9 @@ fn follows_use_self() {
     ";
 
     let completions = get_all_completions(src, None);
-    assert!(
-        completions
-            .into_iter()
-            .any(|m| m.matchstr == "use_self_test")
-    );
+    assert!(completions
+        .into_iter()
+        .any(|m| m.matchstr == "use_self_test"));
 
     let src = "
     use use_self_test::self;
@@ -638,11 +636,9 @@ fn follows_use_self() {
     ";
 
     let completions = get_all_completions(src, None);
-    assert!(
-        completions
-            .into_iter()
-            .any(|m| m.matchstr == "use_self_test")
-    );
+    assert!(completions
+        .into_iter()
+        .any(|m| m.matchstr == "use_self_test"));
 }
 
 /// This test addresses https://github.com/racer-rust/racer/issues/645 by
@@ -3252,11 +3248,9 @@ fn completes_methods_after_raw_string() {
         v.l~
     }
     "##;
-    assert!(
-        get_all_completions(src, None)
-            .iter()
-            .any(|ma| ma.matchstr == "len")
-    );
+    assert!(get_all_completions(src, None)
+        .iter()
+        .any(|ma| ma.matchstr == "len"));
 }
 
 #[test]
@@ -3268,11 +3262,9 @@ fn completes_methods_for_tuple_struct() {
             a.1.appen~
         }
     ";
-    assert!(
-        get_all_completions(src, None)
-            .into_iter()
-            .any(|ma| ma.matchstr == "append")
-    );
+    assert!(get_all_completions(src, None)
+        .into_iter()
+        .any(|ma| ma.matchstr == "append"));
 }
 
 // for use_nested_groups
@@ -3358,11 +3350,9 @@ fn completes_methods_for_closure_arg() {
             let x = s.map(|v: Vec<i32>| v.appen~);
         }
     ";
-    assert!(
-        get_all_completions(src, None)
-            .into_iter()
-            .any(|ma| ma.matchstr == "append")
-    );
+    assert!(get_all_completions(src, None)
+        .into_iter()
+        .any(|ma| ma.matchstr == "append"));
     let src = r"
         fn main() {
             let mut v = Vec::new();
@@ -3373,11 +3363,9 @@ fn completes_methods_for_closure_arg() {
             });
         }
     ";
-    assert!(
-        get_all_completions(src, None)
-            .into_iter()
-            .any(|ma| ma.matchstr == "append")
-    );
+    assert!(get_all_completions(src, None)
+        .into_iter()
+        .any(|ma| ma.matchstr == "append"));
 }
 
 // for #856

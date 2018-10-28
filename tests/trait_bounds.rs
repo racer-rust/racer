@@ -58,11 +58,9 @@ fn completes_external_methods_for_fnarg_by_trait_bounds() {
             }
         }
         ";
-    assert!(
-        get_all_completions(src, None)
-            .into_iter()
-            .any(|ma| ma.matchstr == "clone")
-    );
+    assert!(get_all_completions(src, None)
+        .into_iter()
+        .any(|ma| ma.matchstr == "clone"));
 }
 
 #[test]

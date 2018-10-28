@@ -58,8 +58,10 @@ impl<'a> Iterator for StmtIndicesIter<'a> {
                 b'{' => {
                     // if we are top level and stmt is not a 'use' or 'let' then
                     // closebrace finishes the stmt
-                    if bracelevel == 0 && parenlevel == 0 && !(is_a_use_stmt(src_bytes, start, pos)
-                        || is_a_let_stmt(src_bytes, start, pos))
+                    if bracelevel == 0
+                        && parenlevel == 0
+                        && !(is_a_use_stmt(src_bytes, start, pos)
+                            || is_a_let_stmt(src_bytes, start, pos))
                     {
                         enddelim = b'}';
                     }
