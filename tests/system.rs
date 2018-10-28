@@ -3807,3 +3807,52 @@ fn import_stmt_doesnt_jump_to_closure_arg() {
 
     assert!(find_definition(src, None).is_none());
 }
+
+#[test]
+fn test_resolve_global_path() {
+    let src = r#"
+pub fn name() {
+}
+
+fn main() {
+    let name = 1;
+    let _ = ::nam~e();
+}
+"#;
+
+    let (pos, src) = get_pos_and_source(src);
+    let cache = racer::FileCache::default();
+    let file = Path::new("src/lib.rs");
+    let session = racer::Session::new(&cache);
+    session.cache_file_contents(&file, src);
+    let got = racer::find_definition(&file, racer::Location::from(pos), &session);
+    assert!(got.is_some());
+    let got = got.unwrap();
+    assert_eq!(got.matchstr, "name");
+    assert_eq!(got.mtype, MatchType::Function);
+}
+
+#[test]
+fn test_resolve_global_path_in_modules() {
+    let src = r#"
+    fn foo() {
+        let a = ::na~me();
+    }
+"#;
+    let lib = r#"
+    use mod1;
+    pub(crate) fn name() {}
+"#;
+    let (pos, src) = get_pos_and_source(src);
+    let cache = racer::FileCache::default();
+    let file = Path::new("src/lib.rs");
+    let session = racer::Session::new(&cache);
+    session.cache_file_contents(&file, lib);
+    let file2 = Path::new("src/mod1.rs");
+    session.cache_file_contents(&file2, src);
+    let got = racer::find_definition(&file2, racer::Location::from(pos.0), &session);
+    assert!(got.is_some());
+    let got = got.unwrap();
+    assert_eq!(got.matchstr, "name");
+    assert_eq!(got.mtype, MatchType::Function);
+}
