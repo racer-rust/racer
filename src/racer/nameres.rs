@@ -1008,8 +1008,9 @@ pub fn search_scope(
         if (start + blob_range.end) >= point {
             continue;
         }
-        let match_cxt = get_match_cxt(blob_range.shift(start));
-        for m in matchers::match_let(&src, &match_cxt) {
+        let range = blob_range.shift(start);
+        let match_cxt = get_match_cxt(range);
+        for m in matchers::match_let(&src, range.start, &match_cxt) {
             out.push(m);
             if let ExactMatch = search_type {
                 return out;
@@ -1788,7 +1789,7 @@ pub fn resolve_path(
         )
     } else if len != 0 {
         let mut parent_path = path.clone();
-        parent_path.segments.pop();
+        let last_seg = parent_path.segments.pop().unwrap();
         let context = resolve_path(
             &parent_path,
             filepath,
@@ -1800,10 +1801,14 @@ pub fn resolve_path(
         )
         .into_iter()
         .nth(0);
+        debug!(
+            "[resolve_path] context: {:?}, last_seg: {:?}",
+            context, last_seg
+        );
         if let Some(followed_match) = context {
             resolve_following_path(
                 followed_match,
-                &path.segments[len - 1],
+                &last_seg,
                 namespace,
                 search_type,
                 import_info,

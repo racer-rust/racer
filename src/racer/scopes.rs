@@ -228,14 +228,10 @@ pub fn find_impl_start(msrc: Src, point: BytePos, scopestart: BytePos) -> Option
         .find(|range| range.end > len)
         .and_then(|range| {
             let blob = msrc.shift_start(scopestart + range.start);
-            // TODO:: the following is a bit weak at matching traits. make this better
-            if blob.starts_with("impl")
-                || blob.starts_with("trait")
-                || blob.starts_with("pub trait")
-            {
+            if blob.starts_with("impl") || util::trim_visibility(&blob[..]).starts_with("trait") {
                 Some(scopestart + range.start)
             } else {
-                let newstart = blob.find('{').expect("[find_impl_start] { was not found.") + 1;
+                let newstart = blob.find('{')? + 1;
                 find_impl_start(msrc, point, scopestart + range.start + newstart.into())
             }
         })

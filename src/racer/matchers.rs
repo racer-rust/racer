@@ -233,8 +233,8 @@ pub fn match_while_let(msrc: &str, start: BytePos, context: &MatchCxt) -> Vec<Ma
     match_pattern_let(msrc, context, "while let ", WhileLet(start))
 }
 
-pub fn match_let(msrc: &str, context: &MatchCxt) -> Vec<Match> {
-    match_pattern_let(msrc, context, "let ", Let)
+pub fn match_let(msrc: &str, start: BytePos, context: &MatchCxt) -> Vec<Match> {
+    match_pattern_let(msrc, context, "let ", Let(start))
 }
 
 pub fn match_for(msrc: &str, for_start: BytePos, context: &MatchCxt) -> Vec<Match> {

@@ -175,24 +175,25 @@ fn get_type_of_fnarg(m: Match, session: &Session) -> Option<Ty> {
     resolve_lvalue_ty(pat, ty, &matchstr, &filepath, point, session)
 }
 
-fn get_type_of_let_expr(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
-    // ASSUMPTION: this is being called on a let decl
-    let point = scopes::find_let_start(msrc, m.point).expect("`let` should have a beginning");
-    let src = msrc.shift_start(point);
-
-    if let Some(range) = src.iter_stmts().next() {
-        let blob = &src[range.to_range()];
-        debug!("get_type_of_let_expr calling parse_let |{}|", blob);
-
-        let pos = m.point - point - range.start;
-        let scope = Scope {
-            filepath: m.filepath.clone(),
-            point,
-        };
-        ast::get_let_type(blob.to_owned(), pos, scope, session)
-    } else {
-        None
-    }
+fn get_type_of_let_expr(m: Match, session: &Session) -> Option<Ty> {
+    let Match {
+        mtype,
+        contextstr,
+        filepath,
+        point,
+        ..
+    } = m;
+    let let_start = match mtype {
+        MatchType::Let(s) => s,
+        _ => return None,
+    };
+    debug!("get_type_of_let_expr calling parse_let |{}|", contextstr);
+    let pos = point - let_start;
+    let scope = Scope {
+        filepath,
+        point: let_start,
+    };
+    ast::get_let_type(contextstr, pos, scope, session)
 }
 
 /// Decide l_value's type given r_value and ident query
@@ -423,7 +424,7 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<Ty> {
     debug!("get_type_of match {:?} ", m);
 
     match m.mtype {
-        core::MatchType::Let => get_type_of_let_expr(&m, msrc, session),
+        core::MatchType::Let(_) => get_type_of_let_expr(m, session),
         core::MatchType::IfLet(start) | core::MatchType::WhileLet(start) => {
             get_type_of_if_let(&m, session, start)
         }

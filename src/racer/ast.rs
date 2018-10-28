@@ -348,61 +348,22 @@ fn destructure_pattern_to_ty(
 struct LetTypeVisitor<'c: 's, 's> {
     scope: Scope,
     session: &'s Session<'c>,
-    srctxt: String,
     pos: BytePos, // pos is relative to the srctxt, scope is global
     result: Option<Ty>,
 }
 
 impl<'c, 's, 'ast> visit::Visitor<'ast> for LetTypeVisitor<'c, 's> {
-    fn visit_expr(&mut self, ex: &ast::Expr) {
-        match ex.node {
-            ExprKind::IfLet(ref pattern, ref expr, _, _)
-            | ExprKind::WhileLet(ref pattern, ref expr, _, _) => {
-                let mut v = ExprTypeVisitor::new(self.scope.clone(), self.session);
-                v.visit_expr(expr);
-                // TODO: too ugly
-                self.result = v
-                    .result
-                    .and_then(|ty| {
-                        pattern
-                            .iter()
-                            .filter_map(|pat| {
-                                destructure_pattern_to_ty(
-                                    pat,
-                                    self.pos,
-                                    &ty,
-                                    &self.scope,
-                                    self.session,
-                                )
-                            })
-                            .nth(0)
-                    })
-                    .and_then(|ty| path_to_match(ty, self.session));
-            }
-            _ => visit::walk_expr(self, ex),
-        }
-    }
-
     fn visit_local(&mut self, local: &ast::Local) {
-        let mut ty = None;
-        if let Some(ref local_ty) = local.ty {
-            ty = Ty::from_ast(local_ty, &self.scope);
-        }
-
-        if ty.is_none() {
-            // oh, no type in the let expr. Try evalling the RHS
-            ty = local.init.as_ref().and_then(|initexpr| {
-                debug!("init node is {:?}", initexpr.node);
+        let ty = match &local.ty {
+            Some(annon) => Ty::from_ast(&*annon, &self.scope),
+            None => local.init.as_ref().and_then(|initexpr| {
+                debug!("[LetTypeVisitor] initexpr is {:?}", initexpr.node);
                 let mut v = ExprTypeVisitor::new(self.scope.clone(), self.session);
                 v.visit_expr(initexpr);
                 v.result
-            });
-        }
-
-        debug!(
-            "LetTypeVisitor: ty is {:?}. pos is {:?}, src is |{}|",
-            ty, self.pos, self.srctxt
-        );
+            }),
+        };
+        debug!("[LetTypeVisitor] ty is {:?}. pos is {:?}", ty, self.pos);
         self.result = ty
             .and_then(|ty| {
                 destructure_pattern_to_ty(&local.pat, self.pos, &ty, &self.scope, self.session)
@@ -1209,7 +1170,6 @@ pub fn get_let_type(s: String, pos: BytePos, scope: Scope, session: &Session) ->
     let mut v = LetTypeVisitor {
         scope,
         session,
-        srctxt: s.clone(),
         pos,
         result: None,
     };
