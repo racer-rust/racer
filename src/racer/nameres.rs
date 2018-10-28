@@ -1,5 +1,4 @@
 //! Name resolving
-
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -767,7 +766,7 @@ fn test_do_file_search_std() {
 fn test_do_file_search_local() {
     let cache = core::FileCache::default();
     let session = Session::new(&cache);
-    let mut matches = do_file_search("submodule", &Path::new("fixtures/arst/src"), &session);
+    let matches = do_file_search("submodule", &Path::new("fixtures/arst/src"), &session);
     assert!(matches
         .into_iter()
         .any(|m| m.filepath.ends_with("fixtures/arst/src/submodule/mod.rs")));
@@ -935,7 +934,6 @@ pub fn search_next_scope(
         // is a scope inside the file. Point should point to the definition
         // (e.g. mod blah {...}), so the actual scope is past the first open brace.
         let src = &filesrc[startpoint.0..];
-        //debug!("search_next_scope src1 |{}|",src);
         // find the opening brace and skip to it.
         if let Some(n) = src.find('{') {
             startpoint += BytePos(n + 1);
@@ -943,7 +941,7 @@ pub fn search_next_scope(
     }
     search_scope(
         startpoint,
-        startpoint,
+        None,
         filesrc.as_src(),
         pathseg,
         filepath,
@@ -957,7 +955,7 @@ pub fn search_next_scope(
 
 pub fn search_scope(
     start: BytePos,
-    point: BytePos,
+    complete_point: Option<BytePos>,
     src: Src,
     pathseg: &PathSegment,
     filepath: &Path,
@@ -974,7 +972,7 @@ pub fn search_scope(
         "searching scope {:?} start: {:?} point: {:?} '{}' {:?} {:?} local: {}, session: {:?}",
         namespace,
         start,
-        point,
+        complete_point,
         search_str,
         filepath.display(),
         search_type,
@@ -988,14 +986,6 @@ pub fn search_scope(
     let mut codeit = scopesrc.iter_stmts();
     let mut v = Vec::new();
 
-    // collect up to point so we can search backwards for let bindings
-    //  (these take precidence over local fn declarations etc..
-    for blob_range in &mut codeit {
-        v.push(blob_range);
-        if blob_range.start > point {
-            break;
-        }
-    }
     let get_match_cxt = |range| MatchCxt {
         filepath,
         search_str,
@@ -1003,29 +993,35 @@ pub fn search_scope(
         is_local,
         range,
     };
-    // search backwards from point for let bindings
-    for &blob_range in v.iter().rev() {
-        if (start + blob_range.end) >= point {
-            continue;
+    if let Some(point) = complete_point {
+        // collect up to point so we can search backwards for let bindings
+        //  (these take precidence over local fn declarations etc..
+        for blob_range in &mut codeit {
+            v.push(blob_range);
+            if blob_range.start > point {
+                break;
+            }
         }
-        let range = blob_range.shift(start);
-        let match_cxt = get_match_cxt(range);
-        for m in matchers::match_let(&src, range.start, &match_cxt) {
-            out.push(m);
-            if let ExactMatch = search_type {
-                return out;
+        // search backwards from point for let bindings
+        for &blob_range in v.iter().rev() {
+            if (start + blob_range.end) >= point {
+                continue;
+            }
+            let range = blob_range.shift(start);
+            let match_cxt = get_match_cxt(range);
+            for m in matchers::match_let(&src, range.start, &match_cxt) {
+                out.push(m);
+                if let ExactMatch = search_type {
+                    return out;
+                }
             }
         }
     }
-
     // since we didn't find a `let` binding, now search from top of scope for items etc..
     let mut codeit = v.into_iter().chain(codeit);
     for blob_range in &mut codeit {
         let blob = &scopesrc[blob_range.to_range()];
-
-        let is_an_import = blob.starts_with("use") || blob.starts_with("pub use");
-
-        if is_an_import {
+        if util::trim_visibility(blob).starts_with("use") {
             // A `use` item can import a value
             // with the same name as a "type" (type/module/etc.) in the same scope.
             // However, that type might appear after the `use`,
@@ -1045,7 +1041,6 @@ pub fn search_scope(
             } else {
                 delayed_single_imports.push(blob_range);
             }
-
             continue;
         }
 
@@ -1080,7 +1075,7 @@ pub fn search_scope(
                 let start = blob_range.start + BytePos(block_start + 8);
                 out.extend(search_scope(
                     start,
-                    start,
+                    None,
                     src,
                     pathseg,
                     filepath,
@@ -1135,23 +1130,23 @@ pub fn search_scope(
         }
     }
 
-    if let Some(vec) = search_closure_args(
-        search_str,
-        &scopesrc[0..],
-        start,
-        point - start,
-        filepath,
-        search_type,
-    ) {
-        for mat in vec {
-            out.push(mat)
-        }
-
-        if let ExactMatch = search_type {
-            return out;
+    if let Some(point) = complete_point {
+        if let Some(vec) = search_closure_args(
+            search_str,
+            &scopesrc[0..],
+            start,
+            point - start,
+            filepath,
+            search_type,
+        ) {
+            for mat in vec {
+                out.push(mat);
+                if let ExactMatch = search_type {
+                    return out;
+                }
+            }
         }
     }
-
     debug!("search_scope found matches {:?} {:?}", search_type, out);
     out
 }
@@ -1298,7 +1293,7 @@ fn search_local_scopes(
         // search the whole file
         search_scope(
             BytePos::ZERO,
-            BytePos::ZERO,
+            None,
             msrc,
             pathseg,
             filepath,
@@ -1316,7 +1311,7 @@ fn search_local_scopes(
             start = scopes::scope_start(msrc, start);
             for m in search_scope(
                 start,
-                point,
+                Some(point),
                 msrc,
                 pathseg,
                 filepath,
@@ -1370,7 +1365,7 @@ pub fn search_prelude_file(
             let is_local = true;
             for m in search_scope(
                 BytePos::ZERO,
-                BytePos::ZERO,
+                None,
                 msrc.as_src(),
                 pathseg,
                 &filepath,

@@ -71,7 +71,12 @@ impl<'s, 'p> MatchCxt<'s, 'p> {
     }
 }
 
-fn find_keyword(src: &str, pattern: &str, ignore: &[&str], context: &MatchCxt) -> Option<BytePos> {
+pub(crate) fn find_keyword(
+    src: &str,
+    pattern: &str,
+    ignore: &[&str],
+    context: &MatchCxt,
+) -> Option<BytePos> {
     find_keyword_impl(
         src,
         pattern,
