@@ -865,7 +865,12 @@ pub fn search_crate_root(
 ) -> Vec<Match> {
     debug!("search_crate_root |{:?}| {:?}", pathseg, modfpath.display());
 
-    let crateroots = find_possible_crate_root_modules(modfpath.parent().unwrap(), session);
+    let mut crateroots = find_possible_crate_root_modules(modfpath.parent().unwrap(), session);
+    // for cases when file is not part of a project
+    if crateroots.is_empty() {
+        crateroots.push(modfpath.to_path_buf());
+    }
+
     let mut out = Vec::new();
     for crateroot in crateroots {
         // when searching paths with global prefix, we don't
