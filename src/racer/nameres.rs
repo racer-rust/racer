@@ -861,13 +861,16 @@ pub fn search_crate_root(
     namespace: Namespace,
     session: &Session,
     import_info: &ImportInfo,
+    skip: bool,
 ) -> Vec<Match> {
     debug!("search_crate_root |{:?}| {:?}", pathseg, modfpath.display());
 
     let crateroots = find_possible_crate_root_modules(modfpath.parent().unwrap(), session);
     let mut out = Vec::new();
     for crateroot in crateroots {
-        if *modfpath == *crateroot {
+        // when searching paths with global prefix, we don't
+        // want to skip checking the current file, but in other cases, we do
+        if *modfpath == *crateroot && skip {
             continue;
         }
         debug!(
@@ -1498,6 +1501,7 @@ pub fn resolve_name(
         namespace,
         session,
         import_info,
+        true,
     ) {
         out.push(m);
         if is_exact_match {
@@ -1768,6 +1772,16 @@ pub fn resolve_path(
                     return Vec::new();
                 }
             }
+            PathPrefix::Global => {
+                return resolve_global_path(
+                    path,
+                    filepath,
+                    search_type,
+                    namespace,
+                    session,
+                    import_info,
+                );
+            }
             _ => {}
         }
     }
@@ -1815,6 +1829,54 @@ pub fn resolve_path(
     } else {
         // TODO: Should this better be an assertion ? Why do we have a core::Path
         // with empty segments in the first place ?
+        Vec::new()
+    }
+}
+
+/// resolve paths like ::path::to::file
+fn resolve_global_path(
+    path: &RacerPath,
+    filepath: &Path,
+    search_type: SearchType,
+    namespace: Namespace,
+    session: &Session,
+    import_info: &ImportInfo,
+) -> Vec<Match> {
+    if path.segments.len() < 1 {
+        return Vec::new();
+    }
+    let context = search_crate_root(
+        &path.segments[0],
+        filepath,
+        SearchType::ExactMatch,
+        namespace,
+        session,
+        import_info,
+        false,
+    )
+    .into_iter()
+    .nth(0);
+    if let Some(context) = context {
+        if path.segments.len() == 1 {
+            let mut v = Vec::new();
+            v.push(context);
+            return v;
+        }
+        let mut new_path = path.clone();
+        new_path.prefix = None;
+        match context.mtype {
+            MatchType::Module => resolve_path(
+                &new_path,
+                &context.filepath,
+                BytePos::ZERO,
+                search_type,
+                namespace,
+                session,
+                import_info,
+            ),
+            _ => Vec::new(),
+        }
+    } else {
         Vec::new()
     }
 }
