@@ -191,3 +191,15 @@ fn doesnt_complete_cratename_without_extern_in_2015() {
         assert!(got.is_empty());
     });
 }
+
+#[test]
+fn complete_extern_crate() {
+    let src = "
+    extern crate ray~
+    ";
+    with_test_project(|dir| {
+        let src_dir = dir.nested_dir("test-crate3").nested_dir("src");
+        let got = get_only_completion(src, Some(src_dir));
+        assert_eq!(got.matchstr, "rayon");
+    });
+}
