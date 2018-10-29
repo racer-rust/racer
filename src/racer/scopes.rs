@@ -626,9 +626,26 @@ pub(crate) fn use_stmt_start(line_str: &str) -> Option<BytePos> {
     strip_word(&line_str[use_start.0..], "use").map(|b| b + use_start)
 }
 
+pub(crate) fn is_extern_crate(line_str: &str) -> bool {
+    let extern_start = strip_visibility(line_str).unwrap_or(BytePos::ZERO);
+    if let Some(crate_start) = strip_word(&line_str[extern_start.0..], "extern") {
+        let crate_str = &line_str[(extern_start + crate_start).0..];
+        crate_str.starts_with("crate ")
+    } else {
+        false
+    }
+}
+
 #[test]
 fn test_use_stmt_start() {
     assert_eq!(use_stmt_start("pub(crate)   use   some::").unwrap().0, 19);
+}
+
+#[test]
+fn test_is_extern_crate() {
+    assert!(is_extern_crate("extern crate "));
+    assert!(is_extern_crate("pub extern crate abc"));
+    assert!(!is_extern_crate("pub extern crat"));
 }
 
 #[inline(always)]

@@ -18,6 +18,7 @@ use std::{path, str};
 use syntax::source_map;
 
 use ast;
+use fileres;
 use nameres;
 use primitive::PrimKind;
 use scopes;
@@ -1097,6 +1098,14 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
             let (path, namespace) = if let Some(use_start) = scopes::use_stmt_start(stmt) {
                 let path = scopes::construct_path_from_use_tree(&stmt[use_start.0..]);
                 (path, Namespace::Path)
+            } else if scopes::is_extern_crate(stmt) {
+                return fileres::search_crate_names(
+                    searchstr,
+                    SearchType::StartsWith,
+                    filepath,
+                    false,
+                    session,
+                );
             } else if let Some(str_path) = scopes::is_in_struct_ctor(src.as_src(), *stmtstart, pos)
             {
                 let path = scopes::expr_to_path(&src[str_path.to_range()]).0;
