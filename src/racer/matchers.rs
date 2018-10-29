@@ -456,7 +456,7 @@ pub fn match_type(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Ma
 
 pub fn match_trait(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Match> {
     let blob = &msrc[context.range.to_range()];
-    let (start, s) = context.get_key_ident(blob, "trait", &[])?;
+    let (start, s) = context.get_key_ident(blob, "trait", &["unsafe"])?;
     debug!("found!! a trait {}", s);
     let start = context.range.start + start;
     let doc_src = session.load_raw_src_ranged(&msrc, context.filepath);
@@ -686,6 +686,23 @@ pub fn match_fn(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Matc
     if typeinf::first_param_is_self(blob) {
         return None;
     }
+    match_fn_common(blob, msrc, context, session)
+}
+
+pub fn match_method(
+    msrc: Src,
+    context: &MatchCxt,
+    include_assoc_fn: bool,
+    session: &Session,
+) -> Option<Match> {
+    let blob = &msrc[context.range.to_range()];
+    if !include_assoc_fn && !typeinf::first_param_is_self(blob) {
+        return None;
+    }
+    match_fn_common(blob, msrc, context, session)
+}
+
+fn match_fn_common(blob: &str, msrc: Src, context: &MatchCxt, session: &Session) -> Option<Match> {
     let (start, s) = context.get_key_ident(blob, "fn", &["const", "unsafe"])?;
     let start = context.range.start + start;
     let doc_src = session.load_raw_src_ranged(&msrc, context.filepath);

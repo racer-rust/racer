@@ -44,6 +44,7 @@ pub enum MatchType {
     /// EnumVariant needs to have Enum type to complete methods
     EnumVariant(Option<Box<Match>>),
     UseAlias(Box<Match>),
+    AssocType,
     Type,
     FnArg(Box<(Pat, Option<Ty>)>),
     Trait,

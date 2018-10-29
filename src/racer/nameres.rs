@@ -68,31 +68,6 @@ pub(crate) fn search_struct_fields(
     out
 }
 
-fn collect_trait_methods(
-    trait_match: &Match,
-    search_type: SearchType,
-    query: &str,
-    includes_assoc_fn: bool,
-    session: &Session,
-) -> impl Iterator<Item = Match> {
-    let src = session.load_source_file(&trait_match.filepath);
-    src[trait_match.point.0..]
-        .find('{')
-        .map(|n| {
-            let point = trait_match.point.increment() + n.into();
-            search_scope_for_methods(
-                point,
-                src.as_src(),
-                query,
-                &trait_match.filepath,
-                includes_assoc_fn,
-                search_type,
-            )
-        })
-        .into_iter()
-        .flatten()
-}
-
 pub fn search_for_impl_methods(
     match_request: &Match,
     fieldsearchstr: &str,
@@ -123,7 +98,9 @@ pub fn search_for_impl_methods(
             fieldsearchstr,
             header.file_path(),
             false,
+            false,
             search_type,
+            session,
         ) {
             found_methods.insert(calculate_str_hash(&m.matchstr));
             out.push(m);
@@ -149,7 +126,8 @@ pub fn search_for_impl_methods(
             continue;
         }
         let trait_match = try_continue!(header.resolve_trait(session, &ImportInfo::default()));
-        for m in collect_trait_methods(&trait_match, search_type, fieldsearchstr, false, session) {
+        for m in search_for_trait_methods(trait_match.clone(), fieldsearchstr, search_type, session)
+        {
             if !found_methods.contains(&calculate_str_hash(&m.matchstr)) {
                 out.push(m);
             }
@@ -182,7 +160,9 @@ fn search_scope_for_methods(
     searchstr: &str,
     filepath: &Path,
     includes_assoc_fn: bool,
+    includes_assoc_ty: bool,
     search_type: SearchType,
+    session: &Session,
 ) -> Vec<Match> {
     debug!(
         "searching scope for methods {:?} |{}| {:?}",
@@ -190,35 +170,32 @@ fn search_scope_for_methods(
         searchstr,
         filepath.display()
     );
-
     let scopesrc = src.shift_start(point);
     let mut out = Vec::new();
     for blob_range in scopesrc.iter_stmts() {
-        let blob = &scopesrc[blob_range.to_range()];
-        if let Some(n) = blob.find(|c| c == '{' || c == ';') {
-            let signature = blob[..n].trim_right();
-
-            if txt_matches(search_type, &format!("fn {}", searchstr), signature)
-                && (includes_assoc_fn || typeinf::first_param_is_self(blob))
-            {
-                debug!("found a method starting |{}| |{}|", searchstr, blob);
-                // TODO: parse this properly, or, txt_matches should return match pos?
-                let start = BytePos::from(blob.find(&format!("fn {}", searchstr)).unwrap() + 3);
-                let end = find_ident_end(blob, start);
-                let l = &blob[start.0..end.0];
-                // TODO: make a better context string for functions
-                let m = Match {
-                    matchstr: l.to_owned(),
-                    filepath: filepath.to_path_buf(),
-                    point: point + blob_range.start + start,
-                    coords: None,
-                    local: true,
-                    mtype: MatchType::Function,
-                    contextstr: signature.to_owned(),
-                    docs: find_doc(&scopesrc, blob_range.start + start),
-                };
-                out.push(m);
+        let matchcxt = MatchCxt {
+            filepath,
+            range: blob_range.shift(point),
+            search_str: searchstr,
+            search_type,
+            is_local: true,
+        };
+        let method = matchers::match_method(src, &matchcxt, includes_assoc_fn, session);
+        if let Some(mut m) = method {
+            // for backward compatibility
+            if m.contextstr.ends_with(";") {
+                m.contextstr.pop();
             }
+            out.push(m);
+            continue;
+        }
+        if !includes_assoc_ty {
+            continue;
+        }
+        let type_ = matchers::match_type(src, &matchcxt, session);
+        if let Some(mut m) = type_ {
+            m.mtype = MatchType::AssocType;
+            out.push(m);
         }
     }
     out
@@ -746,6 +723,17 @@ fn search_fn_args_and_generics(
                     docs: String::new(),
                 };
                 out.push(m);
+                if search_type == SearchType::ExactMatch {
+                    break;
+                }
+            }
+        }
+    }
+    for type_param in generics.0 {
+        if symbol_matches(search_type, searchstr, type_param.name()) {
+            out.push(type_param.into_match());
+            if search_type == SearchType::ExactMatch {
+                break;
             }
         }
     }
@@ -1859,14 +1847,23 @@ fn resolve_following_path(
             session,
             import_info,
         ),
-        MatchType::Trait => collect_trait_methods(
-            &followed_match,
-            search_type,
+        MatchType::Trait => search_for_trait_items(
+            followed_match,
             &following_seg.name,
+            search_type,
+            true,
             true,
             session,
         )
         .collect(),
+        MatchType::TypeParameter(bounds) => bounds
+            .get_traits(session)
+            .into_iter()
+            .map(|m| {
+                search_for_trait_items(m, &following_seg.name, search_type, true, true, session)
+            })
+            .flatten()
+            .collect(),
         MatchType::Type => {
             if let Some(match_) = typeinf::get_type_of_typedef(&followed_match, session) {
                 get_impled_items(following_seg, search_type, &match_, session, import_info)
@@ -1942,7 +1939,9 @@ pub fn resolve_method(
                             searchstr,
                             &m.filepath,
                             true,
+                            false,
                             search_type,
+                            session,
                         ) {
                             out.push(m);
                         }
@@ -2129,26 +2128,6 @@ pub fn search_for_field_or_method(
 ) -> Vec<Match> {
     let m = context;
     let mut out = Vec::new();
-    // for Trait and TypeParameter
-    let find_inherited_traits = |m: Match| {
-        let traits = collect_inherited_traits(m, session);
-        traits
-            .into_iter()
-            .filter_map(|tr| {
-                let src = session.load_source_file(&tr.filepath);
-                src[tr.point.0..].find('{').map(|start| {
-                    search_scope_for_methods(
-                        tr.point + BytePos(start + 1),
-                        src.as_src(),
-                        searchstr,
-                        &tr.filepath,
-                        false,
-                        search_type,
-                    )
-                })
-            })
-            .flatten()
-    };
     match m.mtype {
         MatchType::Struct(_) => {
             debug!(
@@ -2203,13 +2182,13 @@ pub fn search_for_field_or_method(
         }
         MatchType::Trait => {
             debug!("got a trait, looking for methods {}", m.matchstr);
-            out.extend(find_inherited_traits(m));
+            out.extend(search_for_trait_methods(m, searchstr, search_type, session))
         }
         MatchType::TypeParameter(bounds) => {
             debug!("got a trait bound, looking for methods {}", m.matchstr);
             let traits = bounds.get_traits(session);
             traits.into_iter().for_each(|m| {
-                out.extend(find_inherited_traits(m));
+                out.extend(search_for_trait_methods(m, searchstr, search_type, session))
             });
         }
         _ => {
@@ -2220,6 +2199,46 @@ pub fn search_for_field_or_method(
         }
     };
     out
+}
+
+#[inline(always)]
+fn search_for_trait_methods<'s, 'sess: 's>(
+    traitm: Match,
+    search_str: &'s str,
+    search_type: SearchType,
+    session: &'sess Session<'sess>,
+) -> impl 's + Iterator<Item = Match> {
+    search_for_trait_items(traitm, search_str, search_type, false, false, session)
+}
+
+// search trait items by search_str
+fn search_for_trait_items<'s, 'sess: 's>(
+    traitm: Match,
+    search_str: &'s str,
+    search_type: SearchType,
+    includes_assoc_fn: bool,
+    includes_assoc_ty: bool,
+    session: &'sess Session<'sess>,
+) -> impl 's + Iterator<Item = Match> {
+    let traits = collect_inherited_traits(traitm, session);
+    traits
+        .into_iter()
+        .filter_map(move |tr| {
+            let src = session.load_source_file(&tr.filepath);
+            src[tr.point.0..].find('{').map(|start| {
+                search_scope_for_methods(
+                    tr.point + BytePos(start + 1),
+                    src.as_src(),
+                    search_str,
+                    &tr.filepath,
+                    includes_assoc_fn,
+                    includes_assoc_ty,
+                    search_type,
+                    session,
+                )
+            })
+        })
+        .flatten()
 }
 
 fn search_for_deref_matches(
