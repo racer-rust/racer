@@ -270,3 +270,78 @@ mod m {
     ";
     assert_eq!(get_only_completion(src, None).matchstr, "method");
 }
+
+#[test]
+fn completes_unsafe_trait_methods_for_fnarg() {
+    let src = "
+        fn main() {
+            unsafe trait Trait {
+                fn method(&self);
+            }
+            fn func<T: Trait>(arg: &T) {
+                unsafe { arg.meth~ }
+            }
+        }
+        ";
+    assert_eq!(get_only_completion(src, None).matchstr, "method");
+}
+
+#[test]
+fn completes_assoc_type_for_type_param_fn_bound() {
+    let src = "
+    trait Object {
+        type BaseObj: Object;
+    }
+    fn f<O: Object>(o: O) {
+        O::Base~
+    }
+    ";
+    assert_eq!(get_only_completion(src, None).matchstr, "BaseObj");
+}
+
+#[test]
+fn completes_assoc_fn_for_type_param_fn_bound() {
+    let src = "
+    trait Object {
+        fn init_typeobj() {}
+    }
+    fn f<O: Object>(o: O) {
+        O::init_~
+    }
+    ";
+    assert_eq!(get_only_completion(src, None).matchstr, "init_typeobj");
+}
+
+#[test]
+fn completes_assoc_type_for_type_param_impl_bound() {
+    let src = "
+    trait Object {
+        type BaseObj: Object;
+    }
+    struct ObjectWrapper<O> {
+        inner: O,
+    }
+    impl<O: Object> ObjectWrapper<O> {
+        const A: O::BaseO~
+    }
+    ";
+    assert_eq!(get_only_completion(src, None).matchstr, "BaseObj");
+}
+
+#[test]
+fn completes_assoc_fn_for_type_param_impl_bound() {
+    let src = "
+    trait Object {
+        fn init_typeobj() {}
+    }
+    struct ObjectWrapper<O> {
+        inner: O,
+    }
+    impl<O: Object> ObjectWrapper<O> {
+        fn method(&self) {
+            O::init~
+        }
+    }
+    ";
+    assert_eq!(get_only_completion(src, None).matchstr, "init_typeobj");
+}
