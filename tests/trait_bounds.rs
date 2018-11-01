@@ -287,7 +287,7 @@ fn completes_unsafe_trait_methods_for_fnarg() {
 }
 
 #[test]
-fn completes_assoc_type_for_type_param_fn_bound() {
+fn completes_assoc_type_for_type_param_in_fn() {
     let src = "
     trait Object {
         type BaseObj: Object;
@@ -300,7 +300,7 @@ fn completes_assoc_type_for_type_param_fn_bound() {
 }
 
 #[test]
-fn completes_assoc_fn_for_type_param_fn_bound() {
+fn completes_assoc_fn_for_type_param_in_fn() {
     let src = "
     trait Object {
         fn init_typeobj() {}
@@ -313,7 +313,7 @@ fn completes_assoc_fn_for_type_param_fn_bound() {
 }
 
 #[test]
-fn completes_assoc_type_for_type_param_impl_bound() {
+fn completes_assoc_type_for_type_param_in_impl() {
     let src = "
     trait Object {
         type BaseObj: Object;
@@ -329,7 +329,7 @@ fn completes_assoc_type_for_type_param_impl_bound() {
 }
 
 #[test]
-fn completes_assoc_fn_for_type_param_impl_bound() {
+fn completes_assoc_fn_for_type_param_in_impl() {
     let src = "
     trait Object {
         fn init_typeobj() {}
@@ -344,4 +344,22 @@ fn completes_assoc_fn_for_type_param_impl_bound() {
     }
     ";
     assert_eq!(get_only_completion(src, None).matchstr, "init_typeobj");
+}
+
+#[test]
+fn completes_assoc_constant_for_type_param_impl_bound() {
+    let src = "
+    trait Object {
+        const OFFSET: usize;
+    }
+    struct ObjectWrapper<O> {
+        inner: O,
+    }
+    impl<O: Object> ObjectWrapper<O> {
+        fn method(&self) {
+            O::OFF~
+        }
+    }
+    ";
+    assert_eq!(get_only_completion(src, None).matchstr, "OFFSET");
 }
