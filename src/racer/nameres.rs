@@ -160,7 +160,7 @@ fn search_scope_for_methods(
     searchstr: &str,
     filepath: &Path,
     includes_assoc_fn: bool,
-    includes_assoc_ty: bool,
+    includes_assoc_ty_and_const: bool,
     search_type: SearchType,
     session: &Session,
 ) -> Vec<Match> {
@@ -172,6 +172,15 @@ fn search_scope_for_methods(
     );
     let scopesrc = src.shift_start(point);
     let mut out = Vec::new();
+    macro_rules! ret_or_continue {
+        () => {
+            if search_type == ExactMatch {
+                return out;
+            } else {
+                continue;
+            }
+        };
+    }
     for blob_range in scopesrc.iter_stmts() {
         let matchcxt = MatchCxt {
             filepath,
@@ -187,15 +196,21 @@ fn search_scope_for_methods(
                 m.contextstr.pop();
             }
             out.push(m);
-            continue;
+            ret_or_continue!();
         }
-        if !includes_assoc_ty {
+        if !includes_assoc_ty_and_const {
             continue;
         }
         let type_ = matchers::match_type(src, &matchcxt, session);
         if let Some(mut m) = type_ {
             m.mtype = MatchType::AssocType;
             out.push(m);
+            ret_or_continue!();
+        }
+        let const_ = matchers::match_const(&src, &matchcxt);
+        if let Some(m) = const_ {
+            out.push(m);
+            ret_or_continue!();
         }
     }
     out
@@ -2217,7 +2232,7 @@ fn search_for_trait_items<'s, 'sess: 's>(
     search_str: &'s str,
     search_type: SearchType,
     includes_assoc_fn: bool,
-    includes_assoc_ty: bool,
+    includes_assoc_ty_and_const: bool,
     session: &'sess Session<'sess>,
 ) -> impl 's + Iterator<Item = Match> {
     let traits = collect_inherited_traits(traitm, session);
@@ -2232,7 +2247,7 @@ fn search_for_trait_items<'s, 'sess: 's>(
                     search_str,
                     &tr.filepath,
                     includes_assoc_fn,
-                    includes_assoc_ty,
+                    includes_assoc_ty_and_const,
                     search_type,
                     session,
                 )
