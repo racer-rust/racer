@@ -128,40 +128,6 @@ pub fn expect_stmt_start(msrc: Src, point: BytePos) -> BytePos {
     find_stmt_start(msrc, point).expect("Statement does not have a beginning")
 }
 
-/// Finds the start of a `let` statement; includes handling of struct pattern matches in the
-/// statement.
-pub fn find_let_start(msrc: Src, point: BytePos) -> Option<BytePos> {
-    let mut scopestart = scope_start(msrc, point);
-    let mut let_start = None;
-
-    // To avoid infinite loops, we cap the number of times we'll
-    // expand the search in an attempt to find statements.
-    // TODO: it's too hacky, and, 1..6 is appropriate?
-    for step in 1..6 {
-        let_start = msrc
-            .shift_start(scopestart)
-            .iter_stmts()
-            .find(|&range| scopestart + range.end > point);
-
-        if let Some(ref range) = let_start {
-            // Check if we've actually reached the start of the "let" stmt.
-            let stmt = &msrc.src.code[range.shift(scopestart).to_range()];
-            if stmt.starts_with("let") {
-                break;
-            }
-        }
-
-        debug!(
-            "find_let_start failed to find start on attempt {}: Restarting search from {:?}",
-            step,
-            scopestart.decrement(),
-        );
-        scopestart = scope_start(msrc, scopestart.decrement());
-    }
-
-    let_start.map(|range| scopestart + range.start)
-}
-
 pub fn get_local_module_path(msrc: Src, point: BytePos) -> Vec<String> {
     let mut v = Vec::new();
     get_local_module_path_(msrc, point, &mut v);
