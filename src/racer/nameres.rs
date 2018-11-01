@@ -1226,29 +1226,23 @@ fn run_matchers_on_blob(
         "[run_matchers_on_blob] cxt: {:?}, namespace: {:?}",
         context, namespace
     );
-    let mut out = Vec::new();
-    macro_rules! run_matcher {
-        ($ns: expr, $matcher: path) => {
+    macro_rules! run_matcher_common {
+        ($ns: expr, $matcher: expr) => {
             if namespace.contains($ns) {
-                for m in $matcher(src, context, session).into_iter() {
-                    out.push(m);
-                    if context.search_type == ExactMatch {
-                        return out;
-                    }
+                if let Some(m) = $matcher {
+                    return vec![m];
                 }
             }
         };
     }
+    macro_rules! run_matcher {
+        ($ns: expr, $matcher: path) => {
+            run_matcher_common!($ns, $matcher(src, context, session))
+        };
+    }
     macro_rules! run_const_matcher {
         ($ns: expr, $matcher: path) => {
-            if namespace.contains($ns) {
-                for m in $matcher(&src, context).into_iter() {
-                    out.push(m);
-                    if context.search_type == ExactMatch {
-                        return out;
-                    }
-                }
-            }
+            run_matcher_common!($ns, $matcher(&src, context))
         };
     }
     run_matcher!(Namespace::Crate, matchers::match_extern_crate);
@@ -1262,6 +1256,7 @@ fn run_matchers_on_blob(
     run_const_matcher!(Namespace::Static, matchers::match_static);
     // TODO(kngwyu): support use_extern_macros
     run_matcher!(Namespace::Global, matchers::match_macro);
+    let mut out = Vec::new();
     if namespace.intersects(Namespace::PathParen) {
         for m in matchers::match_use(src, context, session, import_info) {
             out.push(m);
