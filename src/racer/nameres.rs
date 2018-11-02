@@ -1717,7 +1717,7 @@ fn get_impled_items(
     }
     // for return type inference
     if let Some(gen) = context.to_generics() {
-        for mut m in &mut out {
+        for m in &mut out {
             if m.mtype == MatchType::Function {
                 m.mtype = MatchType::Method(Some(Box::new(gen.to_owned())));
             }
