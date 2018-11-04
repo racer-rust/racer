@@ -957,36 +957,6 @@ fn follows_use_to_inline_mod() {
 }
 
 #[test]
-fn struct_field_scalar_primitive_types() {
-    let src = "
-    struct Foo<'a> {
-        reference: &'a u8,
-        array: [u8; 5],
-        slice: &'a [u8],
-    }
-
-    fn foo(x: Foo) {
-        x.~
-    }
-    ";
-
-    let completions = get_all_completions(src, None);
-    assert_eq!(completions.len(), 3);
-
-    for completion in completions {
-        println!("match: {:?}", completion);
-        let expected = match completion.matchstr.as_ref() {
-            "reference" => "&u8",
-            "array" => "[u8; 5]",
-            "slice" => "&[u8]",
-            _ => panic!("unexpected match from Foo struct ({})", completion.matchstr),
-        };
-
-        assert_eq!(completion.contextstr, expected);
-    }
-}
-
-#[test]
 fn finds_enum() {
     let src = "
     enum MyEnum {

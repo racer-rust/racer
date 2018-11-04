@@ -3,7 +3,9 @@
 use ast;
 use ast_types::{Pat, Ty};
 use core;
-use core::{BytePos, Match, MatchType, Namespace, Scope, SearchType, Session, SessionExt, Src};
+use core::{
+    BytePos, ByteRange, Match, MatchType, Namespace, Scope, SearchType, Session, SessionExt, Src,
+};
 use matchers;
 use nameres;
 use primitive::PrimKind;
@@ -376,7 +378,7 @@ pub fn get_struct_field_type(
 pub(crate) fn get_tuplestruct_fields(
     structmatch: &Match,
     session: &Session,
-) -> Vec<(String, BytePos, Option<Ty>)> {
+) -> Vec<(String, ByteRange, Option<Ty>)> {
     let src = session.load_source_file(&structmatch.filepath);
     let structsrc = if let core::MatchType::EnumVariant(_) = structmatch.mtype {
         // decorate the enum variant src to make it look like a tuple struct

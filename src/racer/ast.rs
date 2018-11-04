@@ -842,7 +842,7 @@ fn find_type_match_including_generics(
 
 struct StructVisitor {
     pub scope: Scope,
-    pub fields: Vec<(String, BytePos, Option<Ty>)>,
+    pub fields: Vec<(String, ByteRange, Option<Ty>)>,
 }
 
 impl<'ast> visit::Visitor<'ast> for StructVisitor {
@@ -855,16 +855,13 @@ impl<'ast> visit::Visitor<'ast> for StructVisitor {
         _: Span,
     ) {
         for field in struct_definition.fields() {
-            let source_map::BytePos(point) = field.span.lo();
-
             let ty = Ty::from_ast(&field.ty, &self.scope);
             let name = match field.ident {
                 Some(ref ident) => ident.to_string(),
                 // name unnamed field by its ordinal, since self.0 works
                 None => format!("{}", self.fields.len()),
             };
-
-            self.fields.push((name, point.into(), ty));
+            self.fields.push((name, field.span.into(), ty));
         }
     }
 }
@@ -1024,7 +1021,7 @@ pub fn parse_pat_bind_stmt(s: String) -> Vec<ByteRange> {
     v.ident_points
 }
 
-pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, BytePos, Option<Ty>)> {
+pub fn parse_struct_fields(s: String, scope: Scope) -> Vec<(String, ByteRange, Option<Ty>)> {
     let mut v = StructVisitor {
         scope,
         fields: Vec::new(),
