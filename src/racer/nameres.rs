@@ -45,23 +45,19 @@ pub(crate) fn search_struct_fields(
         _ => src[struct_range.clone()].to_string(),
     };
     let fields = ast::parse_struct_fields(structsrc, core::Scope::from_match(structmatch));
-    for (field, field_point, ty) in fields {
+    for (field, field_range, _) in fields {
         if symbol_matches(search_type, searchstr, &field) {
-            let contextstr = if let Some(t) = ty {
-                t.to_string()
-            } else {
-                field.clone()
-            };
             let raw_src = session.load_raw_file(&structmatch.filepath);
+            let contextstr = src[field_range.shift(struct_start).to_range()].to_owned();
             out.push(Match {
                 matchstr: field,
                 filepath: structmatch.filepath.clone(),
-                point: field_point + struct_start,
+                point: field_range.start + struct_start,
                 coords: None,
                 local: structmatch.local,
                 mtype: MatchType::StructField,
-                contextstr: contextstr,
-                docs: find_doc(&raw_src[struct_range.clone()], field_point),
+                contextstr,
+                docs: find_doc(&raw_src[struct_range.clone()], field_range.start),
             });
         }
     }

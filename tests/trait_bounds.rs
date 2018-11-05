@@ -363,3 +363,18 @@ fn completes_assoc_constant_for_type_param_impl_bound() {
     ";
     assert_eq!(get_only_completion(src, None).matchstr, "OFFSET");
 }
+
+#[test]
+fn print_trait_object() {
+    let src = "
+    trait Object {}
+    struct Obj(Box<dyn Object>);
+    fn main() {
+        let obj: Obj = function();
+        obj.~
+    }
+    ";
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "0");
+    assert_eq!(got.contextstr, "Box<dyn Object>");
+}
