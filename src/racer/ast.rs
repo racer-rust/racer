@@ -934,18 +934,6 @@ impl<'ast, 'p> visit::Visitor<'ast> for ImplVisitor<'p> {
     }
 }
 
-pub struct ModVisitor {
-    pub name: Option<String>,
-}
-
-impl<'ast> visit::Visitor<'ast> for ModVisitor {
-    fn visit_item(&mut self, item: &ast::Item) {
-        if let ItemKind::Mod(_) = item.node {
-            self.name = Some(item.ident.name.to_string());
-        }
-    }
-}
-
 pub struct ExternCrateVisitor {
     pub name: Option<String>,
     pub realname: Option<String>,
@@ -1124,12 +1112,6 @@ pub fn parse_fn_output(s: String, scope: Scope) -> Option<Ty> {
     };
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v.result
-}
-
-pub fn parse_mod(s: String) -> ModVisitor {
-    let mut v = ModVisitor { name: None };
-    with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
-    v
 }
 
 pub fn parse_extern_crate(s: String) -> ExternCrateVisitor {

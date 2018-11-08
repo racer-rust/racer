@@ -13,20 +13,10 @@ use scopes;
 use std::path::Path;
 use util::{self, txt_matches};
 
-// TODO: Option
-fn find_start_of_function_body(src: &str) -> BytePos {
-    // TODO: this should ignore anything inside parens so as to skip the arg list
-    src.find('{')
-        .map(|u| BytePos::from(u))
-        .expect("Function body should have a beginning")
-}
-
 // Removes the body of the statement (anything in the braces {...}), leaving just
 // the header
-// TODO: this should skip parens (e.g. function arguments)
-pub fn generate_skeleton_for_parsing(src: &str) -> String {
-    let n = find_start_of_function_body(src);
-    src[..n.0 + 1].to_owned() + "}"
+pub fn generate_skeleton_for_parsing(src: &str) -> Option<String> {
+    src.find('{').map(|n| src[..=n].to_owned() + "}")
 }
 
 // TODO(kngwyu): use libsyntax parser
@@ -87,7 +77,7 @@ pub fn first_param_is_self(blob: &str) -> bool {
 #[test]
 fn generates_skeleton_for_mod() {
     let src = "mod foo { blah }";
-    let out = generate_skeleton_for_parsing(src);
+    let out = generate_skeleton_for_parsing(src).unwrap();
     assert_eq!("mod foo {}", out);
 }
 
@@ -105,9 +95,8 @@ pub fn get_type_of_self(
     session: &Session,
 ) -> Option<Ty> {
     let start = scopes::find_impl_start(msrc, point, BytePos::ZERO)?;
-    let decl = generate_skeleton_for_parsing(&msrc.shift_start(start));
+    let decl = generate_skeleton_for_parsing(&msrc.shift_start(start))?;
     debug!("get_type_of_self_arg impl skeleton |{}|", decl);
-
     if decl.starts_with("impl") {
         // we have to do 2 operations around generics here
         // 1. Checks if self's type is T

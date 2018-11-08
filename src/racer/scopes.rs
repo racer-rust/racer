@@ -2,12 +2,11 @@ use ast_types::Path as RacerPath;
 #[cfg(test)]
 use core::{self, Coordinate};
 use core::{BytePos, ByteRange, CompletionType, Namespace, RangedRawSrc, Src};
-use {ast, typeinf, util};
 
 use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
-use util::*;
+use util::{self, char_at};
 
 fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<BytePos>
 where
@@ -67,7 +66,7 @@ pub fn find_closure_scope_start(
 ) -> Option<BytePos> {
     let closing_paren_pos = find_closing_paren(&src[..], point - parentheses_open_pos);
     let src_between_parent = &src[..closing_paren_pos.0];
-    closure_valid_arg_scope(src_between_parent).map(|_| parentheses_open_pos)
+    util::closure_valid_arg_scope(src_between_parent).map(|_| parentheses_open_pos)
 }
 
 pub fn scope_start(src: Src, point: BytePos) -> BytePos {
@@ -138,17 +137,18 @@ fn get_local_module_path_(msrc: Src, point: BytePos, out: &mut Vec<String>) {
     for range in msrc.iter_stmts() {
         if range.contains_exclusive(point) {
             let blob = msrc.shift_range(range);
-            if blob.starts_with("pub mod ") || blob.starts_with("mod ") {
-                let p = typeinf::generate_skeleton_for_parsing(&blob);
-                if let Some(name) = ast::parse_mod(p).name {
-                    out.push(name);
-                    let newstart = blob.find('{').unwrap() + 1;
-                    get_local_module_path_(
-                        blob.shift_start(newstart.into()),
-                        point - range.start - newstart.into(),
-                        out,
-                    );
-                }
+            let start = util::strip_visibility(&blob).unwrap_or(BytePos::ZERO);
+            if !blob[start.0..].starts_with("mod") {
+                continue;
+            }
+            if let Some(newstart) = blob[start.0 + 3..].find('{') {
+                let newstart = newstart + start.0 + 4;
+                out.push(blob[start.0 + 3..newstart - 1].trim().to_owned());
+                get_local_module_path_(
+                    blob.shift_start(newstart.into()),
+                    point - range.start - newstart.into(),
+                    out,
+                );
             }
         }
     }
@@ -588,13 +588,13 @@ struct foo {
 /// get start of path from use statements
 /// e.g. get Some(16) from "pub(crate)  use a"
 pub(crate) fn use_stmt_start(line_str: &str) -> Option<BytePos> {
-    let use_start = strip_visibility(line_str).unwrap_or(BytePos::ZERO);
-    strip_word(&line_str[use_start.0..], "use").map(|b| b + use_start)
+    let use_start = util::strip_visibility(line_str).unwrap_or(BytePos::ZERO);
+    util::strip_word(&line_str[use_start.0..], "use").map(|b| b + use_start)
 }
 
 pub(crate) fn is_extern_crate(line_str: &str) -> bool {
-    let extern_start = strip_visibility(line_str).unwrap_or(BytePos::ZERO);
-    if let Some(crate_start) = strip_word(&line_str[extern_start.0..], "extern") {
+    let extern_start = util::strip_visibility(line_str).unwrap_or(BytePos::ZERO);
+    if let Some(crate_start) = util::strip_word(&line_str[extern_start.0..], "extern") {
         let crate_str = &line_str[(extern_start + crate_start).0..];
         crate_str.starts_with("crate ")
     } else {
@@ -644,7 +644,7 @@ pub(crate) fn construct_path_from_use_tree(expr: &str) -> RacerPath {
     let mut ident_end = Some(i - 1);
     while i > 0 {
         i -= 1;
-        if is_ident_char(bytes[i] as char) {
+        if util::is_ident_char(bytes[i] as char) {
             if ident_end.is_none() {
                 ident_end = Some(i)
             }
