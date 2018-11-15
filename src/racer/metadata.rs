@@ -20,6 +20,7 @@ impl MetadataCache {
             .or_else(|e| {
                 if let metadata::ErrorKind::Subprocess(ref s) = e {
                     // HACK: if --frozen failed, try again without --frozen
+                    // see https://github.com/rust-lang/cargo/blob/master/src/cargo/ops/registry.rs#L344
                     if s.contains("--frozen") {
                         info!("MetadataCache: try again without --frozen");
                         return metadata::run(manifest, false);
