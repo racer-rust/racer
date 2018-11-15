@@ -529,7 +529,7 @@ impl fmt::Debug for Path {
             }
 
             if !seg.output.is_none() {
-                write!(f, "(");
+                write!(f, "(")?;
             }
 
             if !seg.generics.is_empty() {
