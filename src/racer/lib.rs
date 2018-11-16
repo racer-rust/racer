@@ -42,7 +42,7 @@ pub use core::{
     BytePos, ByteRange, Coordinate, FileCache, FileLoader, Location, Match, MatchType, Session,
 };
 pub use primitive::PrimKind;
-pub use project_model::ProjectModelProvider;
+pub use project_model::{Edition, ProjectModelProvider};
 pub use snippets::snippet_for_match;
 pub use util::expand_ident;
 
