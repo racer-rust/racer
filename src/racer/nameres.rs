@@ -4,6 +4,9 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::{self, vec};
 
+use primitive::PrimKind;
+use syntax::ast::BinOpKind;
+
 use ast_types::{ImplHeader, Path as RacerPath, PathPrefix, PathSegment, Ty};
 use core::Namespace;
 use core::SearchType::{self, ExactMatch, StartsWith};
@@ -351,7 +354,7 @@ fn search_for_impls(
 
 // trait_only version of search_for_impls
 // needs both `Self` type name and trait name
-fn search_trait_impls(
+pub(crate) fn search_trait_impls(
     pos: BytePos,
     self_search: &str,
     trait_search: &[&str],
@@ -2523,9 +2526,18 @@ pub(crate) fn get_index_output(selfm: &Match, session: &Session) -> Option<Ty> {
     )
     .into_iter()
     .next()?;
+    get_associated_type_match(&index_header, "Output", selfm, session)
+}
+
+pub(crate) fn get_associated_type_match(
+    impl_header: &ImplHeader,
+    type_name: &str,
+    context: &Match,
+    session: &Session,
+) -> Option<Ty> {
     let output = search_scope_for_impled_assoc_types(
-        &index_header,
-        "Output",
+        impl_header,
+        type_name,
         core::SearchType::ExactMatch,
         session,
     );
@@ -2534,7 +2546,7 @@ pub(crate) fn get_index_output(selfm: &Match, session: &Session) -> Option<Ty> {
         .next()
         .and_then(|(_, item_ty)| match item_ty {
             Ty::PathSearch(paths) => {
-                get_assoc_type_from_header(&paths.path, selfm, &index_header, session)
+                get_assoc_type_from_header(&paths.path, context, impl_header, session)
             }
             _ => Some(item_ty),
         })
@@ -2573,4 +2585,66 @@ pub(crate) fn get_struct_fields(
             _ => Vec::new(),
         },
     )
+}
+
+/// Checks if trait_impl is the impl TraitName<OtherType>
+fn has_impl_for_other_type(
+    trait_impl: &ImplHeader,
+    trait_name: &str,
+    other_type: Option<&str>,
+) -> bool {
+    if let Some(ref path) = trait_impl.trait_path() {
+        if path.name() == Some(trait_name) {
+            if other_type.is_none() && path.segments[0].generics.len() == 0 {
+                return true;
+            }
+            if let Some(ty) = path.segments[0].generics.get(0) {
+                return match ty.to_owned().dereference() {
+                    // TODO: Handle generics arguments
+                    Ty::PathSearch(ref g) => other_type == g.path.name(),
+                    _ => false,
+                };
+            }
+            // default is self
+            return trait_impl.self_path().name() == other_type;
+        }
+    }
+    false
+}
+
+/// Resolves the type of a binary expression
+/// # Arguments
+/// * base_type: the type on the left hand side
+/// * node: the operator
+/// * other_type: the type on the right hand side
+pub(crate) fn resolve_binary_expr_type(
+    base_type: &Match,
+    node: BinOpKind,
+    other_type: Option<&str>,
+    session: &Session,
+) -> Option<Ty> {
+    let trait_name = typeinf::get_operator_trait(node);
+    if trait_name == "bool" {
+        return PrimKind::Bool.to_module_match().map(Ty::Match);
+    }
+
+    let matching_impl = search_trait_impls(
+        base_type.point,
+        &base_type.matchstr,
+        &[trait_name],
+        false,
+        &base_type.filepath,
+        base_type.local,
+        session,
+    )
+    .into_iter()
+    .filter(|trait_impl| has_impl_for_other_type(trait_impl, trait_name, other_type))
+    .next();
+    if let Some(matching_impl) = matching_impl {
+        get_associated_type_match(&matching_impl, "Output", &base_type, session)
+            .or_else(|| Some(Ty::Match(base_type.clone())))
+    } else {
+        // default to base type if an impl can't be found
+        Some(Ty::Match(base_type.clone()))
+    }
 }

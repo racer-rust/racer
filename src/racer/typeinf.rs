@@ -1,6 +1,7 @@
 //! Type inference
 //! THIS MODULE IS ENTIRELY TOO UGLY SO REALLY NEADS REFACTORING(kngwyu)
 use ast;
+use syntax::ast::BinOpKind;
 use ast_types::{Pat, Ty};
 use core;
 use core::{
@@ -17,6 +18,26 @@ use util::{self, txt_matches};
 // the header
 pub fn generate_skeleton_for_parsing(src: &str) -> Option<String> {
     src.find('{').map(|n| src[..=n].to_owned() + "}")
+}
+
+/// Get the trait name implementing which overrides the operator `op`
+/// For comparison operators, it is `bool`
+pub(crate) fn get_operator_trait(op: BinOpKind) -> &'static str {
+    match op {
+        BinOpKind::Add => "Add",
+        BinOpKind::Sub => "Sub",
+        BinOpKind::Mul => "Mul",
+        BinOpKind::Div => "Div",
+        BinOpKind::Rem => "Rem",
+        BinOpKind::And => "And",
+        BinOpKind::Or => "Or",
+        BinOpKind::BitXor => "BitXor",
+        BinOpKind::BitAnd => "BitAnd",
+        BinOpKind::BitOr => "BitOr",
+        BinOpKind::Shl => "Shl",
+        BinOpKind::Shr => "Shr",
+        _ => "bool",
+    }
 }
 
 // TODO(kngwyu): use libsyntax parser
