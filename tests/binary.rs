@@ -103,7 +103,7 @@ fn test_operator_precedence_given_to_type_on_left() {
     }
 ";
     let got = get_one_completion(src, None);
-    assert_eq!(got.matchstr, "foo".to_string());
+    assert_eq!(got.matchstr, "foo");
 }
 
 #[test]
@@ -132,5 +132,5 @@ fn completes_if_operator_trait_is_not_explicit() {
     }
 ";
     let got = get_one_completion(src, None);
-    assert_eq!(got.matchstr, "bar".to_string());
+    assert_eq!(got.matchstr, "bar");
 }

@@ -2598,9 +2598,10 @@ fn has_impl_for_other_type(
             if other_type.is_none() && path.segments[0].generics.len() == 0 {
                 return true;
             }
-            if path.segments[0].generics.len() > 0 {
-                return match path.segments[0].generics[0] {
-                    Ty::PathSearch(ref generic) => other_type == generic.path.name(),
+            if let Some(ty) = path.segments[0].generics.get(0) {
+                return match ty.to_owned().dereference() {
+                    // TODO: Handle generics arguments
+                    Ty::PathSearch(ref g) => other_type == g.path.name(),
                     _ => false,
                 };
             }
@@ -2616,7 +2617,6 @@ fn has_impl_for_other_type(
 /// * base_type: the type on the left hand side
 /// * node: the operator
 /// * other_type: the type on the right hand side
-/// *Note*: Works only for std::ops::* now
 pub(crate) fn resolve_binary_expr_type(
     base_type: &Match,
     node: BinOpKind,
