@@ -3777,3 +3777,46 @@ fn import_stmt_doesnt_jump_to_closure_arg() {
 
     assert!(find_definition(src, None).is_none());
 }
+
+#[test]
+fn test_resolve_global_path() {
+    let src = r#"
+pub fn name() {
+}
+
+fn main() {
+    let name = 1;
+    let _ = ::nam~e();
+}
+"#;
+    let got = find_definition_with_name(src, None, "lib.rs").unwrap();
+    assert_eq!(got.matchstr, "name");
+    assert_eq!(got.mtype, MatchType::Function);
+}
+
+#[test]
+fn test_resolve_global_path_in_modules() {
+    let src = r#"
+    fn foo() {
+        let name = 1;
+        let a = ::nam~e();
+    }
+"#;
+    with_test_project(|dir| {
+        let srcdir = dir.nested_dir("src");
+        let got = get_one_completion(src, Some(srcdir));
+        assert_eq!(got.matchstr, "name");
+        assert_eq!(got.mtype, MatchType::Function);
+    });
+
+    let src = r#"
+    fn foo() {
+        let a = ::TestStruct::n~
+    }
+"#;
+    with_test_project(|dir| {
+        let srcdir = dir.nested_dir("src");
+        let got = get_one_completion(src, Some(srcdir));
+        assert_eq!(got.matchstr, "new");
+    })
+}

@@ -863,15 +863,23 @@ pub fn search_crate_root(
     namespace: Namespace,
     session: &Session,
     import_info: &ImportInfo,
+    // Skip current file or not
+    // If we aren't searching paths with global prefix, should do so
+    skip_modfpath: bool,
 ) -> Vec<Match> {
     debug!("search_crate_root |{:?}| {:?}", pathseg, modfpath.display());
 
-    let crateroots = find_possible_crate_root_modules(modfpath.parent().unwrap(), session);
+    let mut crateroots = find_possible_crate_root_modules(modfpath.parent().unwrap(), session);
+    // for cases when file is not part of a project
+    if crateroots.is_empty() {
+        crateroots.push(modfpath.to_path_buf());
+    }
+
     let mut out = Vec::new();
-    for crateroot in crateroots {
-        if *modfpath == *crateroot {
-            continue;
-        }
+    for crateroot in crateroots
+        .into_iter()
+        .filter(|c| !skip_modfpath || modfpath != c)
+    {
         debug!(
             "going to search for {:?} in crateroot {:?}",
             pathseg,
@@ -891,7 +899,6 @@ pub fn search_crate_root(
                 break;
             }
         }
-        break;
     }
     out
 }
@@ -909,12 +916,7 @@ pub fn find_possible_crate_root_modules(currentdir: &Path, session: &Session) ->
     // recurse up the directory structure
     if let Some(parentdir) = currentdir.parent() {
         if parentdir != currentdir {
-            // PD: this was using the vec.push_all() api, but that is now unstable
-            res.extend(
-                find_possible_crate_root_modules(parentdir, session)
-                    .iter()
-                    .cloned(),
-            );
+            res.append(&mut find_possible_crate_root_modules(parentdir, session));
             return res; // for now stop at the first match
         }
     }
@@ -971,7 +973,7 @@ pub fn search_scope(
     let mut out = Vec::new();
 
     debug!(
-        "searching scope {:?} start: {:?} point: {:?} '{}' {:?} {:?} local: {}, session: {:?}",
+        "searching scope {:?} start: {:?} point: {:?} '{}' {:?} {:?} local: {}",
         namespace,
         start,
         complete_point,
@@ -979,7 +981,6 @@ pub fn search_scope(
         filepath.display(),
         search_type,
         is_local,
-        session
     );
 
     let scopesrc = src.shift_start(start);
@@ -1495,6 +1496,7 @@ pub fn resolve_name(
         namespace,
         session,
         import_info,
+        true,
     ) {
         out.push(m);
         if is_exact_match {
@@ -1765,6 +1767,16 @@ pub fn resolve_path(
                     return Vec::new();
                 }
             }
+            PathPrefix::Global => {
+                return resolve_global_path(
+                    path,
+                    filepath,
+                    search_type,
+                    namespace,
+                    session,
+                    import_info,
+                ).unwrap_or_else(Vec::new);
+            }
             _ => {}
         }
     }
@@ -1814,6 +1826,46 @@ pub fn resolve_path(
         // with empty segments in the first place ?
         Vec::new()
     }
+}
+
+/// resolve paths like ::path::to::file
+fn resolve_global_path(
+    path: &RacerPath,
+    filepath: &Path,
+    search_type: SearchType,
+    namespace: Namespace,
+    session: &Session,
+    import_info: &ImportInfo,
+) -> Option<Vec<Match>> {
+    let mut segs = path.segments.iter().enumerate();
+    let first_stype = if path.segments.len() == 1 {
+        search_type
+    } else {
+        SearchType::ExactMatch
+    };
+    let mut context = search_crate_root(
+        segs.next()?.1,
+        filepath,
+        first_stype,
+        namespace,
+        session,
+        import_info,
+        false,
+    );
+    for (i, seg) in segs {
+        let cxt = context.into_iter().next()?;
+        let is_last =  i + 1 == path.segments.len();
+        let stype = if is_last { search_type } else { SearchType::ExactMatch };
+        context = resolve_following_path(
+            cxt,
+            seg,
+            namespace,
+            stype,
+            import_info,
+            session
+        );
+    }
+    Some(context)
 }
 
 fn resolve_following_path(

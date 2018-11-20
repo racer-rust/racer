@@ -184,9 +184,13 @@ pub fn get_pos_and_source(src: &str) -> (BytePos, String) {
 ///
 /// The point to find completions at must be marked with '~'.
 pub fn get_all_completions(src: &str, dir: Option<TmpDir>) -> Vec<Match> {
+    get_all_completions_with_name(src, dir, "src.rs")
+}
+
+pub fn get_all_completions_with_name(src: &str, dir: Option<TmpDir>, fname: &str) -> Vec<Match> {
     let dir = dir.unwrap_or_else(|| TmpDir::new());
     let (completion_point, clean_src) = get_pos_and_source(src);
-    let path = dir.write_file("src.rs", &clean_src);
+    let path = dir.write_file(fname, &clean_src);
     let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
     complete_from_file(&path, completion_point, &session).collect()
@@ -220,9 +224,14 @@ pub fn get_definition(src: &str, dir: Option<TmpDir>) -> Match {
 
 /// Optionally returns a defintion for the given source
 pub fn find_definition(src: &str, dir: Option<TmpDir>) -> Option<Match> {
+    find_definition_with_name(src, dir, "src.rs")
+}
+
+/// Optionally returns a defintion for the given source
+pub fn find_definition_with_name(src: &str, dir: Option<TmpDir>, fname: &str) -> Option<Match> {
     let dir = dir.unwrap_or_else(|| TmpDir::new());
     let (completion_point, clean_src) = get_pos_and_source(src);
-    let path = dir.write_file("src.rs", &clean_src);
+    let path = dir.write_file(fname, &clean_src);
     let cache = racer::FileCache::default();
     let session = racer::Session::new(&cache);
     racer_find_definition(&path, completion_point, &session)
