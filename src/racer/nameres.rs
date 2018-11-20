@@ -1778,7 +1778,7 @@ pub fn resolve_path(
                     namespace,
                     session,
                     import_info,
-                );
+                ).unwrap_or_else(Vec::new);
             }
             _ => {}
         }
@@ -1839,42 +1839,36 @@ fn resolve_global_path(
     namespace: Namespace,
     session: &Session,
     import_info: &ImportInfo,
-) -> Vec<Match> {
-    if path.segments.len() < 1 {
-        return Vec::new();
-    }
-    let context = search_crate_root(
-        &path.segments[0],
+) -> Option<Vec<Match>> {
+    let mut segs = path.segments.iter().enumerate();
+    let first_stype = if path.segments.len() == 1 {
+        search_type
+    } else {
+        SearchType::ExactMatch
+    };
+    let mut context = search_crate_root(
+        segs.next()?.1,
         filepath,
-        search_type,
+        first_stype,
         namespace,
         session,
         import_info,
         false,
-    )
-    .into_iter()
-    .nth(0);
-    if let Some(context) = context {
-        if path.segments.len() == 1 {
-            return vec![context];
-        }
-        let mut new_path = path.clone();
-        new_path.prefix = None;
-        match context.mtype {
-            MatchType::Module | MatchType::Crate => resolve_path(
-                &new_path,
-                &context.filepath,
-                BytePos::ZERO,
-                search_type,
-                namespace,
-                session,
-                import_info,
-            ),
-            _ => Vec::new(),
-        }
-    } else {
-        Vec::new()
+    );
+    for (i, seg) in segs {
+        let cxt = context.into_iter().next()?;
+        let is_last =  i + 1 == path.segments.len();
+        let stype = if is_last { search_type } else { SearchType::ExactMatch };
+        context = resolve_following_path(
+            cxt,
+            seg,
+            namespace,
+            stype,
+            import_info,
+            session
+        );
     }
+    Some(context)
 }
 
 fn resolve_following_path(
