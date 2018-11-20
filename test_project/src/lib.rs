@@ -18,3 +18,5 @@ impl TestStruct {
         }
     }
 }
+
+pub(crate) fn name() {}

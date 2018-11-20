@@ -3819,15 +3819,7 @@ fn main() {
     let _ = ::nam~e();
 }
 "#;
-
-    let (pos, src) = get_pos_and_source(src);
-    let cache = racer::FileCache::default();
-    let file = Path::new("src/lib.rs");
-    let session = racer::Session::new(&cache);
-    session.cache_file_contents(&file, src);
-    let got = racer::find_definition(&file, racer::Location::from(pos), &session);
-    assert!(got.is_some());
-    let got = got.unwrap();
+    let got = find_definition_with_name(src, None, "lib.rs").unwrap();
     assert_eq!(got.matchstr, "name");
     assert_eq!(got.mtype, MatchType::Function);
 }
@@ -3836,23 +3828,25 @@ fn main() {
 fn test_resolve_global_path_in_modules() {
     let src = r#"
     fn foo() {
-        let a = ::na~me();
+        let name = 1;
+        let a = ::nam~e();
     }
 "#;
-    let lib = r#"
-    use mod1;
-    pub(crate) fn name() {}
+    with_test_project(|dir| {
+        let srcdir = dir.nested_dir("src");
+        let got = get_one_completion(src, Some(srcdir));
+        assert_eq!(got.matchstr, "name");
+        assert_eq!(got.mtype, MatchType::Function);
+    });
+
+    let src = r#"
+    fn foo() {
+        let a = ::TestStruct::n~
+    }
 "#;
-    let (pos, src) = get_pos_and_source(src);
-    let cache = racer::FileCache::default();
-    let file = Path::new("src/lib.rs");
-    let session = racer::Session::new(&cache);
-    session.cache_file_contents(&file, lib);
-    let file2 = Path::new("src/mod1.rs");
-    session.cache_file_contents(&file2, src);
-    let got = racer::find_definition(&file2, racer::Location::from(pos.0), &session);
-    assert!(got.is_some());
-    let got = got.unwrap();
-    assert_eq!(got.matchstr, "name");
-    assert_eq!(got.mtype, MatchType::Function);
+    with_test_project(|dir| {
+        let srcdir = dir.nested_dir("src");
+        let got = get_one_completion(src, Some(srcdir));
+        assert_eq!(got.matchstr, "new");
+    })
 }

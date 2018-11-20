@@ -861,7 +861,9 @@ pub fn search_crate_root(
     namespace: Namespace,
     session: &Session,
     import_info: &ImportInfo,
-    skip: bool,
+    // Skip current file or not
+    // If we aren't searching paths with global prefix, should do so
+    skip_modfpath: bool,
 ) -> Vec<Match> {
     debug!("search_crate_root |{:?}| {:?}", pathseg, modfpath.display());
 
@@ -872,12 +874,10 @@ pub fn search_crate_root(
     }
 
     let mut out = Vec::new();
-    for crateroot in crateroots {
-        // when searching paths with global prefix, we don't
-        // want to skip checking the current file, but in other cases, we do
-        if *modfpath == *crateroot && skip {
-            continue;
-        }
+    for crateroot in crateroots
+        .into_iter()
+        .filter(|c| !skip_modfpath || modfpath != c)
+    {
         debug!(
             "going to search for {:?} in crateroot {:?}",
             pathseg,
@@ -897,7 +897,6 @@ pub fn search_crate_root(
                 break;
             }
         }
-        break;
     }
     out
 }
@@ -915,12 +914,7 @@ pub fn find_possible_crate_root_modules(currentdir: &Path, session: &Session) ->
     // recurse up the directory structure
     if let Some(parentdir) = currentdir.parent() {
         if parentdir != currentdir {
-            // PD: this was using the vec.push_all() api, but that is now unstable
-            res.extend(
-                find_possible_crate_root_modules(parentdir, session)
-                    .iter()
-                    .cloned(),
-            );
+            res.append(&mut find_possible_crate_root_modules(parentdir, session));
             return res; // for now stop at the first match
         }
     }
@@ -977,7 +971,7 @@ pub fn search_scope(
     let mut out = Vec::new();
 
     debug!(
-        "searching scope {:?} start: {:?} point: {:?} '{}' {:?} {:?} local: {}, session: {:?}",
+        "searching scope {:?} start: {:?} point: {:?} '{}' {:?} {:?} local: {}",
         namespace,
         start,
         complete_point,
@@ -985,7 +979,6 @@ pub fn search_scope(
         filepath.display(),
         search_type,
         is_local,
-        session
     );
 
     let scopesrc = src.shift_start(start);
@@ -1853,7 +1846,7 @@ fn resolve_global_path(
     let context = search_crate_root(
         &path.segments[0],
         filepath,
-        SearchType::ExactMatch,
+        search_type,
         namespace,
         session,
         import_info,
@@ -1863,14 +1856,12 @@ fn resolve_global_path(
     .nth(0);
     if let Some(context) = context {
         if path.segments.len() == 1 {
-            let mut v = Vec::new();
-            v.push(context);
-            return v;
+            return vec![context];
         }
         let mut new_path = path.clone();
         new_path.prefix = None;
         match context.mtype {
-            MatchType::Module => resolve_path(
+            MatchType::Module | MatchType::Crate => resolve_path(
                 &new_path,
                 &context.filepath,
                 BytePos::ZERO,
