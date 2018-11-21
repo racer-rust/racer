@@ -109,6 +109,17 @@ fn finds_struct_field_in_constructor() {
 }
 
 #[test]
+fn dont_find_struct_field_in_unsafe() {
+    let src = r#"
+    fn main() {
+        unsafe {
+            println~
+        }
+    }"#;
+    assert_eq!(get_definition(src, None).matchstr, "println!");
+}
+
+#[test]
 fn struct_field_scalar_primitive_types() {
     let src = "
     struct Foo<'a> {

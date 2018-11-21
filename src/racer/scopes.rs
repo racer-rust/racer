@@ -738,6 +738,7 @@ pub(crate) fn expr_to_path(expr: &str) -> (RacerPath, Namespace) {
 pub(crate) fn is_in_struct_ctor(src: Src, stmt_start: BytePos, pos: BytePos) -> Option<ByteRange> {
     const ALLOW_SYMBOL: [u8; 5] = [b'{', b'(', b'|', b';', b','];
     const ALLOW_KEYWORDS: [&'static str; 3] = ["let", "mut", "ref"];
+    const INIHIBIT_KEYWORDS: [&'static str; 1] = ["unsafe"];
     if stmt_start.0 <= 3 || src.as_bytes()[stmt_start.0 - 1] != b'{' || pos <= stmt_start {
         return None;
     }
@@ -768,6 +769,9 @@ pub(crate) fn is_in_struct_ctor(src: Src, stmt_start: BytePos, pos: BytePos) -> 
             (State::Name(_), b) if b == b':' || util::is_ident_char(b.into()) => continue,
             (State::Name(end), b) if util::is_whitespace_byte(b) => {
                 result = Some(ByteRange::new(i + 1, end + 1));
+                if INIHIBIT_KEYWORDS.contains(&&src[i + 1..=end]) {
+                    return None;
+                }
                 state = State::End;
             }
             (State::Name(end), b) if ALLOW_SYMBOL.contains(&b) => {
@@ -789,7 +793,13 @@ pub(crate) fn is_in_struct_ctor(src: Src, stmt_start: BytePos, pos: BytePos) -> 
     }
     match state {
         State::Initial => None,
-        State::Name(end) => Some(ByteRange::new(0, end + 1)),
+        State::Name(end) => {
+            if INIHIBIT_KEYWORDS.contains(&&src[0..=end]) {
+                None
+            } else {
+                Some(ByteRange::new(0, end + 1))
+            }
+        }
         State::End => result,
     }
 }
@@ -869,5 +879,14 @@ mod ctor_test {
         };
     "#;
         assert!(check(src).is_some())
+    }
+    #[test]
+    fn unsafe_() {
+        let src = r#"
+        unsafe {
+            name~
+        }
+    "#;
+        assert!(check(src).is_none())
     }
 }
