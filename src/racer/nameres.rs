@@ -2181,10 +2181,11 @@ fn collect_inherited_traits(trait_match: Match, s: &Session) -> Vec<Match> {
     res
 }
 
-pub fn search_for_field_or_method(
+pub fn search_for_fields_and_methods(
     context: Match,
     searchstr: &str,
     search_type: SearchType,
+    only_methods: bool,
     session: &Session,
 ) -> Vec<Match> {
     let m = context;
@@ -2195,8 +2196,10 @@ pub fn search_for_field_or_method(
                 "got a struct, looking for fields and impl methods!! {}",
                 m.matchstr
             );
-            for m in search_struct_fields(searchstr, &m, search_type, session) {
-                out.push(m);
+            if !only_methods {
+                for m in search_struct_fields(searchstr, &m, search_type, session) {
+                    out.push(m);
+                }
             }
             for m in search_for_impl_methods(
                 &m,
@@ -2329,9 +2332,9 @@ pub(crate) fn get_field_matches_from_ty(
     session: &Session,
 ) -> Vec<Match> {
     match ty {
-        Ty::Match(m) => search_for_field_or_method(m, searchstr, stype, session),
+        Ty::Match(m) => search_for_fields_and_methods(m, searchstr, stype, false, session),
         Ty::PathSearch(paths) => paths.resolve_as_match(session).map_or_else(Vec::new, |m| {
-            search_for_field_or_method(m, searchstr, stype, session)
+            method(m, searchstr, stype, false, session)
         }),
         Ty::Self_(scope) => {
             let msrc = session.load_source_file(&scope.filepath);
@@ -2343,7 +2346,7 @@ pub(crate) fn get_field_matches_from_ty(
                 session,
             );
             match ty {
-                Some(Ty::Match(m)) => search_for_field_or_method(m, searchstr, stype, session),
+                Some(Ty::Match(m)) => search_for_field_or_method(m, searchstr, stype, false, session),
                 _ => Vec::new(),
             }
         }
@@ -2355,7 +2358,7 @@ pub(crate) fn get_field_matches_from_ty(
         Ty::Array(_, _) | Ty::Slice(_) => {
             let mut m = primitive::PrimKind::Slice.to_module_match().unwrap();
             m.matchstr = "[T]".to_owned();
-            search_for_field_or_method(m, searchstr, stype, session)
+            search_for_field_or_method(m, searchstr, stype, false, session)
         }
         Ty::TraitObject(traitbounds) => traitbounds
             .into_iter()
