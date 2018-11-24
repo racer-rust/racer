@@ -616,13 +616,11 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 self.visit_expr(objexpr);
                 let result = self.result.take();
                 let get_method_output_ty = |contextm: Match| {
-                    let matching_methods = nameres::search_for_impl_methods(
-                        &contextm,
+                    let matching_methods = nameres::search_for_fields_and_methods(
+                        contextm.clone(),
                         &methodname,
-                        contextm.point,
-                        &contextm.filepath,
-                        contextm.local,
                         core::SearchType::ExactMatch,
+                        true,
                         self.session,
                     );
                     matching_methods
@@ -788,7 +786,9 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 self.visit_expr(right);
                 let right_expr_type = match self.result.take() {
                     Some(Ty::Match(m)) => Some(m.matchstr),
-                    Some(Ty::PathSearch(ps)) => ps.resolve_as_match(self.session).map(|m| m.matchstr),
+                    Some(Ty::PathSearch(ps)) => {
+                        ps.resolve_as_match(self.session).map(|m| m.matchstr)
+                    }
                     _ => None,
                 };
                 self.result = nameres::resolve_binary_expr_type(

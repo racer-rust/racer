@@ -3820,3 +3820,15 @@ fn test_resolve_global_path_in_modules() {
         assert_eq!(got.matchstr, "new");
     })
 }
+
+#[test]
+fn completes_methods_for_as_bytes() {
+    let src = r#"
+fn main() {
+    let s = "Foo".as_bytes(); 
+    let t = s.conca~
+}
+"#;
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "concat");
+}
