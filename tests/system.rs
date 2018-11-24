@@ -3826,8 +3826,9 @@ fn completes_methods_for_as_bytes() {
     let src = r#"
 fn main() {
     let s = "Foo".as_bytes(); 
-    let t = s.~
+    let t = s.conca~
 }
 "#;
-    let got = get_all_completions(src, None);
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "concat");
 }

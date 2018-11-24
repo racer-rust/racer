@@ -1775,7 +1775,8 @@ pub fn resolve_path(
                     namespace,
                     session,
                     import_info,
-                ).unwrap_or_else(Vec::new);
+                )
+                .unwrap_or_else(Vec::new);
             }
             _ => {}
         }
@@ -1854,16 +1855,13 @@ fn resolve_global_path(
     );
     for (i, seg) in segs {
         let cxt = context.into_iter().next()?;
-        let is_last =  i + 1 == path.segments.len();
-        let stype = if is_last { search_type } else { SearchType::ExactMatch };
-        context = resolve_following_path(
-            cxt,
-            seg,
-            namespace,
-            stype,
-            import_info,
-            session
-        );
+        let is_last = i + 1 == path.segments.len();
+        let stype = if is_last {
+            search_type
+        } else {
+            SearchType::ExactMatch
+        };
+        context = resolve_following_path(cxt, seg, namespace, stype, import_info, session);
     }
     Some(context)
 }
@@ -2334,7 +2332,7 @@ pub(crate) fn get_field_matches_from_ty(
     match ty {
         Ty::Match(m) => search_for_fields_and_methods(m, searchstr, stype, false, session),
         Ty::PathSearch(paths) => paths.resolve_as_match(session).map_or_else(Vec::new, |m| {
-            method(m, searchstr, stype, false, session)
+            search_for_fields_and_methods(m, searchstr, stype, false, session)
         }),
         Ty::Self_(scope) => {
             let msrc = session.load_source_file(&scope.filepath);
@@ -2346,7 +2344,9 @@ pub(crate) fn get_field_matches_from_ty(
                 session,
             );
             match ty {
-                Some(Ty::Match(m)) => search_for_field_or_method(m, searchstr, stype, false, session),
+                Some(Ty::Match(m)) => {
+                    search_for_fields_and_methods(m, searchstr, stype, false, session)
+                }
                 _ => Vec::new(),
             }
         }
@@ -2358,7 +2358,7 @@ pub(crate) fn get_field_matches_from_ty(
         Ty::Array(_, _) | Ty::Slice(_) => {
             let mut m = primitive::PrimKind::Slice.to_module_match().unwrap();
             m.matchstr = "[T]".to_owned();
-            search_for_field_or_method(m, searchstr, stype, false, session)
+            search_for_fields_and_methods(m, searchstr, stype, false, session)
         }
         Ty::TraitObject(traitbounds) => traitbounds
             .into_iter()

@@ -1,7 +1,6 @@
 //! Type inference
 //! THIS MODULE IS ENTIRELY TOO UGLY SO REALLY NEADS REFACTORING(kngwyu)
 use ast;
-use syntax::ast::BinOpKind;
 use ast_types::{Pat, Ty};
 use core;
 use core::{
@@ -12,6 +11,7 @@ use nameres;
 use primitive::PrimKind;
 use scopes;
 use std::path::Path;
+use syntax::ast::BinOpKind;
 use util::{self, txt_matches};
 
 // Removes the body of the statement (anything in the braces {...}), leaving just
