@@ -1003,9 +1003,6 @@ impl<'ast> visit::Visitor<'ast> for EnumVisitor {
     fn visit_item(&mut self, i: &ast::Item) {
         if let ItemKind::Enum(ref enum_definition, _) = i.node {
             self.name = i.ident.name.to_string();
-            //visitor.visit_generics(type_parameters, env.clone());
-            //visit::walk_enum_def(self, enum_definition, type_parameters, e)
-
             let (point1, point2) = destruct_span(i.span);
             debug!("name point is {} {}", point1, point2);
 
@@ -1014,6 +1011,36 @@ impl<'ast> visit::Visitor<'ast> for EnumVisitor {
                 self.values
                     .push((variant.node.ident.to_string(), point.into()));
             }
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct StaticVisitor {
+    pub ty: Option<Ty>,
+    pub is_mutable: bool,
+    scope: Scope,
+}
+
+impl StaticVisitor {
+    fn new(scope: Scope) -> Self {
+        StaticVisitor {
+            ty: None,
+            is_mutable: false,
+            scope,
+        }
+    }
+}
+
+impl<'ast> visit::Visitor<'ast> for StaticVisitor {
+    fn visit_item(&mut self, i: &ast::Item) {
+        match i.node {
+            ItemKind::Const(ref ty, ref _expr) => self.ty = Ty::from_ast(ty, &self.scope),
+            ItemKind::Static(ref ty, m, ref _expr) => {
+                self.is_mutable = m == ast::Mutability::Mutable;
+                self.ty = Ty::from_ast(ty, &self.scope);
+            }
+            _ => {}
         }
     }
 }
@@ -1156,6 +1183,12 @@ pub fn parse_enum(s: String) -> EnumVisitor {
         name: String::new(),
         values: Vec::new(),
     };
+    with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
+    v
+}
+
+pub fn parse_static(s: String, scope: Scope) -> StaticVisitor {
+    let mut v = StaticVisitor::new(scope);
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
     v
 }

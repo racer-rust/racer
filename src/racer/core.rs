@@ -107,7 +107,7 @@ mod declare_namespace {
     // (kngwyu) I reserved Crate, Mod or other names for future usage(like for #830)
     // but, currently they're not used and... I'm not sure they're useful:)
     #![allow(non_upper_case_globals, unused)]
-    bitflags!{
+    bitflags! {
         /// Type context
         pub struct Namespace: u32 {
             const Crate     = 0b0000000000001;
