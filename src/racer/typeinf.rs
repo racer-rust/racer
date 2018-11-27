@@ -448,6 +448,7 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<Ty> {
         | core::MatchType::Function
         | core::MatchType::Method(_)
         | core::MatchType::Module => Some(Ty::Match(m)),
+        core::MatchType::Const | core::MatchType::Static => get_type_of_static(m),
         core::MatchType::EnumVariant(Some(boxed_enum)) => {
             if boxed_enum.mtype.is_enum() {
                 Some(Ty::Match(*boxed_enum))
@@ -548,12 +549,12 @@ pub fn get_return_type_of_function(
 }
 
 pub(crate) fn get_type_of_indexed_value(body: Ty, session: &Session) -> Option<Ty> {
-    // TODO(kngwyu): slice support
     match body.dereference() {
         Ty::Match(m) => nameres::get_index_output(&m, session),
         Ty::PathSearch(p) => p
             .resolve_as_match(session)
             .and_then(|m| nameres::get_index_output(&m, session)),
+        Ty::Array(ty, _) | Ty::Slice(ty) => Some(*ty),
         _ => None,
     }
 }
@@ -607,4 +608,16 @@ pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match>
         }
         _ => None,
     }
+}
+
+fn get_type_of_static(m: Match) -> Option<Ty> {
+    let Match {
+        filepath,
+        point,
+        contextstr,
+        ..
+    } = m;
+    let scope = Scope::new(filepath, point - "static".len().into());
+    let res = ast::parse_static(contextstr, scope);
+    res.ty
 }

@@ -107,7 +107,7 @@ mod declare_namespace {
     // (kngwyu) I reserved Crate, Mod or other names for future usage(like for #830)
     // but, currently they're not used and... I'm not sure they're useful:)
     #![allow(non_upper_case_globals, unused)]
-    bitflags!{
+    bitflags! {
         /// Type context
         pub struct Namespace: u32 {
             const Crate     = 0b0000000000001;
@@ -1134,7 +1134,7 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
         }
         CompletionType::Field => {
             let context = ast::get_type_of(contextstr.to_owned(), filepath, pos, session);
-            debug!("complete_from_file context is {:?}", context);
+            println!("complete_from_file context is {:?}", context);
             if let Some(ty) = context {
                 out.extend(nameres::get_field_matches_from_ty(
                     ty,
