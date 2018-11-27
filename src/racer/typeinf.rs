@@ -448,7 +448,7 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<Ty> {
         | core::MatchType::Function
         | core::MatchType::Method(_)
         | core::MatchType::Module => Some(Ty::Match(m)),
-        core::MatchType::Const | core::MatchType::Static => get_type_of_static(m, session),
+        core::MatchType::Const | core::MatchType::Static => get_type_of_static(m),
         core::MatchType::EnumVariant(Some(boxed_enum)) => {
             if boxed_enum.mtype.is_enum() {
                 Some(Ty::Match(*boxed_enum))
@@ -610,7 +610,7 @@ pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match>
     }
 }
 
-fn get_type_of_static(m: Match, session: &Session) -> Option<Ty> {
+fn get_type_of_static(m: Match) -> Option<Ty> {
     let Match {
         filepath,
         point,
