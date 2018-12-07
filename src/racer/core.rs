@@ -487,7 +487,7 @@ impl RawSource {
         let mut before = 0;
         *self.lines.borrow_mut() = self
             .code
-            .lines()
+            .split('\n')
             .map(|line| {
                 let len = line.len() + 1;
                 let res = ByteRange::new(before, before + len);
@@ -583,6 +583,34 @@ fn myfn() {
     assert_eq!(
         src.coords_to_point(&Coordinate::new(3, 5)),
         Some(BytePos(18))
+    );
+}
+
+#[test]
+fn coords_to_point_lf_newline() {
+    let src = "\n\
+               fn myfn() {\n\
+               let a = 3;\n\
+               print(a);\n\
+               }\n";
+    let src = RawSource::new(src.into());
+    assert_eq!(
+        src.coords_to_point(&Coordinate::new(3, 5)),
+        Some(BytePos(18))
+    );
+}
+
+#[test]
+fn coords_to_point_crlf_newline() {
+    let src = "\r\n\
+               fn myfn() {\r\n\
+               let a = 3;\r\n\
+               print(a);\r\n\
+               }\r\n";
+    let src = RawSource::new(src.into());
+    assert_eq!(
+        src.coords_to_point(&Coordinate::new(3, 5)),
+        Some(BytePos(20))
     );
 }
 
