@@ -602,18 +602,6 @@ pub(crate) fn is_extern_crate(line_str: &str) -> bool {
     }
 }
 
-#[test]
-fn test_use_stmt_start() {
-    assert_eq!(use_stmt_start("pub(crate)   use   some::").unwrap().0, 19);
-}
-
-#[test]
-fn test_is_extern_crate() {
-    assert!(is_extern_crate("extern crate "));
-    assert!(is_extern_crate("pub extern crate abc"));
-    assert!(!is_extern_crate("pub extern crat"));
-}
-
 #[inline(always)]
 fn next_use_item(expr: &str) -> Option<usize> {
     let bytes = expr.as_bytes();
@@ -668,43 +656,11 @@ pub(crate) fn construct_path_from_use_tree(expr: &str) -> RacerPath {
     RacerPath::from_vec(is_global, segments)
 }
 
-#[test]
-fn test_construct_path_from_use_tree() {
-    let get_path_idents = |s| {
-        let s = construct_path_from_use_tree(s);
-        s.segments
-            .into_iter()
-            .map(|seg| seg.name)
-            .collect::<Vec<_>>()
-    };
-    assert_eq!(
-        get_path_idents("std::collections::HashMa"),
-        vec!["std", "collections", "HashMa"],
-    );
-    assert_eq!(
-        get_path_idents("std::{collections::{HashMap, hash_ma"),
-        vec!["std", "collections", "hash_ma"],
-    );
-    assert_eq!(
-        get_path_idents("std::{collections::{HashMap, "),
-        vec!["std", "collections", ""],
-    );
-    assert_eq!(
-        get_path_idents("std::collections::{"),
-        vec!["std", "collections", ""],
-    );
-    assert_eq!(
-        get_path_idents("std::{collections::HashMap, sync::Arc"),
-        vec!["std", "sync", "Arc"],
-    );
-    assert_eq!(get_path_idents("{Str1, module::Str2, Str3"), vec!["Str3"],);
-}
-
 /// get current statement for completion context
 pub(crate) fn get_current_stmt<'c>(src: Src<'c>, pos: BytePos) -> (BytePos, String) {
     let mut scopestart = scope_start(src, pos);
     // for use statement
-    while scopestart > BytePos::ZERO && src[..scopestart.0].ends_with("::{") {
+    if scopestart > BytePos::ZERO && src[..scopestart.0].ends_with("::{") {
         if let Some(pos) = src[..pos.0].rfind("use") {
             scopestart = scope_start(src, pos.into());
         }
@@ -801,6 +757,53 @@ pub(crate) fn is_in_struct_ctor(src: Src, stmt_start: BytePos, pos: BytePos) -> 
             }
         }
         State::End => result,
+    }
+}
+
+#[cfg(test)]
+mod use_tree_test {
+    use super::*;
+    #[test]
+    fn test_use_stmt_start() {
+        assert_eq!(use_stmt_start("pub(crate)   use   some::").unwrap().0, 19);
+    }
+
+    #[test]
+    fn test_is_extern_crate() {
+        assert!(is_extern_crate("extern crate "));
+        assert!(is_extern_crate("pub extern crate abc"));
+        assert!(!is_extern_crate("pub extern crat"));
+    }
+    #[test]
+    fn test_construct_path_from_use_tree() {
+        let get_path_idents = |s| {
+            let s = construct_path_from_use_tree(s);
+            s.segments
+                .into_iter()
+                .map(|seg| seg.name)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            get_path_idents("std::collections::HashMa"),
+            vec!["std", "collections", "HashMa"],
+        );
+        assert_eq!(
+            get_path_idents("std::{collections::{HashMap, hash_ma"),
+            vec!["std", "collections", "hash_ma"],
+        );
+        assert_eq!(
+            get_path_idents("std::{collections::{HashMap, "),
+            vec!["std", "collections", ""],
+        );
+        assert_eq!(
+            get_path_idents("std::collections::{"),
+            vec!["std", "collections", ""],
+        );
+        assert_eq!(
+            get_path_idents("std::{collections::HashMap, sync::Arc"),
+            vec!["std", "sync", "Arc"],
+        );
+        assert_eq!(get_path_idents("{Str1, module::Str2, Str3"), vec!["Str3"],);
     }
 }
 
