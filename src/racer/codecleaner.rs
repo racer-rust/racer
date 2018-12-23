@@ -116,6 +116,7 @@ impl<'a> CodeIndicesIter<'a> {
             pos = pos.increment();
             match b {
                 b'/' if prev == b'*' => {
+                    prev = b' ';
                     if nesting_level == 0 {
                         break;
                     } else {
@@ -123,6 +124,7 @@ impl<'a> CodeIndicesIter<'a> {
                     }
                 }
                 b'*' if prev == b'/' => {
+                    prev = b' ';
                     nesting_level += 1;
                 }
                 _ => {
