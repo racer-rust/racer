@@ -376,6 +376,18 @@ mod code_indices_iter_test {
     }
 
     #[test]
+    fn handles_documentation_block_comments_nested_into_block_comments() {
+        let src = &rejustify(
+            "
+    this is some code /* nested /** documentation block */ comment */ some more code
+    ",
+        );
+        let mut it = code_chunks(src);
+        assert_eq!("this is some code ", slice(src, it.next().unwrap()));
+        assert_eq!(" some more code", slice(src, it.next().unwrap()));
+    }
+
+    #[test]
     fn removes_string_with_escaped_dblquote_in_it() {
         let src = &rejustify(
             "
