@@ -116,6 +116,7 @@ impl<'a> CodeIndicesIter<'a> {
             pos = pos.increment();
             match b {
                 b'/' if prev == b'*' => {
+                    prev = b' ';
                     if nesting_level == 0 {
                         break;
                     } else {
@@ -123,6 +124,7 @@ impl<'a> CodeIndicesIter<'a> {
                     }
                 }
                 b'*' if prev == b'/' => {
+                    prev = b' ';
                     nesting_level += 1;
                 }
                 _ => {
@@ -368,6 +370,18 @@ mod code_indices_iter_test {
         let src = &rejustify(
             "
     this is some code /* nested /* block */ comment */ some more code
+    ",
+        );
+        let mut it = code_chunks(src);
+        assert_eq!("this is some code ", slice(src, it.next().unwrap()));
+        assert_eq!(" some more code", slice(src, it.next().unwrap()));
+    }
+
+    #[test]
+    fn handles_documentation_block_comments_nested_into_block_comments() {
+        let src = &rejustify(
+            "
+    this is some code /* nested /** documentation block */ comment */ some more code
     ",
         );
         let mut it = code_chunks(src);
