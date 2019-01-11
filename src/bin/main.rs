@@ -89,7 +89,7 @@ fn complete_by_line_coords(cfg: Config, print_type: CompletePrinter) {
         })
         .unwrap();
     if let Err(e) = res.join() {
-        error!("Search thread paniced: {:?}", e);
+        error!("Search thread panicked: {:?}", e);
     }
 
     interface.emit(Message::End);
