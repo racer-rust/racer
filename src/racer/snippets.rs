@@ -52,7 +52,7 @@ impl MethodInfo {
     ///Parses method declaration as string and returns relevant data
     fn from_source_str(source: &str) -> Option<MethodInfo> {
         let trim: &[_] = &['\n', '\r', '{', ' '];
-        let decorated = format!("{} {{}}()", source.trim_right_matches(trim));
+        let decorated = format!("{} {{}}()", source.trim_end_matches(trim));
 
         trace!("MethodInfo::from_source_str: {:?}", decorated);
         with_error_checking_parse(decorated, |p| {

@@ -145,7 +145,7 @@ fn find_keyword_impl(
 
 fn is_const_fn(src: &str, blob_range: ByteRange) -> bool {
     if let Some(b) = strip_word(&src[blob_range.to_range()], "const") {
-        let s = src[(blob_range.start + b).0..].trim_left();
+        let s = src[(blob_range.start + b).0..].trim_start();
         s.starts_with("fn") || s.starts_with("unsafe")
     } else {
         false
@@ -165,7 +165,7 @@ fn match_pattern_start(
     let blob = &src[context.range.to_range()];
     if let Some(start) = find_keyword(blob, pattern, ignore, context) {
         if let Some(end) = blob[start.0..].find(|c: char| c == ':' || c.is_whitespace()) {
-            if blob[start.0 + end..].trim_left().chars().next() == Some(':') {
+            if blob[start.0 + end..].trim_start().chars().next() == Some(':') {
                 let s = &blob[start.0..start.0 + end];
                 return Some(Match {
                     matchstr: s.to_owned(),
@@ -719,7 +719,7 @@ fn match_fn_common(blob: &str, msrc: Src, context: &MatchCxt, session: &Session)
 }
 
 pub fn match_macro(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Match> {
-    let trimed = context.search_str.trim_right_matches('!');
+    let trimed = context.search_str.trim_end_matches('!');
     let mut context = context.clone();
     context.search_str = trimed;
     let blob = &msrc[context.range.to_range()];

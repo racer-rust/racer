@@ -234,8 +234,8 @@ fn daemon(cfg: &Config) {
         // binary name
         let cli = build_cli().setting(AppSettings::NoBinaryName);
         let matches = match cfg.interface {
-            Interface::Text => cli.get_matches_from(input.trim_right().split_whitespace()),
-            Interface::TabText => cli.get_matches_from(input.trim_right().split('\t')),
+            Interface::Text => cli.get_matches_from(input.trim_end().split_whitespace()),
+            Interface::TabText => cli.get_matches_from(input.trim_end().split('\t')),
         };
         run(&matches, cfg.interface);
 
