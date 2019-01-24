@@ -586,7 +586,7 @@ pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match>
                 .map(|sub| scopes::scope_start(src.as_src(), sub.into()))
                 .and_then(|s| {
                     let blob = src.get_src_from_start(s);
-                    let blob = blob.trim_left();
+                    let blob = blob.trim_start();
                     if blob.starts_with("impl") || util::trim_visibility(blob).starts_with("trait")
                     {
                         Some(s)

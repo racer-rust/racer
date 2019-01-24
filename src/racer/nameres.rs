@@ -232,7 +232,7 @@ fn search_generic_impl_scope_for_methods(
     for blob_range in scopesrc.iter_stmts() {
         let blob = &scopesrc[blob_range.to_range()];
         if let Some(n) = blob.find(|c| c == '{' || c == ';') {
-            let signature = blob[..n].trim_right();
+            let signature = blob[..n].trim_end();
 
             if txt_matches(search_type, &format!("fn {}", searchstr), signature)
                 && typeinf::first_param_is_self(blob)
@@ -1035,7 +1035,7 @@ pub fn search_scope(
             // Optimisation: if the search string is not in the blob and it is not
             // a glob import, this cannot match so fail fast!
             let is_glob_import = blob.contains("::*");
-            if !is_glob_import && !blob.contains(search_str.trim_right_matches('!')) {
+            if !is_glob_import && !blob.contains(search_str.trim_end_matches('!')) {
                 continue;
             }
 
@@ -1066,7 +1066,7 @@ pub fn search_scope(
 
         // Optimisation: if the search string is not in the blob,
         // this cannot match so fail fast!
-        if !blob.contains(search_str.trim_right_matches('!')) {
+        if !blob.contains(search_str.trim_end_matches('!')) {
             continue;
         }
 
