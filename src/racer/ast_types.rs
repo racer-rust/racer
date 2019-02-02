@@ -746,9 +746,6 @@ impl TraitBounds {
     fn extend(&mut self, other: Self) {
         self.0.extend(other.0)
     }
-    fn paths(&self) -> impl Iterator<Item = &Path> {
-        self.0.iter().map(|paths| &paths.path)
-    }
 }
 
 /// Argument of generics like T: From<String>
