@@ -144,6 +144,7 @@ impl Ty {
             }
         }
     }
+
     pub(crate) fn from_lit(lit: &ast::Lit) -> Option<Ty> {
         let make_match = |kind: PrimKind| kind.to_module_match().map(Ty::Match);
         match lit.node {
@@ -159,6 +160,7 @@ impl Ty {
             },
             LitKind::FloatUnsuffixed(_) => make_match(PrimKind::F32),
             LitKind::Bool(_) => make_match(PrimKind::Bool),
+            LitKind::Err(_) => None,
         }
     }
     fn resolve_common(self, session: &Session) -> Option<Match> {
