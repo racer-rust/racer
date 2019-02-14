@@ -846,6 +846,8 @@ impl GenericsArgs {
                         args.push(type_param);
                     }
                 }
+                // TODO: Support const
+                GenericParamKind::Const { ty: _ } => {}
             }
         }
         for pred in generics.where_clause.predicates.iter() {
