@@ -1062,7 +1062,7 @@ fn complete_fully_qualified_name_(query: &str, path: &path::Path, session: &Sess
 ///
 /// session.cache_file_contents("lib.rs", src);
 ///
-/// let got = racer::complete_from_file("lib.rs", racer::Location::from(42), &session)
+/// let got = racer::complete_from_file("lib.rs", racer::Location::from(43), &session)
 ///     .nth(0).unwrap();
 /// assert_eq!("apple", got.matchstr);
 /// assert_eq!(got.mtype, racer::MatchType::Function);
@@ -1075,6 +1075,9 @@ where
     C: Into<Location>,
 {
     let mut matches = complete_from_file_(filepath.as_ref(), cursor.into(), session);
+    matches.sort_by(|a, b| {
+        a.matchstr.cmp(&b.matchstr).then(a.point.cmp(&b.point))
+    });
     matches.dedup_by(|a, b| a.is_same_as(b));
 
     MatchIter {
