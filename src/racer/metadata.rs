@@ -72,12 +72,16 @@ impl ProjectModelProvider for MetadataCache {
             Some(x) => x,
             None => return vec![],
         };
-        pkg_map
+        let deps = pkg_map
             .get_dependencies(idx)
             .iter()
             .filter(|(s, _)| search_fn(s))
-            .map(|(s, p)| (s.to_string(), p.to_path_buf()))
-            .collect()
+            .map(|(s, p)| (s.to_string(), p.to_path_buf()));
+        let lib = pkg_map
+            .get_lib(idx)
+            .filter(|t| search_fn(&t.name))
+            .map(|t| (t.name.to_string(), t.src_path.to_path_buf()));
+        deps.chain(lib).collect()
     }
     fn resolve_dependency(&self, manifest: &Path, libname: &str) -> Option<PathBuf> {
         debug!(
