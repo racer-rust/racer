@@ -57,6 +57,20 @@ fn follows_use_local_package() {
 }
 
 #[test]
+fn follows_use_local_package_2018() {
+    let src = "
+    use test_crat~
+    ";
+
+    with_test_project(|dir| {
+        let cratedir = dir.nested_dir("test-crate4");
+        let testdir = cratedir.nested_dir("tests");
+        let got = get_all_completions(src, Some(testdir));
+        assert!(got.into_iter().any(|ma| ma.matchstr == "test_crate4"));
+    })
+}
+
+#[test]
 fn finds_extern_crate() {
     let src = "
     extern crate fixtures;
