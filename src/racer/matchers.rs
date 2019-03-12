@@ -305,7 +305,8 @@ pub fn match_extern_crate(msrc: Src, context: &MatchCxt, session: &Session) -> O
             context.search_type,
             &format!("as {}", context.search_str),
             blob,
-        )) {
+        ))
+    {
         debug!("found an extern crate: |{}|", blob);
 
         let extern_crate = ast::parse_extern_crate(blob.to_owned());
@@ -475,27 +476,21 @@ pub fn match_trait(msrc: Src, context: &MatchCxt, session: &Session) -> Option<M
 pub fn match_enum_variants(msrc: &str, context: &MatchCxt) -> Vec<Match> {
     let blob = &msrc[context.range.to_range()];
     let mut out = Vec::new();
-    if (blob.starts_with("pub enum") || (context.is_local && blob.starts_with("enum")))
-        && txt_matches(context.search_type, context.search_str, blob)
-    {
-        // parse the enum
-        let parsed_enum = ast::parse_enum(blob.to_owned());
-
-        for (name, offset) in parsed_enum.values {
-            if name.starts_with(context.search_str) {
-                let start = context.range.start + offset;
-                let m = Match {
-                    matchstr: name,
-                    filepath: context.filepath.to_path_buf(),
-                    point: start,
-                    coords: None,
-                    local: context.is_local,
-                    mtype: EnumVariant(None),
-                    contextstr: first_line(&blob[offset.0..]),
-                    docs: find_doc(msrc, start),
-                };
-                out.push(m);
-            }
+    let parsed_enum = ast::parse_enum(blob.to_owned());
+    for (name, offset) in parsed_enum.values {
+        if name.starts_with(context.search_str) {
+            let start = context.range.start + offset;
+            let m = Match {
+                matchstr: name,
+                filepath: context.filepath.to_path_buf(),
+                point: start,
+                coords: None,
+                local: context.is_local,
+                mtype: EnumVariant(None),
+                contextstr: first_line(&blob[offset.0..]),
+                docs: find_doc(msrc, start),
+            };
+            out.push(m);
         }
     }
     out
