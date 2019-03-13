@@ -3832,3 +3832,16 @@ fn main() {
     let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "concat");
 }
+
+#[test]
+fn completes_crate_local_enum_variant() {
+    let src = "
+    pub(crate) enum Enum {
+       Variant,
+    }
+    fn main() {
+        let bar = Enum::V~;
+    }
+    ";
+    assert_eq!(get_only_completion(src, None).matchstr, "Variant");
+}
