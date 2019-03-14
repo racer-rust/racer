@@ -8,11 +8,20 @@ use std::path::Path;
 use std::rc::Rc;
 
 use syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, PatKind, UseTree, UseTreeKind};
-use syntax::errors::{emitter::ColorConfig, Handler};
+use syntax::errors::{emitter::Emitter, DiagnosticBuilder, Handler};
 use syntax::parse::parser::Parser;
 use syntax::parse::{self, ParseSess};
 use syntax::source_map::{self, FileName, SourceMap, Span};
 use syntax::{self, visit};
+
+struct DummyEmitter;
+
+impl Emitter for DummyEmitter {
+    fn emit(&mut self, _db: &DiagnosticBuilder<'_>) {}
+    fn should_show_explain(&self) -> bool {
+        false
+    }
+}
 
 /// construct parser from string
 // From syntax/util/parser_testing.rs
@@ -30,8 +39,7 @@ where
         let codemap = Rc::new(SourceMap::new(source_map::FilePathMapping::empty()));
         // setting of how we display errors in console
         // here we set can_emit_warnings=false, treat_err_as_bug=false
-        let handler =
-            Handler::with_tty_emitter(ColorConfig::Never, false, false, Some(codemap.clone()));
+        let handler = Handler::with_emitter(false, None, Box::new(DummyEmitter {}));
         let parse_sess = ParseSess::with_span_handler(handler, codemap);
 
         let mut p = string_to_parser(&parse_sess, s);
