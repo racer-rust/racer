@@ -37,8 +37,7 @@ where
 {
     syntax::with_globals(|| {
         let codemap = Rc::new(SourceMap::new(source_map::FilePathMapping::empty()));
-        // setting of how we display errors in console
-        // here we set can_emit_warnings=false, treat_err_as_bug=false
+        // We use DummyEmitter here not to print error messages to stderr
         let handler = Handler::with_emitter(false, None, Box::new(DummyEmitter {}));
         let parse_sess = ParseSess::with_span_handler(handler, codemap);
 
