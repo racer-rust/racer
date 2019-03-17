@@ -1613,7 +1613,7 @@ fn get_enum_variants(
     session: &Session,
 ) -> Vec<Match> {
     let mut out = Vec::new();
-    println!("context: {:?}", context);
+    debug!("context: {:?}", context);
     match context.mtype {
         // TODO(kngwyu): use generics
         MatchType::Enum(ref _generics) => {
