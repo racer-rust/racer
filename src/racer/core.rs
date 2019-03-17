@@ -1075,9 +1075,7 @@ where
     C: Into<Location>,
 {
     let mut matches = complete_from_file_(filepath.as_ref(), cursor.into(), session);
-    matches.sort_by(|a, b| {
-        a.matchstr.cmp(&b.matchstr).then(a.point.cmp(&b.point))
-    });
+    matches.sort_by(|a, b| a.matchstr.cmp(&b.matchstr).then(a.point.cmp(&b.point)));
     matches.dedup_by(|a, b| a.is_same_as(b));
 
     MatchIter {
