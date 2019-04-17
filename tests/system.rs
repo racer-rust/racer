@@ -1109,6 +1109,17 @@ fn follows_super_in_sub_module() {
 }
 
 #[test]
+fn follows_super_super_in_sub_sub_module() {
+    let src = "
+    pub fn iamhere() { }
+    mod inner { mod inner { pub use super::super::ia~mhere; } }
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("iamhere", got.matchstr);
+}
+
+#[test]
 fn follows_super_in_local_sub_module() {
     let src = "
     mod inner {
