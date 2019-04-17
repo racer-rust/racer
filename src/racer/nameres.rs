@@ -1753,6 +1753,7 @@ pub fn resolve_path(
                     debug!("PHIL super scope is {:?}", scope);
                     let mut newpath = path.clone();
                     newpath.prefix = None;
+                    newpath.set_prefix();
                     return resolve_path(
                         &newpath,
                         &scope.filepath,
