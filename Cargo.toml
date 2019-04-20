@@ -29,7 +29,7 @@ clap = "2.32"
 lazy_static = "1.2"
 humantime = "1.1"
 derive_more = "0.13.0"
-rls-span = "0.4.0"
+rls-span = "0.5.1"
 lazycell = { version = "1.2", optional = true }
 
 [dependencies.racer-cargo-metadata]

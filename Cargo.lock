@@ -294,7 +294,7 @@ dependencies = [
  "log 0.4.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "racer-cargo-metadata 0.1.1",
  "racer-testutils 0.1.0",
- "rls-span 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rls-span 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-ap-syntax 407.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -469,8 +469,11 @@ dependencies = [
 
 [[package]]
 name = "rls-span"
-version = "0.4.1"
+version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "serde 1.0.87 (registry+https://github.com/rust-lang/crates.io-index)",
+]
 
 [[package]]
 name = "rustc-ap-arena"
@@ -875,7 +878,7 @@ dependencies = [
 "checksum regex 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)" = "37e7cbbd370869ce2e8dff25c7018702d10b21a20ef7135316f8daecd6c25b7f"
 "checksum regex-syntax 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)" = "8c2f35eedad5295fdf00a63d7d4b238135723f92b434ec06774dad15c7ab0861"
 "checksum remove_dir_all 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "3488ba1b9a2084d38645c4c08276a1752dcbf2c7130d74f1569681ad5d2799c5"
-"checksum rls-span 0.4.1 (registry+https://github.com/rust-lang/crates.io-index)" = "33d66f1d6c6ccd5c98029f162544131698f6ebb61d8c697681cac409dcd08805"
+"checksum rls-span 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)" = "f1cb4694410d8d2ce43ccff3682f1c782158a018d5a9a92185675677f7533eb3"
 "checksum rustc-ap-arena 407.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5aab2fb5e5becf1c9183f6c63b8714817a3e780a20b4fe6b3920751c98a18225"
 "checksum rustc-ap-graphviz 407.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "0235ff613d4f96176ea56748010b5d8e978605cc47856ba9bb5372f4f38e9c03"
 "checksum rustc-ap-rustc_cratesio_shim 407.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "63e04a90b0dd8597da83633961698c61a2948f50c9d4b9a71e8afafc0ba0f158"
