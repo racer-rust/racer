@@ -4,7 +4,38 @@ Change Log
 All notable changes to this project will be documented in this file. This
 project adheres to [Semantic Versioning](http://semver.org/).
 
-# HEAD
+# 2.1.22
+- Fix completion for `super::super::...`(#1053)
+
+# 2.1.20, 2.1.21
+- Fix completion in testdir for Rust 2018(#1022)
+- Fix enum variant completion for pub(crate) enum(#1025)
+
+# 2.1.18, 2.1.19
+- Update rustc-ap-syntax
+
+# 2.1.17, 2.1.18
+- Fix doc comment parsing(#1010)
+
+# 2.1.15. 2.1.16
+- Handle CRLF correctly(#1007)
+
+# 2.1.14
+- Completion for binary operation(#976)
+
+# 2.1.10, 2.1.11, 2.1.12, 2.1.13
+- Completion for impl trait(#985, #986)
+- Completion for use as(#988)
+
+# 2.1.8, 2.1.9
+- Completion for trait objects(#972)
+- Completion for simple closure return types(#973)
+
+# 2.1.7
+- Lots of refactoring(#961, #963, #965)
+- Add `is_use_statement` for RLS(#965)
+
+# 2.1.6
 - Completion based on impl<T: Bound> #948
 - Fix for argument completion #943
 - Trait bound in where clause #937
