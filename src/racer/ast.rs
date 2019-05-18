@@ -763,7 +763,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     if name.as_str() == "vec" {
                         let path = RacerPath::from_iter(
                             true,
-                            ["std", "vec", "Vec"].into_iter().map(|s| s.to_string()),
+                            ["std", "vec", "Vec"].iter().map(|s| s.to_string()),
                         );
                         self.result = find_type_match(
                             &path,
