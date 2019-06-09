@@ -37,39 +37,35 @@ pub(crate) fn is_whitespace_byte(b: u8) -> bool {
 /// Searches for `needle` as a standalone identifier in `haystack`. To be considered a match,
 /// the `needle` must occur either at the beginning of `haystack` or after a non-identifier
 /// character.
-// TODO: this function should returns the position of found keyword
 pub fn txt_matches(stype: SearchType, needle: &str, haystack: &str) -> bool {
+    txt_matches_with_pos(stype, needle, haystack).is_some()
+}
+
+pub fn txt_matches_with_pos(stype: SearchType, needle: &str, haystack: &str) -> Option<usize> {
+    if needle.is_empty() {
+        return Some(0);
+    }
     match stype {
         ExactMatch => {
             let n_len = needle.len();
             let h_len = haystack.len();
-
-            if n_len == 0 {
-                return true;
-            }
-
             for (n, _) in haystack.match_indices(needle) {
                 if (n == 0 || !is_ident_char(char_before(haystack, n)))
                     && (n + n_len == h_len || !is_ident_char(char_at(haystack, n + n_len)))
                 {
-                    return true;
+                    return Some(n);
                 }
             }
-            false
         }
         StartsWith => {
-            if needle.is_empty() {
-                return true;
-            }
-
             for (n, _) in haystack.match_indices(needle) {
                 if n == 0 || !is_ident_char(char_before(haystack, n)) {
-                    return true;
+                    return Some(n);
                 }
             }
-            false
         }
     }
+    None
 }
 
 pub fn symbol_matches(stype: SearchType, searchstr: &str, candidate: &str) -> bool {

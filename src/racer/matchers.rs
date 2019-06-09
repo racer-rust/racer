@@ -196,34 +196,26 @@ pub fn match_static(msrc: &str, context: &MatchCxt) -> Option<Match> {
     match_pattern_start(msrc, context, "static", &[], Static)
 }
 
-fn match_pattern_let(
-    msrc: &str,
-    context: &MatchCxt,
-    pattern: &str,
-    mtype: MatchType,
-) -> Vec<Match> {
+fn match_let_impl(msrc: &str, context: &MatchCxt, mtype: MatchType) -> Vec<Match> {
     let mut out = Vec::new();
-    let blob = &msrc[context.range.to_range()];
-    if blob.starts_with(pattern) && txt_matches(context.search_type, context.search_str, blob) {
-        let coords = ast::parse_pat_bind_stmt(blob.to_owned());
-        for pat_range in coords {
-            let s = &blob[pat_range.to_range()];
-            if symbol_matches(context.search_type, context.search_str, s) {
-                let start = context.range.start + pat_range.start;
-                debug!("match_pattern_let point is {:?}", start);
-                out.push(Match {
-                    matchstr: s.to_owned(),
-                    filepath: context.filepath.to_path_buf(),
-                    point: start,
-                    coords: None,
-                    local: context.is_local,
-                    mtype: mtype.clone(),
-                    contextstr: blob.to_owned(),
-                    docs: String::new(),
-                });
-                if context.search_type == ExactMatch {
-                    break;
-                }
+    let coords = ast::parse_pat_bind_stmt(msrc.to_owned());
+    for pat_range in coords {
+        let s = &msrc[pat_range.to_range()];
+        if symbol_matches(context.search_type, context.search_str, s) {
+            let start = context.range.start + pat_range.start;
+            debug!("match_pattern_let point is {:?}", start);
+            out.push(Match {
+                matchstr: s.to_owned(),
+                filepath: context.filepath.to_path_buf(),
+                point: start,
+                coords: None,
+                local: context.is_local,
+                mtype: mtype.clone(),
+                contextstr: msrc.to_owned(),
+                docs: String::new(),
+            });
+            if context.search_type == ExactMatch {
+                break;
             }
         }
     }
@@ -231,15 +223,20 @@ fn match_pattern_let(
 }
 
 pub fn match_if_let(msrc: &str, start: BytePos, context: &MatchCxt) -> Vec<Match> {
-    match_pattern_let(msrc, context, "if let ", IfLet(start))
+    match_let_impl(msrc, context, IfLet(start))
 }
 
 pub fn match_while_let(msrc: &str, start: BytePos, context: &MatchCxt) -> Vec<Match> {
-    match_pattern_let(msrc, context, "while let ", WhileLet(start))
+    match_let_impl(msrc, context, WhileLet(start))
 }
 
 pub fn match_let(msrc: &str, start: BytePos, context: &MatchCxt) -> Vec<Match> {
-    match_pattern_let(msrc, context, "let ", Let(start))
+    let blob = &msrc[context.range.to_range()];
+    if blob.starts_with("let ") && txt_matches(context.search_type, context.search_str, blob) {
+        match_let_impl(blob, context, Let(start))
+    } else {
+        Vec::new()
+    }
 }
 
 pub fn match_for(msrc: &str, for_start: BytePos, context: &MatchCxt) -> Vec<Match> {
@@ -291,7 +288,6 @@ pub fn match_extern_crate(msrc: Src, context: &MatchCxt, session: &Session) -> O
         blob = &blob[offset.0..];
     }
 
-    // TODO: later part is really necessary?
     if txt_matches(
         context.search_type,
         &format!("extern crate {}", context.search_str),
