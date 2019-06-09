@@ -8,6 +8,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 use syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, PatKind, UseTree, UseTreeKind};
+use syntax::edition::Edition;
 use syntax::errors::{emitter::Emitter, DiagnosticBuilder, Handler};
 use syntax::parse::parser::Parser;
 use syntax::parse::{self, ParseSess};
@@ -17,7 +18,7 @@ use syntax::{self, visit};
 struct DummyEmitter;
 
 impl Emitter for DummyEmitter {
-    fn emit(&mut self, _db: &DiagnosticBuilder<'_>) {}
+    fn emit_diagnostic(&mut self, _db: &DiagnosticBuilder<'_>) {}
     fn should_show_explain(&self) -> bool {
         false
     }
@@ -35,7 +36,8 @@ pub fn with_error_checking_parse<F, T>(s: String, f: F) -> Option<T>
 where
     F: FnOnce(&mut Parser) -> Option<T>,
 {
-    syntax::with_globals(|| {
+    // FIXME: Set correct edition based on the edition of the target crate.
+    syntax::with_globals(Edition::Edition2018, || {
         let codemap = Rc::new(SourceMap::new(source_map::FilePathMapping::empty()));
         // We use DummyEmitter here not to print error messages to stderr
         let handler = Handler::with_emitter(false, None, Box::new(DummyEmitter {}));
