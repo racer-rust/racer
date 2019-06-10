@@ -410,19 +410,7 @@ pub enum RustSrcPathError {
     NotRustSourceTree(path::PathBuf),
 }
 
-impl error::Error for RustSrcPathError {
-    fn cause(&self) -> Option<&error::Error> {
-        None
-    }
-
-    fn description(&self) -> &str {
-        match *self {
-            RustSrcPathError::Missing => "RUSTC_SRC_PATH not set or not found in sysroot",
-            RustSrcPathError::DoesNotExist(_) => "RUSTC_SRC_PATH does not exist on file system",
-            RustSrcPathError::NotRustSourceTree(_) => "RUSTC_SRC_PATH isn't a rustc source tree",
-        }
-    }
-}
+impl error::Error for RustSrcPathError {}
 
 impl fmt::Display for RustSrcPathError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
