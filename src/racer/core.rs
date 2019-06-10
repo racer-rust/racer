@@ -712,7 +712,7 @@ pub struct FileCache {
     masked_map: RefCell<HashMap<path::PathBuf, Rc<MaskedSource>>>,
 
     /// The file loader
-    pub(crate) loader: Box<FileLoader>,
+    pub(crate) loader: Box<dyn FileLoader>,
 }
 
 /// Used by the FileCache for loading files
@@ -858,7 +858,7 @@ pub struct Session<'c> {
     cache: &'c FileCache,
     /// Cache for generic impls
     pub generic_impls: RefCell<HashMap<(path::PathBuf, BytePos), Vec<Rc<ImplHeader>>>>,
-    pub project_model: Box<ProjectModelProvider + 'c>,
+    pub project_model: Box<dyn ProjectModelProvider + 'c>,
 }
 
 impl<'c> fmt::Debug for Session<'c> {
@@ -879,19 +879,19 @@ impl<'c> Session<'c> {
     /// extern crate racer;
     ///
     /// let cache = racer::FileCache::default();
-    /// let session = racer::Session::new(&cache);
+    /// let session = racer::Session::new(&cache, None);
     /// ```
     ///
     /// [`FileCache`]: struct.FileCache.html
     #[cfg(feature = "metadata")]
-    pub fn new(cache: &'c FileCache) -> Session<'c> {
-        let project_model = ::metadata::project_model();
+    pub fn new(cache: &'c FileCache, project_path: Option<&path::Path>) -> Session<'c> {
+        let project_model = ::metadata::project_model(project_path);
         Session::with_project_model(cache, project_model)
     }
 
     pub fn with_project_model(
         cache: &'c FileCache,
-        project_model: Box<ProjectModelProvider + 'c>,
+        project_model: Box<dyn ProjectModelProvider + 'c>,
     ) -> Session<'c> {
         Session {
             cache,
@@ -909,7 +909,7 @@ impl<'c> Session<'c> {
     /// extern crate racer;
     ///
     /// let cache = racer::FileCache::default();
-    /// let session = racer::Session::new(&cache);
+    /// let session = racer::Session::new(&cache, None);
     ///
     /// session.cache_file_contents("foo.rs", "pub struct Foo;\\n");
     /// ```
@@ -976,7 +976,7 @@ where
 ///
 /// let path = std::path::Path::new(".");
 /// let cache = racer::FileCache::default();
-/// let session = racer::Session::new(&cache);
+/// let session = racer::Session::new(&cache, Some(path));
 ///
 /// let m = racer::complete_fully_qualified_name(
 ///     "std::fs::canon",
@@ -1058,7 +1058,7 @@ fn complete_fully_qualified_name_(query: &str, path: &path::Path, session: &Sess
 /// println!("{:?}", src);
 ///
 /// let cache = racer::FileCache::default();
-/// let session = racer::Session::new(&cache);
+/// let session = racer::Session::new(&cache, None);
 ///
 /// session.cache_file_contents("lib.rs", src);
 ///
@@ -1190,7 +1190,7 @@ fn complete_from_file_(filepath: &path::Path, cursor: Location, session: &Sessio
 /// # fn main() {
 /// let _ = env_logger::init();
 /// let cache = racer::FileCache::default();
-/// let session = racer::Session::new(&cache);
+/// let session = racer::Session::new(&cache, None);
 ///
 /// // This is the file where we request completion from
 /// let src = stringify! {
@@ -1243,7 +1243,7 @@ where
 /// # fn main() {
 /// let _ = env_logger::init();
 /// let cache = racer::FileCache::default();
-/// let session = racer::Session::new(&cache);
+/// let session = racer::Session::new(&cache, None);
 ///
 /// // This is the file where we request completion from
 /// let src = stringify! {
@@ -1387,7 +1387,7 @@ mod tests {
         // the newly cached contents.
         macro_rules! cache_and_assert {
             ($src: ident) => {{
-                let session = Session::new(&cache);
+                let session = Session::new(&cache, Some(path));
                 session.cache_file_contents(path, $src);
                 assert_eq!($src, &session.load_raw_file(path)[..]);
                 assert_eq!($src, &session.load_source_file(path).code[..]);

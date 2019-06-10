@@ -106,8 +106,8 @@ fn completes_fn_with_substitute_file() {
     let (_pos, src) = get_pos_and_source(src);
     let cache = racer::FileCache::default();
     let real_file = Path::new("not_real.rs");
-    let session = racer::Session::new(&cache);
-    session.cache_file_contents(&real_file, src);
+    let session = racer::Session::new(&cache, None);
+    session.cache_file_contents(real_file, src);
     let cursor = Coordinate::new(6, 18);
     let got = complete_from_file(real_file, cursor, &session)
         .nth(0)
@@ -145,9 +145,9 @@ fn completes_pub_fn_locally_precached() {
     let f = TmpFile::new(&src);
     let path = f.path();
     let cache = racer::FileCache::default();
-    let session = racer::Session::new(&cache);
-    session.cache_file_contents(&path, src.clone());
-    let got = complete_from_file(&path, pos, &session).nth(0).unwrap();
+    let session = racer::Session::new(&cache, Some(path));
+    session.cache_file_contents(path, src.clone());
+    let got = complete_from_file(path, pos, &session).nth(0).unwrap();
     assert_eq!("apple", got.matchstr);
 }
 
@@ -221,7 +221,7 @@ fn completes_for_vec_field_and_method() {
     let dir = TmpDir::new();
     let path = dir.write_file("src.rs", src);
     let cache = racer::FileCache::default();
-    let session = racer::Session::new(&cache);
+    let session = racer::Session::new(&cache, None);
     let cursor1 = Coordinate::new(18, 18);
     let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
     assert_eq!("stfield", got1.matchstr);
@@ -256,13 +256,13 @@ fn completes_trait_methods() {
     let f = TmpFile::new(src);
     let path = f.path();
     let cache1 = racer::FileCache::default();
-    let session1 = racer::Session::new(&cache1);
+    let session1 = racer::Session::new(&cache1, None);
     let cursor1 = Coordinate::new(18, 18);
     let got1 = complete_from_file(&path, cursor1, &session1)
         .nth(0)
         .unwrap();
     let cache2 = racer::FileCache::default();
-    let session2 = racer::Session::new(&cache2);
+    let session2 = racer::Session::new(&cache2, None);
     let cursor2 = Coordinate::new(19, 11);
     let got2 = complete_from_file(&path, cursor2, &session2)
         .nth(0)
@@ -302,13 +302,13 @@ fn completes_trait_bounded_methods() {
     let f = TmpFile::new(src);
     let path = f.path();
     let cache1 = racer::FileCache::default();
-    let session1 = racer::Session::new(&cache1);
+    let session1 = racer::Session::new(&cache1, None);
     let cursor1 = Coordinate::new(20, 16);
     let got1 = complete_from_file(&path, cursor1, &session1)
         .nth(0)
         .unwrap();
     let cache2 = racer::FileCache::default();
-    let session2 = racer::Session::new(&cache2);
+    let session2 = racer::Session::new(&cache2, None);
     let cursor2 = Coordinate::new(21, 12);
     let got2 = complete_from_file(&path, cursor2, &session2)
         .nth(0)
@@ -353,7 +353,7 @@ fn completes_trait_bounded_methods_generic_return() {
     let f = TmpFile::new(src);
     let path = f.path();
     let cache = racer::FileCache::default();
-    let session = racer::Session::new(&cache);
+    let session = racer::Session::new(&cache, None);
     let cursor1 = Coordinate::new(24, 24);
     let cursor2 = Coordinate::new(25, 25);
     let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
@@ -436,7 +436,7 @@ fn completes_for_vec_iter_field_and_method() {
     let dir = TmpDir::new();
     let path = dir.write_file("src.rs", src);
     let cache = racer::FileCache::default();
-    let session = racer::Session::new(&cache);
+    let session = racer::Session::new(&cache, None);
     let cursor1 = Coordinate::new(22, 18);
     let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
     assert_eq!("stfield", got1.matchstr);
@@ -472,7 +472,7 @@ fn completes_trait_methods_when_at_scope_end() {
     let f = TmpFile::new(src);
     let path = f.path();
     let cache = racer::FileCache::default();
-    let session = racer::Session::new(&cache);
+    let session = racer::Session::new(&cache, None);
     let cursor1 = Coordinate::new(18, 18);
     let got1 = complete_from_file(&path, cursor1, &session).nth(0).unwrap();
     let cursor2 = Coordinate::new(19, 11);

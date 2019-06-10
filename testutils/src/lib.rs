@@ -192,7 +192,7 @@ pub fn get_all_completions_with_name(src: &str, dir: Option<TmpDir>, fname: &str
     let (completion_point, clean_src) = get_pos_and_source(src);
     let path = dir.write_file(fname, &clean_src);
     let cache = racer::FileCache::default();
-    let session = racer::Session::new(&cache);
+    let session = racer::Session::new(&cache, Some(path.as_ref()));
     complete_from_file(&path, completion_point, &session).collect()
 }
 
@@ -233,6 +233,6 @@ pub fn find_definition_with_name(src: &str, dir: Option<TmpDir>, fname: &str) ->
     let (completion_point, clean_src) = get_pos_and_source(src);
     let path = dir.write_file(fname, &clean_src);
     let cache = racer::FileCache::default();
-    let session = racer::Session::new(&cache);
+    let session = racer::Session::new(&cache, Some(path.as_ref()));
     racer_find_definition(&path, completion_point, &session)
 }
