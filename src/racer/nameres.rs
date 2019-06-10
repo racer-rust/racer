@@ -757,8 +757,9 @@ fn search_fn_args_and_generics(
 #[test]
 fn test_do_file_search_std() {
     let cache = core::FileCache::default();
-    let session = Session::new(&cache);
-    let matches = do_file_search("std", &Path::new("."), &session);
+    let path = Path::new(".");
+    let session = Session::new(&cache, Some(path));
+    let matches = do_file_search("std", path, &session);
     assert!(matches
         .into_iter()
         .any(|m| m.filepath.ends_with("src/libstd/lib.rs")));
@@ -767,8 +768,9 @@ fn test_do_file_search_std() {
 #[test]
 fn test_do_file_search_local() {
     let cache = core::FileCache::default();
-    let session = Session::new(&cache);
-    let matches = do_file_search("submodule", &Path::new("fixtures/arst/src"), &session);
+    let path = Path::new("fixtures/arst/src");
+    let session = Session::new(&cache, Some(path));
+    let matches = do_file_search("submodule", path, &session);
     assert!(matches
         .into_iter()
         .any(|m| m.filepath.ends_with("fixtures/arst/src/submodule/mod.rs")));

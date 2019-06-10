@@ -19,7 +19,7 @@ use syntax::ast::ImplItemKind;
 ///
 /// let path = Path::new(".");
 /// let cache = racer::FileCache::default();
-/// let session = racer::Session::new(&cache);
+/// let session = racer::Session::new(&cache, Some(path));
 ///
 /// let m = racer::complete_fully_qualified_name(
 ///     "std::fs::canonicalize",

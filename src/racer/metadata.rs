@@ -3,19 +3,24 @@ extern crate racer_cargo_metadata as metadata;
 use self::lazycell::LazyCell;
 use self::metadata::mapping::{Edition as Ed, PackageIdx, PackageMap};
 use project_model::{Edition, ProjectModelProvider};
+use std::cell::Cell;
 use std::path::{Path, PathBuf};
 
 struct MetadataCache {
     pkg_map: LazyCell<PackageMap>,
+    manifest_path: Option<PathBuf>,
+    failed_to_fill: Cell<bool>,
 }
 
 impl MetadataCache {
-    fn new() -> Self {
+    fn new(manifest_path: Option<PathBuf>) -> Self {
         MetadataCache {
             pkg_map: LazyCell::new(),
+            manifest_path,
+            failed_to_fill: Cell::new(false),
         }
     }
-    fn fill(&self, manifest: &Path) -> Result<(), ()> {
+    fn fill_impl(&self, manifest: &Path) -> Result<(), ()> {
         let meta = metadata::run(manifest, true)
             .or_else(|e| {
                 if let metadata::ErrorKind::Subprocess(ref s) = e {
@@ -36,10 +41,13 @@ impl MetadataCache {
             warn!("Error in initialize lazy cell");
         })
     }
-    fn setup(&self, manifest: &Path) -> Option<(&PackageMap, PackageIdx)> {
-        if !self.pkg_map.filled() {
-            self.fill(manifest).ok()?;
+    fn fill(&self, manifest: &Path) {
+        if !self.pkg_map.filled() && !self.failed_to_fill.get() {
+            self.failed_to_fill.set(self.fill_impl(manifest).is_err());
         }
+    }
+    fn setup(&self, manifest: &Path) -> Option<(&PackageMap, PackageIdx)> {
+        self.fill(manifest);
         let pkg_map: &PackageMap = self.pkg_map.borrow().unwrap();
         let idx = if manifest.is_relative() {
             let path = manifest.canonicalize().ok()?;
@@ -61,12 +69,15 @@ impl ProjectModelProvider for MetadataCache {
         })
     }
     fn discover_project_manifest(&self, path: &Path) -> Option<PathBuf> {
-        metadata::find_manifest(path)
+        let cur_manifest = metadata::find_manifest(path)?;
+        let manifest = self.manifest_path.as_ref()?;
+        self.fill(manifest);
+        Some(cur_manifest)
     }
     fn search_dependencies(
         &self,
         manifest: &Path,
-        search_fn: Box<Fn(&str) -> bool>,
+        search_fn: Box<dyn Fn(&str) -> bool>,
     ) -> Vec<(String, PathBuf)> {
         let (pkg_map, idx) = match self.setup(manifest) {
             Some(x) => x,
@@ -107,6 +118,7 @@ impl ProjectModelProvider for MetadataCache {
     }
 }
 
-pub fn project_model() -> Box<ProjectModelProvider> {
-    Box::new(MetadataCache::new())
+pub fn project_model(project_path: Option<&Path>) -> Box<dyn ProjectModelProvider> {
+    let manifest = project_path.and_then(|p| metadata::find_manifest(p));
+    Box::new(MetadataCache::new(manifest))
 }

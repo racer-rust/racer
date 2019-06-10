@@ -12,7 +12,7 @@ pub trait ProjectModelProvider {
     fn search_dependencies(
         &self,
         manifest: &Path,
-        search_fn: Box<Fn(&str) -> bool>,
+        search_fn: Box<dyn Fn(&str) -> bool>,
     ) -> Vec<(String, PathBuf)>;
     fn resolve_dependency(&self, manifest: &Path, dep_name: &str) -> Option<PathBuf>;
 }

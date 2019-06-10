@@ -280,7 +280,7 @@ fn txt_matches_matches_methods() {
 /// let path = "lib.rs";
 ///
 /// let cache = racer::FileCache::default();
-/// let session = racer::Session::new(&cache);
+/// let session = racer::Session::new(&cache, None);
 ///
 /// session.cache_file_contents(path, src);
 ///
