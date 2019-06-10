@@ -300,7 +300,7 @@ dependencies = [
 
 [[package]]
 name = "racer"
-version = "2.1.22"
+version = "2.1.23"
 dependencies = [
  "bitflags 1.0.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "clap 2.32.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -336,7 +336,7 @@ dependencies = [
 name = "racer-testutils"
 version = "0.1.0"
 dependencies = [
- "racer 2.1.22",
+ "racer 2.1.23",
  "tempfile 3.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
