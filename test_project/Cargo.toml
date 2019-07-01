@@ -4,6 +4,7 @@ name = "test_project"
 description = "crate for testing racer's functionalities"
 version = "0.1.0"
 authors = ["Joe Wilm <joe@jwilm.com>"]
+edition = "2018"
 
 [dependencies]
 test_fixtures = { path = "./test_fixtures" }

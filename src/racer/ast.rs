@@ -1,8 +1,10 @@
-use ast_types::Path as RacerPath;
-use ast_types::{self, GenericsArgs, ImplHeader, Pat, PathAlias, PathAliasKind, TraitBounds, Ty};
-use core::{self, BytePos, ByteRange, Match, MatchType, Scope, Session, SessionExt};
-use nameres;
-use typeinf;
+use crate::ast_types::Path as RacerPath;
+use crate::ast_types::{
+    self, GenericsArgs, ImplHeader, Pat, PathAlias, PathAliasKind, TraitBounds, Ty,
+};
+use crate::core::{self, BytePos, ByteRange, Match, MatchType, Scope, Session, SessionExt};
+use crate::nameres;
+use crate::typeinf;
 
 use std::path::Path;
 use std::rc::Rc;
@@ -26,7 +28,7 @@ impl Emitter for DummyEmitter {
 
 /// construct parser from string
 // From syntax/util/parser_testing.rs
-pub fn string_to_parser(ps: &ParseSess, source_str: String) -> Parser {
+pub fn string_to_parser(ps: &ParseSess, source_str: String) -> Parser<'_> {
     parse::new_parser_from_source_str(ps, FileName::Custom("racer-file".to_owned()), source_str)
 }
 
@@ -34,7 +36,7 @@ pub fn string_to_parser(ps: &ParseSess, source_str: String) -> Parser {
 // TODO: use Result insated of Option
 pub fn with_error_checking_parse<F, T>(s: String, f: F) -> Option<T>
 where
-    F: FnOnce(&mut Parser) -> Option<T>,
+    F: FnOnce(&mut Parser<'_>) -> Option<T>,
 {
     // FIXME: Set correct edition based on the edition of the target crate.
     syntax::with_globals(Edition::Edition2018, || {
@@ -213,7 +215,7 @@ pub struct FnArgVisitor {
 impl<'ast> visit::Visitor<'ast> for FnArgVisitor {
     fn visit_fn(
         &mut self,
-        _fk: visit::FnKind,
+        _fk: visit::FnKind<'_>,
         fd: &ast::FnDecl,
         _: source_map::Span,
         _: ast::NodeId,
@@ -250,7 +252,7 @@ fn destructure_pattern_to_ty(
     point: BytePos,
     ty: &Ty,
     scope: &Scope,
-    session: &Session,
+    session: &Session<'_>,
 ) -> Option<Ty> {
     debug!(
         "destructure_pattern_to_ty point {:?} ty {:?} pat: {:?}",
@@ -354,7 +356,7 @@ fn destructure_pattern_to_ty(
     }
 }
 
-struct LetTypeVisitor<'c: 's, 's> {
+struct LetTypeVisitor<'c, 's> {
     scope: Scope,
     session: &'s Session<'c>,
     pos: BytePos, // pos is relative to the srctxt, scope is global
@@ -381,7 +383,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for LetTypeVisitor<'c, 's> {
     }
 }
 
-struct MatchTypeVisitor<'c: 's, 's> {
+struct MatchTypeVisitor<'c, 's> {
     scope: Scope,
     session: &'s Session<'c>,
     pos: BytePos, // pos is relative to the srctxt, scope is global
@@ -426,7 +428,7 @@ fn resolve_ast_path(
     path: &ast::Path,
     filepath: &Path,
     pos: BytePos,
-    session: &Session,
+    session: &Session<'_>,
 ) -> Option<Match> {
     let scope = Scope::new(filepath.to_owned(), pos);
     let path = RacerPath::from_ast(path, &scope);
@@ -443,7 +445,7 @@ fn resolve_ast_path(
     .nth(0)
 }
 
-fn path_to_match(ty: Ty, session: &Session) -> Option<Ty> {
+fn path_to_match(ty: Ty, session: &Session<'_>) -> Option<Ty> {
     match ty {
         Ty::PathSearch(paths) => {
             find_type_match(&paths.path, &paths.filepath, paths.point, session).map(Ty::Match)
@@ -457,7 +459,7 @@ pub(crate) fn find_type_match(
     path: &RacerPath,
     fpath: &Path,
     pos: BytePos,
-    session: &Session,
+    session: &Session<'_>,
 ) -> Option<Match> {
     debug!("find_type_match {:?}, {:?}", path, fpath);
     let mut res = nameres::resolve_path_with_primitive(
@@ -482,7 +484,7 @@ pub(crate) fn find_type_match(
     Some(res)
 }
 
-struct ExprTypeVisitor<'c: 's, 's> {
+struct ExprTypeVisitor<'c, 's> {
     scope: Scope,
     session: &'s Session<'c>,
     // what we have before calling typeinf::get_type_of_match
@@ -820,7 +822,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
 fn path_to_match_including_generics(
     mut ty: Ty,
     generics: Option<&GenericsArgs>,
-    session: &Session,
+    session: &Session<'_>,
 ) -> Option<Ty> {
     if let Some(gen) = generics {
         ty = ty.replace_by_generics(gen);
@@ -839,7 +841,7 @@ fn find_type_match_including_generics(
     filepath: &Path,
     pos: BytePos,
     structm: &Match,
-    session: &Session,
+    session: &Session<'_>,
 ) -> Option<Ty> {
     assert_eq!(&structm.filepath, filepath);
     let fieldtypepath = match fieldtype {
@@ -1200,7 +1202,7 @@ pub fn parse_static(s: String, scope: Scope) -> StaticVisitor {
     v
 }
 
-pub fn get_type_of(s: String, fpath: &Path, pos: BytePos, session: &Session) -> Option<Ty> {
+pub fn get_type_of(s: String, fpath: &Path, pos: BytePos, session: &Session<'_>) -> Option<Ty> {
     let startscope = Scope {
         filepath: fpath.to_path_buf(),
         point: pos,
@@ -1213,7 +1215,7 @@ pub fn get_type_of(s: String, fpath: &Path, pos: BytePos, session: &Session) -> 
 }
 
 // pos points to an ident in the lhs of the stmtstr
-pub fn get_let_type(s: String, pos: BytePos, scope: Scope, session: &Session) -> Option<Ty> {
+pub fn get_let_type(s: String, pos: BytePos, scope: Scope, session: &Session<'_>) -> Option<Ty> {
     let mut v = LetTypeVisitor {
         scope,
         session,
@@ -1224,7 +1226,12 @@ pub fn get_let_type(s: String, pos: BytePos, scope: Scope, session: &Session) ->
     v.result
 }
 
-pub fn get_match_arm_type(s: String, pos: BytePos, scope: Scope, session: &Session) -> Option<Ty> {
+pub fn get_match_arm_type(
+    s: String,
+    pos: BytePos,
+    scope: Scope,
+    session: &Session<'_>,
+) -> Option<Ty> {
     let mut v = MatchTypeVisitor {
         scope,
         session,
@@ -1243,7 +1250,7 @@ pub struct FnOutputVisitor {
 impl<'ast> visit::Visitor<'ast> for FnOutputVisitor {
     fn visit_fn(
         &mut self,
-        _: visit::FnKind,
+        _: visit::FnKind<'_>,
         fd: &ast::FnDecl,
         _: source_map::Span,
         _: ast::NodeId,
@@ -1281,7 +1288,7 @@ where
 }
 
 /// Visitor for for ~ in .. statement
-pub(crate) struct ForStmtVisitor<'r, 's: 'r> {
+pub(crate) struct ForStmtVisitor<'r, 's> {
     pub(crate) for_pat: Option<Pat>,
     pub(crate) in_expr: Option<Ty>,
     scope: Scope,
@@ -1316,7 +1323,7 @@ pub(crate) fn parse_for_stmt<'r, 's: 'r>(
 }
 
 /// Visitor for if let / while let statement
-pub(crate) struct IfLetVisitor<'r, 's: 'r> {
+pub(crate) struct IfLetVisitor<'r, 's> {
     pub(crate) let_pat: Option<Pat>,
     pub(crate) rh_expr: Option<Ty>,
     scope: Scope,

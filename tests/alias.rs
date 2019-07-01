@@ -1,5 +1,3 @@
-extern crate racer;
-extern crate racer_testutils;
 use racer::Coordinate;
 use racer_testutils::*;
 

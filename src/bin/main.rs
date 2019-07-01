@@ -1,11 +1,11 @@
 #[macro_use]
 extern crate log;
-extern crate env_logger;
+use env_logger;
 #[macro_use]
 extern crate clap;
 
-extern crate humantime;
-extern crate racer;
+use humantime;
+use racer;
 
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use racer::{BytePos, Coordinate, FileCache, Match, MatchType, Session};
@@ -34,7 +34,7 @@ fn coord(cfg: &Config) {
     cfg.interface.emit(Message::End);
 }
 
-fn match_with_snippet_fn(m: Match, session: &Session, interface: Interface) {
+fn match_with_snippet_fn(m: Match, session: &Session<'_>, interface: Interface) {
     let cd = m
         .coords
         .expect("[match_with_snipper_fn] failed to get coordinate");
@@ -124,7 +124,7 @@ where
     Ok(res)
 }
 
-fn load_query_file<P, S>(path: P, sub: S, session: &Session)
+fn load_query_file<P, S>(path: P, sub: S, session: &Session<'_>)
 where
     P: Into<PathBuf>,
     S: AsRef<Path>,
@@ -289,7 +289,7 @@ impl Interface {
         }
     }
 
-    fn emit(&self, message: Message) {
+    fn emit(&self, message: Message<'_>) {
         match message {
             Message::End => println!("END"),
             Message::Prefix(start, pos, text) => match *self {
@@ -398,7 +398,7 @@ impl Config {
 }
 
 impl<'a> From<&'a ArgMatches<'a>> for Config {
-    fn from(m: &'a ArgMatches) -> Self {
+    fn from(m: &'a ArgMatches<'_>) -> Self {
         // Check for the presence of the `point` argument that indicates we're
         // being asked to convert from point to coordinates
         if m.is_present("point") && m.is_present("path") {
@@ -622,8 +622,8 @@ fn main() {
     run(&matches, interface);
 }
 
-fn run(m: &ArgMatches, interface: Interface) {
-    use CompletePrinter::{Normal, WithSnippets};
+fn run(m: &ArgMatches<'_>, interface: Interface) {
+    use crate::CompletePrinter::{Normal, WithSnippets};
     // match raw subcommand, and get it's sub-matches "m"
     if let (name, Some(sub_m)) = m.subcommand() {
         let mut cfg = Config::from(sub_m);

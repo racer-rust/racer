@@ -6,7 +6,7 @@ extern crate serde_json;
 pub mod mapping;
 pub mod metadata;
 
-use metadata::Metadata;
+use crate::metadata::Metadata;
 use std::env;
 use std::error::Error;
 use std::fmt;

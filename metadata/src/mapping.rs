@@ -1,4 +1,4 @@
-use metadata::{Metadata, Package, PackageId, Resolve, ResolveNode, Target};
+use crate::metadata::{Metadata, Package, PackageId, Resolve, ResolveNode, Target};
 use racer_interner::InternedString;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};

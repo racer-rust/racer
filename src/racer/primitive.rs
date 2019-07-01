@@ -1,7 +1,7 @@
-use ast_types::PathSegment;
-use core::{BytePos, Match, MatchType, Namespace, SearchType, Session};
-use matchers::ImportInfo;
-use nameres::{self, RUST_SRC_PATH};
+use crate::ast_types::PathSegment;
+use crate::core::{BytePos, Match, MatchType, Namespace, SearchType, Session};
+use crate::matchers::ImportInfo;
+use crate::nameres::{self, RUST_SRC_PATH};
 use std::path::PathBuf;
 use syntax::ast::{IntTy, LitIntType, UintTy};
 
@@ -154,7 +154,7 @@ impl PrimKind {
             docs: String::new(),
         })
     }
-    pub fn to_doc_match(self, session: &Session) -> Option<Match> {
+    pub fn to_doc_match(self, session: &Session<'_>) -> Option<Match> {
         let seg: PathSegment = format!("prim_{}", self.match_name()).into();
         let src_path = RUST_SRC_PATH.as_ref()?;
         let prim_path = src_path.join(PRIM_DOC);
@@ -178,7 +178,7 @@ impl PrimKind {
 pub fn get_primitive_docs(
     searchstr: &str,
     stype: SearchType,
-    session: &Session,
+    session: &Session<'_>,
     out: &mut Vec<Match>,
 ) {
     for prim in PRIM_MATCHES.iter() {

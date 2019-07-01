@@ -1,6 +1,6 @@
 //! string interner
 //! same as cargo::core::interning.rs, but thread local and Deserializable
-extern crate serde;
+
 use serde::{de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
 
 use std::cell::RefCell;
@@ -60,13 +60,13 @@ impl Deref for InternedString {
 }
 
 impl fmt::Debug for InternedString {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(self.as_str(), f)
     }
 }
 
 impl fmt::Display for InternedString {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self.as_str(), f)
     }
 }
@@ -88,7 +88,7 @@ impl<'de> Deserialize<'de> for InternedString {
         struct VisStr;
         impl<'de> Visitor<'de> for VisStr {
             type Value = InternedString;
-            fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 write!(f, "expecting string")
             }
             fn visit_borrowed_str<E: Error>(self, v: &'de str) -> Result<InternedString, E> {

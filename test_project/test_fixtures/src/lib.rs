@@ -15,8 +15,6 @@
 //! - We should check racer can parse rust doc style comments
 //! - and some comments...
 
-extern crate test_crate2;
-
 #[path = "submod/bar.rs"]
 pub mod bar;
 
@@ -25,5 +23,3 @@ pub mod foo;
 pub use test_crate2::useless_func;
 
 pub type UsizeVec = Vec<usize>;
-
-

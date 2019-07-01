@@ -1,4 +1,4 @@
-use core::{BytePos, ByteRange};
+use crate::core::{BytePos, ByteRange};
 
 /// Type of the string
 #[derive(Clone, Copy, Debug)]
@@ -260,7 +260,7 @@ impl<'a> CodeIndicesIter<'a> {
 }
 
 /// Returns indices of chunks of code (minus comments and string contents)
-pub fn code_chunks(src: &str) -> CodeIndicesIter {
+pub fn code_chunks(src: &str) -> CodeIndicesIter<'_> {
     CodeIndicesIter {
         src,
         state: State::Code,
@@ -271,7 +271,7 @@ pub fn code_chunks(src: &str) -> CodeIndicesIter {
 #[cfg(test)]
 mod code_indices_iter_test {
     use super::*;
-    use testutils::{rejustify, slice};
+    use crate::testutils::{rejustify, slice};
 
     #[test]
     fn removes_a_comment() {

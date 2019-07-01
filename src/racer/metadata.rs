@@ -1,8 +1,8 @@
-extern crate lazycell;
+use lazycell;
 extern crate racer_cargo_metadata as metadata;
 use self::lazycell::LazyCell;
 use self::metadata::mapping::{Edition as Ed, PackageIdx, PackageMap};
-use project_model::{Edition, ProjectModelProvider};
+use crate::project_model::{Edition, ProjectModelProvider};
 use std::cell::Cell;
 use std::path::{Path, PathBuf};
 

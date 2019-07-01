@@ -1,6 +1,6 @@
 //! system test utilities for racer
-extern crate racer;
-extern crate tempfile;
+use racer;
+
 use racer::{complete_from_file, find_definition as racer_find_definition, BytePos, Match};
 use std::fmt;
 use std::fs;
@@ -52,7 +52,7 @@ impl TmpFile {
 }
 
 impl fmt::Debug for TmpFile {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "TmpFile: {:?}", self.path())
     }
 }
@@ -127,7 +127,7 @@ impl AsRef<Path> for TmpDir {
 }
 
 impl fmt::Debug for TmpDir {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "TmpDir: {:?}", self.path())
     }
 }

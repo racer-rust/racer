@@ -1,18 +1,18 @@
 //! Type inference
 //! THIS MODULE IS ENTIRELY TOO UGLY SO REALLY NEADS REFACTORING(kngwyu)
-use ast;
-use ast_types::{Pat, Ty};
-use core;
-use core::{
+use crate::ast;
+use crate::ast_types::{Pat, Ty};
+use crate::core;
+use crate::core::{
     BytePos, ByteRange, Match, MatchType, Namespace, Scope, SearchType, Session, SessionExt, Src,
 };
-use matchers;
-use nameres;
-use primitive::PrimKind;
-use scopes;
+use crate::matchers;
+use crate::nameres;
+use crate::primitive::PrimKind;
+use crate::scopes;
+use crate::util::{self, txt_matches};
 use std::path::Path;
 use syntax::ast::BinOpKind;
-use util::{self, txt_matches};
 
 // Removes the body of the statement (anything in the braces {...}), leaving just
 // the header
@@ -102,7 +102,7 @@ fn generates_skeleton_for_mod() {
     assert_eq!("mod foo {}", out);
 }
 
-fn get_type_of_self_arg(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
+fn get_type_of_self_arg(m: &Match, msrc: Src<'_>, session: &Session<'_>) -> Option<Ty> {
     debug!("get_type_of_self_arg {:?}", m);
     get_type_of_self(m.point, &m.filepath, m.local, msrc, session)
 }
@@ -112,8 +112,8 @@ pub fn get_type_of_self(
     point: BytePos,
     filepath: &Path,
     local: bool,
-    msrc: Src,
-    session: &Session,
+    msrc: Src<'_>,
+    session: &Session<'_>,
 ) -> Option<Ty> {
     let start = scopes::find_impl_start(msrc, point, BytePos::ZERO)?;
     let decl = generate_skeleton_for_parsing(&msrc.shift_start(start))?;
@@ -172,7 +172,7 @@ pub fn get_type_of_self(
     }
 }
 
-fn get_type_of_fnarg(m: Match, session: &Session) -> Option<Ty> {
+fn get_type_of_fnarg(m: Match, session: &Session<'_>) -> Option<Ty> {
     let Match {
         matchstr,
         filepath,
@@ -187,7 +187,7 @@ fn get_type_of_fnarg(m: Match, session: &Session) -> Option<Ty> {
     resolve_lvalue_ty(pat, ty, &matchstr, &filepath, point, session)
 }
 
-fn get_type_of_let_expr(m: Match, session: &Session) -> Option<Ty> {
+fn get_type_of_let_expr(m: Match, session: &Session<'_>) -> Option<Ty> {
     let Match {
         mtype,
         contextstr,
@@ -215,7 +215,7 @@ pub(crate) fn resolve_lvalue_ty<'a>(
     query: &str,
     fpath: &Path,
     pos: BytePos,
-    session: &Session,
+    session: &Session<'_>,
 ) -> Option<Ty> {
     match l_value {
         Pat::Ident(_bi, name) => {
@@ -294,7 +294,7 @@ pub(crate) fn resolve_lvalue_ty<'a>(
     }
 }
 
-fn get_type_of_for_arg(m: &Match, session: &Session) -> Option<Ty> {
+fn get_type_of_for_arg(m: &Match, session: &Session<'_>) -> Option<Ty> {
     let for_start = match &m.mtype {
         MatchType::For(pos) => *pos,
         _ => {
@@ -311,7 +311,7 @@ fn get_type_of_for_arg(m: &Match, session: &Session) -> Option<Ty> {
         "[get_type_of_for_expr] match: {:?}, for: {:?}, in: {:?},",
         m, for_pat, in_expr
     );
-    fn get_item(ty: Ty, session: &Session) -> Option<Ty> {
+    fn get_item(ty: Ty, session: &Session<'_>) -> Option<Ty> {
         match ty {
             Ty::Match(ma) => nameres::get_iter_item(&ma, session),
             Ty::PathSearch(paths) => {
@@ -331,7 +331,7 @@ fn get_type_of_for_arg(m: &Match, session: &Session) -> Option<Ty> {
     )
 }
 
-fn get_type_of_if_let(m: &Match, session: &Session, start: BytePos) -> Option<Ty> {
+fn get_type_of_if_let(m: &Match, session: &Session<'_>, start: BytePos) -> Option<Ty> {
     // HACK: use outer scope when getting r-value's type
     let scope = Scope::new(m.filepath.clone(), start);
     let ast::IfLetVisitor {
@@ -354,7 +354,7 @@ fn get_type_of_if_let(m: &Match, session: &Session, start: BytePos) -> Option<Ty
 pub fn get_struct_field_type(
     fieldname: &str,
     structmatch: &Match,
-    session: &Session,
+    session: &Session<'_>,
 ) -> Option<Ty> {
     // temporary fix for https://github.com/rust-lang-nursery/rls/issues/783
     if !structmatch.mtype.is_struct() {
@@ -387,7 +387,7 @@ pub fn get_struct_field_type(
 
 pub(crate) fn get_tuplestruct_fields(
     structmatch: &Match,
-    session: &Session,
+    session: &Session<'_>,
 ) -> Vec<(String, ByteRange, Option<Ty>)> {
     let src = session.load_source_file(&structmatch.filepath);
     let structsrc = if let core::MatchType::EnumVariant(_) = structmatch.mtype {
@@ -413,7 +413,7 @@ pub(crate) fn get_tuplestruct_fields(
 pub fn get_tuplestruct_field_type(
     fieldnum: usize,
     structmatch: &Match,
-    session: &Session,
+    session: &Session<'_>,
 ) -> Option<Ty> {
     let fields = get_tuplestruct_fields(structmatch, session);
 
@@ -425,14 +425,14 @@ pub fn get_tuplestruct_field_type(
     None
 }
 
-pub fn get_first_stmt(src: Src) -> Src {
+pub fn get_first_stmt(src: Src<'_>) -> Src<'_> {
     match src.iter_stmts().next() {
         Some(range) => src.shift_range(range),
         None => src,
     }
 }
 
-pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<Ty> {
+pub fn get_type_of_match(m: Match, msrc: Src<'_>, session: &Session<'_>) -> Option<Ty> {
     debug!("get_type_of match {:?} ", m);
 
     match m.mtype {
@@ -464,7 +464,7 @@ pub fn get_type_of_match(m: Match, msrc: Src, session: &Session) -> Option<Ty> {
     }
 }
 
-pub fn get_type_from_match_arm(m: &Match, msrc: Src, session: &Session) -> Option<Ty> {
+pub fn get_type_from_match_arm(m: &Match, msrc: Src<'_>, session: &Session<'_>) -> Option<Ty> {
     // We construct a faux match stmt and then parse it. This is because the
     // match stmt may be incomplete (half written) in the real code
 
@@ -503,7 +503,7 @@ pub fn get_type_from_match_arm(m: &Match, msrc: Src, session: &Session) -> Optio
     )
 }
 
-pub fn get_function_declaration(fnmatch: &Match, session: &Session) -> String {
+pub fn get_function_declaration(fnmatch: &Match, session: &Session<'_>) -> String {
     let src = session.load_source_file(&fnmatch.filepath);
     let start = scopes::expect_stmt_start(src.as_src(), fnmatch.point);
     let def_end: &[_] = &['{', ';'];
@@ -516,7 +516,7 @@ pub fn get_function_declaration(fnmatch: &Match, session: &Session) -> String {
 pub fn get_return_type_of_function(
     fnmatch: &Match,
     contextm: &Match,
-    session: &Session,
+    session: &Session<'_>,
 ) -> Option<Ty> {
     let src = session.load_source_file(&fnmatch.filepath);
     let point = scopes::expect_stmt_start(src.as_src(), fnmatch.point);
@@ -548,7 +548,7 @@ pub fn get_return_type_of_function(
     out
 }
 
-pub(crate) fn get_type_of_indexed_value(body: Ty, session: &Session) -> Option<Ty> {
+pub(crate) fn get_type_of_indexed_value(body: Ty, session: &Session<'_>) -> Option<Ty> {
     match body.dereference() {
         Ty::Match(m) => nameres::get_index_output(&m, session),
         Ty::PathSearch(p) => p
@@ -559,7 +559,7 @@ pub(crate) fn get_type_of_indexed_value(body: Ty, session: &Session) -> Option<T
     }
 }
 
-pub(crate) fn get_type_of_typedef(m: &Match, session: &Session) -> Option<Match> {
+pub(crate) fn get_type_of_typedef(m: &Match, session: &Session<'_>) -> Option<Match> {
     debug!("get_type_of_typedef match is {:?}", m);
     let msrc = session.load_source_file(&m.filepath);
     let blobstart = m.point - BytePos(5); // 5 == "type ".len()
