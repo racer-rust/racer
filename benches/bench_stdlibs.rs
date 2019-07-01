@@ -1,5 +1,5 @@
 #![feature(test)]
-extern crate racer_testutils;
+
 extern crate test;
 use test::Bencher;
 

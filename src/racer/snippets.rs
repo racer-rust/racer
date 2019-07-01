@@ -1,6 +1,6 @@
-use ast::with_error_checking_parse;
-use core::{Match, Session};
-use typeinf::get_function_declaration;
+use crate::ast::with_error_checking_parse;
+use crate::core::{Match, Session};
+use crate::typeinf::get_function_declaration;
 
 use syntax::ast::ImplItemKind;
 
@@ -30,7 +30,7 @@ use syntax::ast::ImplItemKind;
 /// let snip = racer::snippet_for_match(&m, &session);
 /// assert_eq!(snip, "canonicalize(${1:path})");
 /// ```
-pub fn snippet_for_match(m: &Match, session: &Session) -> String {
+pub fn snippet_for_match(m: &Match, session: &Session<'_>) -> String {
     if m.mtype.is_function() {
         let method = get_function_declaration(m, session);
         if let Some(m) = MethodInfo::from_source_str(&method) {

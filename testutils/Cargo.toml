@@ -5,6 +5,7 @@ description = "test library for racer, don't use"
 license = "MIT"
 version = "0.1.0"
 authors = ["Yuji Kanagawa <yuji.kngw.80s.revive@gmail.com>"]
+edition = "2018"
 
 [dependencies]
 racer = { path = "../", version = "2"}

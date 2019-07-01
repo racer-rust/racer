@@ -1,18 +1,20 @@
 //! type conversion between racer types and libsyntax types
 use super::ast::find_type_match;
-use core::{self, BytePos, ByteRange, Match, MatchType, Scope, SearchType, Session, SessionExt};
-use matchers::ImportInfo;
-use nameres;
-use primitive;
-use primitive::PrimKind;
+use crate::core::{
+    self, BytePos, ByteRange, Match, MatchType, Scope, SearchType, Session, SessionExt,
+};
+use crate::matchers::ImportInfo;
+use crate::nameres;
+use crate::primitive;
+use crate::primitive::PrimKind;
+use crate::typeinf;
+use crate::util;
 use std::fmt;
 use std::path::{Path as FilePath, PathBuf};
 use syntax::ast::{
     self, GenericBound, GenericBounds, GenericParamKind, LitKind, PatKind, TraitRef, TyKind,
     WherePredicate,
 };
-use typeinf;
-use util;
 // we can only re-export types without thread-local interned string
 pub use syntax::ast::{BindingMode, Mutability};
 use syntax::print::pprust;
@@ -163,7 +165,7 @@ impl Ty {
             LitKind::Err(_) => None,
         }
     }
-    fn resolve_common(self, session: &Session) -> Option<Match> {
+    fn resolve_common(self, session: &Session<'_>) -> Option<Match> {
         match self {
             Ty::Match(m) => Some(m),
             Ty::PathSearch(paths) => {
@@ -186,7 +188,7 @@ impl Ty {
             _ => None,
         }
     }
-    pub(crate) fn resolve_as_field_match(self, session: &Session) -> Option<Match> {
+    pub(crate) fn resolve_as_field_match(self, session: &Session<'_>) -> Option<Match> {
         match self {
             Ty::RefPtr(ty, _) => ty.resolve_as_field_match(session),
             Ty::Array(_, _) | Ty::Slice(_) => primitive::PrimKind::Slice.to_module_match(),
@@ -196,7 +198,7 @@ impl Ty {
 }
 
 impl fmt::Display for Ty {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Ty::Match(ref m) => write!(f, "{}", m.matchstr),
             Ty::PathSearch(ref p) => write!(f, "{}", p.path),
@@ -519,7 +521,7 @@ impl Path {
 }
 
 impl fmt::Debug for Path {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "P[")?;
         let mut first = true;
         for seg in &self.segments {
@@ -558,7 +560,7 @@ impl fmt::Debug for Path {
 }
 
 impl fmt::Display for Path {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut first = true;
         for seg in &self.segments {
             if first {
@@ -629,13 +631,13 @@ impl PathSearch {
             point,
         }
     }
-    pub(crate) fn resolve_as_match(&self, session: &Session) -> Option<Match> {
+    pub(crate) fn resolve_as_match(&self, session: &Session<'_>) -> Option<Match> {
         find_type_match(&self.path, &self.filepath, self.point, session)
     }
 }
 
 impl fmt::Debug for PathSearch {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "Search [{:?}, {:?}, {:?}]",
@@ -685,7 +687,7 @@ impl TraitBounds {
         self.0.into_iter()
     }
     /// Search traits included in bounds and return Matches
-    pub fn get_traits(&self, session: &Session) -> Vec<Match> {
+    pub fn get_traits(&self, session: &Session<'_>) -> Vec<Match> {
         self.0
             .iter()
             .filter_map(|ps| {
@@ -1025,8 +1027,8 @@ impl ImplHeader {
     }
     pub(crate) fn resolve_trait(
         &self,
-        session: &Session,
-        import_info: &ImportInfo,
+        session: &Session<'_>,
+        import_info: &ImportInfo<'_, '_>,
     ) -> Option<Match> {
         nameres::resolve_path(
             self.trait_path()?,

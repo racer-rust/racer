@@ -1,12 +1,12 @@
-use ast_types::Path as RacerPath;
+use crate::ast_types::Path as RacerPath;
 #[cfg(test)]
-use core::{self, Coordinate};
-use core::{BytePos, ByteRange, CompletionType, Namespace, RangedRawSrc, Src};
+use crate::core::{self, Coordinate};
+use crate::core::{BytePos, ByteRange, CompletionType, Namespace, RangedRawSrc, Src};
 
+use crate::util::{self, char_at};
 use std::iter::Iterator;
 use std::path::{Path, PathBuf};
 use std::str::from_utf8;
-use util::{self, char_at};
 
 fn find_close<'a, A>(iter: A, open: u8, close: u8, level_end: u32) -> Option<BytePos>
 where
@@ -60,7 +60,7 @@ pub fn find_closing_paren(src: &str, pos: BytePos) -> BytePos {
 }
 
 pub fn find_closure_scope_start(
-    src: Src,
+    src: Src<'_>,
     point: BytePos,
     parentheses_open_pos: BytePos,
 ) -> Option<BytePos> {
@@ -69,7 +69,7 @@ pub fn find_closure_scope_start(
     util::closure_valid_arg_scope(src_between_parent).map(|_| parentheses_open_pos)
 }
 
-pub fn scope_start(src: Src, point: BytePos) -> BytePos {
+pub fn scope_start(src: Src<'_>, point: BytePos) -> BytePos {
     let src = src.change_length(point);
     let (mut clev, mut plev) = (0u32, 0u32);
     let mut iter = src[..].as_bytes().into_iter().enumerate().rev();
@@ -104,12 +104,16 @@ pub fn scope_start(src: Src, point: BytePos) -> BytePos {
     find_close_with_pos(iter, b'}', b'{', 0).unwrap_or(BytePos::ZERO)
 }
 
-pub fn find_stmt_start(msrc: Src, point: BytePos) -> Option<BytePos> {
+pub fn find_stmt_start(msrc: Src<'_>, point: BytePos) -> Option<BytePos> {
     let scope_start = scope_start(msrc, point);
     find_stmt_start_given_scope(msrc, point, scope_start)
 }
 
-fn find_stmt_start_given_scope(msrc: Src, point: BytePos, scope_start: BytePos) -> Option<BytePos> {
+fn find_stmt_start_given_scope(
+    msrc: Src<'_>,
+    point: BytePos,
+    scope_start: BytePos,
+) -> Option<BytePos> {
     // Iterate the scope to find the start of the statement that surrounds the point.
     debug!(
         "[find_stmt_start] now we are in scope {:?} ~ {:?}",
@@ -123,17 +127,17 @@ fn find_stmt_start_given_scope(msrc: Src, point: BytePos, scope_start: BytePos) 
 }
 
 /// Finds a statement start or panics.
-pub fn expect_stmt_start(msrc: Src, point: BytePos) -> BytePos {
+pub fn expect_stmt_start(msrc: Src<'_>, point: BytePos) -> BytePos {
     find_stmt_start(msrc, point).expect("Statement does not have a beginning")
 }
 
-pub fn get_local_module_path(msrc: Src, point: BytePos) -> Vec<String> {
+pub fn get_local_module_path(msrc: Src<'_>, point: BytePos) -> Vec<String> {
     let mut v = Vec::new();
     get_local_module_path_(msrc, point, &mut v);
     v
 }
 
-fn get_local_module_path_(msrc: Src, point: BytePos, out: &mut Vec<String>) {
+fn get_local_module_path_(msrc: Src<'_>, point: BytePos, out: &mut Vec<String>) {
     for range in msrc.iter_stmts() {
         if range.contains_exclusive(point) {
             let blob = msrc.shift_range(range);
@@ -155,7 +159,7 @@ fn get_local_module_path_(msrc: Src, point: BytePos, out: &mut Vec<String>) {
 }
 
 pub fn get_module_file_from_path(
-    msrc: Src,
+    msrc: Src<'_>,
     point: BytePos,
     parentdir: &Path,
     raw_src: RangedRawSrc,
@@ -187,7 +191,7 @@ pub fn get_module_file_from_path(
 }
 
 // TODO(kngwyu): this functions shouldn't be generic
-pub fn find_impl_start(msrc: Src, point: BytePos, scopestart: BytePos) -> Option<BytePos> {
+pub fn find_impl_start(msrc: Src<'_>, point: BytePos, scopestart: BytePos) -> Option<BytePos> {
     let len = point - scopestart;
     msrc.shift_start(scopestart)
         .iter_stmts()
@@ -205,7 +209,7 @@ pub fn find_impl_start(msrc: Src, point: BytePos, scopestart: BytePos) -> Option
 
 #[test]
 fn finds_subnested_module() {
-    use core;
+    use crate::core;
     let src = "
     pub mod foo {
         pub mod bar {
@@ -691,7 +695,11 @@ pub(crate) fn expr_to_path(expr: &str) -> (RacerPath, Namespace) {
     (path, namespace)
 }
 
-pub(crate) fn is_in_struct_ctor(src: Src, stmt_start: BytePos, pos: BytePos) -> Option<ByteRange> {
+pub(crate) fn is_in_struct_ctor(
+    src: Src<'_>,
+    stmt_start: BytePos,
+    pos: BytePos,
+) -> Option<ByteRange> {
     const ALLOW_SYMBOL: [u8; 5] = [b'{', b'(', b'|', b';', b','];
     const ALLOW_KEYWORDS: [&'static str; 3] = ["let", "mut", "ref"];
     const INIHIBIT_KEYWORDS: [&'static str; 1] = ["unsafe"];

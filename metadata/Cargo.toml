@@ -6,6 +6,7 @@ license = "MIT"
 description = "light-weight cargo metadata parser for racer"
 homepage = "https://github.com/racer-rust/racer"
 repository = "https://github.com/racer-rust/racer"
+edition = "2018"
 workspace = ".."
 
 [dependencies]

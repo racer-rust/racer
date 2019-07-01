@@ -8,10 +8,10 @@ extern crate lazy_static;
 #[macro_use]
 extern crate bitflags;
 
-extern crate syntax;
+use syntax;
 #[macro_use]
 extern crate derive_more;
-extern crate rls_span;
+use rls_span;
 
 #[macro_use]
 mod testutils;
@@ -33,20 +33,20 @@ mod scopes;
 mod snippets;
 mod typeinf;
 
-pub use ast_types::PathSearch;
-pub use core::{
+pub use crate::ast_types::PathSearch;
+pub use crate::core::{
     complete_from_file, complete_fully_qualified_name, find_definition, is_use_stmt, to_coords,
     to_point,
 };
-pub use core::{
+pub use crate::core::{
     BytePos, ByteRange, Coordinate, FileCache, FileLoader, Location, Match, MatchType, Session,
 };
-pub use primitive::PrimKind;
-pub use project_model::{Edition, ProjectModelProvider};
-pub use snippets::snippet_for_match;
-pub use util::expand_ident;
+pub use crate::primitive::PrimKind;
+pub use crate::project_model::{Edition, ProjectModelProvider};
+pub use crate::snippets::snippet_for_match;
+pub use crate::util::expand_ident;
 
-pub use util::{get_rust_src_path, RustSrcPathError};
+pub use crate::util::{get_rust_src_path, RustSrcPathError};
 
 #[cfg(all(feature = "nightly", test))]
 mod benches;

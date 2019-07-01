@@ -1,5 +1,4 @@
-extern crate racer;
-extern crate racer_testutils;
+use racer;
 
 use racer::{complete_from_file, Coordinate, MatchType};
 use std::path::Path;

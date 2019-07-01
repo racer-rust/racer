@@ -1,17 +1,17 @@
-use ast_types::{ImplHeader, PathAlias, PathAliasKind, PathSegment};
-use core::MatchType::{
+use crate::ast_types::{ImplHeader, PathAlias, PathAliasKind, PathSegment};
+use crate::core::MatchType::{
     self, Const, Enum, EnumVariant, For, Function, IfLet, Let, Macro, Module, Static, Struct,
     Trait, Type, WhileLet,
 };
-use core::Namespace;
-use core::SearchType::{self, ExactMatch, StartsWith};
-use core::{BytePos, ByteRange, Coordinate, Match, Session, SessionExt, Src};
-use fileres::{get_crate_file, get_module_file};
-use nameres::resolve_path;
+use crate::core::Namespace;
+use crate::core::SearchType::{self, ExactMatch, StartsWith};
+use crate::core::{BytePos, ByteRange, Coordinate, Match, Session, SessionExt, Src};
+use crate::fileres::{get_crate_file, get_module_file};
+use crate::nameres::resolve_path;
+use crate::util::*;
+use crate::{ast, scopes, typeinf};
 use std::path::Path;
 use std::{str, vec};
-use util::*;
-use {ast, scopes, typeinf};
 
 /// The location of an import (`use` item) currently being resolved.
 #[derive(PartialEq, Eq)]
@@ -25,7 +25,7 @@ type PendingImports<'stack, 'fp> = StackLinkedListNode<'stack, PendingImport<'fp
 
 const GLOB_LIMIT: usize = 2;
 /// Import information(pending imports, glob, and etc.)
-pub struct ImportInfo<'stack, 'fp: 'stack> {
+pub struct ImportInfo<'stack, 'fp> {
     /// A stack of imports currently being resolved
     imports: PendingImports<'stack, 'fp>,
     /// the max number of times where we can go through glob continuously
@@ -75,7 +75,7 @@ pub(crate) fn find_keyword(
     src: &str,
     pattern: &str,
     ignore: &[&str],
-    context: &MatchCxt,
+    context: &MatchCxt<'_, '_>,
 ) -> Option<BytePos> {
     find_keyword_impl(
         src,
@@ -154,7 +154,7 @@ fn is_const_fn(src: &str, blob_range: ByteRange) -> bool {
 
 fn match_pattern_start(
     src: &str,
-    context: &MatchCxt,
+    context: &MatchCxt<'_, '_>,
     pattern: &str,
     ignore: &[&str],
     mtype: MatchType,
@@ -183,7 +183,7 @@ fn match_pattern_start(
     None
 }
 
-pub fn match_const(msrc: &str, context: &MatchCxt) -> Option<Match> {
+pub fn match_const(msrc: &str, context: &MatchCxt<'_, '_>) -> Option<Match> {
     if is_const_fn(msrc, context.range) {
         return None;
     }
@@ -191,12 +191,12 @@ pub fn match_const(msrc: &str, context: &MatchCxt) -> Option<Match> {
     match_pattern_start(msrc, context, "const", &[], Const)
 }
 
-pub fn match_static(msrc: &str, context: &MatchCxt) -> Option<Match> {
+pub fn match_static(msrc: &str, context: &MatchCxt<'_, '_>) -> Option<Match> {
     // Here we don't have to ignore "unsafe"
     match_pattern_start(msrc, context, "static", &[], Static)
 }
 
-fn match_let_impl(msrc: &str, context: &MatchCxt, mtype: MatchType) -> Vec<Match> {
+fn match_let_impl(msrc: &str, context: &MatchCxt<'_, '_>, mtype: MatchType) -> Vec<Match> {
     let mut out = Vec::new();
     let coords = ast::parse_pat_bind_stmt(msrc.to_owned());
     for pat_range in coords {
@@ -222,15 +222,15 @@ fn match_let_impl(msrc: &str, context: &MatchCxt, mtype: MatchType) -> Vec<Match
     out
 }
 
-pub fn match_if_let(msrc: &str, start: BytePos, context: &MatchCxt) -> Vec<Match> {
+pub fn match_if_let(msrc: &str, start: BytePos, context: &MatchCxt<'_, '_>) -> Vec<Match> {
     match_let_impl(msrc, context, IfLet(start))
 }
 
-pub fn match_while_let(msrc: &str, start: BytePos, context: &MatchCxt) -> Vec<Match> {
+pub fn match_while_let(msrc: &str, start: BytePos, context: &MatchCxt<'_, '_>) -> Vec<Match> {
     match_let_impl(msrc, context, WhileLet(start))
 }
 
-pub fn match_let(msrc: &str, start: BytePos, context: &MatchCxt) -> Vec<Match> {
+pub fn match_let(msrc: &str, start: BytePos, context: &MatchCxt<'_, '_>) -> Vec<Match> {
     let blob = &msrc[context.range.to_range()];
     if blob.starts_with("let ") && txt_matches(context.search_type, context.search_str, blob) {
         match_let_impl(blob, context, Let(start))
@@ -239,7 +239,7 @@ pub fn match_let(msrc: &str, start: BytePos, context: &MatchCxt) -> Vec<Match> {
     }
 }
 
-pub fn match_for(msrc: &str, for_start: BytePos, context: &MatchCxt) -> Vec<Match> {
+pub fn match_for(msrc: &str, for_start: BytePos, context: &MatchCxt<'_, '_>) -> Vec<Match> {
     let mut out = Vec::new();
     let blob = &msrc[context.range.to_range()];
     let coords = ast::parse_pat_bind_stmt(blob.to_owned());
@@ -278,7 +278,11 @@ pub fn get_context(blob: &str, context_end: &str) -> String {
         .join(" ")
 }
 
-pub fn match_extern_crate(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Match> {
+pub fn match_extern_crate(
+    msrc: Src<'_>,
+    context: &MatchCxt<'_, '_>,
+    session: &Session<'_>,
+) -> Option<Match> {
     let mut res = None;
     let mut blob = &msrc[context.range.to_range()];
 
@@ -327,7 +331,11 @@ pub fn match_extern_crate(msrc: Src, context: &MatchCxt, session: &Session) -> O
     res
 }
 
-pub fn match_mod(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Match> {
+pub fn match_mod(
+    msrc: Src<'_>,
+    context: &MatchCxt<'_, '_>,
+    session: &Session<'_>,
+) -> Option<Match> {
     let blob = &msrc[context.range.to_range()];
     let (start, s) = context.get_key_ident(blob, "mod", &[])?;
     if blob.find('{').is_some() {
@@ -408,7 +416,11 @@ fn find_generics_end(blob: &str) -> Option<BytePos> {
     None
 }
 
-pub fn match_struct(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Match> {
+pub fn match_struct(
+    msrc: Src<'_>,
+    context: &MatchCxt<'_, '_>,
+    session: &Session<'_>,
+) -> Option<Match> {
     let blob = &msrc[context.range.to_range()];
     let (start, s) = context.get_key_ident(blob, "struct", &[])?;
 
@@ -432,7 +444,11 @@ pub fn match_struct(msrc: Src, context: &MatchCxt, session: &Session) -> Option<
     })
 }
 
-pub fn match_type(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Match> {
+pub fn match_type(
+    msrc: Src<'_>,
+    context: &MatchCxt<'_, '_>,
+    session: &Session<'_>,
+) -> Option<Match> {
     let blob = &msrc[context.range.to_range()];
     let (start, s) = context.get_key_ident(blob, "type", &[])?;
     debug!("found!! a type {}", s);
@@ -451,7 +467,11 @@ pub fn match_type(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Ma
     })
 }
 
-pub fn match_trait(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Match> {
+pub fn match_trait(
+    msrc: Src<'_>,
+    context: &MatchCxt<'_, '_>,
+    session: &Session<'_>,
+) -> Option<Match> {
     let blob = &msrc[context.range.to_range()];
     let (start, s) = context.get_key_ident(blob, "trait", &["unsafe"])?;
     debug!("found!! a trait {}", s);
@@ -469,7 +489,7 @@ pub fn match_trait(msrc: Src, context: &MatchCxt, session: &Session) -> Option<M
     })
 }
 
-pub fn match_enum_variants(msrc: &str, context: &MatchCxt) -> Vec<Match> {
+pub fn match_enum_variants(msrc: &str, context: &MatchCxt<'_, '_>) -> Vec<Match> {
     let blob = &msrc[context.range.to_range()];
     let mut out = Vec::new();
     let parsed_enum = ast::parse_enum(blob.to_owned());
@@ -492,7 +512,11 @@ pub fn match_enum_variants(msrc: &str, context: &MatchCxt) -> Vec<Match> {
     out
 }
 
-pub fn match_enum(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Match> {
+pub fn match_enum(
+    msrc: Src<'_>,
+    context: &MatchCxt<'_, '_>,
+    session: &Session<'_>,
+) -> Option<Match> {
     let blob = &msrc[context.range.to_range()];
     let (start, s) = context.get_key_ident(blob, "enum", &[])?;
 
@@ -518,10 +542,10 @@ pub fn match_enum(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Ma
 }
 
 pub fn match_use(
-    msrc: Src,
-    context: &MatchCxt,
-    session: &Session,
-    import_info: &ImportInfo,
+    msrc: Src<'_>,
+    context: &MatchCxt<'_, '_>,
+    session: &Session<'_>,
+    import_info: &ImportInfo<'_, '_>,
 ) -> Vec<Match> {
     let import = PendingImport {
         filepath: context.filepath,
@@ -672,7 +696,7 @@ pub fn match_use(
 }
 
 /// TODO: Handle `extern` functions
-pub fn match_fn(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Match> {
+pub fn match_fn(msrc: Src<'_>, context: &MatchCxt<'_, '_>, session: &Session<'_>) -> Option<Match> {
     let blob = &msrc[context.range.to_range()];
     if typeinf::first_param_is_self(blob) {
         return None;
@@ -681,10 +705,10 @@ pub fn match_fn(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Matc
 }
 
 pub fn match_method(
-    msrc: Src,
-    context: &MatchCxt,
+    msrc: Src<'_>,
+    context: &MatchCxt<'_, '_>,
     include_assoc_fn: bool,
-    session: &Session,
+    session: &Session<'_>,
 ) -> Option<Match> {
     let blob = &msrc[context.range.to_range()];
     if !include_assoc_fn && !typeinf::first_param_is_self(blob) {
@@ -693,7 +717,12 @@ pub fn match_method(
     match_fn_common(blob, msrc, context, session)
 }
 
-fn match_fn_common(blob: &str, msrc: Src, context: &MatchCxt, session: &Session) -> Option<Match> {
+fn match_fn_common(
+    blob: &str,
+    msrc: Src<'_>,
+    context: &MatchCxt<'_, '_>,
+    session: &Session<'_>,
+) -> Option<Match> {
     let (start, s) = context.get_key_ident(blob, "fn", &["const", "unsafe"])?;
     let start = context.range.start + start;
     let doc_src = session.load_raw_src_ranged(&msrc, context.filepath);
@@ -709,7 +738,11 @@ fn match_fn_common(blob: &str, msrc: Src, context: &MatchCxt, session: &Session)
     })
 }
 
-pub fn match_macro(msrc: Src, context: &MatchCxt, session: &Session) -> Option<Match> {
+pub fn match_macro(
+    msrc: Src<'_>,
+    context: &MatchCxt<'_, '_>,
+    session: &Session<'_>,
+) -> Option<Match> {
     let trimed = context.search_str.trim_end_matches('!');
     let mut context = context.clone();
     context.search_str = trimed;
@@ -772,7 +805,7 @@ pub(crate) fn find_mod_doc(msrc: &str, blobstart: BytePos) -> String {
 }
 
 // DON'T USE MatchCxt's range
-pub fn match_impl(decl: String, context: &MatchCxt, offset: BytePos) -> Option<Vec<Match>> {
+pub fn match_impl(decl: String, context: &MatchCxt<'_, '_>, offset: BytePos) -> Option<Vec<Match>> {
     let ImplHeader { generics, .. } =
         ast::parse_impl(decl, context.filepath, offset, true, offset)?;
     let mut out = Vec::new();

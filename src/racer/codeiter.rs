@@ -1,8 +1,8 @@
 use std::iter::{Fuse, Iterator};
 
-use core::{BytePos, ByteRange};
-use scopes;
-use util::is_whitespace_byte;
+use crate::core::{BytePos, ByteRange};
+use crate::scopes;
+use crate::util::is_whitespace_byte;
 
 /// An iterator which iterates statements.
 /// e.g. for "let a = 5; let b = 4;" it returns "let a = 5;" and then "let b = 4;"
@@ -118,7 +118,7 @@ fn is_a_let_stmt(src_bytes: &[u8], start: BytePos, pos: BytePos) -> bool {
 }
 
 impl<'a> StmtIndicesIter<'a> {
-    pub fn from_parts(src: &str) -> Fuse<StmtIndicesIter> {
+    pub fn from_parts(src: &str) -> Fuse<StmtIndicesIter<'_>> {
         StmtIndicesIter {
             src,
             pos: BytePos::ZERO,
@@ -132,12 +132,12 @@ impl<'a> StmtIndicesIter<'a> {
 mod test {
     use std::iter::Fuse;
 
-    use codecleaner;
-    use testutils::{rejustify, slice};
+    use crate::codecleaner;
+    use crate::testutils::{rejustify, slice};
 
     use super::*;
 
-    fn iter_stmts(src: &str) -> Fuse<StmtIndicesIter> {
+    fn iter_stmts(src: &str) -> Fuse<StmtIndicesIter<'_>> {
         let idx: Vec<_> = codecleaner::code_chunks(&src).collect();
         let code = scopes::mask_comments(src, &idx);
         let code: &'static str = Box::leak(code.into_boxed_str());

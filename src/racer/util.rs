@@ -6,8 +6,8 @@ use std::{
     hash::{Hash, Hasher},
 };
 
-use core::SearchType::{self, ExactMatch, StartsWith};
-use core::{BytePos, ByteRange, Location, LocationExt, RawSource, Session, SessionExt};
+use crate::core::SearchType::{self, ExactMatch, StartsWith};
+use crate::core::{BytePos, ByteRange, Location, LocationExt, RawSource, Session, SessionExt};
 
 #[cfg(unix)]
 pub const PATH_SEP: char = ':';
@@ -287,7 +287,7 @@ fn txt_matches_matches_methods() {
 /// let expanded = racer::expand_ident(path, pos, &session).unwrap();
 /// assert_eq!("this_is_an_identifier", expanded.ident());
 /// ```
-pub fn expand_ident<P, C>(filepath: P, cursor: C, session: &Session) -> Option<ExpandedIdent>
+pub fn expand_ident<P, C>(filepath: P, cursor: C, session: &Session<'_>) -> Option<ExpandedIdent>
 where
     P: AsRef<path::Path>,
     C: Into<Location>,
@@ -413,7 +413,7 @@ pub enum RustSrcPathError {
 impl error::Error for RustSrcPathError {}
 
 impl fmt::Display for RustSrcPathError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             RustSrcPathError::Missing => write!(
                 f,
@@ -661,9 +661,9 @@ fn test_get_rust_src_path_rustup_ok() {
 /// An immutable stack implemented as a linked list backed by a thread's stack.
 // TODO: this implementation is fast, but if we want to run racer in multiple threads,
 // we have to rewrite it using std::sync::Arc.
-pub struct StackLinkedListNode<'stack, T: 'stack>(Option<StackLinkedListNodeData<'stack, T>>);
+pub struct StackLinkedListNode<'stack, T>(Option<StackLinkedListNodeData<'stack, T>>);
 
-struct StackLinkedListNodeData<'stack, T: 'stack> {
+struct StackLinkedListNodeData<'stack, T> {
     item: T,
     previous: &'stack StackLinkedListNode<'stack, T>,
 }

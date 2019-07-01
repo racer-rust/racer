@@ -1,16 +1,16 @@
-use core::{BytePos, Coordinate, Match, MatchType, SearchType, Session, SessionExt};
-use matchers;
-use nameres::RUST_SRC_PATH;
-use project_model::Edition;
+use crate::core::{BytePos, Coordinate, Match, MatchType, SearchType, Session, SessionExt};
+use crate::matchers;
+use crate::nameres::RUST_SRC_PATH;
+use crate::project_model::Edition;
 use std::path::{Path, PathBuf};
 
 /// get crate file from current path & crate name
-pub fn get_crate_file(name: &str, from_path: &Path, session: &Session) -> Option<PathBuf> {
+pub fn get_crate_file(name: &str, from_path: &Path, session: &Session<'_>) -> Option<PathBuf> {
     debug!("get_crate_file {}, {:?}", name, from_path);
     get_std_file(name, session).or_else(|| get_outer_crates(name, from_path, session))
 }
 
-pub fn get_std_file(name: &str, session: &Session) -> Option<PathBuf> {
+pub fn get_std_file(name: &str, session: &Session<'_>) -> Option<PathBuf> {
     if let Some(ref std_path) = *RUST_SRC_PATH {
         // try lib<name>/lib.rs, like in the rust source dir
         let cratelibname = format!("lib{}", name);
@@ -28,7 +28,7 @@ pub fn search_crate_names(
     search_type: SearchType,
     file_path: &Path,
     only_2018: bool,
-    session: &Session,
+    session: &Session<'_>,
 ) -> Vec<Match> {
     let manifest_path = try_vec!(session.project_model.discover_project_manifest(file_path));
     if only_2018 {
@@ -72,7 +72,7 @@ pub fn search_crate_names(
 }
 
 /// get module file from current path & crate name
-pub fn get_module_file(name: &str, parentdir: &Path, session: &Session) -> Option<PathBuf> {
+pub fn get_module_file(name: &str, parentdir: &Path, session: &Session<'_>) -> Option<PathBuf> {
     // try just <name>.rs
     let filepath = parentdir.join(format!("{}.rs", name));
     if filepath.exists() || session.contains_file(&filepath) {
@@ -89,7 +89,7 @@ pub fn get_module_file(name: &str, parentdir: &Path, session: &Session) -> Optio
 /// try to get outer crates
 /// if we have dependencies in cache, use it.
 /// else, call cargo-metadata(default) or fall back to rls
-fn get_outer_crates(libname: &str, from_path: &Path, session: &Session) -> Option<PathBuf> {
+fn get_outer_crates(libname: &str, from_path: &Path, session: &Session<'_>) -> Option<PathBuf> {
     debug!(
         "[get_outer_crates] lib name: {:?}, from_path: {:?}",
         libname, from_path

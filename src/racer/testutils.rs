@@ -1,5 +1,5 @@
 #![cfg(test)]
-use core::ByteRange;
+use crate::core::ByteRange;
 
 pub fn rejustify(src: &str) -> String {
     let s = &src[1..]; // remove the newline

@@ -1,6 +1,3 @@
-extern crate racer;
-extern crate racer_testutils;
-
 use racer_testutils::*;
 
 #[test]
