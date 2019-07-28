@@ -3580,6 +3580,8 @@ fn doesnt_complete_macro_after_use() {
 }
 
 #[test]
+#[ignore]
+// FIXME:  #1059
 fn complets_stringify() {
     let src = r#"
     fn main() {
@@ -3614,6 +3616,8 @@ fn completes_vec() {
 }
 
 #[test]
+#[ignore]
+// FIXME: #1059
 fn finds_std_macro_doc() {
     let src = r#"
     fn main() {

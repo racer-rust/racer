@@ -7,7 +7,7 @@ use typeinf;
 use std::path::Path;
 use std::rc::Rc;
 
-use syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, PatKind, UseTree, UseTreeKind};
+use syntax::ast::{self, Expr, ExprKind, FunctionRetTy, ItemKind, PatKind, UseTree, UseTreeKind};
 use syntax::edition::Edition;
 use syntax::errors::{emitter::Emitter, DiagnosticBuilder, Handler};
 use syntax::parse::parser::Parser;
@@ -165,11 +165,13 @@ impl<'ast> visit::Visitor<'ast> for PatBindVisitor {
 
     fn visit_expr(&mut self, ex: &ast::Expr) {
         // don't visit the RHS or block of an 'if let' or 'for' stmt
-        match ex.node {
-            ExprKind::IfLet(ref pat, ..) | ExprKind::WhileLet(ref pat, ..) => {
-                pat.iter().for_each(|pat| self.visit_pat(pat))
+        match &ex.node {
+            ExprKind::If(let_stmt, ..) | ExprKind::While(let_stmt, ..) => {
+                if let ExprKind::Let(pats, ..) = &let_stmt.node {
+                    pats.iter().for_each(|pat| self.visit_pat(pat))
+                }
             }
-            ExprKind::ForLoop(ref pat, ..) => self.visit_pat(pat),
+            ExprKind::ForLoop(pat, ..) => self.visit_pat(pat),
             _ => visit::walk_expr(self, ex),
         }
     }
@@ -715,8 +717,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     }
                 }
             }
-            ExprKind::If(_, ref block, ref else_block)
-            | ExprKind::IfLet(_, _, ref block, ref else_block) => {
+            ExprKind::If(_, ref block, ref else_block) => {
                 debug!("if/iflet expr");
                 if let Some(stmt) = block.stmts.last() {
                     visit::walk_stmt(self, stmt);
@@ -1326,12 +1327,14 @@ pub(crate) struct IfLetVisitor<'r, 's: 'r> {
 impl<'ast, 'r, 's> visit::Visitor<'ast> for IfLetVisitor<'r, 's> {
     fn visit_expr(&mut self, ex: &'ast ast::Expr) {
         match &ex.node {
-            ExprKind::IfLet(pats, expr, _, _) | ExprKind::WhileLet(pats, expr, _, _) => {
-                if let Some(pat) = pats.get(0) {
-                    self.let_pat = Some(Pat::from_ast(&pat.node, &self.scope));
-                    let mut expr_visitor = ExprTypeVisitor::new(self.scope.clone(), self.session);
-                    expr_visitor.visit_expr(expr);
-                    self.rh_expr = expr_visitor.result;
+            ExprKind::If(let_stmt, ..) => {
+                if let ExprKind::Let(pats, expr) = &let_stmt.node {
+                    if let Some(pat) = pats.get(0) {
+                        self.let_pat = Some(Pat::from_ast(&pat.node, &self.scope));
+                        let mut expr_visitor = ExprTypeVisitor::new(self.scope.clone(), self.session);
+                        expr_visitor.visit_expr(expr);
+                        self.rh_expr = expr_visitor.result;
+                    }
                 }
             }
             _ => {}
