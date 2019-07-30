@@ -1258,27 +1258,24 @@ where
 /// let session = racer::Session::new(&cache, None);
 ///
 /// // This is the file where we request completion from
-/// let src = stringify! {
+/// let src = r"
 ///    mod sub;
 ///    use sub::foo;
 ///    fn main() {
 ///        foo();
 ///    };
-/// };
+/// ";
 ///
 /// // This is the submodule where the definition is found
-/// let sub = stringify! {
-///     pub fn foo() {}
-/// };
+/// let sub = r"pub fn foo() {}";
 ///
 /// // Load files into cache to prevent trying to read from disk
 /// session.cache_file_contents("sub.rs", sub);
 /// session.cache_file_contents("lib.rs", src);
 ///
-/// // Search for the definition. 45 is the byte offset
-/// // in `src` after stringify! runs. Specifically, this asks
-/// // for the definition of `foo()`.
-/// let m = racer::find_definition("lib.rs", racer::Location::from(45), &session)
+/// // Search for the definition. 52 is the byte offset in `src`.
+/// // Specifically, this asks for the definition of `foo()`.
+/// let m = racer::find_definition("lib.rs", racer::Location::from(52), &session)
 ///               .expect("find definition returns a match");
 ///
 /// // Should have found definition in the "sub.rs" file
