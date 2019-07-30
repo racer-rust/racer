@@ -272,58 +272,26 @@ fn destructure_pattern_to_ty(
         }
         PatKind::Tuple(ref tuple_elements) => match *ty {
             Ty::Tuple(ref typeelems) => {
-                let mut res = None;
                 for (i, p) in tuple_elements.iter().enumerate() {
                     if !point_is_in_span(point, &p.span) {
                         continue;
                     }
                     if let Some(ref ty) = typeelems[i] {
-                        res = destructure_pattern_to_ty(p, point, ty, scope, session);
-                        break;
+                        return destructure_pattern_to_ty(p, point, ty, scope, session);
                     }
                 }
-                res
+                None
             }
             _ => panic!("Expecting TyTuple"),
         },
         PatKind::TupleStruct(ref path, ref children) => {
-            let m = resolve_ast_path(path, &scope.filepath, scope.point, session);
+            let m = resolve_ast_path(path, &scope.filepath, scope.point, session)?;
             let contextty = path_to_match(ty.clone(), session);
-            if let Some(m) = m {
-                let mut res = None;
-                for (i, p) in children.iter().enumerate() {
-                    if point_is_in_span(point, &p.span) {
-                        res = typeinf::get_tuplestruct_field_type(i, &m, session)
-                            .and_then(|ty|
-                                // if context ty is a match, use its generics
-                                if let Some(Ty::Match(ref contextm)) = contextty {
-                                    path_to_match_including_generics(ty, contextm.to_generics(), session)
-                                } else {
-                                    path_to_match(ty, session)
-                                })
-                            .and_then(|ty| destructure_pattern_to_ty(p, point, &ty, scope, session));
-                        break;
-                    }
-                }
-                res
-            } else {
-                None
-            }
-        }
-        PatKind::Struct(ref path, ref children, _) => {
-            let m = resolve_ast_path(path, &scope.filepath, scope.point, session);
-            let contextty = path_to_match(ty.clone(), session);
-            if let Some(m) = m {
-                let mut res = None;
-
-                for child in children {
-                    if point_is_in_span(point, &child.span) {
-                        res = typeinf::get_struct_field_type(
-                            &child.node.ident.name.as_str(),
-                            &m,
-                            session,
-                        )
+            for (i, p) in children.iter().enumerate() {
+                if point_is_in_span(point, &p.span) {
+                    return typeinf::get_tuplestruct_field_type(i, &m, session)
                         .and_then(|ty| {
+                            // if context ty is a match, use its generics
                             if let Some(Ty::Match(ref contextm)) = contextty {
                                 path_to_match_including_generics(
                                     ty,
@@ -334,18 +302,34 @@ fn destructure_pattern_to_ty(
                                 path_to_match(ty, session)
                             }
                         })
-                        .and_then(|ty| {
-                            destructure_pattern_to_ty(&child.node.pat, point, &ty, scope, session)
-                        });
-
-                        break;
-                    }
+                        .and_then(|ty| destructure_pattern_to_ty(p, point, &ty, scope, session));
                 }
-
-                res
-            } else {
-                None
             }
+            None
+        }
+        PatKind::Struct(ref path, ref children, _) => {
+            let m = resolve_ast_path(path, &scope.filepath, scope.point, session)?;
+            let contextty = path_to_match(ty.clone(), session);
+            for child in children {
+                if point_is_in_span(point, &child.span) {
+                    return typeinf::get_struct_field_type(
+                        &child.node.ident.name.as_str(),
+                        &m,
+                        session,
+                    )
+                    .and_then(|ty| {
+                        if let Some(Ty::Match(ref contextm)) = contextty {
+                            path_to_match_including_generics(ty, contextm.to_generics(), session)
+                        } else {
+                            path_to_match(ty, session)
+                        }
+                    })
+                    .and_then(|ty| {
+                        destructure_pattern_to_ty(&child.node.pat, point, &ty, scope, session)
+                    });
+                }
+            }
+            None
         }
         _ => {
             debug!("Could not destructure pattern {:?}", pat);
@@ -1329,7 +1313,8 @@ impl<'ast, 'r, 's> visit::Visitor<'ast> for IfLetVisitor<'r, 's> {
                 if let ExprKind::Let(pats, expr) = &let_stmt.node {
                     if let Some(pat) = pats.get(0) {
                         self.let_pat = Some(Pat::from_ast(&pat.node, &self.scope));
-                        let mut expr_visitor = ExprTypeVisitor::new(self.scope.clone(), self.session);
+                        let mut expr_visitor =
+                            ExprTypeVisitor::new(self.scope.clone(), self.session);
                         expr_visitor.visit_expr(expr);
                         self.rh_expr = expr_visitor.result;
                     }
