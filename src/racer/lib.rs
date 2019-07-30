@@ -1,5 +1,5 @@
 #![cfg_attr(feature = "nightly", feature(test))]
-#![feature(nll, try_trait)]
+#![feature(try_trait)]
 
 #[macro_use]
 extern crate log;
@@ -8,10 +8,8 @@ extern crate lazy_static;
 #[macro_use]
 extern crate bitflags;
 
-use syntax;
 #[macro_use]
 extern crate derive_more;
-use rls_span;
 
 #[macro_use]
 mod testutils;
