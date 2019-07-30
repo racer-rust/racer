@@ -268,6 +268,7 @@ pub enum Pat {
     Range,
     Slice,
     Mac,
+    Rest,
 }
 
 impl Pat {
@@ -305,7 +306,7 @@ impl Pat {
                     .collect();
                 Pat::Struct(path, fields)
             }
-            PatKind::TupleStruct(path, pats, _) => {
+            PatKind::TupleStruct(path, pats) => {
                 let path = Path::from_ast(path, scope);
                 let pats = pats
                     .iter()
@@ -314,7 +315,7 @@ impl Pat {
                 Pat::TupleStruct(path, pats)
             }
             PatKind::Path(_, path) => Pat::Path(Path::from_ast(&path, scope)),
-            PatKind::Tuple(pats, _) => {
+            PatKind::Tuple(pats) => {
                 let pats = pats
                     .iter()
                     .map(|pat| Pat::from_ast(&pat.node, scope))
@@ -329,6 +330,7 @@ impl Pat {
             // ignore paren
             PatKind::Paren(pat) => Pat::from_ast(&pat.node, scope),
             PatKind::Mac(_) => Pat::Mac,
+            PatKind::Rest => Pat::Rest,
         }
     }
 }
