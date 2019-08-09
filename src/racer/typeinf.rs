@@ -80,7 +80,7 @@ pub fn first_param_is_self(blob: &str) -> bool {
                 Some(..) => 0,
             };
             if let Some(start) = blob[skip_generic..].find('(') {
-                let start = BytePos::from(start).increment();
+                let start = BytePos::from(skip_generic + start).increment();
                 let end = scopes::find_closing_paren(blob, start);
                 let is_self = txt_matches(SearchType::ExactMatch, "self", &blob[start.0..end.0]);
                 trace!(
