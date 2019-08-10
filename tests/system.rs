@@ -1978,6 +1978,27 @@ fn finds_self_param_when_fn_has_generic_closure_arg() {
 }
 
 #[test]
+fn completes_static_method_containing_self() {
+    let src = "
+    struct X;
+    
+    impl X {
+        fn foo<T>(_: T) {
+            struct Y;
+            impl Y {
+                fn bar(&self) {}
+            }
+        }
+    }
+
+    X::~foo(0);
+    ";
+
+    let got = get_definition(src, None);
+    assert_eq!("foo", got.matchstr);
+}
+
+#[test]
 fn completes_methods_on_deref_generic_type() {
     let modsrc = "
     pub struct B<T> {
