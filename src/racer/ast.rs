@@ -315,7 +315,7 @@ fn destructure_pattern_to_ty(
             for child in children {
                 if point_is_in_span(point, &child.span) {
                     return typeinf::get_struct_field_type(
-                        &child.node.ident.name.as_str(),
+                        &child.ident.name.as_str(),
                         &m,
                         session,
                     )
@@ -327,7 +327,7 @@ fn destructure_pattern_to_ty(
                         }
                     })
                     .and_then(|ty| {
-                        destructure_pattern_to_ty(&child.node.pat, point, &ty, scope, session)
+                        destructure_pattern_to_ty(&child.pat, point, &ty, scope, session)
                     });
                 }
             }
@@ -745,7 +745,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 }
             }
             ExprKind::Mac(ref m) => {
-                if let Some(name) = m.node.path.segments.last().map(|seg| seg.ident) {
+                if let Some(name) = m.path.segments.last().map(|seg| seg.ident) {
                     // use some ad-hoc rules
                     if name.as_str() == "vec" {
                         let path = RacerPath::from_iter(
@@ -868,10 +868,6 @@ impl<'ast> visit::Visitor<'ast> for StructVisitor {
     fn visit_variant_data(
         &mut self,
         struct_definition: &ast::VariantData,
-        _: ast::Ident,
-        _: &ast::Generics,
-        _: ast::NodeId,
-        _: Span,
     ) {
         for field in struct_definition.fields() {
             let ty = Ty::from_ast(&field.ty, &self.scope);
@@ -894,7 +890,7 @@ pub struct TypeVisitor<'s> {
 
 impl<'ast, 's> visit::Visitor<'ast> for TypeVisitor<'s> {
     fn visit_item(&mut self, item: &ast::Item) {
-        if let ItemKind::Ty(ref ty, _) = item.node {
+        if let ItemKind::TyAlias(ref ty, _) = item.node {
             self.name = Some(item.ident.name.to_string());
             self.type_ = Ty::from_ast(&ty, self.scope);
             debug!("typevisitor type is {:?}", self.type_);
@@ -1001,7 +997,7 @@ impl<'ast> visit::Visitor<'ast> for EnumVisitor {
             for variant in &enum_definition.variants {
                 let source_map::BytePos(point) = variant.span.lo();
                 self.values
-                    .push((variant.node.ident.to_string(), point.into()));
+                    .push((variant.ident.to_string(), point.into()));
             }
         }
     }
