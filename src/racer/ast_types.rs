@@ -271,6 +271,7 @@ pub enum Pat {
     Slice,
     Mac,
     Rest,
+    Or,
 }
 
 impl Pat {
@@ -304,7 +305,7 @@ impl Pat {
                 let path = Path::from_ast(path, scope);
                 let fields = fields
                     .iter()
-                    .map(|fld| FieldPat::from_ast(&fld.node, scope))
+                    .map(|fld| FieldPat::from_ast(&fld, scope))
                     .collect();
                 Pat::Struct(path, fields)
             }
@@ -333,6 +334,7 @@ impl Pat {
             PatKind::Paren(pat) => Pat::from_ast(&pat.node, scope),
             PatKind::Mac(_) => Pat::Mac,
             PatKind::Rest => Pat::Rest,
+            PatKind::Or(_) => Pat::Or,
         }
     }
 }
