@@ -1,6 +1,6 @@
 [package]
 name = "racer"
-version = "2.1.26"
+version = "2.1.27"
 license = "MIT"
 description = "Code completion for Rust"
 authors = ["Phil Dawes <phil@phildawes.net>", "The Racer developers"]
@@ -24,7 +24,7 @@ debug = false # because of #1005
 [dependencies]
 bitflags = "1.0"
 log = "0.4"
-rustc-ap-syntax = "581.0.0"
+rustc-ap-syntax = "583.0.0"
 env_logger = "0.6"
 clap = "2.32"
 lazy_static = "1.2"
