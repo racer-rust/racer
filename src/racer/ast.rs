@@ -169,8 +169,8 @@ impl<'ast> visit::Visitor<'ast> for PatBindVisitor {
         // don't visit the RHS or block of an 'if let' or 'for' stmt
         match &ex.node {
             ExprKind::If(let_stmt, ..) | ExprKind::While(let_stmt, ..) => {
-                if let ExprKind::Let(pats, ..) = &let_stmt.node {
-                    pats.iter().for_each(|pat| self.visit_pat(pat))
+                if let ExprKind::Let(pat, ..) = &let_stmt.node {
+                    self.visit_pat(pat);
                 }
             }
             ExprKind::ForLoop(pat, ..) => self.visit_pat(pat),
@@ -385,23 +385,22 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for MatchTypeVisitor<'c, 's> {
             debug!("PHIL sub type is {:?}", v.result);
 
             for arm in arms {
-                for pattern in &arm.pats {
-                    if point_is_in_span(self.pos, &pattern.span) {
-                        debug!("PHIL point is in pattern |{:?}|", pattern);
-                        self.result = v
-                            .result
-                            .as_ref()
-                            .and_then(|ty| {
-                                destructure_pattern_to_ty(
-                                    pattern,
-                                    self.pos,
-                                    ty,
-                                    &self.scope,
-                                    self.session,
-                                )
-                            })
-                            .and_then(|ty| path_to_match(ty, self.session));
-                    }
+                let pattern = &arm.pat;
+                if point_is_in_span(self.pos, &pattern.span) {
+                    debug!("PHIL point is in pattern |{:?}|", pattern);
+                    self.result = v
+                        .result
+                        .as_ref()
+                        .and_then(|ty| {
+                            destructure_pattern_to_ty(
+                                pattern,
+                                self.pos,
+                                ty,
+                                &self.scope,
+                                self.session,
+                            )
+                        })
+                    .and_then(|ty| path_to_match(ty, self.session));
                 }
             }
         }
@@ -1313,14 +1312,12 @@ impl<'ast, 'r, 's> visit::Visitor<'ast> for IfLetVisitor<'r, 's> {
     fn visit_expr(&mut self, ex: &'ast ast::Expr) {
         match &ex.node {
             ExprKind::If(let_stmt, ..) | ExprKind::While(let_stmt, ..) => {
-                if let ExprKind::Let(pats, expr) = &let_stmt.node {
-                    if let Some(pat) = pats.get(0) {
-                        self.let_pat = Some(Pat::from_ast(&pat.node, &self.scope));
-                        let mut expr_visitor =
-                            ExprTypeVisitor::new(self.scope.clone(), self.session);
-                        expr_visitor.visit_expr(expr);
-                        self.rh_expr = expr_visitor.result;
-                    }
+                if let ExprKind::Let(pat, expr) = &let_stmt.node {
+                    self.let_pat = Some(Pat::from_ast(&pat.node, &self.scope));
+                    let mut expr_visitor =
+                        ExprTypeVisitor::new(self.scope.clone(), self.session);
+                    expr_visitor.visit_expr(expr);
+                    self.rh_expr = expr_visitor.result;
                 }
             }
             _ => {}
