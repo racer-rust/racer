@@ -11,6 +11,8 @@ extern crate bitflags;
 #[macro_use]
 extern crate derive_more;
 
+extern crate rustc_ap_syntax as syntax;
+
 #[macro_use]
 mod testutils;
 #[macro_use]

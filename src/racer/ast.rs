@@ -11,7 +11,7 @@ use std::rc::Rc;
 
 use syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, PatKind, UseTree, UseTreeKind};
 use syntax::edition::Edition;
-use syntax::errors::{emitter::Emitter, DiagnosticBuilder, Handler};
+use syntax::errors::{emitter::Emitter, Diagnostic, Handler};
 use syntax::parse::parser::Parser;
 use syntax::parse::{self, ParseSess};
 use syntax::source_map::{self, FileName, SourceMap, Span};
@@ -20,7 +20,7 @@ use syntax::{self, visit};
 struct DummyEmitter;
 
 impl Emitter for DummyEmitter {
-    fn emit_diagnostic(&mut self, _db: &DiagnosticBuilder<'_>) {}
+    fn emit_diagnostic(&mut self, _db: &Diagnostic) {}
     fn should_show_explain(&self) -> bool {
         false
     }
@@ -147,7 +147,7 @@ impl<'ast> visit::Visitor<'ast> for UseVisitor {
             }
             (res, contains_glob)
         }
-        if let ItemKind::Use(ref use_tree) = i.node {
+        if let ItemKind::Use(ref use_tree) = i.kind {
             let (path_list, contains_glob) = collect_nested_items(use_tree, None);
             self.path_list = path_list;
             self.contains_glob = contains_glob;
@@ -167,9 +167,9 @@ impl<'ast> visit::Visitor<'ast> for PatBindVisitor {
 
     fn visit_expr(&mut self, ex: &ast::Expr) {
         // don't visit the RHS or block of an 'if let' or 'for' stmt
-        match &ex.node {
+        match &ex.kind {
             ExprKind::If(let_stmt, ..) | ExprKind::While(let_stmt, ..) => {
-                if let ExprKind::Let(pat, ..) = &let_stmt.node {
+                if let ExprKind::Let(pat, ..) = &let_stmt.kind {
                     self.visit_pat(pat);
                 }
             }
@@ -179,7 +179,7 @@ impl<'ast> visit::Visitor<'ast> for PatBindVisitor {
     }
 
     fn visit_pat(&mut self, p: &ast::Pat) {
-        match p.node {
+        match p.kind {
             PatKind::Ident(_, ref spannedident, _) => {
                 self.ident_points.push(spannedident.span.into());
             }
@@ -196,7 +196,7 @@ pub struct PatVisitor {
 
 impl<'ast> visit::Visitor<'ast> for PatVisitor {
     fn visit_pat(&mut self, p: &ast::Pat) {
-        match p.node {
+        match p.kind {
             PatKind::Ident(_, ref spannedident, _) => {
                 self.ident_points.push(spannedident.span.into());
             }
@@ -228,7 +228,7 @@ impl<'ast> visit::Visitor<'ast> for FnArgVisitor {
             .iter()
             .map(|arg| {
                 debug!("[FnArgTypeVisitor::visit_fn] type {:?} was found", arg.ty);
-                let pat = Pat::from_ast(&arg.pat.node, &self.scope);
+                let pat = Pat::from_ast(&arg.pat.kind, &self.scope);
                 let ty = Ty::from_ast(&arg.ty, &self.scope);
                 let source_map::BytePos(lo) = arg.pat.span.lo();
                 let source_map::BytePos(hi) = arg.ty.span.hi();
@@ -258,9 +258,9 @@ fn destructure_pattern_to_ty(
 ) -> Option<Ty> {
     debug!(
         "destructure_pattern_to_ty point {:?} ty {:?} pat: {:?}",
-        point, ty, pat.node
+        point, ty, pat.kind
     );
-    match pat.node {
+    match pat.kind {
         PatKind::Ident(_, ref spannedident, _) => {
             if point_is_in_span(point, &spannedident.span) {
                 debug!("destructure_pattern_to_ty matched an ident!");
@@ -352,7 +352,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for LetTypeVisitor<'c, 's> {
         let ty = match &local.ty {
             Some(annon) => Ty::from_ast(&*annon, &self.scope),
             None => local.init.as_ref().and_then(|initexpr| {
-                debug!("[LetTypeVisitor] initexpr is {:?}", initexpr.node);
+                debug!("[LetTypeVisitor] initexpr is {:?}", initexpr.kind);
                 let mut v = ExprTypeVisitor::new(self.scope.clone(), self.session);
                 v.visit_expr(initexpr);
                 v.result
@@ -376,7 +376,7 @@ struct MatchTypeVisitor<'c, 's> {
 
 impl<'c, 's, 'ast> visit::Visitor<'ast> for MatchTypeVisitor<'c, 's> {
     fn visit_expr(&mut self, ex: &ast::Expr) {
-        if let ExprKind::Match(ref subexpression, ref arms) = ex.node {
+        if let ExprKind::Match(ref subexpression, ref arms) = ex.kind {
             debug!("PHIL sub expr is {:?}", subexpression);
 
             let mut v = ExprTypeVisitor::new(self.scope.clone(), self.session);
@@ -492,10 +492,10 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
     fn visit_expr(&mut self, expr: &ast::Expr) {
         debug!(
             "ExprTypeVisitor::visit_expr {:?}(kind: {:?})",
-            expr, expr.node
+            expr, expr.kind
         );
         //walk_expr(self, ex, e)
-        match expr.node {
+        match expr.kind {
             ExprKind::Unary(_, ref expr) | ExprKind::AddrOf(_, ref expr) => {
                 self.visit_expr(expr);
             }
@@ -786,7 +786,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 );
             }
             _ => {
-                debug!("- Could not match expr node type: {:?}", expr.node);
+                debug!("- Could not match expr node type: {:?}", expr.kind);
             }
         };
     }
@@ -880,7 +880,7 @@ pub struct TypeVisitor<'s> {
 
 impl<'ast, 's> visit::Visitor<'ast> for TypeVisitor<'s> {
     fn visit_item(&mut self, item: &ast::Item) {
-        if let ItemKind::TyAlias(ref ty, _) = item.node {
+        if let ItemKind::TyAlias(ref ty, _) = item.kind {
             self.name = Some(item.ident.name.to_string());
             self.type_ = Ty::from_ast(&ty, self.scope);
             debug!("typevisitor type is {:?}", self.type_);
@@ -894,7 +894,7 @@ pub struct TraitVisitor {
 
 impl<'ast> visit::Visitor<'ast> for TraitVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
-        if let ItemKind::Trait(..) = item.node {
+        if let ItemKind::Trait(..) = item.kind {
             self.name = Some(item.ident.name.to_string());
         }
     }
@@ -923,7 +923,7 @@ impl<'p> ImplVisitor<'p> {
 
 impl<'ast, 'p> visit::Visitor<'ast> for ImplVisitor<'p> {
     fn visit_item(&mut self, item: &ast::Item) {
-        if let ItemKind::Impl(_, _, _, ref generics, ref otrait, ref self_typ, _) = item.node {
+        if let ItemKind::Impl(_, _, _, ref generics, ref otrait, ref self_typ, _) = item.kind {
             let impl_start = self.offset + get_span_start(item.span).into();
             self.result = ImplHeader::new(
                 generics,
@@ -946,7 +946,7 @@ pub struct ExternCrateVisitor {
 
 impl<'ast> visit::Visitor<'ast> for ExternCrateVisitor {
     fn visit_item(&mut self, item: &ast::Item) {
-        if let ItemKind::ExternCrate(ref optional_s) = item.node {
+        if let ItemKind::ExternCrate(ref optional_s) = item.kind {
             self.name = Some(item.ident.name.to_string());
             if let Some(ref istr) = *optional_s {
                 self.realname = Some(istr.to_string());
@@ -979,7 +979,7 @@ pub struct EnumVisitor {
 
 impl<'ast> visit::Visitor<'ast> for EnumVisitor {
     fn visit_item(&mut self, i: &ast::Item) {
-        if let ItemKind::Enum(ref enum_definition, _) = i.node {
+        if let ItemKind::Enum(ref enum_definition, _) = i.kind {
             self.name = i.ident.name.to_string();
             let (point1, point2) = destruct_span(i.span);
             debug!("name point is {} {}", point1, point2);
@@ -1011,7 +1011,7 @@ impl StaticVisitor {
 
 impl<'ast> visit::Visitor<'ast> for StaticVisitor {
     fn visit_item(&mut self, i: &ast::Item) {
-        match i.node {
+        match i.kind {
             ItemKind::Const(ref ty, ref _expr) => self.ty = Ty::from_ast(ty, &self.scope),
             ItemKind::Static(ref ty, m, ref _expr) => {
                 self.is_mutable = m == ast::Mutability::Mutable;
@@ -1245,7 +1245,7 @@ where
     P: AsRef<Path>,
 {
     fn visit_item(&mut self, item: &ast::Item) {
-        if let ItemKind::Trait(_, _, _, ref bounds, _) = item.node {
+        if let ItemKind::Trait(_, _, _, ref bounds, _) = item.kind {
             self.result = Some(TraitBounds::from_generic_bounds(
                 bounds,
                 &self.file_path,
@@ -1265,8 +1265,8 @@ pub(crate) struct ForStmtVisitor<'r, 's> {
 
 impl<'ast, 'r, 's> visit::Visitor<'ast> for ForStmtVisitor<'r, 's> {
     fn visit_expr(&mut self, ex: &'ast ast::Expr) {
-        if let ExprKind::ForLoop(ref pat, ref expr, _, _) = ex.node {
-            let for_pat = Pat::from_ast(&pat.node, &self.scope);
+        if let ExprKind::ForLoop(ref pat, ref expr, _, _) = ex.kind {
+            let for_pat = Pat::from_ast(&pat.kind, &self.scope);
             let mut expr_visitor = ExprTypeVisitor::new(self.scope.clone(), self.session);
             expr_visitor.visit_expr(expr);
             self.in_expr = expr_visitor.result;
@@ -1300,10 +1300,10 @@ pub(crate) struct IfLetVisitor<'r, 's> {
 
 impl<'ast, 'r, 's> visit::Visitor<'ast> for IfLetVisitor<'r, 's> {
     fn visit_expr(&mut self, ex: &'ast ast::Expr) {
-        match &ex.node {
+        match &ex.kind {
             ExprKind::If(let_stmt, ..) | ExprKind::While(let_stmt, ..) => {
-                if let ExprKind::Let(pat, expr) = &let_stmt.node {
-                    self.let_pat = Some(Pat::from_ast(&pat.node, &self.scope));
+                if let ExprKind::Let(pat, expr) = &let_stmt.kind {
+                    self.let_pat = Some(Pat::from_ast(&pat.kind, &self.scope));
                     let mut expr_visitor = ExprTypeVisitor::new(self.scope.clone(), self.session);
                     expr_visitor.visit_expr(expr);
                     self.rh_expr = expr_visitor.result;
