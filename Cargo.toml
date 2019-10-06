@@ -24,7 +24,6 @@ debug = false # because of #1005
 [dependencies]
 bitflags = "1.0"
 log = "0.4"
-rustc-ap-syntax = "583.0.0"
 env_logger = "0.6"
 clap = "2.32"
 lazy_static = "1.2"
@@ -37,6 +36,10 @@ lazycell = { version = "1.2", optional = true }
 version = "0.1"
 optional = true
 path = "metadata"
+
+[dependencies.syntax]
+package = "rustc-ap-syntax"
+version = "606.0.0"
 
 [dev-dependencies.racer-testutils]
 version = "0.1"

@@ -111,7 +111,7 @@ impl Ty {
         }
     }
     pub(crate) fn from_ast(ty: &ast::Ty, scope: &Scope) -> Option<Ty> {
-        match ty.node {
+        match ty.kind {
             TyKind::Tup(ref items) => Some(Ty::Tuple(
                 items.into_iter().map(|t| Ty::from_ast(t, scope)).collect(),
             )),
@@ -141,7 +141,7 @@ impl Ty {
             }
             TyKind::ImplicitSelf => Some(Ty::Self_(scope.clone())),
             _ => {
-                trace!("unhandled Ty node: {:?}", ty.node);
+                trace!("unhandled Ty node: {:?}", ty.kind);
                 None
             }
         }
@@ -149,7 +149,7 @@ impl Ty {
 
     pub(crate) fn from_lit(lit: &ast::Lit) -> Option<Ty> {
         let make_match = |kind: PrimKind| kind.to_module_match().map(Ty::Match);
-        match lit.node {
+        match lit.kind {
             LitKind::Str(_, _) => make_match(PrimKind::Str),
             LitKind::ByteStr(ref bytes) => make_match(PrimKind::U8)
                 .map(|ty| Ty::Array(Box::new(ty), format!("{}", bytes.len()))),
@@ -313,7 +313,7 @@ impl Pat {
                 let path = Path::from_ast(path, scope);
                 let pats = pats
                     .iter()
-                    .map(|pat| Pat::from_ast(&pat.node, scope))
+                    .map(|pat| Pat::from_ast(&pat.kind, scope))
                     .collect();
                 Pat::TupleStruct(path, pats)
             }
@@ -321,17 +321,17 @@ impl Pat {
             PatKind::Tuple(pats) => {
                 let pats = pats
                     .iter()
-                    .map(|pat| Pat::from_ast(&pat.node, scope))
+                    .map(|pat| Pat::from_ast(&pat.kind, scope))
                     .collect();
                 Pat::Tuple(pats)
             }
             PatKind::Box(_) => Pat::Box,
-            PatKind::Ref(pat, mut_) => Pat::Ref(Box::new(Pat::from_ast(&pat.node, scope)), *mut_),
+            PatKind::Ref(pat, mut_) => Pat::Ref(Box::new(Pat::from_ast(&pat.kind, scope)), *mut_),
             PatKind::Lit(_) => Pat::Lit,
             PatKind::Range(..) => Pat::Range,
             PatKind::Slice(..) => Pat::Slice,
             // ignore paren
-            PatKind::Paren(pat) => Pat::from_ast(&pat.node, scope),
+            PatKind::Paren(pat) => Pat::from_ast(&pat.kind, scope),
             PatKind::Mac(_) => Pat::Mac,
             PatKind::Rest => Pat::Rest,
             PatKind::Or(_) => Pat::Or,
@@ -349,7 +349,7 @@ impl FieldPat {
     pub fn from_ast(fpat: &ast::FieldPat, scope: &Scope) -> Self {
         FieldPat {
             field_name: fpat.ident.to_string(),
-            pat: Box::new(Pat::from_ast(&fpat.pat.node, scope)),
+            pat: Box::new(Pat::from_ast(&fpat.pat.kind, scope)),
         }
     }
 }
@@ -858,7 +858,7 @@ impl GenericsArgs {
         }
         for pred in generics.where_clause.predicates.iter() {
             match pred {
-                WherePredicate::BoundPredicate(bound) => match bound.bounded_ty.node {
+                WherePredicate::BoundPredicate(bound) => match bound.bounded_ty.kind {
                     TyKind::Path(ref _qself, ref path) => {
                         if let Some(seg) = path.segments.get(0) {
                             let name = seg.ident.name.as_str();
@@ -993,7 +993,7 @@ impl ImplHeader {
     ) -> Option<Self> {
         let generics = GenericsArgs::from_generics(generics, path, offset.0 as i32);
         let scope = Scope::new(path.to_owned(), impl_start);
-        let self_path = get_self_path(&self_type.node, &scope)?;
+        let self_path = get_self_path(&self_type.kind, &scope)?;
         let trait_path = otrait
             .as_ref()
             .map(|tref| Path::from_ast(&tref.path, &scope));
@@ -1053,7 +1053,7 @@ impl ImplHeader {
 
 pub(crate) fn get_self_path(ty: &TyKind, scope: &Scope) -> Option<Path> {
     match ty {
-        TyKind::Rptr(_, ref ty) => get_self_path(&ty.ty.node, scope),
+        TyKind::Rptr(_, ref ty) => get_self_path(&ty.ty.kind, scope),
         TyKind::Path(_, ref path) => Some(Path::from_ast(path, &scope)),
         // HACK: treat slice as path
         TyKind::Slice(_) => Some(Path::single("[T]".to_owned().into())),
