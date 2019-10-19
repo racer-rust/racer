@@ -39,7 +39,7 @@ path = "metadata"
 
 [dependencies.syntax]
 package = "rustc-ap-syntax"
-version = "606.0.0"
+version = "610.0.0"
 
 [dev-dependencies.racer-testutils]
 version = "0.1"
