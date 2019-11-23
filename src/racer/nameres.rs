@@ -660,7 +660,7 @@ fn search_scope_headers(
 // TODO: handle extern ".." fn
 fn preblock_is_fn(preblock: &str) -> bool {
     let s = trim_visibility(preblock);
-    let p = strip_words(s, &["const", "unsafe"]);
+    let p = strip_words(s, &["const", "unsafe", "async"]);
     if p.0 < s.len() {
         s[p.0..].starts_with("fn")
     } else {
@@ -672,6 +672,7 @@ fn preblock_is_fn(preblock: &str) -> bool {
 fn is_fn() {
     assert!(preblock_is_fn("pub fn bar()"));
     assert!(preblock_is_fn("fn foo()"));
+    assert!(preblock_is_fn("async fn foo()"));
     assert!(preblock_is_fn("const fn baz()"));
     assert!(preblock_is_fn("pub(crate) fn bar()"));
     assert!(preblock_is_fn("pub(in foo::bar) fn bar()"));
