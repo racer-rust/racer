@@ -1,4 +1,3 @@
-use crate::ast_types::PathSegment;
 use crate::core::{BytePos, Match, MatchType, Namespace, SearchType, Session};
 use crate::matchers::ImportInfo;
 use crate::nameres::{self, RUST_SRC_PATH};
@@ -6,6 +5,7 @@ use std::path::PathBuf;
 use syntax::ast::{IntTy, LitIntType, UintTy};
 
 const PRIM_DOC: &str = "libstd/primitive_docs.rs";
+const KEY_DOC: &str = "libstd/keyword_docs.rs";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PrimKind {
@@ -34,6 +34,7 @@ pub enum PrimKind {
     Usize,
     Ref,
     Fn,
+    Await,
 }
 
 const PRIM_MATCHES: [PrimKind; 17] = [
@@ -105,6 +106,13 @@ impl PrimKind {
             PrimKind::Usize => Some(&["libcore/num/mod.rs"]),
             PrimKind::Ref => None,
             PrimKind::Fn => None,
+            PrimKind::Await => None,
+        }
+    }
+    fn is_keyword(self) -> bool {
+        match self {
+            PrimKind::Await => true,
+            _ => false,
         }
     }
     fn match_name(self) -> &'static str {
@@ -134,6 +142,7 @@ impl PrimKind {
             PrimKind::Usize => "usize",
             PrimKind::Ref => "ref",
             PrimKind::Fn => "fn",
+            PrimKind::Await => "await",
         }
     }
     pub(crate) fn get_impl_files(&self) -> Option<Vec<PathBuf>> {
@@ -155,12 +164,21 @@ impl PrimKind {
         })
     }
     pub fn to_doc_match(self, session: &Session<'_>) -> Option<Match> {
-        let seg: PathSegment = format!("prim_{}", self.match_name()).into();
         let src_path = RUST_SRC_PATH.as_ref()?;
-        let prim_path = src_path.join(PRIM_DOC);
+        let (path, seg) = if self.is_keyword() {
+            (
+                src_path.join(KEY_DOC),
+                format!("{}_keyword", self.match_name()),
+            )
+        } else {
+            (
+                src_path.join(PRIM_DOC),
+                format!("prim_{}", self.match_name()),
+            )
+        };
         let mut m = nameres::resolve_name(
-            &seg,
-            &prim_path,
+            &seg.into(),
+            &path,
             BytePos::ZERO,
             SearchType::ExactMatch,
             Namespace::Mod,

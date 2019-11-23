@@ -18,7 +18,7 @@ use crate::matchers::{find_doc, ImportInfo, MatchCxt};
 use crate::primitive;
 use crate::util::{
     self, calculate_str_hash, find_ident_end, get_rust_src_path, strip_words, symbol_matches,
-    trim_visibility, txt_matches,
+    trim_visibility, txt_matches, txt_matches_with_pos,
 };
 use crate::{ast, core, matchers, scopes, typeinf};
 
@@ -660,7 +660,7 @@ fn search_scope_headers(
 // TODO: handle extern ".." fn
 fn preblock_is_fn(preblock: &str) -> bool {
     let s = trim_visibility(preblock);
-    let p = strip_words(s, &["const", "unsafe"]);
+    let p = strip_words(s, &["const", "unsafe", "async"]);
     if p.0 < s.len() {
         s[p.0..].starts_with("fn")
     } else {
@@ -672,6 +672,7 @@ fn preblock_is_fn(preblock: &str) -> bool {
 fn is_fn() {
     assert!(preblock_is_fn("pub fn bar()"));
     assert!(preblock_is_fn("fn foo()"));
+    assert!(preblock_is_fn("async fn foo()"));
     assert!(preblock_is_fn("const fn baz()"));
     assert!(preblock_is_fn("pub(crate) fn bar()"));
     assert!(preblock_is_fn("pub(in foo::bar) fn bar()"));
@@ -2370,8 +2371,26 @@ pub(crate) fn get_field_matches_from_ty(
             .into_iter()
             .flat_map(|ps| get_field_matches_from_ty(Ty::PathSearch(ps), searchstr, stype, session))
             .collect(),
+        Ty::Future(_, scope) => get_future(scope, session)
+            .into_iter()
+            .flat_map(|f| search_for_trait_methods(f, searchstr, stype, session))
+            .chain(
+                txt_matches_with_pos(stype, searchstr, "await")
+                    .and_then(|_| PrimKind::Await.to_doc_match(session))
+                    .into_iter(),
+            )
+            .collect(),
         _ => vec![],
     }
+}
+
+fn get_future(scope: Scope, session: &Session<'_>) -> Option<Match> {
+    let path = RacerPath::from_iter(
+        false,
+        ["std", "future", "Future"].iter().map(|s| s.to_string()),
+    );
+
+    ast::find_type_match(&path, &scope.filepath, scope.point, session)
 }
 
 fn get_assoc_type_from_header(
@@ -2424,11 +2443,12 @@ fn get_std_macros(
     for macro_file in &[
         "libstd/macros.rs",
         "libcore/macros.rs",
+        "libcore/macros/mod.rs",
         "liballoc/macros.rs",
     ] {
         let macro_path = std_path.join(macro_file);
         if !macro_path.exists() {
-            return;
+            continue;
         }
         get_std_macros_(
             &macro_path,

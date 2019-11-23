@@ -1137,13 +1137,11 @@ pub fn parse_pat_idents(s: String) -> Vec<ByteRange> {
     v.ident_points
 }
 
-pub fn parse_fn_output(s: String, scope: Scope) -> Option<Ty> {
-    let mut v = FnOutputVisitor {
-        result: None,
-        scope,
-    };
+pub fn parse_fn_output(s: String, scope: Scope) -> (Option<Ty>, bool) {
+    let mut v = FnOutputVisitor::new(scope);
     with_stmt(s, |stmt| visit::walk_stmt(&mut v, stmt));
-    v.result
+    let FnOutputVisitor { ty, is_async, .. } = v;
+    (ty, is_async)
 }
 
 pub fn parse_extern_crate(s: String) -> ExternCrateVisitor {
@@ -1212,20 +1210,35 @@ pub fn get_match_arm_type(
 
 pub struct FnOutputVisitor {
     scope: Scope,
-    pub result: Option<Ty>,
+    pub ty: Option<Ty>,
+    pub is_async: bool,
+}
+
+impl FnOutputVisitor {
+    pub(crate) fn new(scope: Scope) -> Self {
+        FnOutputVisitor {
+            scope,
+            ty: None,
+            is_async: false,
+        }
+    }
 }
 
 impl<'ast> visit::Visitor<'ast> for FnOutputVisitor {
     fn visit_fn(
         &mut self,
-        _: visit::FnKind<'_>,
+        kind: visit::FnKind<'_>,
         fd: &ast::FnDecl,
         _: source_map::Span,
         _: ast::NodeId,
     ) {
-        self.result = match fd.output {
+        self.is_async = kind
+            .header()
+            .map(|header| header.asyncness.node.is_async())
+            .unwrap_or(false);
+        self.ty = match fd.output {
             FunctionRetTy::Ty(ref ty) => Ty::from_ast(ty, &self.scope),
-            FunctionRetTy::Default(_) => None,
+            FunctionRetTy::Default(_) => Some(Ty::Default),
         };
     }
 }

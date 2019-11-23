@@ -723,7 +723,7 @@ fn match_fn_common(
     context: &MatchCxt<'_, '_>,
     session: &Session<'_>,
 ) -> Option<Match> {
-    let (start, s) = context.get_key_ident(blob, "fn", &["const", "unsafe"])?;
+    let (start, s) = context.get_key_ident(blob, "fn", &["const", "unsafe", "async"])?;
     let start = context.range.start + start;
     let doc_src = session.load_raw_src_ranged(&msrc, context.filepath);
     Some(Match {
