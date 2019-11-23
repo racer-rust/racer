@@ -28,3 +28,18 @@ fn completes_poll() {
     let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "poll");
 }
+
+#[test]
+fn completes_await() {
+    let src = r#"
+    async fn say_hey() {
+        println!("Hey!")
+    }
+    async fn waiting_for() {
+        let handle = say_hey();
+        handle.awa~
+    }
+"#;
+    let got = get_only_completion(src, None);
+    assert_eq!(got.matchstr, "await");
+}

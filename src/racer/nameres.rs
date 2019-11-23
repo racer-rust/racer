@@ -18,7 +18,7 @@ use crate::matchers::{find_doc, ImportInfo, MatchCxt};
 use crate::primitive;
 use crate::util::{
     self, calculate_str_hash, find_ident_end, get_rust_src_path, strip_words, symbol_matches,
-    trim_visibility, txt_matches,
+    trim_visibility, txt_matches, txt_matches_with_pos,
 };
 use crate::{ast, core, matchers, scopes, typeinf};
 
@@ -2374,6 +2374,11 @@ pub(crate) fn get_field_matches_from_ty(
         Ty::Future(_, scope) => get_future(scope, session)
             .into_iter()
             .flat_map(|f| search_for_trait_methods(f, searchstr, stype, session))
+            .chain(
+                txt_matches_with_pos(stype, searchstr, "await")
+                    .and_then(|_| PrimKind::Await.to_doc_match(session))
+                    .into_iter(),
+            )
             .collect(),
         _ => vec![],
     }
