@@ -2443,11 +2443,12 @@ fn get_std_macros(
     for macro_file in &[
         "libstd/macros.rs",
         "libcore/macros.rs",
+        "libcore/macros/mod.rs",
         "liballoc/macros.rs",
     ] {
         let macro_path = std_path.join(macro_file);
         if !macro_path.exists() {
-            return;
+            continue;
         }
         get_std_macros_(
             &macro_path,
