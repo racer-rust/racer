@@ -58,6 +58,9 @@ pub enum Ty {
     Ptr(Box<Ty>, Mutability),
     TraitObject(TraitBounds),
     Self_(Scope),
+    Future(Box<Ty>, Scope),
+    Never,
+    Default,
     Unsupported,
 }
 
@@ -249,6 +252,9 @@ impl fmt::Display for Ty {
                 write!(f, ">")
             }
             Ty::Self_(_) => write!(f, "Self"),
+            Ty::Future(ref ty, _) => write!(f, "impl Future<Output={}>", ty),
+            Ty::Never => write!(f, "!"),
+            Ty::Default => write!(f, "()"),
             Ty::Unsupported => write!(f, "_"),
         }
     }

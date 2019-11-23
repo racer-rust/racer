@@ -2371,8 +2371,21 @@ pub(crate) fn get_field_matches_from_ty(
             .into_iter()
             .flat_map(|ps| get_field_matches_from_ty(Ty::PathSearch(ps), searchstr, stype, session))
             .collect(),
+        Ty::Future(_, scope) => get_future(scope, session)
+            .into_iter()
+            .flat_map(|f| search_for_trait_methods(f, searchstr, stype, session))
+            .collect(),
         _ => vec![],
     }
+}
+
+fn get_future(scope: Scope, session: &Session<'_>) -> Option<Match> {
+    let path = RacerPath::from_iter(
+        false,
+        ["std", "future", "Future"].iter().map(|s| s.to_string()),
+    );
+
+    ast::find_type_match(&path, &scope.filepath, scope.point, session)
 }
 
 fn get_assoc_type_from_header(
