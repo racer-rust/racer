@@ -702,7 +702,7 @@ pub(crate) fn is_in_struct_ctor(
 ) -> Option<ByteRange> {
     const ALLOW_SYMBOL: [u8; 5] = [b'{', b'(', b'|', b';', b','];
     const ALLOW_KEYWORDS: [&'static str; 3] = ["let", "mut", "ref"];
-    const INIHIBIT_KEYWORDS: [&'static str; 1] = ["unsafe"];
+    const INIHIBIT_KEYWORDS: [&'static str; 2] = ["unsafe", "async"];
     if stmt_start.0 <= 3 || src.as_bytes()[stmt_start.0 - 1] != b'{' || pos <= stmt_start {
         return None;
     }
