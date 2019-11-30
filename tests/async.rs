@@ -43,3 +43,14 @@ fn completes_await() {
     let got = get_only_completion(src, None);
     assert_eq!(got.matchstr, "await");
 }
+
+#[test]
+fn completion_in_async_block() {
+    let src = r#"
+    fn main() {
+        async {
+            println~
+        }
+    }"#;
+    assert_eq!(get_definition(src, None).matchstr, "println!");
+}
