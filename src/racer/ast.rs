@@ -409,7 +409,6 @@ fn resolve_ast_path(
 ) -> Option<Match> {
     let scope = Scope::new(filepath.to_owned(), pos);
     let path = RacerPath::from_ast(path, &scope);
-    debug!("resolve_ast_path {:?} {:?}", path, scope);
     nameres::resolve_path_with_primitive(
         &path,
         filepath,
@@ -534,7 +533,9 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                                 )
                             }
                             // if we find tuple struct / enum variant, try to resolve its generics name
-                            MatchType::Struct(ref mut gen) | MatchType::Enum(ref mut gen) => {
+                            MatchType::Struct(ref mut gen)
+                            | MatchType::Enum(ref mut gen)
+                            | MatchType::Union(ref mut gen) => {
                                 if gen.is_empty() {
                                     return Some(Ty::Match(m));
                                 }

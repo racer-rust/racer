@@ -33,7 +33,7 @@ pub(crate) fn search_struct_fields(
     session: &Session<'_>,
 ) -> Vec<Match> {
     match structmatch.mtype {
-        MatchType::Struct(_) | MatchType::EnumVariant(_) => {}
+        MatchType::Struct(_) | MatchType::EnumVariant(_) | MatchType::Union(_) => {}
         _ => return Vec::new(),
     }
     let src = session.load_source_file(&structmatch.filepath);
@@ -1422,7 +1422,6 @@ pub fn resolve_path_with_primitive(
             break;
         }
     }
-
     out
 }
 
@@ -1814,7 +1813,7 @@ pub fn resolve_path(
         )
         .into_iter()
         .nth(0);
-        debug!(
+        println!(
             "[resolve_path] context: {:?}, last_seg: {:?}",
             context, last_seg
         );
@@ -1907,7 +1906,7 @@ fn resolve_following_path(
                 import_info,
             )
         }
-        MatchType::Enum(_) | MatchType::Struct(_) => get_impled_items(
+        MatchType::Enum(_) | MatchType::Struct(_) | MatchType::Union(_) => get_impled_items(
             following_seg,
             search_type,
             &followed_match,
@@ -2197,10 +2196,10 @@ pub fn search_for_fields_and_methods(
     let m = context;
     let mut out = Vec::new();
     match m.mtype {
-        MatchType::Struct(_) => {
+        MatchType::Struct(_) | MatchType::Union(_) => {
             debug!(
-                "got a struct, looking for fields and impl methods!! {}",
-                m.matchstr
+                "got a struct or union, looking for fields and impl methods!! {}",
+                m.matchstr,
             );
             if !only_methods {
                 for m in search_struct_fields(searchstr, &m, search_type, session) {
