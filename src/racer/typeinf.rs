@@ -444,6 +444,7 @@ pub fn get_type_of_match(m: Match, msrc: Src<'_>, session: &Session<'_>) -> Opti
         core::MatchType::FnArg(_) => get_type_of_fnarg(m, session),
         core::MatchType::MatchArm => get_type_from_match_arm(&m, msrc, session),
         core::MatchType::Struct(_)
+        | core::MatchType::Union(_)
         | core::MatchType::Enum(_)
         | core::MatchType::Function
         | core::MatchType::Method(_)

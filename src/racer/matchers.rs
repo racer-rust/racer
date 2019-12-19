@@ -444,6 +444,34 @@ pub fn match_struct(
     })
 }
 
+pub fn match_union(
+    msrc: Src<'_>,
+    context: &MatchCxt<'_, '_>,
+    session: &Session<'_>,
+) -> Option<Match> {
+    let blob = &msrc[context.range.to_range()];
+    let (start, s) = context.get_key_ident(blob, "union", &[])?;
+
+    debug!("found a union |{}|", s);
+    let generics =
+        find_generics_end(&blob[start.0..]).map_or_else(Default::default, |generics_end| {
+            let header = format!("union {}();", &blob[start.0..=(start + generics_end).0]);
+            ast::parse_generics(header, context.filepath)
+        });
+    let start = context.range.start + start;
+    let doc_src = session.load_raw_src_ranged(&msrc, context.filepath);
+    Some(Match {
+        matchstr: s,
+        filepath: context.filepath.to_path_buf(),
+        point: start,
+        coords: None,
+        local: context.is_local,
+        mtype: MatchType::Union(Box::new(generics)),
+        contextstr: get_context(blob, "{"),
+        docs: find_doc(&doc_src, start),
+    })
+}
+
 pub fn match_type(
     msrc: Src<'_>,
     context: &MatchCxt<'_, '_>,

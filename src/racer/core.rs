@@ -41,6 +41,7 @@ pub enum MatchType {
     For(BytePos),
     StructField,
     Enum(Box<GenericsArgs>),
+    Union(Box<GenericsArgs>),
     /// EnumVariant needs to have Enum type to complete methods
     EnumVariant(Option<Box<Match>>),
     UseAlias(Box<Match>),
@@ -81,6 +82,7 @@ impl fmt::Display for MatchType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             MatchType::Struct(_) => write!(f, "Struct"),
+            MatchType::Union(_) => write!(f, "Union"),
             MatchType::Method(_) => write!(f, "Method"),
             MatchType::IfLet(_) => write!(f, "IfLet"),
             MatchType::Let(_) => write!(f, "Let"),
