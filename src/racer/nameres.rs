@@ -1254,6 +1254,7 @@ fn run_matchers_on_blob(
     run_matcher!(Namespace::Mod, matchers::match_mod);
     run_matcher!(Namespace::Enum, matchers::match_enum);
     run_matcher!(Namespace::Struct, matchers::match_struct);
+    run_matcher!(Namespace::Union, matchers::match_union);
     run_matcher!(Namespace::Trait, matchers::match_trait);
     run_matcher!(Namespace::TypeDef, matchers::match_type);
     run_matcher!(Namespace::Func, matchers::match_fn);
