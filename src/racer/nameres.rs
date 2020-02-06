@@ -1813,7 +1813,7 @@ pub fn resolve_path(
         )
         .into_iter()
         .nth(0);
-        println!(
+        debug!(
             "[resolve_path] context: {:?}, last_seg: {:?}",
             context, last_seg
         );
