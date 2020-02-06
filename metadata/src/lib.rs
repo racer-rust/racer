@@ -13,7 +13,7 @@ use std::fmt;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::str::{self, Utf8Error};
+use std::str::Utf8Error;
 
 #[derive(Debug)]
 pub enum ErrorKind {
@@ -34,16 +34,7 @@ impl fmt::Display for ErrorKind {
     }
 }
 
-impl Error for ErrorKind {
-    fn description(&self) -> &str {
-        match self {
-            ErrorKind::Encode(e) => e.description(),
-            ErrorKind::Json(e) => e.description(),
-            ErrorKind::Io(e) => e.description(),
-            ErrorKind::Subprocess(s) => &s,
-        }
-    }
-}
+impl Error for ErrorKind {}
 
 impl From<Utf8Error> for ErrorKind {
     fn from(e: Utf8Error) -> ErrorKind {
