@@ -15,7 +15,7 @@ use std::ops::{Deref, Range};
 use std::rc::Rc;
 use std::{fmt, vec};
 use std::{path, str};
-use syntax::source_map;
+use rustc_span::source_map;
 
 use crate::ast;
 use crate::fileres;

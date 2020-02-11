@@ -9,18 +9,25 @@ use crate::typeinf;
 use std::path::Path;
 use std::rc::Rc;
 
+use rustc_data_structures::sync::Lrc;
+use rustc_errors::emitter::Emitter;
+use rustc_errors::{Diagnostic, Handler};
+use rustc_parse::new_parser_from_source_str;
+use rustc_parse::parser::Parser;
+use rustc_session::parse::ParseSess;
+use rustc_span::edition::Edition;
+use rustc_span::Span;
+use rustc_span::source_map::{self, FileName, SourceMap};
 use syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, PatKind, UseTree, UseTreeKind};
-use syntax::edition::Edition;
-use syntax::errors::{emitter::Emitter, Diagnostic, Handler};
-use syntax::parse::parser::Parser;
-use syntax::parse::{self, ParseSess};
-use syntax::source_map::{self, FileName, SourceMap, Span};
 use syntax::{self, visit};
 
 struct DummyEmitter;
 
 impl Emitter for DummyEmitter {
     fn emit_diagnostic(&mut self, _db: &Diagnostic) {}
+    fn source_map(&self) -> Option<&Lrc<SourceMap>> {
+        None
+    }
     fn should_show_explain(&self) -> bool {
         false
     }
@@ -29,7 +36,7 @@ impl Emitter for DummyEmitter {
 /// construct parser from string
 // From syntax/util/parser_testing.rs
 pub fn string_to_parser(ps: &ParseSess, source_str: String) -> Parser<'_> {
-    parse::new_parser_from_source_str(ps, FileName::Custom("racer-file".to_owned()), source_str)
+    new_parser_from_source_str(ps, FileName::Custom("racer-file".to_owned()), source_str)
 }
 
 /// Get parser from string s and then apply closure f to it
@@ -217,11 +224,14 @@ pub struct FnArgVisitor {
 impl<'ast> visit::Visitor<'ast> for FnArgVisitor {
     fn visit_fn(
         &mut self,
-        _fk: visit::FnKind<'_>,
-        fd: &ast::FnDecl,
+        fk: visit::FnKind<'_>,
         _: source_map::Span,
         _: ast::NodeId,
     ) {
+        let fd = match fk {
+            visit::FnKind::Fn(_, _, ref fn_sig, _, _) => &*fn_sig.decl,
+            visit::FnKind::Closure(ref fn_decl, _) => fn_decl,
+        };
         debug!("[FnArgVisitor::visit_fn] inputs: {:?}", fd.inputs);
         self.idents = fd
             .inputs
@@ -495,7 +505,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
         );
         //walk_expr(self, ex, e)
         match expr.kind {
-            ExprKind::Unary(_, ref expr) | ExprKind::AddrOf(_, ref expr) => {
+            ExprKind::Unary(_, ref expr) | ExprKind::AddrOf(_, _, ref expr) => {
                 self.visit_expr(expr);
             }
             ExprKind::Path(_, ref path) => {
@@ -924,13 +934,13 @@ impl<'p> ImplVisitor<'p> {
 
 impl<'ast, 'p> visit::Visitor<'ast> for ImplVisitor<'p> {
     fn visit_item(&mut self, item: &ast::Item) {
-        if let ItemKind::Impl(_, _, _, ref generics, ref otrait, ref self_typ, _) = item.kind {
+        if let ItemKind::Impl { ref generics, ref of_trait, ref self_ty, .. } = item.kind {
             let impl_start = self.offset + get_span_start(item.span).into();
             self.result = ImplHeader::new(
                 generics,
                 self.filepath,
-                otrait,
-                self_typ,
+                of_trait,
+                self_ty,
                 self.offset,
                 self.local,
                 impl_start,
@@ -1015,7 +1025,7 @@ impl<'ast> visit::Visitor<'ast> for StaticVisitor {
         match i.kind {
             ItemKind::Const(ref ty, ref _expr) => self.ty = Ty::from_ast(ty, &self.scope),
             ItemKind::Static(ref ty, m, ref _expr) => {
-                self.is_mutable = m == ast::Mutability::Mutable;
+                self.is_mutable = m == ast::Mutability::Mut;
                 self.ty = Ty::from_ast(ty, &self.scope);
             }
             _ => {}
@@ -1229,10 +1239,13 @@ impl<'ast> visit::Visitor<'ast> for FnOutputVisitor {
     fn visit_fn(
         &mut self,
         kind: visit::FnKind<'_>,
-        fd: &ast::FnDecl,
         _: source_map::Span,
         _: ast::NodeId,
     ) {
+        let fd = match kind {
+            visit::FnKind::Fn(_, _, ref fn_sig, _, _) => &*fn_sig.decl,
+            visit::FnKind::Closure(ref fn_decl, _) => fn_decl,
+        };
         self.is_async = kind
             .header()
             .map(|header| header.asyncness.node.is_async())
