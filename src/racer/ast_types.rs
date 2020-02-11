@@ -15,10 +15,10 @@ use syntax::ast::{
     self, GenericBound, GenericBounds, GenericParamKind, LitKind, PatKind, TraitRef, TyKind,
     WherePredicate,
 };
+use rustc_span::source_map;
+use rustc_ast_pretty::pprust;
 // we can only re-export types without thread-local interned string
 pub use syntax::ast::{BindingMode, Mutability};
-use syntax::print::pprust;
-use syntax::source_map;
 
 /// The leaf of a `use` statement.
 #[derive(Clone, Debug)]
@@ -102,7 +102,7 @@ impl Ty {
         let mut ty = self;
         // TODO: it's incorrect
         for _ in 0..count {
-            ty = Ty::RefPtr(Box::new(ty), Mutability::Immutable);
+            ty = Ty::RefPtr(Box::new(ty), Mutability::Not);
         }
         ty
     }
@@ -159,11 +159,11 @@ impl Ty {
             LitKind::Byte(_) => make_match(PrimKind::U8),
             LitKind::Char(_) => make_match(PrimKind::Char),
             LitKind::Int(_, int_ty) => make_match(PrimKind::from_litint(int_ty)),
-            LitKind::Float(_, float_ty) => match float_ty {
+            LitKind::Float(_, ast::LitFloatType::Unsuffixed) => make_match(PrimKind::F32),
+            LitKind::Float(_, ast::LitFloatType::Suffixed(float_ty)) => match float_ty {
                 ast::FloatTy::F32 => make_match(PrimKind::F32),
                 ast::FloatTy::F64 => make_match(PrimKind::F64),
             },
-            LitKind::FloatUnsuffixed(_) => make_match(PrimKind::F32),
             LitKind::Bool(_) => make_match(PrimKind::Bool),
             LitKind::Err(_) => None,
         }
@@ -232,12 +232,12 @@ impl fmt::Display for Ty {
                 write!(f, "]")
             }
             Ty::RefPtr(ref ty, mutab) => match mutab {
-                Mutability::Immutable => write!(f, "&{}", ty),
-                Mutability::Mutable => write!(f, "&mut {}", ty),
+                Mutability::Not => write!(f, "&{}", ty),
+                Mutability::Mut => write!(f, "&mut {}", ty),
             },
             Ty::Ptr(ref ty, mutab) => match mutab {
-                Mutability::Immutable => write!(f, "*const {}", ty),
-                Mutability::Mutable => write!(f, "*mut {}", ty),
+                Mutability::Not => write!(f, "*const {}", ty),
+                Mutability::Mut => write!(f, "*mut {}", ty),
             },
             Ty::TraitObject(ref bounds) => {
                 write!(f, "<")?;
@@ -449,7 +449,7 @@ impl Path {
                 }
                 // TODO: support inputs in GenericArgs::Parenthesized (A path like `Foo(A,B) -> C`)
                 if let ast::GenericArgs::Parenthesized(ref paren_args) = **params {
-                    if let Some(ref ty) = paren_args.output {
+                    if let ast::FunctionRetTy::Ty(ref ty) = paren_args.output {
                         output = Ty::from_ast(&*ty, scope);
                     }
                 }
@@ -867,7 +867,7 @@ impl GenericsArgs {
                 WherePredicate::BoundPredicate(bound) => match bound.bounded_ty.kind {
                     TyKind::Path(ref _qself, ref path) => {
                         if let Some(seg) = path.segments.get(0) {
-                            let name = seg.ident.name.as_str();
+                            let name = pprust::path_segment_to_string(&seg);
                             let bound =
                                 TraitBounds::from_generic_bounds(&bound.bounds, &filepath, offset);
                             if let Some(tp) = args.iter_mut().find(|tp| tp.name == name) {
