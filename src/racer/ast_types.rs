@@ -159,7 +159,7 @@ impl Ty {
             LitKind::Byte(_) => make_match(PrimKind::U8),
             LitKind::Char(_) => make_match(PrimKind::Char),
             LitKind::Int(_, int_ty) => make_match(PrimKind::from_litint(int_ty)),
-            ast::LitKind::Float(_, ast::LitFloatType::Unsuffixed) => make_match(PrimKind::F32),
+            LitKind::Float(_, ast::LitFloatType::Unsuffixed) => make_match(PrimKind::F32),
             LitKind::Float(_, ast::LitFloatType::Suffixed(float_ty)) => match float_ty {
                 ast::FloatTy::F32 => make_match(PrimKind::F32),
                 ast::FloatTy::F64 => make_match(PrimKind::F64),
