@@ -11,8 +11,8 @@ use crate::nameres;
 use crate::primitive::PrimKind;
 use crate::scopes;
 use crate::util::{self, txt_matches};
+use rustc_ast::ast::BinOpKind;
 use std::path::Path;
-use syntax::ast::BinOpKind;
 
 // Removes the body of the statement (anything in the braces {...}), leaving just
 // the header

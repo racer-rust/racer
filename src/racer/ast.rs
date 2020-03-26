@@ -9,6 +9,8 @@ use crate::typeinf;
 use std::path::Path;
 use std::rc::Rc;
 
+use rustc_ast::ast::{self, ExprKind, FnRetTy, ItemKind, PatKind, UseTree, UseTreeKind};
+use rustc_ast::{self, visit};
 use rustc_data_structures::sync::Lrc;
 use rustc_errors::emitter::Emitter;
 use rustc_errors::{Diagnostic, Handler};
@@ -16,10 +18,8 @@ use rustc_parse::new_parser_from_source_str;
 use rustc_parse::parser::Parser;
 use rustc_session::parse::ParseSess;
 use rustc_span::edition::Edition;
-use rustc_span::Span;
 use rustc_span::source_map::{self, FileName, SourceMap};
-use syntax::ast::{self, ExprKind, FunctionRetTy, ItemKind, PatKind, UseTree, UseTreeKind};
-use syntax::{self, visit};
+use rustc_span::Span;
 
 struct DummyEmitter;
 
@@ -46,7 +46,7 @@ where
     F: FnOnce(&mut Parser<'_>) -> Option<T>,
 {
     // FIXME: Set correct edition based on the edition of the target crate.
-    syntax::with_globals(Edition::Edition2018, || {
+    rustc_ast::with_globals(Edition::Edition2018, || {
         let codemap = Rc::new(SourceMap::new(source_map::FilePathMapping::empty()));
         // We use DummyEmitter here not to print error messages to stderr
         let handler = Handler::with_emitter(false, None, Box::new(DummyEmitter {}));
@@ -222,12 +222,7 @@ pub struct FnArgVisitor {
 }
 
 impl<'ast> visit::Visitor<'ast> for FnArgVisitor {
-    fn visit_fn(
-        &mut self,
-        fk: visit::FnKind<'_>,
-        _: source_map::Span,
-        _: ast::NodeId,
-    ) {
+    fn visit_fn(&mut self, fk: visit::FnKind<'_>, _: source_map::Span, _: ast::NodeId) {
         let fd = match fk {
             visit::FnKind::Fn(_, _, ref fn_sig, _, _) => &*fn_sig.decl,
             visit::FnKind::Closure(ref fn_decl, _) => fn_decl,
@@ -748,7 +743,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     self.result = Some(Ty::Array(Box::new(Ty::Unsupported), String::new()));
                 }
             }
-            ExprKind::Mac(ref m) => {
+            ExprKind::MacCall(ref m) => {
                 if let Some(name) = m.path.segments.last().map(|seg| seg.ident) {
                     // use some ad-hoc rules
                     if name.as_str() == "vec" {
@@ -802,7 +797,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
         };
     }
     /// Just do nothing if we see a macro, but also prevent the panic! in the default impl.
-    fn visit_mac(&mut self, _mac: &ast::Mac) {}
+    fn visit_mac(&mut self, _mac: &ast::MacCall) {}
 }
 
 // gets generics info from the context match
@@ -891,7 +886,7 @@ pub struct TypeVisitor<'s> {
 
 impl<'ast, 's> visit::Visitor<'ast> for TypeVisitor<'s> {
     fn visit_item(&mut self, item: &ast::Item) {
-        if let ItemKind::TyAlias(ref ty, _) = item.kind {
+        if let ItemKind::TyAlias(_, _, _, Some(ref ty)) = item.kind {
             self.name = Some(item.ident.name.to_string());
             self.type_ = Ty::from_ast(&ty, self.scope);
             debug!("typevisitor type is {:?}", self.type_);
@@ -934,7 +929,13 @@ impl<'p> ImplVisitor<'p> {
 
 impl<'ast, 'p> visit::Visitor<'ast> for ImplVisitor<'p> {
     fn visit_item(&mut self, item: &ast::Item) {
-        if let ItemKind::Impl { ref generics, ref of_trait, ref self_ty, .. } = item.kind {
+        if let ItemKind::Impl {
+            ref generics,
+            ref of_trait,
+            ref self_ty,
+            ..
+        } = item.kind
+        {
             let impl_start = self.offset + get_span_start(item.span).into();
             self.result = ImplHeader::new(
                 generics,
@@ -964,7 +965,7 @@ impl<'ast> visit::Visitor<'ast> for ExternCrateVisitor {
             }
         }
     }
-    fn visit_mac(&mut self, _mac: &ast::Mac) {}
+    fn visit_mac(&mut self, _mac: &ast::MacCall) {}
 }
 
 #[derive(Debug)]
@@ -1023,7 +1024,7 @@ impl StaticVisitor {
 impl<'ast> visit::Visitor<'ast> for StaticVisitor {
     fn visit_item(&mut self, i: &ast::Item) {
         match i.kind {
-            ItemKind::Const(ref ty, ref _expr) => self.ty = Ty::from_ast(ty, &self.scope),
+            ItemKind::Const(_, ref ty, ref _expr) => self.ty = Ty::from_ast(ty, &self.scope),
             ItemKind::Static(ref ty, m, ref _expr) => {
                 self.is_mutable = m == ast::Mutability::Mut;
                 self.ty = Ty::from_ast(ty, &self.scope);
@@ -1236,23 +1237,18 @@ impl FnOutputVisitor {
 }
 
 impl<'ast> visit::Visitor<'ast> for FnOutputVisitor {
-    fn visit_fn(
-        &mut self,
-        kind: visit::FnKind<'_>,
-        _: source_map::Span,
-        _: ast::NodeId,
-    ) {
+    fn visit_fn(&mut self, kind: visit::FnKind<'_>, _: source_map::Span, _: ast::NodeId) {
         let fd = match kind {
             visit::FnKind::Fn(_, _, ref fn_sig, _, _) => &*fn_sig.decl,
             visit::FnKind::Closure(ref fn_decl, _) => fn_decl,
         };
         self.is_async = kind
             .header()
-            .map(|header| header.asyncness.node.is_async())
+            .map(|header| header.asyncness.is_async())
             .unwrap_or(false);
         self.ty = match fd.output {
-            FunctionRetTy::Ty(ref ty) => Ty::from_ast(ty, &self.scope),
-            FunctionRetTy::Default(_) => Some(Ty::Default),
+            FnRetTy::Ty(ref ty) => Ty::from_ast(ty, &self.scope),
+            FnRetTy::Default(_) => Some(Ty::Default),
         };
     }
 }

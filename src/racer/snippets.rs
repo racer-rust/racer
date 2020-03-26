@@ -2,7 +2,7 @@ use crate::ast::with_error_checking_parse;
 use crate::core::{Match, Session};
 use crate::typeinf::get_function_declaration;
 
-use syntax::ast::AssocItemKind;
+use rustc_ast::ast::AssocItemKind;
 
 /// Returns completion snippets usable by some editors
 ///
@@ -56,9 +56,8 @@ impl MethodInfo {
 
         trace!("MethodInfo::from_source_str: {:?}", decorated);
         with_error_checking_parse(decorated, |p| {
-            let mut at_end = false;
-            if let Ok(method) = p.parse_impl_item(&mut at_end) {
-                if let AssocItemKind::Fn(ref msig, _) = method.kind {
+            if let Ok(Some(Some(method))) = p.parse_impl_item() {
+                if let AssocItemKind::Fn(_, ref msig, _, _) = method.kind {
                     let decl = &msig.decl;
                     return Some(MethodInfo {
                         // ident.as_str calls Ident.name.as_str
