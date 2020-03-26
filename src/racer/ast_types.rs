@@ -9,16 +9,16 @@ use crate::primitive;
 use crate::primitive::PrimKind;
 use crate::typeinf;
 use crate::util;
-use std::fmt;
-use std::path::{Path as FilePath, PathBuf};
-use syntax::ast::{
+use rustc_ast::ast::{
     self, GenericBound, GenericBounds, GenericParamKind, LitKind, PatKind, TraitRef, TyKind,
     WherePredicate,
 };
-use rustc_span::source_map;
 use rustc_ast_pretty::pprust;
+use rustc_span::source_map;
+use std::fmt;
+use std::path::{Path as FilePath, PathBuf};
 // we can only re-export types without thread-local interned string
-pub use syntax::ast::{BindingMode, Mutability};
+pub use rustc_ast::ast::{BindingMode, Mutability};
 
 /// The leaf of a `use` statement.
 #[derive(Clone, Debug)]
@@ -338,7 +338,7 @@ impl Pat {
             PatKind::Slice(..) => Pat::Slice,
             // ignore paren
             PatKind::Paren(pat) => Pat::from_ast(&pat.kind, scope),
-            PatKind::Mac(_) => Pat::Mac,
+            PatKind::MacCall(_) => Pat::Mac,
             PatKind::Rest => Pat::Rest,
             PatKind::Or(_) => Pat::Or,
         }
@@ -449,7 +449,7 @@ impl Path {
                 }
                 // TODO: support inputs in GenericArgs::Parenthesized (A path like `Foo(A,B) -> C`)
                 if let ast::GenericArgs::Parenthesized(ref paren_args) = **params {
-                    if let ast::FunctionRetTy::Ty(ref ty) = paren_args.output {
+                    if let ast::FnRetTy::Ty(ref ty) = paren_args.output {
                         output = Ty::from_ast(&*ty, scope);
                     }
                 }

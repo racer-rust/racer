@@ -187,14 +187,6 @@ version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
-name = "itertools"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "either 1.5.3 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
 name = "itoa"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -351,13 +343,13 @@ dependencies = [
  "racer-cargo-metadata 0.1.1",
  "racer-testutils 0.1.0",
  "rls-span 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_ast_pretty 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_data_structures 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_errors 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_parse 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_session 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_span 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-syntax 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_ast 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_ast_pretty 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_data_structures 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_errors 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_parse 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_session 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_span 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -460,49 +452,65 @@ dependencies = [
 
 [[package]]
 name = "rustc-ap-arena"
-version = "642.0.0"
+version = "650.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "rustc-ap-rustc_data_structures 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_data_structures 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "rustc-ap-graphviz"
-version = "642.0.0"
+version = "650.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
-name = "rustc-ap-rustc_ast_pretty"
-version = "642.0.0"
+name = "rustc-ap-rustc_ast"
+version = "650.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_data_structures 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_span 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-syntax 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_data_structures 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_index 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_lexer 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_macros 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_span 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-serialize 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "scoped-tls 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "smallvec 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "rustc-ap-rustc_ast_pretty"
+version = "650.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+dependencies = [
+ "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_ast 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_data_structures 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_span 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "rustc-ap-rustc_attr"
-version = "642.0.0"
+version = "650.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "rustc-ap-rustc_ast_pretty 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_data_structures 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_errors 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_feature 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_macros 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_session 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_span 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-serialize 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-syntax 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_ast 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_ast_pretty 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_data_structures 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_errors 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_feature 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_macros 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_session 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_span 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-serialize 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "rustc-ap-rustc_data_structures"
-version = "642.0.0"
+version = "650.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -515,9 +523,9 @@ dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "measureme 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.9.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-graphviz 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_index 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-serialize 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-graphviz 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_index 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-serialize 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-hash 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-rayon 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustc-rayon-core 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -528,15 +536,15 @@ dependencies = [
 
 [[package]]
 name = "rustc-ap-rustc_errors"
-version = "642.0.0"
+version = "650.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "annotate-snippets 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "atty 0.2.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_data_structures 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_span 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-serialize 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_data_structures 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_span 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-serialize 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "termcolor 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "termize 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "unicode-width 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -545,31 +553,31 @@ dependencies = [
 
 [[package]]
 name = "rustc-ap-rustc_feature"
-version = "642.0.0"
+version = "650.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_data_structures 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_span 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_data_structures 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_span 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "rustc-ap-rustc_fs_util"
-version = "642.0.0"
+version = "650.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "rustc-ap-rustc_index"
-version = "642.0.0"
+version = "650.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "rustc-ap-serialize 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-serialize 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "rustc-ap-rustc_lexer"
-version = "642.0.0"
+version = "650.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "unicode-xid 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -577,10 +585,9 @@ dependencies = [
 
 [[package]]
 name = "rustc-ap-rustc_macros"
-version = "642.0.0"
+version = "650.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
- "itertools 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro2 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn 1.0.5 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -589,94 +596,78 @@ dependencies = [
 
 [[package]]
 name = "rustc-ap-rustc_parse"
-version = "642.0.0"
+version = "650.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_ast_pretty 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_attr 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_data_structures 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_errors 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_feature 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_lexer 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_session 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_span 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-syntax 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_ast 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_ast_pretty 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_attr 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_data_structures 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_errors 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_feature 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_lexer 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_session 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_span 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "unicode-normalization 0.1.12 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "rustc-ap-rustc_session"
-version = "642.0.0"
+version = "650.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "num_cpus 1.10.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_data_structures 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_errors 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_feature 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_fs_util 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_index 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_span 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_target 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-serialize 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-syntax 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_ast 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_data_structures 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_errors 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_feature 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_fs_util 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_index 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_span 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_target 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-serialize 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "rustc-ap-rustc_span"
-version = "642.0.0"
+version = "650.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "cfg-if 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-arena 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_data_structures 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_index 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_macros 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-serialize 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-arena 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_data_structures 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_index 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_macros 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-serialize 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "scoped-tls 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "unicode-width 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "rustc-ap-rustc_target"
-version = "642.0.0"
+version = "650.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "bitflags 1.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_data_structures 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_index 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_macros 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_span 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-serialize 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_data_structures 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_index 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_macros 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-rustc_span 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "rustc-ap-serialize 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "rustc-ap-serialize"
-version = "642.0.0"
+version = "650.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "indexmap 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "smallvec 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "rustc-ap-syntax"
-version = "642.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-dependencies = [
- "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_data_structures 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_index 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_lexer 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_macros 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-rustc_span 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "rustc-ap-serialize 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "scoped-tls 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -949,7 +940,6 @@ dependencies = [
 "checksum humantime 1.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "df004cfca50ef23c36850aaaa59ad52cc70d0e90243c3c7737a4dd32dc7a3c4f"
 "checksum humantime 2.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b9b6c53306532d3c8e8087b44e6580e10db51a023cf9b433cea2ac38066b92da"
 "checksum indexmap 1.2.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a61202fbe46c4a951e9404a720a0180bcf3212c750d735cb5c4ba4dc551299f3"
-"checksum itertools 0.8.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5b8467d9c1cebe26feb08c640139247fac215782d35371ade9a2136ed6085358"
 "checksum itoa 0.4.4 (registry+https://github.com/rust-lang/crates.io-index)" = "501266b7edd0174f8530248f87f99c88fbe60ca4ef3dd486835b8d8d53136f7f"
 "checksum jobserver 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)" = "f2b1d42ef453b30b7387e113da1c83ab1605d90c5b4e0eb8e96d016ed3b8c160"
 "checksum lazy_static 1.4.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
@@ -978,23 +968,23 @@ dependencies = [
 "checksum regex-syntax 0.6.12 (registry+https://github.com/rust-lang/crates.io-index)" = "11a7e20d1cce64ef2fed88b66d347f88bd9babb82845b2b858f3edbf59a4f716"
 "checksum remove_dir_all 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "4a83fa3702a688b9359eccba92d153ac33fd2e8462f9e0e3fdf155239ea7792e"
 "checksum rls-span 0.5.2 (registry+https://github.com/rust-lang/crates.io-index)" = "f2e9bed56f6272bd85d9d06d1aaeef80c5fddc78a82199eb36dceb5f94e7d934"
-"checksum rustc-ap-arena 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ea82fa3d9a8add7422228ca1a2cbba0784fa8861f56148ff64da08b3c7921b03"
-"checksum rustc-ap-graphviz 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "638d0b2b3bcf99824e0cb5a25dbc547b61dc20942e11daf6a97e981918aa18e5"
-"checksum rustc-ap-rustc_ast_pretty 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "d38bab04dd676dee6d2f9670506a18c31bfce38bf7f8420aa83eb1140ecde049"
-"checksum rustc-ap-rustc_attr 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "10b843ba8b1ed43739133047673b9f6a54d3b3b4d328d69c6ea89ff971395f35"
-"checksum rustc-ap-rustc_data_structures 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "dc3d1c6d0a80ab0c1df76405377cec0f3d5423fb5b0953a8eac70a2ad6c44df2"
-"checksum rustc-ap-rustc_errors 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4909a1eca29331332257230f29120a8ff68c9e37d868c564fcd599e430cf8914"
-"checksum rustc-ap-rustc_feature 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "63ab887a181d795cf5fd3edadf367760deafb90aefb844f168ab5255266e3478"
-"checksum rustc-ap-rustc_fs_util 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "70814116df3c5fbec8f06f6a1d013ca481f620fd22a9475754e9bf3ee9ba70d8"
-"checksum rustc-ap-rustc_index 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ac1bf1d3cf3d119d41353d6fd229ef7272d5097bc0924de021c0294bf86d48bf"
-"checksum rustc-ap-rustc_lexer 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "4cda21a32cebdc11ec4f5393aa2fcde5ed1b2f673a8571e5a4dcdf07e4ae9cac"
-"checksum rustc-ap-rustc_macros 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "75c47b48ea51910ecfd853c9248a9bf4c767bc823449ab6a1d864dff65fbae16"
-"checksum rustc-ap-rustc_parse 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "abd88e89cd5b5d28dcd3a347a3d534c08627d9455570dc1a2d402cb8437b9d30"
-"checksum rustc-ap-rustc_session 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "5b8487b4575fbb2d1fc6f1cd61225efd108a4d36817e6fb9b643d57fcae9cb12"
-"checksum rustc-ap-rustc_span 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f69746c0d4c21bf20a5bb2bd247261a1aa8631f04202d7303352942dde70d987"
-"checksum rustc-ap-rustc_target 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8bbc6ae09b5d42ec66edd520e8412e0615c53a7c93607fe33dc4abab60ba7c8b"
-"checksum rustc-ap-serialize 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e13a1ead0252fc3d96da4c336a95950be6795f2b00c84a67ccadf26142f8cb41"
-"checksum rustc-ap-syntax 642.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e1f59f48ca3a2ec16a7e82e718ed5aadf9c9e08cf63015d28b4e774767524a6a"
+"checksum rustc-ap-arena 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f7ba8774d4d5c8d42727c74836f478c51e0a16daeeee80017c133f9e1ebf4f6f"
+"checksum rustc-ap-graphviz 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "feba68cc05f42d227b258e07a84df7d690d1f20200593754a789ab39acb581e5"
+"checksum rustc-ap-rustc_ast 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "989d221c292a3c777fc4921f87e4962d8d89633cf52a3a82f6f34d5b3d66efc7"
+"checksum rustc-ap-rustc_ast_pretty 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "595c0092a2fa00dd0e572739279f771d96242f7626fc3999b4b027f08664417f"
+"checksum rustc-ap-rustc_attr 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "3be021d73b25feb33dc0aa91f91ff37b939a0ef54f9620684bc2846278b5e637"
+"checksum rustc-ap-rustc_data_structures 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "a41551e5393a1abb4401e82f4e4bb64e097facb7d0362a1736b117186c0966dd"
+"checksum rustc-ap-rustc_errors 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "8715e95fd29d92a7799f9c65cb5583485bbf902dda17900c884fbb7956d593d8"
+"checksum rustc-ap-rustc_feature 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "cf6304d5df6f803f43d15a71d1c4b4aa6b68a01fe587ad62fcdfb83049e3ec77"
+"checksum rustc-ap-rustc_fs_util 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c7c05da9f8dfd5c086465ad0263749453c13739226233c0354de5fc93b20204a"
+"checksum rustc-ap-rustc_index 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "b1c292880ff00cd1e61710396f9379b2c99a533cfb1bc9c3274d566ada2c6027"
+"checksum rustc-ap-rustc_lexer 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "51e5ac7071163642ff52dda1bc41ff7464fcd832b5ea3fabf162569d26969410"
+"checksum rustc-ap-rustc_macros 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "2e147f23b65b716b58bd8687170914d3e2d2bfd004ec3fc8d2749e9d601482c0"
+"checksum rustc-ap-rustc_parse 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "c5e12622f831b7344899229f2f776ff2cdd14f7f82b257d6bbcb79c850996298"
+"checksum rustc-ap-rustc_session 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "18fb72a26080a34d35c8dd7ba5ac593812c1c3f97edffe6f1bf30c1ef5c4c550"
+"checksum rustc-ap-rustc_span 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "fe2d8db305496f9dc5f43408044735a942eadeeb2a28d6da8dd6b23b5ef60f93"
+"checksum rustc-ap-rustc_target 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e2797ddd7911ba6681f500fa0d5af651635bdc74813363a1216bafc6156cb3d2"
+"checksum rustc-ap-serialize 650.0.0 (registry+https://github.com/rust-lang/crates.io-index)" = "e8567212bd0f0a93bbf3675e1ae819937e4a57d48b705522462c31ff8efc0604"
 "checksum rustc-hash 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "7540fc8b0c49f096ee9c961cda096467dce8084bec6bdca2fc83895fd9b28cb8"
 "checksum rustc-rayon 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "f32767f90d938f1b7199a174ef249ae1924f6e5bbdb9d112fea141e016f25b3a"
 "checksum rustc-rayon-core 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)" = "ea2427831f0053ea3ea73559c8eabd893133a51b251d142bacee53c62a288cb3"

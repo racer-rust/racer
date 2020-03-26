@@ -5,7 +5,7 @@ use std::rc::Rc;
 use std::{self, vec};
 
 use crate::primitive::PrimKind;
-use syntax::ast::BinOpKind;
+use rustc_ast::ast::BinOpKind;
 
 use crate::ast_types::{ImplHeader, Path as RacerPath, PathPrefix, PathSegment, Ty};
 use crate::core::Namespace;

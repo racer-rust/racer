@@ -1,8 +1,8 @@
 use crate::core::{BytePos, Match, MatchType, Namespace, SearchType, Session};
 use crate::matchers::ImportInfo;
 use crate::nameres::{self, RUST_SRC_PATH};
+use rustc_ast::ast::{IntTy, LitIntType, UintTy};
 use std::path::PathBuf;
-use syntax::ast::{IntTy, LitIntType, UintTy};
 
 const PRIM_DOC: &str = "libstd/primitive_docs.rs";
 const KEY_DOC: &str = "libstd/keyword_docs.rs";
