@@ -440,7 +440,7 @@ impl Path {
             if let Some(ref params) = seg.args {
                 if let ast::GenericArgs::AngleBracketed(ref angle_args) = **params {
                     angle_args.args.iter().for_each(|arg| {
-                        if let ast::GenericArg::Type(ty) = arg {
+                        if let ast::AngleBracketedArg::Arg(ast::GenericArg::Type(ty)) = arg {
                             if let Some(ty) = Ty::from_ast(ty, scope) {
                                 types.push(ty);
                             }
