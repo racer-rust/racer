@@ -352,48 +352,74 @@ pub fn match_mod(
         });
     } else {
         debug!("found a module declaration: |{}|", blob);
-
+        // the name of the file where we found the module declaration (foo.rs)
+        // without its extension!
+        let filename = context.filepath.file_stem()?;
         let parent_path = context.filepath.parent()?;
-        let ranged_raw = session.load_raw_src_ranged(&msrc, context.filepath);
-        // get module from path attribute
-        if let Some(modpath) =
-            scopes::get_module_file_from_path(msrc, context.range.start, parent_path, ranged_raw)
-        {
-            let doc_src = session.load_raw_file(&modpath);
-            return Some(Match {
-                matchstr: s,
-                filepath: modpath.to_path_buf(),
-                point: BytePos::ZERO,
-                coords: Some(Coordinate::start()),
-                local: false,
-                mtype: Module,
-                contextstr: modpath.to_str().unwrap().to_owned(),
-                docs: find_mod_doc(&doc_src, BytePos::ZERO),
-            });
-        }
-        // get internal module nesting
-        // e.g. is this in an inline submodule?  mod foo{ mod bar; }
-        // because if it is then we need to search further down the
-        // directory hierarchy - e.g. <cwd>/foo/bar.rs
-        let internalpath = scopes::get_local_module_path(msrc, context.range.start);
-        let mut searchdir = parent_path.to_owned();
-        for s in internalpath {
-            searchdir.push(&s);
-        }
-        if let Some(modpath) = get_module_file(&s, &searchdir, session) {
-            let doc_src = session.load_raw_file(&modpath);
-            let context = modpath.to_str().unwrap().to_owned();
-            return Some(Match {
-                matchstr: s,
-                filepath: modpath,
-                point: BytePos::ZERO,
-                coords: Some(Coordinate::start()),
-                local: false,
-                mtype: Module,
-                contextstr: context,
-                docs: find_mod_doc(&doc_src, BytePos::ZERO),
-            });
-        }
+        // if we found the declaration in `src/foo.rs`, then let's look for the
+        // submodule in `src/foo/` as well!
+        let filename_subdir = parent_path.join(filename);
+        // if we are looking for "foo::bar", we have two cases:
+        //   1. we found `pub mod bar;` in either `src/foo/mod.rs`
+        // (or `src/lib.rs`). As such we are going to search for `bar.rs` in
+        // the same directory (`src/foo/`, or `src/` respectively).
+        //   2. we found `pub mod bar;` in `src/foo.rs`. This means that we also
+        // need to seach in `src/foo/` if it exists!
+        let search_path = if filename_subdir.exists() {
+            filename_subdir.as_path()
+        } else {
+            parent_path
+        };
+        match_mod_inner(msrc, context, session, search_path, s)
+    }
+}
+
+fn match_mod_inner(
+    msrc: Src<'_>,
+    context: &MatchCxt<'_, '_>,
+    session: &Session<'_>,
+    search_path: &Path,
+    s: String,
+) -> Option<Match> {
+    let ranged_raw = session.load_raw_src_ranged(&msrc, context.filepath);
+    // get module from path attribute
+    if let Some(modpath) =
+        scopes::get_module_file_from_path(msrc, context.range.start, search_path, ranged_raw)
+    {
+        let doc_src = session.load_raw_file(&modpath);
+        return Some(Match {
+            matchstr: s,
+            filepath: modpath.to_path_buf(),
+            point: BytePos::ZERO,
+            coords: Some(Coordinate::start()),
+            local: false,
+            mtype: Module,
+            contextstr: modpath.to_str().unwrap().to_owned(),
+            docs: find_mod_doc(&doc_src, BytePos::ZERO),
+        });
+    }
+    // get internal module nesting
+    // e.g. is this in an inline submodule?  mod foo{ mod bar; }
+    // because if it is then we need to search further down the
+    // directory hierarchy - e.g. <cwd>/foo/bar.rs
+    let internalpath = scopes::get_local_module_path(msrc, context.range.start);
+    let mut searchdir = (*search_path).to_owned();
+    for s in internalpath {
+        searchdir.push(&s);
+    }
+    if let Some(modpath) = get_module_file(&s, &searchdir, session) {
+        let doc_src = session.load_raw_file(&modpath);
+        let context = modpath.to_str().unwrap().to_owned();
+        return Some(Match {
+            matchstr: s,
+            filepath: modpath,
+            point: BytePos::ZERO,
+            coords: Some(Coordinate::start()),
+            local: false,
+            mtype: Module,
+            contextstr: context,
+            docs: find_mod_doc(&doc_src, BytePos::ZERO),
+        });
     }
     None
 }

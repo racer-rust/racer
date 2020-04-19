@@ -17,3 +17,6 @@ impl TestStruct {
 }
 
 pub(crate) fn name() {}
+
+pub mod submod;
+pub mod submod2018;
