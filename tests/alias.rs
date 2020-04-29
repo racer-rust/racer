@@ -2,7 +2,7 @@ use racer::Coordinate;
 use racer_testutils::*;
 
 #[test]
-fn complets_static_methods_for_aliased_struct() {
+fn completes_static_methods_for_aliased_struct() {
     let src = r#"
         mod mymod {
             pub struct St {
