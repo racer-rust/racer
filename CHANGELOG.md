@@ -4,7 +4,11 @@ Change Log
 All notable changes to this project will be documented in this file. This
 project adheres to [Semantic Versioning](http://semver.org/).
 
-# 2.1.32
+# 2.1.34
+- Bump rustc-ap-* version to 659.0
+- Fix submodule search (#1107)
+
+# 2.1.33
 - Bump rustc-ap-* version to 654.0
 
 # 2.1.32
