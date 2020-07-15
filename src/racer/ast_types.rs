@@ -859,7 +859,7 @@ impl GenericsArgs {
                     }
                 }
                 // TODO: Support const
-                GenericParamKind::Const { ty: _ } => {}
+                GenericParamKind::Const { ty: _, .. } => {}
             }
         }
         for pred in generics.where_clause.predicates.iter() {
