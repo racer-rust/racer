@@ -46,7 +46,7 @@ where
     F: FnOnce(&mut Parser<'_>) -> Option<T>,
 {
     // FIXME: Set correct edition based on the edition of the target crate.
-    rustc_ast::with_globals(Edition::Edition2018, || {
+    rustc_ast::with_session_globals(Edition::Edition2018, || {
         let codemap = Rc::new(SourceMap::new(source_map::FilePathMapping::empty()));
         // We use DummyEmitter here not to print error messages to stderr
         let handler = Handler::with_emitter(false, None, Box::new(DummyEmitter {}));
@@ -601,7 +601,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                 )
                 .map(Ty::Match);
             }
-            ExprKind::MethodCall(ref method_def, ref arguments) => {
+            ExprKind::MethodCall(ref method_def, ref arguments, _) => {
                 let methodname = method_def.ident.name.as_str();
                 debug!("method call ast name {}", methodname);
 
