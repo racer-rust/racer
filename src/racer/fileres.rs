@@ -18,6 +18,11 @@ pub fn get_std_file(name: &str, session: &Session<'_>) -> Option<PathBuf> {
         if filepath.exists() || session.contains_file(&filepath) {
             return Some(filepath);
         }
+        // If not found, try using the new standard library directory layout
+        let filepath = std_path.join(name).join("src").join("lib.rs");
+        if filepath.exists() || session.contains_file(&filepath) {
+            return Some(filepath);
+        }
     }
     return None;
 }
