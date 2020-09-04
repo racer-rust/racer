@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file. This
 project adheres to [Semantic Versioning](http://semver.org/).
 
 # 2.1.37
+- Bump rustc-ap-* version to 677.0
+- Account for new standard library source directory layout
+
+# 2.1.37
 - Bump rustc-ap-* version to 671.0
 
 # 2.1.36
