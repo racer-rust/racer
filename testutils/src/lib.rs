@@ -208,8 +208,10 @@ pub fn get_one_completion(src: &str, dir: Option<TmpDir>) -> Match {
 /// Panics if there is not exactly one completion.
 pub fn get_only_completion(src: &str, dir: Option<TmpDir>) -> Match {
     let mut all = get_all_completions(src, dir);
-    assert_eq!(all.len(), 1, "all: {:?}", all);
-    all.pop().unwrap()
+    match (all.pop(), all.as_slice()) {
+        (Some(head), &[]) => head,
+        (head, tail) => panic!("head: {:?}, tail: {:?}", head, tail),
+    }
 }
 
 /// Return the definition for the given source.

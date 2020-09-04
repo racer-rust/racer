@@ -455,6 +455,12 @@ fn check_rust_sysroot() -> Option<path::PathBuf> {
             if srcpath.exists() {
                 return Some(srcpath);
             }
+            // See if the toolchain is sufficiently new, after the libstd
+            // has been internally reorganized
+            let srcpath = sysroot.join("lib/rustlib/src/rust/library");
+            if srcpath.exists() {
+                return Some(srcpath);
+            }
         }
     }
     None
@@ -508,7 +514,7 @@ pub fn get_rust_src_path() -> Result<path::PathBuf, RustSrcPathError> {
         }
     };
 
-    debug!("Nope. Trying rustc --print sysroot and appending lib/rustlib/src/rust/src to that.");
+    debug!("Nope. Trying rustc --print sysroot and appending lib/rustlib/src/rust/{{src, library}} to that.");
 
     if let Some(path) = check_rust_sysroot() {
         return validate_rust_src_path(path);
@@ -531,11 +537,16 @@ pub fn get_rust_src_path() -> Result<path::PathBuf, RustSrcPathError> {
 
 fn validate_rust_src_path(path: path::PathBuf) -> Result<path::PathBuf, RustSrcPathError> {
     if !path.exists() {
-        Err(RustSrcPathError::DoesNotExist(path.to_path_buf()))
-    } else if !path.join("libstd").exists() {
-        Err(RustSrcPathError::NotRustSourceTree(path.join("libstd")))
-    } else {
+        return Err(RustSrcPathError::DoesNotExist(path));
+    }
+    // Historically, the Rust standard library was distributed under "libstd"
+    // but was later renamed to "std" when the library was moved under "library/"
+    // in https://github.com/rust-lang/rust/pull/73265.
+    if path.join("libstd").exists() || path.join("std").join("src").exists() {
         Ok(path)
+    } else {
+
+        Err(RustSrcPathError::NotRustSourceTree(path.join("libstd")))
     }
 }
 

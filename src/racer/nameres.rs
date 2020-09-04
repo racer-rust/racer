@@ -765,7 +765,7 @@ fn test_do_file_search_std() {
     let matches = do_file_search("std", path, &session);
     assert!(matches
         .into_iter()
-        .any(|m| m.filepath.ends_with("src/libstd/lib.rs")));
+        .any(|m| m.filepath.ends_with("std/src/lib.rs")));
 }
 
 #[test]
@@ -804,6 +804,7 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path, session: &Session<'_>)
                     Some(fname) => fname,
                     None => continue,
                 };
+                // Firstly, try the original layout, e.g. libstd/lib.rs
                 if fname.starts_with(&format!("lib{}", searchstr)) {
                     let filepath = fpath_buf.join("lib.rs");
                     if filepath.exists() || session.contains_file(&filepath) {
@@ -815,6 +816,23 @@ pub fn do_file_search(searchstr: &str, currentdir: &Path, session: &Session<'_>)
                             local: false,
                             mtype: MatchType::Module,
                             contextstr: fname[3..].to_owned(),
+                            docs: String::new(),
+                        };
+                        out.push(m);
+                    }
+                }
+                // Secondly, try the new standard library layout, e.g. std/src/lib.rs
+                if fname.starts_with(searchstr) {
+                    let filepath = fpath_buf.join("src").join("lib.rs");
+                    if filepath.exists() || session.contains_file(&filepath) {
+                        let m = Match {
+                            matchstr: fname.to_owned(),
+                            filepath: filepath.to_path_buf(),
+                            point: BytePos::ZERO,
+                            coords: Some(Coordinate::start()),
+                            local: false,
+                            mtype: MatchType::Module,
+                            contextstr: fname.to_owned(),
                             docs: String::new(),
                         };
                         out.push(m);
@@ -1363,7 +1381,7 @@ pub fn search_prelude_file(
 
     // find the prelude file from the search path and scan it
     if let Some(ref std_path) = *RUST_SRC_PATH {
-        let filepath = std_path.join("libstd").join("prelude").join("v1.rs");
+        let filepath = std_path.join("std").join("src").join("prelude").join("v1.rs");
         if filepath.exists() || session.contains_file(&filepath) {
             let msrc = session.load_source_file(&filepath);
             let is_local = true;
@@ -2441,10 +2459,10 @@ fn get_std_macros(
         searchstr
     };
     for macro_file in &[
-        "libstd/macros.rs",
-        "libcore/macros.rs",
-        "libcore/macros/mod.rs",
-        "liballoc/macros.rs",
+        "std/src/macros.rs",
+        "core/src/macros.rs",
+        "core/src/macros/mod.rs",
+        "alloc/src/macros.rs",
     ] {
         let macro_path = std_path.join(macro_file);
         if !macro_path.exists() {
@@ -2453,7 +2471,7 @@ fn get_std_macros(
         get_std_macros_(
             &macro_path,
             searchstr,
-            macro_file == &"libcore/macros.rs",
+            macro_file == &"core/src/macros.rs",
             search_type,
             session,
             out,

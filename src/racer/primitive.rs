@@ -4,8 +4,8 @@ use crate::nameres::{self, RUST_SRC_PATH};
 use rustc_ast::ast::{IntTy, LitIntType, UintTy};
 use std::path::PathBuf;
 
-const PRIM_DOC: &str = "libstd/primitive_docs.rs";
-const KEY_DOC: &str = "libstd/keyword_docs.rs";
+const PRIM_DOC: &str = "std/src/primitive_docs.rs";
+const KEY_DOC: &str = "std/src/keyword_docs.rs";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PrimKind {
@@ -83,27 +83,27 @@ impl PrimKind {
         match self {
             PrimKind::Bool => None,
             PrimKind::Never => None,
-            PrimKind::Char => Some(&["libcore/char/methods.rs"]),
+            PrimKind::Char => Some(&["core/src/char/methods.rs"]),
             PrimKind::Unit => None,
-            PrimKind::Pointer => Some(&["libcore/ptr.rs"]),
+            PrimKind::Pointer => Some(&["core/src/ptr.rs"]),
             PrimKind::Array => None,
-            PrimKind::Slice => Some(&["libcore/slice/mod.rs", "liballoc/slice.rs"]),
-            PrimKind::Str => Some(&["libcore/str/mod.rs", "liballoc/str.rs"]),
+            PrimKind::Slice => Some(&["core/src/slice/mod.rs", "alloc/src/slice.rs"]),
+            PrimKind::Str => Some(&["core/src/str/mod.rs", "alloc/src/str.rs"]),
             PrimKind::Tuple => None,
-            PrimKind::F32 => Some(&["libstd/f32.rs", "libcore/num/f32.rs"]),
-            PrimKind::F64 => Some(&["libstd/f64.rs", "libcore/num/f64.rs"]),
-            PrimKind::I8 => Some(&["libcore/num/mod.rs"]),
-            PrimKind::I16 => Some(&["libcore/num/mod.rs"]),
-            PrimKind::I32 => Some(&["libcore/num/mod.rs"]),
-            PrimKind::I64 => Some(&["libcore/num/mod.rs"]),
-            PrimKind::I128 => Some(&["libcore/num/mod.rs"]),
-            PrimKind::U8 => Some(&["libcore/num/mod.rs"]),
-            PrimKind::U16 => Some(&["libcore/num/mod.rs"]),
-            PrimKind::U32 => Some(&["libcore/num/mod.rs"]),
-            PrimKind::U64 => Some(&["libcore/num/mod.rs"]),
-            PrimKind::U128 => Some(&["libcore/num/mod.rs"]),
-            PrimKind::Isize => Some(&["libcore/num/mod.rs"]),
-            PrimKind::Usize => Some(&["libcore/num/mod.rs"]),
+            PrimKind::F32 => Some(&["std/src/f32.rs", "core/src/num/f32.rs"]),
+            PrimKind::F64 => Some(&["std/src/f64.rs", "core/src/num/f64.rs"]),
+            PrimKind::I8 => Some(&["core/src/num/mod.rs"]),
+            PrimKind::I16 => Some(&["core/src/num/mod.rs"]),
+            PrimKind::I32 => Some(&["core/src/num/mod.rs"]),
+            PrimKind::I64 => Some(&["core/src/num/mod.rs"]),
+            PrimKind::I128 => Some(&["core/src/num/mod.rs"]),
+            PrimKind::U8 => Some(&["core/src/num/mod.rs"]),
+            PrimKind::U16 => Some(&["core/src/num/mod.rs"]),
+            PrimKind::U32 => Some(&["core/src/num/mod.rs"]),
+            PrimKind::U64 => Some(&["core/src/num/mod.rs"]),
+            PrimKind::U128 => Some(&["core/src/num/mod.rs"]),
+            PrimKind::Isize => Some(&["core/src/num/mod.rs"]),
+            PrimKind::Usize => Some(&["core/src/num/mod.rs"]),
             PrimKind::Ref => None,
             PrimKind::Fn => None,
             PrimKind::Await => None,
