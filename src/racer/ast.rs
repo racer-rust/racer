@@ -46,7 +46,7 @@ where
     F: FnOnce(&mut Parser<'_>) -> Option<T>,
 {
     // FIXME: Set correct edition based on the edition of the target crate.
-    rustc_ast::with_session_globals(Edition::Edition2018, || {
+    rustc_span::with_session_globals(Edition::Edition2018, || {
         let codemap = Rc::new(SourceMap::new(source_map::FilePathMapping::empty()));
         // We use DummyEmitter here not to print error messages to stderr
         let handler = Handler::with_emitter(false, None, Box::new(DummyEmitter {}));
