@@ -451,13 +451,13 @@ fn check_rust_sysroot() -> Option<path::PathBuf> {
     if let Ok(output) = cmd.output() {
         if let Ok(s) = String::from_utf8(output.stdout) {
             let sysroot = path::Path::new(s.trim());
-            let srcpath = sysroot.join("lib/rustlib/src/rust/src");
-            if srcpath.exists() {
-                return Some(srcpath);
-            }
             // See if the toolchain is sufficiently new, after the libstd
             // has been internally reorganized
             let srcpath = sysroot.join("lib/rustlib/src/rust/library");
+            if srcpath.exists() {
+                return Some(srcpath);
+            }
+            let srcpath = sysroot.join("lib/rustlib/src/rust/src");
             if srcpath.exists() {
                 return Some(srcpath);
             }
@@ -545,7 +545,6 @@ fn validate_rust_src_path(path: path::PathBuf) -> Result<path::PathBuf, RustSrcP
     if path.join("libstd").exists() || path.join("std").join("src").exists() {
         Ok(path)
     } else {
-
         Err(RustSrcPathError::NotRustSourceTree(path.join("libstd")))
     }
 }
