@@ -419,7 +419,7 @@ impl fmt::Display for RustSrcPathError {
                 f,
                 "RUST_SRC_PATH environment variable must be set to \
                  point to the src directory of a rust checkout. \
-                 E.g. \"/home/foouser/src/rust/src\""
+                 E.g. \"/home/foouser/src/rust/library\"  (or  \"/home/foouser/src/rust/src\" in older toolchains)"
             ),
             RustSrcPathError::DoesNotExist(ref path) => write!(
                 f,
@@ -427,7 +427,7 @@ impl fmt::Display for RustSrcPathError {
                  RUST_SRC_PATH variable \"{:?}\". Try using an \
                  absolute fully qualified path and make sure it \
                  points to the src directory of a rust checkout - \
-                 e.g. \"/home/foouser/src/rust/src\".",
+                 e.g. \"/home/foouser/src/rust/library\" (or  \"/home/foouser/src/rust/src\" in older toolchains).",
                 path
             ),
             RustSrcPathError::NotRustSourceTree(ref path) => write!(
@@ -435,7 +435,7 @@ impl fmt::Display for RustSrcPathError {
                 "Unable to find libstd under RUST_SRC_PATH. N.B. \
                  RUST_SRC_PATH variable needs to point to the *src* \
                  directory inside a rust checkout e.g. \
-                 \"/home/foouser/src/rust/src\". \
+                 \"/home/foouser/src/rust/library\" (or  \"/home/foouser/src/rust/src\" in older toolchains). \
                  Current value \"{:?}\"",
                 path
             ),

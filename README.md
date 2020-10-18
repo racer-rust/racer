@@ -47,7 +47,7 @@ As mentioned in the command output, don't forget to add the installation directo
 
 1. Fetch the Rust sourcecode
 
-    1. automatically via [rustup](https://www.rustup.rs/) and run `rustup component add rust-src` in order to install the source to `$(rustc --print sysroot)/lib/rustlib/src/rust/src`. Rustup will keep the sources in sync with the toolchain if you run `rustup update`.
+    1. automatically via [rustup](https://www.rustup.rs/) and run `rustup component add rust-src` in order to install the source to `$(rustc --print sysroot)/lib/rustlib/src/rust/library` (or `$(rustc --print sysroot)/lib/rustlib/src/rust/src` in older toolchains). Rustup will keep the sources in sync with the toolchain if you run `rustup update`.
 
     2. manually from git: https://github.com/rust-lang/rust
 
