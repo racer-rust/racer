@@ -797,7 +797,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
         };
     }
     /// Just do nothing if we see a macro, but also prevent the panic! in the default impl.
-    fn visit_mac(&mut self, _mac: &ast::MacCall) {}
+    fn visit_mac_call(&mut self, _mac: &ast::MacCall) {}
 }
 
 // gets generics info from the context match
@@ -965,7 +965,7 @@ impl<'ast> visit::Visitor<'ast> for ExternCrateVisitor {
             }
         }
     }
-    fn visit_mac(&mut self, _mac: &ast::MacCall) {}
+    fn visit_mac_call(&mut self, _mac: &ast::MacCall) {}
 }
 
 #[derive(Debug)]
