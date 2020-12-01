@@ -527,7 +527,16 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                                     .and_then(|ty| path_to_match(ty, self.session))
                             }
                             MatchType::Method(ref gen) => {
-                                typeinf::get_return_type_of_function(&m, &m, self.session).and_then(
+                                let mut return_ty = typeinf::get_return_type_of_function(&m, &m, self.session);
+                                // Account for already resolved generics if the return type is Self
+                                // (in which case we return bare type as found in the `impl` header)
+                                if let (Some(Ty::Match(ref mut m)), Some(gen)) = (&mut return_ty, gen) {
+                                    let resolved = gen.args().filter_map(|tp| tp.resolved());
+                                    for (l, r) in m.generics_mut().zip(resolved) {
+                                        l.resolve(r.clone());
+                                    }
+                                }
+                                return_ty.and_then(
                                     |ty| {
                                         path_to_match_including_generics(
                                             ty,
