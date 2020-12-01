@@ -531,9 +531,10 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                                 // Account for already resolved generics if the return type is Self
                                 // (in which case we return bare type as found in the `impl` header)
                                 if let (Some(Ty::Match(ref mut m)), Some(gen)) = (&mut return_ty, gen) {
-                                    let resolved = gen.args().filter_map(|tp| tp.resolved());
-                                    for (l, r) in m.generics_mut().zip(resolved) {
-                                        l.resolve(r.clone());
+                                    for (type_param, arg) in m.generics_mut().zip(gen.args()) {
+                                        if let Some(resolved) = arg.resolved() {
+                                            type_param.resolve(resolved.clone());
+                                        }
                                     }
                                 }
                                 return_ty.and_then(
