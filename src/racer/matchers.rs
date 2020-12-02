@@ -425,8 +425,27 @@ fn match_mod_inner(
 }
 
 fn find_generics_end(blob: &str) -> Option<BytePos> {
+    // Naive version that attempts to skip over attributes
+    let mut in_attr = false;
+    let mut attr_level = 0;
+
     let mut level = 0;
     for (i, b) in blob.as_bytes().into_iter().enumerate() {
+        // Naively skip attributes `#[...]`
+        if in_attr {
+            match b {
+                b'[' => attr_level += 1,
+                b']' => {
+                    attr_level -=1;
+                    if attr_level == 0 {
+                        in_attr = false;
+                        continue;
+                    }
+                },
+                _ => continue,
+            }
+        }
+        // ...otherwise just try to find the last `>`
         match b {
             b'{' | b'(' | b';' => return None,
             b'<' => level += 1,
@@ -436,6 +455,7 @@ fn find_generics_end(blob: &str) -> Option<BytePos> {
                     return Some(i.into());
                 }
             }
+            b'#' if blob.bytes().nth(i + 1) == Some(b'[') => in_attr = true,
             _ => {}
         }
     }
@@ -870,4 +890,25 @@ pub fn match_impl(decl: String, context: &MatchCxt<'_, '_>, offset: BytePos) -> 
         out.push(type_param.into_match());
     }
     Some(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn find_generics_end() {
+        use super::find_generics_end;
+        assert_eq!(
+            find_generics_end("Vec<T, #[unstable(feature = \"\", issue = \"\"] A: AllocRef = Global>"),
+            Some(BytePos(64))
+        );
+        assert_eq!(
+            find_generics_end("Vec<T, A: AllocRef = Global>"),
+            Some(BytePos(27))
+        );
+        assert_eq!(
+            find_generics_end("Result<Vec<String>, Option<&str>>"),
+            Some(BytePos(32))
+        );
+    }
 }
