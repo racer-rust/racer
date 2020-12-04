@@ -45,5 +45,5 @@ jobs:
       - run: rustup set default-host ${{ matrix.toolchain }}
       - run: rustup component add rust-src
       - run: rustc -vV
-      - run: cargo build --verbose
-      - run: cargo test
+      - run: cargo build --verbose --all
+      - run: cargo test --all
