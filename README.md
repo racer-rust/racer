@@ -46,7 +46,7 @@ As mentioned in the command output, don't forget to add the installation directo
 
 1. Fetch the Rust sourcecode
 
-    1. automatically via [rustup](https://www.rustup.rs/) and run `rustup component add rust-src` in order to install the source to `$(rustc --print sysroot)/lib/rustlib/src/rust/library` (or `$(rustc --print sysroot)/lib/rustlib/src/rust/library` in older toolchains). Rustup will keep the sources in sync with the toolchain if you run `rustup update`.
+    1. automatically via [rustup](https://www.rustup.rs/) and run `rustup component add rust-src` in order to install the source to `$(rustc --print sysroot)/lib/rustlib/src/rust/library` (or `$(rustc --print sysroot)/lib/rustlib/src/rust/src` in older toolchains). Rustup will keep the sources in sync with the toolchain if you run `rustup update`.
 
     2. manually from git: https://github.com/rust-lang/rust
 
@@ -61,7 +61,7 @@ As mentioned in the command output, don't forget to add the installation directo
     `rustup component add rust-src`
 
 2. (Optional) Set `RUST_SRC_PATH` environment variable to point to the 'src' dir in the Rust source installation
-   e.g. `% export RUST_SRC_PATH=/usr/local/src/rust/library` or `% export RUST_SRC_PATH="$(rustc --print sysroot)/lib/rustlib/src/rust/library"`
+   e.g. `% export RUST_SRC_PATH=$(rustc --print sysroot)/lib/rustlib/src/rust/library` or `% export RUST_SRC_PATH="$(rustc --print sysroot)/lib/rustlib/src/rust/src"` (older)
 
    It's recommended to set `RUST_SRC_PATH` for speed up, but racer detects it automatically if you don't set it.
 
