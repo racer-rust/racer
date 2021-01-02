@@ -41,7 +41,7 @@ pub fn search_crate_names(
             .project_model
             .edition(&manifest_path)
             .unwrap_or(Edition::Ed2015);
-        if edition == Edition::Ed2015 {
+        if edition < Edition::Ed2018 {
             return Vec::new();
         }
     }
