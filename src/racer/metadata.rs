@@ -66,6 +66,7 @@ impl ProjectModelProvider for MetadataCache {
         Some(match edition {
             Ed::Ed2015 => Edition::Ed2015,
             Ed::Ed2018 => Edition::Ed2018,
+            Ed::Ed2021 => Edition::Ed2021,
         })
     }
     fn discover_project_manifest(&self, path: &Path) -> Option<PathBuf> {

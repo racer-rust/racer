@@ -1,9 +1,10 @@
 use std::path::{Path, PathBuf};
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum Edition {
     Ed2015,
     Ed2018,
+    Ed2021,
 }
 
 pub trait ProjectModelProvider {

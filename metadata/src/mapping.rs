@@ -11,10 +11,11 @@ pub struct PackageMap {
     packages: Vec<PackageInner>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum Edition {
     Ed2015,
     Ed2018,
+    Ed2021,
 }
 
 impl Edition {
@@ -22,6 +23,7 @@ impl Edition {
         match s {
             "2015" => Edition::Ed2015,
             "2018" => Edition::Ed2018,
+            "2021" => Edition::Ed2021,
             _ => unreachable!("got unexpected edition {}", s),
         }
     }
