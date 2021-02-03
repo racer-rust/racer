@@ -15,7 +15,7 @@ use rustc_data_structures::sync::Lrc;
 use rustc_errors::emitter::Emitter;
 use rustc_errors::{Diagnostic, Handler};
 use rustc_parse::new_parser_from_source_str;
-use rustc_parse::parser::Parser;
+use rustc_parse::parser::{ForceCollect, Parser};
 use rustc_session::parse::ParseSess;
 use rustc_span::edition::Edition;
 use rustc_span::source_map::{self, FileName, SourceMap};
@@ -65,7 +65,7 @@ where
     F: FnOnce(&ast::Stmt),
 {
     with_error_checking_parse(source_str, |p| {
-        let stmt = match p.parse_stmt() {
+        let stmt = match p.parse_stmt(ForceCollect::No) {
             Ok(Some(stmt)) => stmt,
             _ => return None,
         };
