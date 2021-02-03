@@ -473,7 +473,7 @@ dependencies = [
 
 [[package]]
 name = "racer"
-version = "2.1.42"
+version = "2.1.43"
 dependencies = [
  "bitflags",
  "clap",
@@ -497,7 +497,7 @@ dependencies = [
 
 [[package]]
 name = "racer-cargo-metadata"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "racer-interner",
  "serde",

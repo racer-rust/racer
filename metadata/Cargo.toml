@@ -1,6 +1,6 @@
 [package]
 name = "racer-cargo-metadata"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Yuji Kanagawa <yuji.kngw.80s.revive@gmail.com>"]
 license = "MIT"
 description = "light-weight cargo metadata parser for racer"
