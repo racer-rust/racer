@@ -1,4 +1,4 @@
-# *Racer* - code completion for [Rust](http://www.rust-lang.org/)
+# *Racer* - code completion for [Rust](https://www.rust-lang.org/)
 
 [![Build Status](https://github.com/racer-rust/racer/workflows/CI/badge.svg?branch=master)](https://github.com/racer-rust/racer/actions?query=workflow%3ACI+branch%3Amaster)
 
@@ -83,7 +83,7 @@ Racer is used as a static library in [RLS](https://github.com/rust-lang-nursery/
 
 ### Eclipse integration
 
-Racer can be used with Eclipse through the use of [RustDT](https://github.com/RustDT/RustDT). (User guide is [linked](http://rustdt.github.io/) in repo description)
+Racer can be used with Eclipse through the use of [RustDT](https://github.com/RustDT/RustDT). (User guide is [linked](https://rustdt.github.io/) in repo description)
 
 ### Emacs integration
 
@@ -109,7 +109,7 @@ The Kate community maintains a [plugin](https://cgit.kde.org/kate.git/tree/addon
 
 The Sublime Text community maintains some packages that integrates Racer
 * [RustAutoComplete](https://github.com/defuz/RustAutoComplete) that offers auto completion and goto definition.
-* [AnacondaRUST](https://github.com/DamnWidget/anaconda_rust) from the [anaconda](http://github.com/DamnWidget/anaconda) plugins family that offers auto completion, goto definition and show documentation
+* [AnacondaRUST](https://github.com/DamnWidget/anaconda_rust) from the [anaconda](https://github.com/DamnWidget/anaconda) plugins family that offers auto completion, goto definition and show documentation
 
 ### Vim integration
 
