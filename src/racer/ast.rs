@@ -896,10 +896,12 @@ pub struct TypeVisitor<'s> {
 
 impl<'ast, 's> visit::Visitor<'ast> for TypeVisitor<'s> {
     fn visit_item(&mut self, item: &ast::Item) {
-        if let ItemKind::TyAlias(_, _, _, Some(ref ty)) = item.kind {
-            self.name = Some(item.ident.name.to_string());
-            self.type_ = Ty::from_ast(&ty, self.scope);
-            debug!("typevisitor type is {:?}", self.type_);
+        if let ItemKind::TyAlias(ref ty_kind) = item.kind {
+            if let Some(ref ty) = ty_kind.3 {
+                self.name = Some(item.ident.name.to_string());
+                self.type_ = Ty::from_ast(&ty, self.scope);
+                debug!("typevisitor type is {:?}", self.type_);
+            }
         }
     }
 }
@@ -939,13 +941,13 @@ impl<'p> ImplVisitor<'p> {
 
 impl<'ast, 'p> visit::Visitor<'ast> for ImplVisitor<'p> {
     fn visit_item(&mut self, item: &ast::Item) {
-        if let ItemKind::Impl {
-            ref generics,
-            ref of_trait,
-            ref self_ty,
-            ..
-        } = item.kind
-        {
+        if let ItemKind::Impl(ref impl_kind) = item.kind {
+            let ast::ImplKind {
+                ref generics,
+                ref of_trait,
+                ref self_ty,
+                ..
+            } = **impl_kind;
             let impl_start = self.offset + get_span_start(item.span).into();
             self.result = ImplHeader::new(
                 generics,
@@ -1278,9 +1280,9 @@ where
     P: AsRef<Path>,
 {
     fn visit_item(&mut self, item: &ast::Item) {
-        if let ItemKind::Trait(_, _, _, ref bounds, _) = item.kind {
+        if let ItemKind::Trait(ref trait_kind) = item.kind {
             self.result = Some(TraitBounds::from_generic_bounds(
-                bounds,
+                &trait_kind.3,
                 &self.file_path,
                 self.offset,
             ));
