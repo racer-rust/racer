@@ -2,7 +2,7 @@ Change Log
 ==========
 
 All notable changes to this project will be documented in this file. This
-project adheres to [Semantic Versioning](http://semver.org/).
+project adheres to [Semantic Versioning](https://semver.org/).
 
 # 2.1.37
 - Bump rustc-ap-* version to 677.0
