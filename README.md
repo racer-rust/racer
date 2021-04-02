@@ -9,6 +9,11 @@
 
 *RACER* = *R*ust *A*uto-*C*omplete-*er*. A utility intended to provide Rust code completion for editors and IDEs. Maybe one day the 'er' bit will be exploring + refactoring or something.
 
+## **DISCLAIMER**
+Racer is **not** actively developped now.
+Please consider using newer software such as
+[rust-analyzer](https://rust-analyzer.github.io/).
+
 ## Installation
 
 **NOTE**
