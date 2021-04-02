@@ -352,7 +352,7 @@ pub struct FieldPat {
 }
 
 impl FieldPat {
-    pub fn from_ast(fpat: &ast::FieldPat, scope: &Scope) -> Self {
+    pub fn from_ast(fpat: &ast::PatField, scope: &Scope) -> Self {
         FieldPat {
             field_name: fpat.ident.to_string(),
             pat: Box::new(Pat::from_ast(&fpat.pat.kind, scope)),
