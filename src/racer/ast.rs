@@ -601,7 +601,8 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                     }
                 });
             }
-            ExprKind::Struct(ref path, _, _) => {
+            ExprKind::Struct(ref struct_expr) => {
+                let ast::StructExpr { ref path, .. } = **struct_expr;
                 let pathvec = RacerPath::from_ast(path, &self.scope);
                 self.result = find_type_match(
                     &pathvec,
