@@ -509,7 +509,7 @@ dependencies = [
 
 [[package]]
 name = "racer"
-version = "2.1.45"
+version = "2.1.46"
 dependencies = [
  "bitflags",
  "clap",
