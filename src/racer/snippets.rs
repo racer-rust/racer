@@ -3,6 +3,7 @@ use crate::core::{Match, Session};
 use crate::typeinf::get_function_declaration;
 
 use rustc_ast::ast::AssocItemKind;
+use rustc_parse::parser::ForceCollect;
 
 /// Returns completion snippets usable by some editors
 ///
@@ -56,7 +57,7 @@ impl MethodInfo {
 
         trace!("MethodInfo::from_source_str: {:?}", decorated);
         with_error_checking_parse(decorated, |p| {
-            if let Ok(Some(Some(method))) = p.parse_impl_item() {
+            if let Ok(Some(Some(method))) = p.parse_impl_item(ForceCollect::No) {
                 if let AssocItemKind::Fn(ref fn_kind) = method.kind {
                     let decl = &fn_kind.1.decl;
                     return Some(MethodInfo {
