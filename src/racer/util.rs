@@ -831,9 +831,9 @@ pub fn calculate_str_hash(s: &str) -> u64 {
 #[macro_export]
 macro_rules! try_continue {
     ($res: expr) => {
-        match ::std::ops::Try::into_result($res) {
-            Ok(o) => o,
-            Err(_) => continue,
+        match ::std::ops::Try::branch($res) {
+            ::std::ops::ControlFlow::Continue(o) => o,
+            ::std::ops::ControlFlow::Break(_) => continue,
         }
     };
 }
@@ -841,9 +841,9 @@ macro_rules! try_continue {
 #[macro_export]
 macro_rules! try_vec {
     ($res: expr) => {
-        match ::std::ops::Try::into_result($res) {
-            Ok(o) => o,
-            Err(_) => return Vec::new(),
+        match ::std::ops::Try::branch($res) {
+            ::std::ops::ControlFlow::Continue(o) => o,
+            ::std::ops::ControlFlow::Break(_) => return Vec::new(),
         }
     };
 }
