@@ -1,5 +1,6 @@
 #![cfg_attr(feature = "nightly", feature(test))]
-#![feature(try_trait)]
+#![feature(control_flow_enum)]
+#![feature(try_trait_v2)]
 
 #[macro_use]
 extern crate log;
