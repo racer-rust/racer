@@ -25,8 +25,12 @@ From 2.1, racer needs **nightly rust**
 
 If you're using rustup, run
 ```
-rustup toolchain add nightly
+rustup toolchain install nightly
+rustup component add rustc-dev --toolchain=nightly
 ```
+
+_Note: The second command adds the `rustc-dev` component to the nightly
+toolchain, which is necessary to compile Racer._
 
 #### Cargo
 Internally, racer calls cargo as a CLI tool, so please make sure cargo is installed

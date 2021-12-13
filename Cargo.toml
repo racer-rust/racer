@@ -37,34 +37,6 @@ version = "0.1"
 optional = true
 path = "metadata"
 
-[dependencies.rustc_ast_pretty]
-package = "rustc-ap-rustc_ast_pretty"
-version = "722.0.0"
-
-[dependencies.rustc_data_structures]
-package = "rustc-ap-rustc_data_structures"
-version = "722.0.0"
-
-[dependencies.rustc_errors]
-package = "rustc-ap-rustc_errors"
-version = "722.0.0"
-
-[dependencies.rustc_parse]
-package = "rustc-ap-rustc_parse"
-version = "722.0.0"
-
-[dependencies.rustc_session]
-package = "rustc-ap-rustc_session"
-version = "722.0.0"
-
-[dependencies.rustc_span]
-package = "rustc-ap-rustc_span"
-version = "722.0.0"
-
-[dependencies.rustc_ast]
-package = "rustc-ap-rustc_ast"
-version = "722.0.0"
-
 [dev-dependencies.racer-testutils]
 version = "0.1"
 path = "testutils"
@@ -77,3 +49,7 @@ nightly = []
 
 [workspace]
 members = ["interner", "metadata", "testutils"]
+
+[package.metadata.rust-analyzer]
+# This package uses #[feature(rustc_private)]
+rustc_private = true

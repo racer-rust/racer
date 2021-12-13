@@ -46,7 +46,7 @@ where
     F: FnOnce(&mut Parser<'_>) -> Option<T>,
 {
     // FIXME: Set correct edition based on the edition of the target crate.
-    rustc_span::with_session_globals(Edition::Edition2018, || {
+    rustc_span::create_session_if_not_set_then(Edition::Edition2018, |_| {
         let codemap = Rc::new(SourceMap::new(source_map::FilePathMapping::empty()));
         // We use DummyEmitter here not to print error messages to stderr
         let handler = Handler::with_emitter(false, None, Box::new(DummyEmitter {}));
@@ -291,7 +291,7 @@ fn destructure_pattern_to_ty(
             }
             _ => panic!("Expecting TyTuple"),
         },
-        PatKind::TupleStruct(ref path, ref children) => {
+        PatKind::TupleStruct(_, ref path, ref children) => {
             let m = resolve_ast_path(path, &scope.filepath, scope.point, session)?;
             let contextty = path_to_match(ty.clone(), session);
             for (i, p) in children.iter().enumerate() {
@@ -314,7 +314,7 @@ fn destructure_pattern_to_ty(
             }
             None
         }
-        PatKind::Struct(ref path, ref children, _) => {
+        PatKind::Struct(_, ref path, ref children, _) => {
             let m = resolve_ast_path(path, &scope.filepath, scope.point, session)?;
             let contextty = path_to_match(ty.clone(), session);
             for child in children {
@@ -356,7 +356,7 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for LetTypeVisitor<'c, 's> {
     fn visit_local(&mut self, local: &ast::Local) {
         let ty = match &local.ty {
             Some(annon) => Ty::from_ast(&*annon, &self.scope),
-            None => local.init.as_ref().and_then(|initexpr| {
+            None => local.kind.init().as_ref().and_then(|initexpr| {
                 debug!("[LetTypeVisitor] initexpr is {:?}", initexpr.kind);
                 let mut v = ExprTypeVisitor::new(self.scope.clone(), self.session);
                 v.visit_expr(initexpr);
@@ -898,7 +898,7 @@ pub struct TypeVisitor<'s> {
 impl<'ast, 's> visit::Visitor<'ast> for TypeVisitor<'s> {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::TyAlias(ref ty_kind) = item.kind {
-            if let Some(ref ty) = ty_kind.3 {
+            if let Some(ref ty) = ty_kind.ty {
                 self.name = Some(item.ident.name.to_string());
                 self.type_ = Ty::from_ast(&ty, self.scope);
                 debug!("typevisitor type is {:?}", self.type_);
@@ -943,7 +943,7 @@ impl<'p> ImplVisitor<'p> {
 impl<'ast, 'p> visit::Visitor<'ast> for ImplVisitor<'p> {
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::Impl(ref impl_kind) = item.kind {
-            let ast::ImplKind {
+            let ast::Impl {
                 ref generics,
                 ref of_trait,
                 ref self_ty,
@@ -1283,7 +1283,7 @@ where
     fn visit_item(&mut self, item: &ast::Item) {
         if let ItemKind::Trait(ref trait_kind) = item.kind {
             self.result = Some(TraitBounds::from_generic_bounds(
-                &trait_kind.3,
+                &trait_kind.bounds,
                 &self.file_path,
                 self.offset,
             ));
@@ -1338,7 +1338,7 @@ impl<'ast, 'r, 's> visit::Visitor<'ast> for IfLetVisitor<'r, 's> {
     fn visit_expr(&mut self, ex: &'ast ast::Expr) {
         match &ex.kind {
             ExprKind::If(let_stmt, ..) | ExprKind::While(let_stmt, ..) => {
-                if let ExprKind::Let(pat, expr) = &let_stmt.kind {
+                if let ExprKind::Let(pat, expr, _span) = &let_stmt.kind {
                     self.let_pat = Some(Pat::from_ast(&pat.kind, &self.scope));
                     let mut expr_visitor = ExprTypeVisitor::new(self.scope.clone(), self.session);
                     expr_visitor.visit_expr(expr);

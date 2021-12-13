@@ -59,7 +59,7 @@ impl MethodInfo {
         with_error_checking_parse(decorated, |p| {
             if let Ok(Some(Some(method))) = p.parse_impl_item(ForceCollect::No) {
                 if let AssocItemKind::Fn(ref fn_kind) = method.kind {
-                    let decl = &fn_kind.1.decl;
+                    let decl = &fn_kind.sig.decl;
                     return Some(MethodInfo {
                         // ident.as_str calls Ident.name.as_str
                         name: method.ident.name.to_string(),

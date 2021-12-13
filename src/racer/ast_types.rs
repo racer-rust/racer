@@ -307,7 +307,7 @@ impl Pat {
         match pat {
             PatKind::Wild => Pat::Wild,
             PatKind::Ident(bi, ident, _) => Pat::Ident(*bi, ident.to_string()),
-            PatKind::Struct(path, fields, _) => {
+            PatKind::Struct(_, path, fields, _) => {
                 let path = Path::from_ast(path, scope);
                 let fields = fields
                     .iter()
@@ -315,7 +315,7 @@ impl Pat {
                     .collect();
                 Pat::Struct(path, fields)
             }
-            PatKind::TupleStruct(path, pats) => {
+            PatKind::TupleStruct(_, path, pats) => {
                 let path = Path::from_ast(path, scope);
                 let pats = pats
                     .iter()
