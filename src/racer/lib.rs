@@ -1,6 +1,7 @@
 #![cfg_attr(feature = "nightly", feature(test))]
 #![feature(control_flow_enum)]
 #![feature(try_trait_v2)]
+#![feature(rustc_private)]
 
 #[macro_use]
 extern crate log;
@@ -11,6 +12,14 @@ extern crate bitflags;
 
 #[macro_use]
 extern crate derive_more;
+
+extern crate rustc_ast;
+extern crate rustc_ast_pretty;
+extern crate rustc_data_structures;
+extern crate rustc_errors;
+extern crate rustc_parse;
+extern crate rustc_session;
+extern crate rustc_span;
 
 #[macro_use]
 mod testutils;
