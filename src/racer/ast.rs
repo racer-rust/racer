@@ -7,7 +7,6 @@ use crate::nameres;
 use crate::typeinf;
 
 use std::path::Path;
-use std::rc::Rc;
 
 use rustc_ast::ast::{self, ExprKind, FnRetTy, ItemKind, PatKind, UseTree, UseTreeKind};
 use rustc_ast::{self, visit};
@@ -47,7 +46,7 @@ where
 {
     // FIXME: Set correct edition based on the edition of the target crate.
     rustc_span::create_session_if_not_set_then(Edition::Edition2018, |_| {
-        let codemap = Rc::new(SourceMap::new(source_map::FilePathMapping::empty()));
+        let codemap = Lrc::new(SourceMap::new(source_map::FilePathMapping::empty()));
         // We use DummyEmitter here not to print error messages to stderr
         let handler = Handler::with_emitter(false, None, Box::new(DummyEmitter {}));
         let parse_sess = ParseSess::with_span_handler(handler, codemap);
@@ -527,25 +526,26 @@ impl<'c, 's, 'ast> visit::Visitor<'ast> for ExprTypeVisitor<'c, 's> {
                                     .and_then(|ty| path_to_match(ty, self.session))
                             }
                             MatchType::Method(ref gen) => {
-                                let mut return_ty = typeinf::get_return_type_of_function(&m, &m, self.session);
+                                let mut return_ty =
+                                    typeinf::get_return_type_of_function(&m, &m, self.session);
                                 // Account for already resolved generics if the return type is Self
                                 // (in which case we return bare type as found in the `impl` header)
-                                if let (Some(Ty::Match(ref mut m)), Some(gen)) = (&mut return_ty, gen) {
+                                if let (Some(Ty::Match(ref mut m)), Some(gen)) =
+                                    (&mut return_ty, gen)
+                                {
                                     for (type_param, arg) in m.generics_mut().zip(gen.args()) {
                                         if let Some(resolved) = arg.resolved() {
                                             type_param.resolve(resolved.clone());
                                         }
                                     }
                                 }
-                                return_ty.and_then(
-                                    |ty| {
-                                        path_to_match_including_generics(
-                                            ty,
-                                            gen.as_ref().map(AsRef::as_ref),
-                                            self.session,
-                                        )
-                                    },
-                                )
+                                return_ty.and_then(|ty| {
+                                    path_to_match_including_generics(
+                                        ty,
+                                        gen.as_ref().map(AsRef::as_ref),
+                                        self.session,
+                                    )
+                                })
                             }
                             // if we find tuple struct / enum variant, try to resolve its generics name
                             MatchType::Struct(ref mut gen)
