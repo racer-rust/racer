@@ -30,6 +30,12 @@ impl Emitter for DummyEmitter {
     fn should_show_explain(&self) -> bool {
         false
     }
+    fn fluent_bundle(&self) -> Option<&Lrc<rustc_errors::FluentBundle>> {
+        None
+    }
+    fn fallback_fluent_bundle(&self) -> &Lrc<rustc_errors::FluentBundle> {
+        unimplemented!("diagnostic translations are unimplemented in racer");
+    }
 }
 
 /// construct parser from string
