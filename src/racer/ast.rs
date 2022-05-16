@@ -33,7 +33,7 @@ impl Emitter for DummyEmitter {
     fn fluent_bundle(&self) -> Option<&Lrc<rustc_errors::FluentBundle>> {
         None
     }
-    fn fallback_fluent_bundle(&self) -> &Lrc<rustc_errors::FluentBundle> {
+    fn fallback_fluent_bundle(&self) -> &rustc_errors::FluentBundle {
         unimplemented!("diagnostic translations are unimplemented in racer");
     }
 }
@@ -229,7 +229,7 @@ pub struct FnArgVisitor {
 impl<'ast> visit::Visitor<'ast> for FnArgVisitor {
     fn visit_fn(&mut self, fk: visit::FnKind<'_>, _: source_map::Span, _: ast::NodeId) {
         let fd = match fk {
-            visit::FnKind::Fn(_, _, ref fn_sig, _, _) => &*fn_sig.decl,
+            visit::FnKind::Fn(_, _, ref fn_sig, _, _, _) => &*fn_sig.decl,
             visit::FnKind::Closure(ref fn_decl, _) => fn_decl,
         };
         debug!("[FnArgVisitor::visit_fn] inputs: {:?}", fd.inputs);
@@ -1258,7 +1258,7 @@ impl FnOutputVisitor {
 impl<'ast> visit::Visitor<'ast> for FnOutputVisitor {
     fn visit_fn(&mut self, kind: visit::FnKind<'_>, _: source_map::Span, _: ast::NodeId) {
         let fd = match kind {
-            visit::FnKind::Fn(_, _, ref fn_sig, _, _) => &*fn_sig.decl,
+            visit::FnKind::Fn(_, _, ref fn_sig, _, _, _) => &*fn_sig.decl,
             visit::FnKind::Closure(ref fn_decl, _) => fn_decl,
         };
         self.is_async = kind
