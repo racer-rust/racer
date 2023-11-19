@@ -2,6 +2,10 @@
 
 [![Build Status](https://github.com/racer-rust/racer/workflows/CI/badge.svg?branch=master)](https://github.com/racer-rust/racer/actions?query=workflow%3ACI+branch%3Amaster)
 
+## **DISCLAIMER**
+Racer is **not** actively developped now.
+Please consider using newer software such as
+[rust-analyzer](https://rust-analyzer.github.io/).
 
 ![racer completion screenshot](images/racer_completion.png)
 
@@ -9,10 +13,7 @@
 
 *RACER* = *R*ust *A*uto-*C*omplete-*er*. A utility intended to provide Rust code completion for editors and IDEs. Maybe one day the 'er' bit will be exploring + refactoring or something.
 
-## **DISCLAIMER**
-Racer is **not** actively developped now.
-Please consider using newer software such as
-[rust-analyzer](https://rust-analyzer.github.io/).
+
 
 ## Installation
 
